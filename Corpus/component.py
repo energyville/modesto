@@ -14,9 +14,15 @@ class Component:
         :param time_step: Time between two points
         """
 
+        self.logger = logging.getLogger('comps.Comp')
+        self.logger.debug('Initializing Comp {}'.format(name))
+
         self.name = name
         self.horizon = horizon
         self.time_step = time_step
+
+        self.parent = None
+        self.block = None
 
     def __make_block(self, parent):
         """
@@ -26,7 +32,16 @@ class Component:
         :param parent: The model to which it should be added
         :return:
         """
-        pass
+
+        self.parent = parent
+        # If block is already present, remove it
+        if self.parent.component(self.name) is not None:
+            self.parent.del_component(self.name)
+        self.parent.add_component(self.name, Block())
+        self.block = self.parent.__getattribute__(self.name)
+
+        self.logger.info(
+            'Optimization block for Comp {} initialized'.format(self.name))
 
     def change_user_data(self, kind, new_data):
         """
@@ -60,6 +75,16 @@ class Component:
         """
         pass
 
+    def change_design_param(self, param, val):
+        """
+        Change the design parameter of a component
+
+        :param param: Name of the parameter (str)
+        :param val: New value of the parameter
+        :return:
+        """
+        pass
+
 
 class FixedProfile(Component):
 
@@ -83,13 +108,15 @@ class FixedProfile(Component):
         """
         pass
 
-    def build_opt(self):
+    def build_opt(self, parent):
         """
-        Build the structure of ta producer model
+        Build the structure of fixed profile
 
+        :param parent: The main optimization model
         :return:
         """
-        pass
+
+        self.__make_block(parent)
 
     def fill_opt(self, heat_profile):
         """
@@ -125,6 +152,24 @@ class VariableProfile(Component):
         """
         Component.__init__(self, name, horizon, time_step)
 
+    def build_opt(self, parent):
+        """
+        Build the structure of a component model
+
+        :param parent: The main optimization model
+        :return:
+        """
+
+        self.__make_block(parent)
+
+    def fill_opt(self):
+        """
+        Fill up the model with the parameters
+
+        :return:
+        """
+        pass
+
 
 class BuildingFixed(FixedProfile):
 
@@ -156,19 +201,10 @@ class BuildingVariable(VariableProfile):
         """
         VariableProfile.__init__(self, name, horizon, time_step)
 
-    def build_opt(self):
-        """
-        Build the structure of a building model (SSM)
-
-        :return:
-        """
-        pass
-
-    def fill_opt(self, heat_profile):
+    def fill_opt(self):
         """
         Add the parameters to the model
 
-        :param heat_profile:
         :return:
         """
 
@@ -200,7 +236,7 @@ class ProducerVariable(VariableProfile):
         """
         VariableProfile.__init__(self, name, horizon, time_step)
 
-    def build_opt(self):
+    def build_opt(self, parent):
         """
         Build the structure of ta producer model
 
@@ -208,11 +244,10 @@ class ProducerVariable(VariableProfile):
         """
         pass
 
-    def fill_opt(self, heat_profile):
+    def fill_opt(self):
         """
         Add the parameters to the model
 
-        :param heat_profile:
         :return:
         """
 
@@ -244,7 +279,7 @@ class StorageVariable(VariableProfile):
         """
         VariableProfile.__init__(self, name, horizon, time_step)
 
-    def build_opt(self):
+    def build_opt(self, parent):
         """
         Build the structure of the fixed heat demand profile for a building
 
@@ -252,11 +287,10 @@ class StorageVariable(VariableProfile):
         """
         pass
 
-    def fill_opt(self, heat_profile):
+    def fill_opt(self):
         """
         Add the parameters to the model
 
-        :param heat_profile:
         :return:
         """
         pass
