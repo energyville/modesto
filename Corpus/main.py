@@ -3,30 +3,36 @@ from pipe import *
 
 from pyomo.environ import *
 import pandas as pd
+import logging
 
 
 class Modesto:
-    def __init__(self, graph):
+    def __init__(self):
         """
         This class allows setting up optimization problems for district energy systems
 
-        :param graph: Object containing structure of the network,
-        structure and parameters describing component models and
-        design parameters
         """
 
         self.model = AbstractModel()
+
         # self.user_data = pd.DataFrame({'A' : []}) # TODO Better way to initialize empty df?
         # self.weather_data = pd.DataFrame({'A' : []})
 
-    def build_opt(self):
+        self.logger = logging.getLogger('main.Modesto')
+
+    def build_opt(self, graph):
         """
         Build the structure of the optimization problem
         Sets up the equations without parameters
 
+        :param graph: Object containing structure of the network,
+        structure and parameters describing component models and
+        design parameters
         :return:
         """
-        pass
+
+        self.__build_nodes()
+        self.__build_branches()
 
     def fill_opt(self):
         """
@@ -111,4 +117,20 @@ class Modesto:
         """
         pass
 
+    def __build_nodes(self):
+        """
+        Build the nodes of the network, adding components
+        and their models
 
+        :return:
+        """
+        pass
+
+    def __build_branches(self):
+        """
+        Build the branches (i.e. pips/connections between nodes)
+        adding their models
+
+        :return:
+        """
+        pass
