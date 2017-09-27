@@ -24,6 +24,10 @@ class Component:
         self.parent = None
         self.block = None
 
+        self.user_data = {}
+        self.initial_data = {}
+        self.design_param = {}
+
     def __make_block(self, parent):
         """
         Make a separate block in the parent model.
@@ -51,9 +55,13 @@ class Component:
         :param new_data: The new user data (dataframe) for the entire horizon
         :return:
         """
-        # assert kind in allowed_types
-        # assert len(new_data.index) = horizon
-        pass
+        assert kind in self.user_data.keys(), \
+            "%s is not recognized as a valid kind of user data" % kind
+        assert len(new_data.index) == self.horizon, \
+            "The length of the given user data is %s, but should be %s" \
+            % (len(new_data.index), self.horizon)
+
+        self.user_data[kind] = new_data
 
     def change_weather_data(self, new_data):
         """
@@ -73,7 +81,10 @@ class Component:
         :param val: New initial value of the state
         :return:
         """
-        pass
+        assert state in self.initial_data.keys(), \
+            "%s is not recognized as a valid state" % state
+
+        self.initial_data[state] = val
 
     def change_design_param(self, param, val):
         """
@@ -83,7 +94,12 @@ class Component:
         :param val: New value of the parameter
         :return:
         """
-        pass
+
+        assert param in self.design_param.keys(), \
+            "%s is not recognized as a valid design parameter" % param
+
+        self.design_param[param] = val
+
 
 
 class FixedProfile(Component):
