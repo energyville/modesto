@@ -14,8 +14,8 @@ class Component:
         :param time_step: Time between two points
         """
 
-        self.logger = logging.getLogger('comps.Comp')
-        self.logger.debug('Initializing Comp {}'.format(name))
+        self.logger = logging.getLogger('Corpus.component.Component')
+        self.logger.debug('Initializing Component {}'.format(name))
 
         self.name = name
         self.horizon = horizon
@@ -45,7 +45,7 @@ class Component:
         self.block = self.parent.__getattribute__(self.name)
 
         self.logger.info(
-            'Optimization block for Comp {} initialized'.format(self.name))
+            'Optimization block for Component {} initialized'.format(self.name))
 
     def change_user_data(self, kind, new_data):
         """

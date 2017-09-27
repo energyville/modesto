@@ -15,10 +15,10 @@ class Modesto:
 
         self.model = AbstractModel()
 
-        # self.user_data = pd.DataFrame({'A' : []}) # TODO Better way to initialize empty df?
-        # self.weather_data = pd.DataFrame({'A' : []})
+        # self.user_data = pd.DataFrame() # TODO Better way to initialize empty df?
+        # self.weather_data = pd.DataFrame()
 
-        self.logger = logging.getLogger('main.Modesto')
+        self.logger = logging.getLogger('Corpus.main.Modesto')
 
     def build_opt(self, graph):
         """
