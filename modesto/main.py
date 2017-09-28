@@ -1,24 +1,34 @@
+from __future__ import division
+
 from component import *
 from pipe import *
 
 from pyomo.environ import *
 import pandas as pd
 import logging
+import collections
 
 
 class Modesto:
-    def __init__(self):
+    def __init__(self, horizon, time_step):
         """
         This class allows setting up optimization problems for district energy systems
 
         """
 
-        self.model = AbstractModel()
+        self.model = ConcreteModel()
 
-        # self.user_data = pd.DataFrame() # TODO Better way to initialize empty df?
+        self.horizon = horizon
+        self.time_step = time_step
+        assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
+        self.n_steps = int(horizon/time_step)
+
+        # Dict containing per kind of component all names of components belonging to that kind
+        self.component_list = collections.defaultdict(list)
+
         # self.weather_data = pd.DataFrame()
 
-        self.logger = logging.getLogger('Corpus.main.Modesto')
+        self.logger = logging.getLogger('modesto.main.Modesto')
 
     def build_opt(self, graph):
         """
@@ -34,21 +44,28 @@ class Modesto:
         self.__build_nodes()
         self.__build_branches()
 
-    def fill_opt(self):
-        """
-        Fill the optimization problem with all necessary parameters
-
-        :return:
-        """
-        pass
-
     def solve(self):
         """
         Solve a new optimization
 
         :return:
         """
-        pass
+
+        # TODO Only test objective:
+
+        self.model.x = Var(self.model.TIME, domain=NonNegativeReals)
+
+        def obj_expression(model):
+            return summation(model.x)
+
+        self.model.OBJ = Objective(rule=obj_expression)
+
+        self.model.pprint()
+        instance = self.model.create("data.dat")
+        instance.pprint()
+
+        opt = SolverFactory("gurobi")
+        opt.solve(instance, tee=True)
 
     def get_sol(self, name):
         """

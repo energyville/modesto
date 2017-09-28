@@ -1,10 +1,12 @@
+from __future__ import division
+
 import logging
 from pyomo.environ import *
 import pandas as pd
 
 
 class Component:
-    def __init__(self, name, horizon, time_step):
+    def __init__(self, name, horizon, time_step, design_param, states, user_param):
         """
         Base class for components
 
@@ -12,28 +14,48 @@ class Component:
         :param horizon: Horizon of the optimization problem,
         in seconds
         :param time_step: Time between two points
+        :param design_param: Required design parameters to set up the model (list)
+        :param states: Required states that have to be initialized to set up the model (list)
+        :param user_param: Required data about user behaviour to set up the model (list)
         """
 
-        self.logger = logging.getLogger('Corpus.component.Component')
+        self.logger = logging.getLogger('modesto.component.Component')
         self.logger.debug('Initializing Component {}'.format(name))
 
         self.name = name
+
+        assert horizon%time_step == 0, "The horizon of the optimiation problem should be multiple of the time step."
         self.horizon = horizon
         self.time_step = time_step
+        self.n_steps = int(horizon/time_step)
 
-        self.parent = None
-        self.block = None
+        self.model = None  # The entire optimization model
+        self.parent = None  # The node model
+        self.block = None  # The component model
 
         self.user_data = {}
         self.initial_data = {}
         self.design_param = {}
 
-    def __make_block(self, parent):
+        self.needed_design_param = design_param
+        self.needed_states = states
+        self.needed_user_data = user_param
+
+        self.cp = 4180
+
+    def pprint(self, txtfile=None):
+        if self.block is not None:
+            self.block.pprint(ostream=txtfile)
+        else:
+            print 'The optimization model of %s has not been built yet.' % self.name
+
+    def make_block(self, parent):
         """
         Make a separate block in the parent model.
         This block is used to add the component model.
 
-        :param parent: The model to which it should be added
+        :param topmodel: The whole optimization problem (AbstractModel)
+        :param parent: The node model to which it should be added (AbstractModel.block)
         :return:
         """
 
@@ -55,11 +77,12 @@ class Component:
         :param new_data: The new user data (dataframe) for the entire horizon
         :return:
         """
-        assert kind in self.user_data.keys(), \
+
+        assert kind in self.needed_user_data, \
             "%s is not recognized as a valid kind of user data" % kind
-        assert len(new_data.index) == self.horizon, \
+        assert len(new_data.index) == self.n_steps, \
             "The length of the given user data is %s, but should be %s" \
-            % (len(new_data.index), self.horizon)
+            % (len(new_data.index), self.n_steps)
 
         self.user_data[kind] = new_data
 
@@ -81,7 +104,7 @@ class Component:
         :param val: New initial value of the state
         :return:
         """
-        assert state in self.initial_data.keys(), \
+        assert state in self.needed_states, \
             "%s is not recognized as a valid state" % state
 
         self.initial_data[state] = val
@@ -95,16 +118,15 @@ class Component:
         :return:
         """
 
-        assert param in self.design_param.keys(), \
+        assert param in self.needed_design_param, \
             "%s is not recognized as a valid design parameter" % param
 
         self.design_param[param] = val
 
 
-
 class FixedProfile(Component):
 
-    def __init__(self, name, horizon, time_step):
+    def __init__(self, name, horizon, time_step, direction=0):
         """
         Class for a component with a fixed heating profile
 
@@ -112,45 +134,83 @@ class FixedProfile(Component):
         :param horizon: Horizon of the optimization problem,
         in seconds
         :param time_step: Time between two points
+        :param direction: Indicates possible signs of heat flow
+        0: both + and -,
+        1: only + (heat to the network),
+        -1, only - (heat from the network)
         """
-        Component.__init__(self, name, horizon, time_step)
+        design_param = ['delta_T',  # Temperature difference across substation [K]
+                        'mult']  # Number of buildings in the cluster
+        user_param = ['heat_profile']  # Heat use in one (average) building
+        # TODO Link this to the build_opt()
 
-    def change_heat_profile(self, new_profile):
-        """
-        Change the heat profile of the fixed building model
+        Component.__init__(self, name, horizon, time_step, design_param, [], user_param)
 
-        :param new_profile: The new heat profile
-        :return:
-        """
-        pass
+        assert direction in [-1, 0, 1], "The input direction should be either -1, 0 or 1"
+        self.direction = direction
 
-    def build_opt(self, parent):
+    def build_opt(self, topmodel, parent):
         """
         Build the structure of fixed profile
 
-        :param parent: The main optimization model
+        :param topmodel: The main optimization model
+        :param parent: The node model
         :return:
         """
+        mult = self.design_param['mult']
+        delta_T = self.design_param['delta_T']
+        heat_profile = self.user_data['heat_profile']
 
-        self.__make_block(parent)
+        self.model = topmodel
+        self.make_block(parent)
 
-    def fill_opt(self, heat_profile):
+        def _mass_flow(b, t):
+            return mult*heat_profile[t]/self.cp/delta_T
+
+        def _heat_flow(b, t):
+            return mult*heat_profile[t]
+
+        self.block.mass_flow = Var(self.model.TIME, rule=_mass_flow)
+        self.block.heat_flow = Var(self.model.TIME, rule=_heat_flow)
+
+        self.logger.info('Optimization model {} {} compiled'.
+                         format(self.__class__, self.name))
+
+    def fill_opt(self):
         """
         Add the parameters to the model
 
-        :param heat_profile:
         :return:
         """
-        pass
 
-    def change_user_data(self, kind, new_data):
-        print "WARNING: Trying to change the user data of a fixed heat profile"
+        param_list = ""
+
+        assert set(self.needed_design_param) >= set(self.design_param.keys()), \
+            "Design parameters for %s are missing: %s" \
+            % (self.name, str(list(set(self.design_param.keys()) - set(self.needed_design_param))))
+
+        assert set(self.needed_user_data) >= set(self.user_data.keys()), \
+            "User data for %s are missing: %s" \
+            % (self.name, str(list(set(self.user_data.keys()) - set(self.needed_user_data))))
+
+        for d_param in self.needed_design_param:
+            param_list += "param %s := \n%s\n;\n" % (self.name + "_" + d_param, self.design_param[d_param])
+
+        for u_param in self.needed_user_data:
+            param_list += "param %s := \n" % (self.name + "_" + u_param)
+            for i in range(self.n_steps):
+                param_list += str(i+1) + ' ' + str(self.user_data[u_param].loc[i][0]) + "\n"
+            param_list += ';\n'
+
+        return param_list
 
     def change_weather_data(self, new_data):
         print "WARNING: Trying to change the weather data of a fixed heat profile"
 
-    def change_initial_condition(self, state, val):
-        print "WARNING: Trying to change the initial conditions of a fixed heat profile"
+    def change_user_data(self, kind, new_data):
+        if kind == 'heat_profile' and not self.direction == 0:
+            assert all(self.direction*i >= 0 for i in new_data)
+        Component.change_user_data(kind, new_data)
 
 
 class VariableProfile(Component):
@@ -176,7 +236,7 @@ class VariableProfile(Component):
         :return:
         """
 
-        self.__make_block(parent)
+        self.make_block(parent)
 
     def fill_opt(self):
         """
