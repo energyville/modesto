@@ -23,14 +23,20 @@ G.add_node('zwartbergNE', x=2000, y=5500, z=0,
 
 G.add_edge('ThorPark', 'p1', name='bbThor')
 G.add_edge('p1', 'waterscheiGarden', name='spWaterschei')
-G.add_edge('p1', 'zwartbergNE', name='spzartbergNE')
+G.add_edge('p1', 'zwartbergNE', name='spZwartbergNE')
 
 # nx.draw(G, with_labels=True, font_weight='bold')
 # plt.show()
 
 
-modesto = Modesto(5*3600, 3600, None, None, G)
+modesto = Modesto(5*3600, 3600, None, 'SimplePipe', G)
 
 modesto.change_design_param('zwartbergNE.buildingD', 'delta_T', 20)
+modesto.change_design_param('waterscheiGarden.buildingD', 'delta_T', 20)
+
+modesto.change_design_param('bbThor', 'pipe_type', 20)
+modesto.change_design_param('spWaterschei', 'pipe_type', 20)
+modesto.change_design_param('spZwartbergNE', 'pipe_type', 20)
+
 
 

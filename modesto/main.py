@@ -9,17 +9,18 @@ from pyomo.environ import *
 import pandas as pd
 import logging
 import collections
+from math import sqrt
 
 
 class Modesto:
-    def __init__(self, horizon, time_step, objective, pipe_type, graph):
+    def __init__(self, horizon, time_step, objective, pipe_model, graph):
         """
         This class allows setting up optimization problems for district energy systems
 
         :param horizon: The horizon of the optimization problem, in seconds
         :param time_step: The time step between two points
         :param objective: String describing the objective of the optimization problem
-        :param pipe_type: String describing the type of model to be used for the pipes
+        :param pipe_model: String describing the type of model to be used for the pipes
         :param graph: networkx object, describing the structure of the network
         """
 
@@ -30,12 +31,12 @@ class Modesto:
         assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
         self.n_steps = int(horizon/time_step)
         self.objective = objective
-        self.pipe_type = pipe_type
+        self.pipe_model = pipe_model
         self.graph = graph
 
-        self.nodes = []
-        self.edges = []
-        self.components = {}  # TODO nodes, edges and comps should have the same format
+        self.nodes = {}
+        self.edges = {}
+        self.components = {}
 
         # self.weather_data = pd.DataFrame()
 
@@ -65,17 +66,17 @@ class Modesto:
 
         :return:
         """
-        self.nodes = []
+        self.nodes = {}
         self.components = {}
 
         for node in self.graph.nodes:
 
             # Create the node
             assert node not in self.nodes, "Node %s already exists" % node.name
-            self.nodes.append(Node(node, self.graph, self.graph.nodes[node], self.horizon, self.time_step))
+            self.nodes[node] = (Node(node, self.graph, self.graph.nodes[node], self.horizon, self.time_step))
 
             # Add the new components
-            new_components = self.nodes[-1].get_components()
+            new_components = self.nodes[node].get_components()
             assert list(set(self.components.keys()).intersection(new_components.keys())) == [], \
                 "Component(s) with name(s) %s is not unique!" \
             % str(list(set(self.components).intersection(new_components)))
@@ -88,6 +89,24 @@ class Modesto:
 
         :return:
         """
+
+        self.edges = {}
+
+        for edge_tuple in self.graph.edges:
+            edge = self.graph[edge_tuple[0]][edge_tuple[1]]
+            start_node = self.nodes[edge_tuple[0]]
+            end_node = self.nodes[edge_tuple[1]]
+
+            assert edge['name'] not in self.edges, "An edge with name %s already exists" % edge['name']
+            assert edge['name'] not in self.components, "An component with name %s already exists" % edge['name']
+
+            self.edges[edge['name']] = Edge(edge['name'], edge,
+                                            start_node, end_node,
+                                            self.horizon, self.time_step, self.pipe_model)
+            self.components[edge['name']] = self.edges[edge['name']].pipe
+
+    def change_graph(self):
+        # TODO write this
         pass
 
     def compile(self):
@@ -96,10 +115,10 @@ class Modesto:
 
         :return:
         """
-        for node in self.nodes:
-            node.build(self.model)
-        for edge in self.edges:
-            edge.build(compile)
+        for name, node in self.nodes.items():
+            node.compile(self.model)
+        for name, edge in self.edges.items():
+            edge.compile(compile)
 
     def solve(self, tee=False):
         """
@@ -133,14 +152,14 @@ class Modesto:
         """
         pass
 
-    def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_type=None):
+    def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_model=None):
         """
         Change the setting of the optimization problem
 
         :param objective: Name of the optimization objective
         :param horizon: The horizon of the problem, in seconds
         :param time_step: The time between two points, in secinds
-        :param pipe_type: The name of the type of pipe model to be used
+        :param pipe_model: The name of the type of pipe model to be used
         :return:
         """
         if objective is not None:
@@ -149,8 +168,8 @@ class Modesto:
             self.horizon = horizon
         if time_step is not None:
             self.objective = time_step
-        if pipe_type is not None:
-            self.pipe_type = pipe_type
+        if pipe_model is not None:
+            self.pipe_model = pipe_model
 
     def change_user_behaviour(self, comp, kind, new_data):
         """
@@ -204,19 +223,23 @@ class Node(object):
 
     def __init__(self, name, graph, node, horizon, time_step):
         """
-        Class that represents a geographical network location.
+        Class that represents a geographical network location,
+        associated with a number of components and connected to other nodes through edges
 
-        :param name: Unique identifier of node
-        :param graph: Optional: Networkx graph object
+        :param name: Unique identifier of node (str)
+        :param graph: Networkx Graph object
+        :param node: Networkx Node object
+        :param horizon: Horizon of the problem
+        :param time_step: Time step between two points of the problem
         """
         self.horizon = horizon
         self.time_step = time_step
-        self.graph = graph
 
-        self.logger = logging.getLogger('graph.Node')
+        self.logger = logging.getLogger('modesto.Node')
         self.logger.info('Initializing Node {}'.format(name))
 
         self.name = name
+        self.graph = graph
         self.node = node
         self.loc = self.get_loc
 
@@ -347,32 +370,67 @@ class Node(object):
             'Optimization block initialized for {}'.format(self.name))
 
 
-class Branch(object):
-    def __init__(self, start_node, end_node, name, graph, temp_sup=273.15 + 70,
-                 temp_ret=273.15 + 50, start_time=None, stop_time=None,
-                 allow_flow_reversal=True):
+class Edge(object):
+    def __init__(self, name, edge, start_node, end_node, horizon, time_step, pipe_model):
         """
         Connection object between two nodes in a graph
 
-        :param start_node: name of starting point
-        :param end_node: name of end point
-        :param name: name of connection (should be unique)
-        :param graph: graph object to add the connection to
+        :param name: Unique identifier of node (str)
+        :param edge: Networkx Edge object
+        :param start_node: modesto.Node object
+        :param stop_node: modesto.Node object
+        :param horizon: Horizon of the problem
+        :param time_step: Time step between two points of the problem
+        :param pipe_model: Type of pipe model to be used
         """
-        self.logger = logging.getLogger('graph.Branch')
-        self.logger.info('Initializing Branch {}'.format(name))
 
-        self.start_node = graph.node[start_node]['node']
-        self.end_node = graph.node[end_node]['node']
-        self.length = length(self.start_node, self.end_node)
+        self.logger = logging.getLogger('modesto.Edge')
+        self.logger.info('Initializing Edge {}'.format(name))
 
         self.name = name
+        self.edge = edge
 
-        self.graph = graph
+        self.horizon = horizon
+        self.time_step = time_step
 
-        self.pipe = pi.Pipe(length=self.length, name=self.name,
-                            start_node=start_node, end_node=end_node,
-                            temp_sup=temp_sup, temp_ret=temp_ret,
-                            allow_flow_reversal=allow_flow_reversal,
-                            start_time=start_time, stop_time=stop_time)
-        self.graph.add_edge(start_node, end_node, conn=self)
+        self.start_node = start_node
+        self.end_node = end_node
+        self.length = self.get_length()
+
+        self.pipe_model = pipe_model
+        self.pipe = self.build(pipe_model)  # TODO Better structure possible?
+
+    def build(self, pipe_model):
+
+        self.pipe_model = pipe_model
+
+        def str_to_class(str):
+            return reduce(getattr, str.split("."), sys.modules[__name__])
+
+        try:
+            cls = str_to_class(pipe_model)
+        except AttributeError:
+            cls = None
+
+        if cls:
+            obj = cls(self.name, self.horizon, self.time_step, self.start_node.name, self.end_node.name, self.length)
+        else:
+            obj = None
+
+        assert obj is not None, "%s is not a valid class name! (pipe %s)" % (pipe_model, self.name)
+
+        self.logger.info('Pipe model {} added to {}'.format(pipe_model, self.name))
+
+        return obj
+
+    def compile(self):
+        pass
+
+    def get_length(self):
+
+        sumsq = 0
+
+        for i in ['x', 'y', 'z']:
+            sumsq += (self.start_node.get_loc()[i] - self.end_node.get_loc()[i]) ** 2
+        return sqrt(sumsq)
+

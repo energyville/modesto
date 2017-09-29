@@ -2,37 +2,58 @@ import logging
 from pyomo.environ import *
 import pandas as pd
 from component import Component
+import warnings
 
 
 class Pipe(Component):
 
-    def __init__(self, name, horizon, time_step, start_node,
-                 end_node, allow_flow_reversal=False):
+    def __init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal=False):
         """
         Class that sets up an optimization model for a DHC pipe
 
         :param name: Name of the pipe (str)
         :param horizon: Horizon of the optimization problem, in seconds (int)
         :param time_step: Time between two points (int)
-        :param start_node: Node at the beginning of the pipe (str)
-        :param end_node: Node at the end of the pipe (str)
+        :param start_node: Name of the start_node (str)
+        :param end_node: Name of the stop_node (str)
+        :param length: Length of the pipe
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
         """
-        Component.__init__(name, horizon, time_step)
+
+        design_param = ['pipe_type']  # Type of pipe model
+
+        Component.__init__(self, name, horizon, time_step, design_param, [], [])
 
         self.start_node = start_node
         self.end_node = end_node
-
+        self.length = length
         self.allow_flow_reversal = allow_flow_reversal
 
     def change_user_data(self, kind, new_data):
         print "WARNING: Trying to change the user data of pipe %s" % self.name
 
+    def get_mflo(self, node, t):
+        if node == self.start_node:
+            return -1 * self.block.mass_flow_tot[t]
+        elif node == self.end_node:
+            return self.block.mass_flow_tot[t]
+        else:
+            warnings.warn('Warning: node not contained in this pipe')
+            exit(1)
+
+    def get_heat(self, node, t):
+        if node == self.start_node:
+            return -1 * self.block.heat_flow_in[t]
+        elif node == self.end_node:
+            return self.block.heat_flow_out[t]
+        else:
+            warnings.warn('Warning: node not contained in this pipe')
+            exit(1)
+
 
 class SimplePipe(Pipe):
 
-    def __init__(self, name, horizon, time_step, start_node,
-                 end_node, allow_flow_reversal=False):
+    def __init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal=False):
         """
         Class that sets up a very simple model of pipe
         No inertia, no time delays, heat_in = heat_out
@@ -40,28 +61,31 @@ class SimplePipe(Pipe):
         :param name: Name of the pipe (str)
         :param horizon: Horizon of the optimization problem, in seconds (int)
         :param time_step: Time between two points (int)
-        :param start_node: Node at the beginning of the pipe (str)
-        :param end_node: Node at the end of the pipe (str)
+        :param start_node: Name of the start_node (str)
+        :param end_node: Name of the stop_node (str)
+        :param length: Length of the pipe
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
         """
 
-        Pipe.__init__(self, name, horizon, time_step, start_node,
-                           end_node, allow_flow_reversal)
+        Pipe.__init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal)
 
-    def build_opt(self):
+    def compile(self, model):
         """
-        Build the structure of the optimization model
+        Compile the optimization model
+
+        :param parent: The model on the higher level
 
         :return:
         """
 
-    def fill_opt(self):
-        """
-        Fill the parameters of the optimization model
+        self.make_block(model)
 
-        :return:
-        """
-
+        self.block.heat_flow_in = Var(self.model.TIME)
+        self.block.heat_flow_out = Var(self.model.TIME)
+        self.block.mass_flow = Var(self.model.TIME, self.block.DN_ind)
+        self.block.mass_flow_tot = Var(self.model.TIME)
+        self.block.heat_loss = Var(self.model.TIME, self.block.DN_ind)
+        self.block.heat_loss_tot = Var(self.model.TIME)
 
 class ExtensivePipe(Pipe):
 

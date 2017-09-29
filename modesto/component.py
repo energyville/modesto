@@ -166,7 +166,7 @@ class FixedProfile(Component):
         assert direction in [-1, 0, 1], "The input direction should be either -1, 0 or 1"
         self.direction = direction
 
-    def build_opt(self, topmodel, parent):
+    def compile(self, topmodel, parent):
         """
         Build the structure of fixed profile
 
@@ -248,7 +248,7 @@ class VariableProfile(Component):
 
         Component.__init__(self, name, horizon, time_step, [], [], [])
 
-    def build_opt(self, parent):
+    def compile(self, parent):
         """
         Build the structure of a component model
 
@@ -258,13 +258,6 @@ class VariableProfile(Component):
 
         self.make_block(parent)
 
-    def fill_opt(self):
-        """
-        Fill up the model with the parameters
-
-        :return:
-        """
-        pass
 
 
 class BuildingFixed(FixedProfile):
@@ -297,12 +290,6 @@ class BuildingVariable(VariableProfile):
         """
         VariableProfile.__init__(self, name, horizon, time_step)
 
-    def fill_opt(self):
-        """
-        Add the parameters to the model
-
-        :return:
-        """
 
 
 class ProducerFixed(FixedProfile):
@@ -335,7 +322,7 @@ class ProducerVariable(VariableProfile):
         self.logger = logging.getLogger('comps.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
 
-    def build_opt(self, parent):
+    def compile(self, parent):
         """
         Build the structure of ta producer model
 
@@ -348,12 +335,7 @@ class ProducerVariable(VariableProfile):
         self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
         self.block.heat_flow = Var(self.model.TIME, within=NonNegativeReals)
 
-    def fill_opt(self):
-        """
-        Add the parameters to the model
 
-        :return:
-        """
 
 
 class StorageFixed(FixedProfile):
@@ -383,7 +365,7 @@ class StorageVariable(VariableProfile):
         """
         VariableProfile.__init__(self, name, horizon, time_step)
 
-    def build_opt(self, parent):
+    def compile(self, parent):
         """
         Build the structure of the fixed heat demand profile for a building
 
@@ -391,11 +373,4 @@ class StorageVariable(VariableProfile):
         """
         pass
 
-    def fill_opt(self):
-        """
-        Add the parameters to the model
-
-        :return:
-        """
-        pass
 
