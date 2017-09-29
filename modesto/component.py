@@ -20,11 +20,11 @@ class Component:
         """
 
         self.logger = logging.getLogger('modesto.component.Component')
-        self.logger.debug('Initializing Component {}'.format(name))
+        self.logger.info('Initializing Component {}'.format(name))
 
         self.name = name
 
-        assert horizon%time_step == 0, "The horizon of the optimiation problem should be multiple of the time step."
+        assert horizon % time_step == 0, "The horizon of the optimization problem should be multiple of the time step."
         self.horizon = horizon
         self.time_step = time_step
         self.n_steps = int(horizon/time_step)
@@ -123,6 +123,23 @@ class Component:
 
         self.design_param[param] = val
 
+    def check_data(self):
+        """
+        Check if all data required to build the optimization problem is available
+
+        :return:
+        """
+
+        for param in self.needed_design_param:
+            assert param in self.design_param, \
+                "No value for design parameter %s for component %s was indicated\n Description:" % (param, self.name) # TODO Add description
+        for param in self.needed_user_data:
+            assert param in self.user_data, \
+                "No values for user data %s for component %s was indicated\n Description:" % (param, self.name) # TODO Add description
+        for param in self.needed_states:
+            assert param in self.initial_data, \
+                "No initial value for state %s for component %s was indicated\n Description:" % (param, self.name)# TODO Add description
+
 
 class FixedProfile(Component):
 
@@ -157,6 +174,8 @@ class FixedProfile(Component):
         :param parent: The node model
         :return:
         """
+        self.check_data()
+
         mult = self.design_param['mult']
         delta_T = self.design_param['delta_T']
         heat_profile = self.user_data['heat_profile']
@@ -226,7 +245,8 @@ class VariableProfile(Component):
         in seconds
         :param time_step: Time between two points
         """
-        Component.__init__(self, name, horizon, time_step)
+
+        Component.__init__(self, name, horizon, time_step, [], [], [])
 
     def build_opt(self, parent):
         """
@@ -258,7 +278,7 @@ class BuildingFixed(FixedProfile):
         in seconds
         :param time_step: Time between two points
         """
-        FixedProfile.__init__(self, name, horizon, time_step)
+        FixedProfile.__init__(self, name, horizon, time_step, direction=-1)
 
 
 class BuildingVariable(VariableProfile):
@@ -296,7 +316,7 @@ class ProducerFixed(FixedProfile):
         in seconds
         :param time_step: Time between two points
         """
-        FixedProfile.__init__(self, name, horizon, time_step)
+        FixedProfile.__init__(self, name, horizon, time_step, direction=1)
 
 
 class ProducerVariable(VariableProfile):
@@ -312,13 +332,21 @@ class ProducerVariable(VariableProfile):
         """
         VariableProfile.__init__(self, name, horizon, time_step)
 
+        self.logger = logging.getLogger('comps.VarProducer')
+        self.logger.info('Initializing VarProducer {}'.format(name))
+
     def build_opt(self, parent):
         """
         Build the structure of ta producer model
 
         :return:
         """
-        pass
+        self.check_data()
+
+        self.make_block(parent)
+
+        self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
+        self.block.heat_flow = Var(self.model.TIME, within=NonNegativeReals)
 
     def fill_opt(self):
         """
