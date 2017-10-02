@@ -168,7 +168,7 @@ class FixedProfile(Component):
         design_param = ['delta_T',  # Temperature difference across substation [K]
                         'mult']  # Number of buildings in the cluster
         user_param = ['heat_profile']  # Heat use in one (average) building
-        # TODO Link this to the build_opt()
+        # TODO Link this to the build()
 
         Component.__init__(self, name, horizon, time_step, design_param, [], user_param)
 
@@ -198,8 +198,8 @@ class FixedProfile(Component):
         def _heat_flow(b, t):
             return mult*heat_profile.iloc[t][0]
 
-        self.block.mass_flow = Var(self.model.TIME, rule=_mass_flow)
-        self.block.heat_flow = Var(self.model.TIME, rule=_heat_flow)
+        self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
+        self.block.heat_flow = Param(self.model.TIME, rule=_heat_flow)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -342,8 +342,8 @@ class ProducerVariable(VariableProfile):
         self.model = topmodel
         self.make_block(parent)
 
-        self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
-        self.block.heat_flow = Var(self.model.TIME, within=NonNegativeReals)
+        self.block.mass_flow = Var(self.model.TIME, within=NonPositiveReals)
+        self.block.heat_flow = Var(self.model.TIME, within=NonPositiveReals)
 
 
 class StorageFixed(FixedProfile):
