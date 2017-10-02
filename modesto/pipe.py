@@ -30,7 +30,7 @@ class Pipe(Component):
         self.allow_flow_reversal = allow_flow_reversal
 
     def change_user_data(self, kind, new_data):
-        print "WARNING: Trying to change the user data of pipe %s" % self.name
+        print "WARNING: Trying to change the user data of a pipe %s" % self.name
 
     def get_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
@@ -109,6 +109,7 @@ class SimplePipe(Pipe):
             return b.heat_flow_in[t] == b.heat_flow_out[t]
 
         self.block.heat_flow = Constraint(self.model.TIME, rule=_heat_flow)
+
 
 class ExtensivePipe(Pipe):
 

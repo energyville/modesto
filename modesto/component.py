@@ -141,13 +141,16 @@ class Component:
 
         for param in self.needed_design_param:
             assert param in self.design_param, \
-                "No value for design parameter %s for component %s was indicated\n Description:" % (param, self.name) # TODO Add description
+                "No value for design parameter %s for component %s was indicated\n Description: %s" % \
+                (param, self.name, self.needed_design_param[param])
         for param in self.needed_user_data:
             assert param in self.user_data, \
-                "No values for user data %s for component %s was indicated\n Description:" % (param, self.name) # TODO Add description
+                "No values for user data %s for component %s was indicated\n Description: %s" % \
+                (param, self.name, self.needed_design_param[param])
         for param in self.needed_states:
             assert param in self.initial_data, \
-                "No initial value for state %s for component %s was indicated\n Description:" % (param, self.name)# TODO Add description
+                "No initial value for state %s for component %s was indicated\n Description: %s" % \
+                (param, self.name, self.needed_design_param[param])
 
 
 class FixedProfile(Component):
@@ -165,9 +168,9 @@ class FixedProfile(Component):
         1: only + (heat to the network),
         -1, only - (heat from the network)
         """
-        design_param = ['delta_T',  # Temperature difference across substation [K]
-                        'mult']  # Number of buildings in the cluster
-        user_param = ['heat_profile']  # Heat use in one (average) building
+        design_param = {'delta_T': 'Temperature difference across substation [K]',
+                        'mult': 'Number of buildings in the cluster'}
+        user_param = {'heat_profile': 'Heat use in one (average) building'}
         # TODO Link this to the build()
 
         Component.__init__(self, name, horizon, time_step, design_param, [], user_param)
