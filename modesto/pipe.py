@@ -33,6 +33,7 @@ class Pipe(Component):
         print "WARNING: Trying to change the user data of pipe %s" % self.name
 
     def get_mflo(self, node, t):
+        assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             return -1 * self.block.mass_flow_tot[t]
         elif node == self.end_node:
@@ -42,6 +43,7 @@ class Pipe(Component):
             exit(1)
 
     def get_heat(self, node, t):
+        assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             return -1 * self.block.heat_flow_in[t]
         elif node == self.end_node:
@@ -49,6 +51,25 @@ class Pipe(Component):
         else:
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
+
+    def make_block(self, model):
+        """
+        Make a separate block in the parent model.
+        This block is used to add the component model.
+
+        :param parent: The node model to which it should be added (AbstractModel.block)
+        :return:
+        """
+
+        self.model = model
+        # If block is already present, remove it
+        if self.model.component(self.name) is not None:
+            self.model.del_component(self.name)
+        self.model.add_component(self.name, Block())
+        self.block = self.model.__getattribute__(self.name)
+
+        self.logger.info(
+            'Optimization block for Component {} initialized'.format(self.name))
 
 
 class SimplePipe(Pipe):
@@ -82,10 +103,12 @@ class SimplePipe(Pipe):
 
         self.block.heat_flow_in = Var(self.model.TIME)
         self.block.heat_flow_out = Var(self.model.TIME)
-        self.block.mass_flow = Var(self.model.TIME, self.block.DN_ind)
         self.block.mass_flow_tot = Var(self.model.TIME)
-        self.block.heat_loss = Var(self.model.TIME, self.block.DN_ind)
-        self.block.heat_loss_tot = Var(self.model.TIME)
+
+        def _heat_flow(b, t):
+            return b.heat_flow_in[t] == b.heat_flow_out[t]
+
+        self.block.heat_flow = Constraint(self.model.TIME, rule=_heat_flow)
 
 class ExtensivePipe(Pipe):
 

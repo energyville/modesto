@@ -49,13 +49,20 @@ class Component:
         else:
             print 'The optimization model of %s has not been built yet.' % self.name
 
+    def get_heat(self, t):
+        assert self.block is not None, "The optimization model for %s has not been compiled" % self.name
+        return self.block.heat_flow[t]
+
+    def get_mflo(self, t):
+        assert self.block is not None, "The optimization model for %s has not been compiled" % self.name
+        return self.block.mass_flow[t]
+
     def make_block(self, parent):
         """
         Make a separate block in the parent model.
         This block is used to add the component model.
 
-        :param topmodel: The whole optimization problem (AbstractModel)
-        :param parent: The node model to which it should be added (AbstractModel.block)
+        :param parent: The node model to which it should be added
         :return:
         """
 
@@ -69,7 +76,7 @@ class Component:
         self.logger.info(
             'Optimization block for Component {} initialized'.format(self.name))
 
-    def change_user_data(self, kind, new_data):
+    def change_user_behaviour(self, kind, new_data):
         """
         Change the heat profile of the building model
 
@@ -78,6 +85,8 @@ class Component:
         :return:
         """
 
+        assert type(new_data) == type(pd.DataFrame()), \
+            "The format of user behaviour data should be pandas DataFrame (%s, %s)" % (self.name, kind)
         assert kind in self.needed_user_data, \
             "%s is not recognized as a valid kind of user data" % kind
         assert len(new_data.index) == self.n_steps, \
@@ -184,10 +193,10 @@ class FixedProfile(Component):
         self.make_block(parent)
 
         def _mass_flow(b, t):
-            return mult*heat_profile[t]/self.cp/delta_T
+            return mult*heat_profile.iloc[t][0]/self.cp/delta_T
 
         def _heat_flow(b, t):
-            return mult*heat_profile[t]
+            return mult*heat_profile.iloc[t][0]
 
         self.block.mass_flow = Var(self.model.TIME, rule=_mass_flow)
         self.block.heat_flow = Var(self.model.TIME, rule=_heat_flow)
@@ -229,7 +238,7 @@ class FixedProfile(Component):
     def change_user_data(self, kind, new_data):
         if kind == 'heat_profile' and not self.direction == 0:
             assert all(self.direction*i >= 0 for i in new_data)
-        Component.change_user_data(kind, new_data)
+        Component.change_user_behaviour(kind, new_data)
 
 
 class VariableProfile(Component):
@@ -322,7 +331,7 @@ class ProducerVariable(VariableProfile):
         self.logger = logging.getLogger('comps.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
 
-    def compile(self, parent):
+    def compile(self, topmodel, parent):
         """
         Build the structure of ta producer model
 
@@ -330,12 +339,11 @@ class ProducerVariable(VariableProfile):
         """
         self.check_data()
 
+        self.model = topmodel
         self.make_block(parent)
 
         self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
         self.block.heat_flow = Var(self.model.TIME, within=NonNegativeReals)
-
-
 
 
 class StorageFixed(FixedProfile):

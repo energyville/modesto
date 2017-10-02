@@ -100,9 +100,12 @@ class Modesto:
             assert edge['name'] not in self.edges, "An edge with name %s already exists" % edge['name']
             assert edge['name'] not in self.components, "An component with name %s already exists" % edge['name']
 
+            # Create the modesto.Edge object
             self.edges[edge['name']] = Edge(edge['name'], edge,
                                             start_node, end_node,
                                             self.horizon, self.time_step, self.pipe_model)
+            # Add the modesto.Edge object to the graph
+            self.graph[edge_tuple[0]][edge_tuple[1]]['conn'] = self.edges[edge['name']]
             self.components[edge['name']] = self.edges[edge['name']].pipe
 
     def change_graph(self):
@@ -115,10 +118,12 @@ class Modesto:
 
         :return:
         """
+        self.model.TIME = Set(initialize=range(self.n_steps), ordered=True)
+
+        for name, edge in self.edges.items():
+            edge.compile(self.model)
         for name, node in self.nodes.items():
             node.compile(self.model)
-        for name, edge in self.edges.items():
-            edge.compile(compile)
 
     def solve(self, tee=False):
         """
@@ -130,10 +135,8 @@ class Modesto:
 
         # TODO Only test objective now:
 
-        self.model.x = Var(self.model.TIME, domain=NonNegativeReals)
-
         def obj_expression(model):
-            return summation(model.x)
+            return summation(model.ThorPark.thorPark.heat_flow)
 
         self.model.OBJ = Objective(rule=obj_expression)
 
@@ -182,7 +185,7 @@ class Modesto:
         """
         # TODO Add resampling
         assert comp in self.components, "%s is not recognized as a valid component" % comp
-        self.components[comp].change_design_param(kind, new_data)
+        self.components[comp].change_user_behaviour(kind, new_data)
 
     def change_weather(self, new_data):
         """
@@ -312,7 +315,7 @@ class Node(object):
     def compile(self, model):
         self._make_block(model)
 
-        for name, comp in self.comps:
+        for name, comp in self.comps.items():
             comp.compile(model, self.block)
 
         self._add_bal()
@@ -336,7 +339,7 @@ class Node(object):
             """
             return graph.get_edge_data(*edgetuple)['conn'].pipe
 
-        edges = self.graph.in_edges(self.name) + self.graph.out_edges(self.name)
+        edges = list(self.graph.in_edges(self.name)) + list(self.graph.out_edges(self.name))
 
         def _heat_bal(b, t):
             return 0 == sum(self.comps[i].get_heat(t) for i in self.comps) \
@@ -423,8 +426,9 @@ class Edge(object):
 
         return obj
 
-    def compile(self):
-        pass
+    def compile(self, model):
+
+        self.pipe.compile(model)
 
     def get_length(self):
 
@@ -433,4 +437,3 @@ class Edge(object):
         for i in ['x', 'y', 'z']:
             sumsq += (self.start_node.get_loc()[i] - self.end_node.get_loc()[i]) ** 2
         return sqrt(sumsq)
-
