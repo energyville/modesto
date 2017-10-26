@@ -1,19 +1,16 @@
 from __future__ import division
 
+import sys
+from math import sqrt
+
+from pyomo.core.base import ConcreteModel, Objective, Constraint, Set
+
 from component import *
 from pipe import *
 
-import sys
-import networkx as nx
-from pyomo.environ import *
-import pandas as pd
-import logging
-import collections
-from math import sqrt
-
 
 class Modesto:
-    def __init__(self, horizon, time_step, objective, pipe_model, graph):
+    def __init__(self, horizon, time_step, pipe_model, graph):
         """
         This class allows setting up optimization problems for district energy systems
 

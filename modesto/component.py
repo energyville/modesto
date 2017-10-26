@@ -1,8 +1,9 @@
 from __future__ import division
 
 import logging
-from pyomo.environ import *
+
 import pandas as pd
+from pyomo.core.base import Block, Param, Var, NonPositiveReals
 
 
 class Component:
@@ -44,16 +45,34 @@ class Component:
         self.cp = 4180
 
     def pprint(self, txtfile=None):
+        """
+        Pretty print this block
+
+        :param txtfile: textfile location to write to (default None => stdout)
+        :return:
+        """
         if self.block is not None:
             self.block.pprint(ostream=txtfile)
         else:
             print 'The optimization model of %s has not been built yet.' % self.name
 
     def get_heat(self, t):
+        """
+        Return heat_flow variable at time t
+
+        :param t:
+        :return:
+        """
         assert self.block is not None, "The optimization model for %s has not been compiled" % self.name
         return self.block.heat_flow[t]
 
     def get_mflo(self, t):
+        """
+        Return mass_flow variable at time t
+
+        :param t:
+        :return:
+        """
         assert self.block is not None, "The optimization model for %s has not been compiled" % self.name
         return self.block.mass_flow[t]
 
@@ -175,7 +194,8 @@ class FixedProfile(Component):
         user_param = {'heat_profile': 'Heat use in one (average) building'}
         # TODO Link this to the build()
 
-        Component.__init__(self, name=name, horizon=horizon, time_step=time_step, design_param=design_param, states=[], user_param=user_param)
+        Component.__init__(self, name=name, horizon=horizon, time_step=time_step, design_param=design_param, states=[],
+                           user_param=user_param)
 
         assert direction in [-1, 0, 1], "The input direction should be either -1, 0 or 1"
         self.direction = direction
