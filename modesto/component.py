@@ -173,9 +173,16 @@ class Component:
                 "No initial value for state %s for component %s was indicated\n Description: %s" % \
                 (param, self.name, self.needed_design_param[param])
 
+    def obj_energy(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
 
 class FixedProfile(Component):
-
     def __init__(self, name, horizon, time_step, direction=0):
         """
         Class for a component with a fixed heating profile
@@ -370,9 +377,16 @@ class ProducerVariable(VariableProfile):
         self.block.mass_flow = Var(self.model.TIME, within=NonPositiveReals)
         self.block.heat_flow = Var(self.model.TIME, within=NonPositiveReals)
 
+    def obj_energy(self):
+        """
+        Generator for energy objective variables to be summed
+
+        :return:
+        """
+        return sum(self.get_heat(t) for t in range(self.n_steps))
+
 
 class StorageFixed(FixedProfile):
-
     def __init__(self, name, horizon, time_step):
         """
         Class that describes a fixed storage

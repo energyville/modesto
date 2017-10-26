@@ -26,8 +26,7 @@ class Modesto:
         self.horizon = horizon
         self.time_step = time_step
         assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
-        self.n_steps = int(horizon/time_step)
-        self.objective = objective
+        self.n_steps = int(horizon / time_step)
         self.pipe_model = pipe_model
         self.graph = graph
 
@@ -122,6 +121,34 @@ class Modesto:
         for name, node in self.nodes.items():
             node.compile(self.model)
 
+    def set_objective(self, objtype):
+        """
+        Set optimization objective.
+
+        :param objtype:
+        :return:
+        """
+        objtypes = ['energy']
+
+        if objtype == 'energy':
+            def energy_obj(model):
+                return sum(comp.obj_energy() for comp in self.iter_components())
+            self.model.OBJ = Objective(rule=energy_obj)
+            self.logger.debug('{} objective set'.format(objtype))
+
+        else:
+            self.logger.warning(
+                'Objective type {} not recognized. Try one of these: {}'.format(objtype, *objtypes.keys()))
+            self.model.OBJ = Objective(expr=1)
+
+    def iter_components(self):
+        """
+        Function that generates a list of all components in all nodes of model
+
+        :return: Component object list
+        """
+        return [self.components[comp] for comp in self.components]
+
     def solve(self, tee=False):
         """
         Solve a new optimization
@@ -129,13 +156,6 @@ class Modesto:
         :param tee: If True, print the optimization model
         :return:
         """
-
-        # TODO Only test objective now:
-
-        def obj_expression(model):
-            return summation(model.ThorPark.thorPark.heat_flow)
-
-        self.model.OBJ = Objective(rule=obj_expression)
 
         if tee:
             self.model.pprint()
@@ -162,7 +182,7 @@ class Modesto:
         :param pipe_model: The name of the type of pipe model to be used
         :return:
         """
-        if objective is not None:
+        if objective is not None:  # TODO Do we need this to be defined at the top level of modesto?
             self.objective = objective
         if horizon is not None:
             self.horizon = horizon
@@ -218,22 +238,8 @@ class Modesto:
         assert comp in self.components, "%s is not recognized as a valid component" % comp
         self.components[comp].change_initial_cond(state, val)
 
-    def _energy_objective(self):
-        """
-        Set energy input from producers as objective
-
-        :return:
-        """
-
-    def _cost_objective(self):
-        """
-        Set cost (running/investment?) as objective
-
-        :return:
-        """
 
 class Node(object):
-
     def __init__(self, name, graph, node, horizon, time_step):
         """
         Class that represents a geographical network location,

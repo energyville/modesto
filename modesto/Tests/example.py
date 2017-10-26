@@ -33,7 +33,7 @@ G.add_edge('p1', 'zwartbergNE', name='spZwartbergNE')
 n_steps = 5
 time_steps = 3600
 
-modesto = Modesto(n_steps*time_steps, time_steps, None, 'SimplePipe', G)
+modesto = Modesto(n_steps*time_steps, time_steps, 'SimplePipe', G)
 
 heat_profile = pd.DataFrame([1000]*n_steps, index=range(n_steps))
 
@@ -52,5 +52,8 @@ modesto.change_design_param('spWaterschei', 'pipe_type', 20)
 modesto.change_design_param('spZwartbergNE', 'pipe_type', 20)
 
 modesto.compile()
+modesto.set_objective('energy')
 modesto.solve(tee=True)
+
+print [i.value for i in modesto.components['thorPark'].block.heat_flow.values()]
 
