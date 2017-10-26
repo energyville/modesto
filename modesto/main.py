@@ -3,7 +3,7 @@ from __future__ import division
 import sys
 from math import sqrt
 
-from pyomo.core.base import ConcreteModel, Objective, Constraint, Set
+from pyomo.core.base import ConcreteModel, Objective, Constraint, Set, maximize
 
 from component import *
 from pipe import *
@@ -132,7 +132,8 @@ class Modesto:
         if objtype == 'energy':
             def energy_obj(model):
                 return sum(comp.obj_energy() for comp in self.iter_components())
-            self.model.OBJ = Objective(rule=energy_obj)
+            self.model.OBJ = Objective(rule=energy_obj, sense=maximize)
+            # !!! Maximize because heat into the network has negative sign
             self.logger.debug('{} objective set'.format(objtype))
 
         else:
