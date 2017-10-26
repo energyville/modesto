@@ -66,7 +66,6 @@ class Modesto:
         self.components = {}
 
         for node in self.graph.nodes:
-
             # Create the node
             assert node not in self.nodes, "Node %s already exists" % node.name
             self.nodes[node] = (Node(node, self.graph, self.graph.nodes[node], self.horizon, self.time_step))
@@ -75,7 +74,7 @@ class Modesto:
             new_components = self.nodes[node].get_components()
             assert list(set(self.components.keys()).intersection(new_components.keys())) == [], \
                 "Component(s) with name(s) %s is not unique!" \
-            % str(list(set(self.components).intersection(new_components)))
+                % str(list(set(self.components).intersection(new_components)))
             self.components.update(new_components)
 
     def __build_edges(self):

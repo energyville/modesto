@@ -28,7 +28,7 @@ class Component:
         assert horizon % time_step == 0, "The horizon of the optimization problem should be multiple of the time step."
         self.horizon = horizon
         self.time_step = time_step
-        self.n_steps = int(horizon/time_step)
+        self.n_steps = int(horizon / time_step)
 
         self.model = None  # The entire optimization model
         self.parent = None  # The node model
@@ -89,9 +89,9 @@ class Component:
         # If block is already present, remove it
         if self.parent.component(self.name) is not None:
             self.parent.del_component(self.name)
-            #self.logger.warning('Overwriting block {} in Node {}'.format(self.name, self.parent.name))
+            # self.logger.warning('Overwriting block {} in Node {}'.format(self.name, self.parent.name))
             # TODO this test should be located in node; then no knowledge of parent would be needed
-        self.parent.add_component(self.name, Block()) # TODO this too
+        self.parent.add_component(self.name, Block())  # TODO this too
         self.block = self.parent.__getattribute__(self.name)
 
         self.logger.info(
@@ -225,10 +225,10 @@ class FixedProfile(Component):
         self.make_block(parent)
 
         def _mass_flow(b, t):
-            return mult*heat_profile.iloc[t][0]/self.cp/delta_T
+            return mult * heat_profile.iloc[t][0] / self.cp / delta_T
 
         def _heat_flow(b, t):
-            return mult*heat_profile.iloc[t][0]
+            return mult * heat_profile.iloc[t][0]
 
         self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
         self.block.heat_flow = Param(self.model.TIME, rule=_heat_flow)
@@ -259,7 +259,7 @@ class FixedProfile(Component):
         for u_param in self.needed_user_data:
             param_list += "param %s := \n" % (self.name + "_" + u_param)
             for i in range(self.n_steps):
-                param_list += str(i+1) + ' ' + str(self.user_data[u_param].loc[i][0]) + "\n"
+                param_list += str(i + 1) + ' ' + str(self.user_data[u_param].loc[i][0]) + "\n"
             param_list += ';\n'
 
         return param_list
@@ -269,12 +269,11 @@ class FixedProfile(Component):
 
     def change_user_data(self, kind, new_data):
         if kind == 'heat_profile' and not self.direction == 0:
-            assert all(self.direction*i >= 0 for i in new_data)
+            assert all(self.direction * i >= 0 for i in new_data)
         Component.change_user_behaviour(kind, new_data)
 
 
 class VariableProfile(Component):
-
     # TODO Assuming that variable profile means State-Space model
 
     def __init__(self, name, horizon, time_step):
@@ -300,9 +299,7 @@ class VariableProfile(Component):
         self.make_block(parent)
 
 
-
 class BuildingFixed(FixedProfile):
-
     def __init__(self, name, horizon, time_step):
         """
         Class for building models with a fixed heating profile
@@ -316,7 +313,6 @@ class BuildingFixed(FixedProfile):
 
 
 class BuildingVariable(VariableProfile):
-
     # TODO How to implement DHW tank? Separate model from Building or together?
     # TODO Model DHW user without tank? -> set V_tank = 0
 
@@ -332,9 +328,7 @@ class BuildingVariable(VariableProfile):
         VariableProfile.__init__(self, name, horizon, time_step)
 
 
-
 class ProducerFixed(FixedProfile):
-
     def __init__(self, name, horizon, time_step):
         """
         Class that describes a fixed producer profile
@@ -348,7 +342,6 @@ class ProducerFixed(FixedProfile):
 
 
 class ProducerVariable(VariableProfile):
-
     def __init__(self, name, horizon, time_step):
         """
         Class that describes a variable producer
@@ -400,7 +393,6 @@ class StorageFixed(FixedProfile):
 
 
 class StorageVariable(VariableProfile):
-
     def __init__(self, name, horizon, time_step):
         """
         Class that describes a variable storage
