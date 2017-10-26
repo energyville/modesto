@@ -385,5 +385,3 @@ class StorageVariable(VariableProfile):
         :return:
         """
         pass
-
-

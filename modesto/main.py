@@ -231,7 +231,7 @@ class Modesto:
     def _cost_objective(self):
         """
         Set cost (running/investment?) as objective
-        
+
         :return:
         """
 
