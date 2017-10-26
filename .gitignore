@@ -1,12 +1,6 @@
 Structure/~$structure.pptx
 .idea/
-<<<<<<< HEAD
-doc/build
-modesto.egg-info/
-*.pyc
-=======
 *.pyc
 doc/build/doctrees/
 doc/build/html/
 modesto.egg-info/
->>>>>>> 1_Write_components
