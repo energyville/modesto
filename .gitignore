@@ -1,2 +1,5 @@
 Structure/~$structure.pptx
 .idea/
+doc/build
+modesto.egg-info/
+*.pyc
