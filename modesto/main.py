@@ -1,19 +1,16 @@
 from __future__ import division
 
+import sys
+from math import sqrt
+
+from pyomo.core.base import ConcreteModel, Objective, Constraint, Set
+
 from component import *
 from pipe import *
 
-import sys
-import networkx as nx
-from pyomo.environ import *
-import pandas as pd
-import logging
-import collections
-from math import sqrt
-
 
 class Modesto:
-    def __init__(self, horizon, time_step, objective, pipe_model, graph):
+    def __init__(self, horizon, time_step, pipe_model, graph):
         """
         This class allows setting up optimization problems for district energy systems
 
@@ -29,8 +26,7 @@ class Modesto:
         self.horizon = horizon
         self.time_step = time_step
         assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
-        self.n_steps = int(horizon/time_step)
-        self.objective = objective
+        self.n_steps = int(horizon / time_step)
         self.pipe_model = pipe_model
         self.graph = graph
 
@@ -70,7 +66,6 @@ class Modesto:
         self.components = {}
 
         for node in self.graph.nodes:
-
             # Create the node
             assert node not in self.nodes, "Node %s already exists" % node.name
             self.nodes[node] = (Node(node, self.graph, self.graph.nodes[node], self.horizon, self.time_step))
@@ -79,7 +74,7 @@ class Modesto:
             new_components = self.nodes[node].get_components()
             assert list(set(self.components.keys()).intersection(new_components.keys())) == [], \
                 "Component(s) with name(s) %s is not unique!" \
-            % str(list(set(self.components).intersection(new_components)))
+                % str(list(set(self.components).intersection(new_components)))
             self.components.update(new_components)
 
     def __build_edges(self):
@@ -125,6 +120,34 @@ class Modesto:
         for name, node in self.nodes.items():
             node.compile(self.model)
 
+    def set_objective(self, objtype):
+        """
+        Set optimization objective.
+
+        :param objtype:
+        :return:
+        """
+        objtypes = ['energy']
+
+        if objtype == 'energy':
+            def energy_obj(model):
+                return sum(comp.obj_energy() for comp in self.iter_components())
+            self.model.OBJ = Objective(rule=energy_obj)
+            self.logger.debug('{} objective set'.format(objtype))
+
+        else:
+            self.logger.warning(
+                'Objective type {} not recognized. Try one of these: {}'.format(objtype, *objtypes.keys()))
+            self.model.OBJ = Objective(expr=1)
+
+    def iter_components(self):
+        """
+        Function that generates a list of all components in all nodes of model
+
+        :return: Component object list
+        """
+        return [self.components[comp] for comp in self.components]
+
     def solve(self, tee=False):
         """
         Solve a new optimization
@@ -132,13 +155,6 @@ class Modesto:
         :param tee: If True, print the optimization model
         :return:
         """
-
-        # TODO Only test objective now:
-
-        def obj_expression(model):
-            return summation(model.ThorPark.thorPark.heat_flow)
-
-        self.model.OBJ = Objective(rule=obj_expression)
 
         if tee:
             self.model.pprint()
@@ -165,7 +181,7 @@ class Modesto:
         :param pipe_model: The name of the type of pipe model to be used
         :return:
         """
-        if objective is not None:
+        if objective is not None:  # TODO Do we need this to be defined at the top level of modesto?
             self.objective = objective
         if horizon is not None:
             self.horizon = horizon
@@ -223,7 +239,6 @@ class Modesto:
 
 
 class Node(object):
-
     def __init__(self, name, graph, node, horizon, time_step):
         """
         Class that represents a geographical network location,

@@ -8,5 +8,5 @@ setup(
     license='',
     author='Annelies Vandermeulen and Bram van der Heijde',
     author_email='',
-    description='Multi-Objective District Energy Systems Toolbox for Optimization'
+    description='Multi-Objective District Energy Systems Toolbox for Optimization', install_requires=['pyomo', 'pandas']
 )
