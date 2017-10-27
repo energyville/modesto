@@ -45,9 +45,7 @@ class Modesto:
         Build the structure of the optimization problem
         Sets up the equations without parameters
 
-        :param graph: Object containing structure of the network,
-        structure and parameters describing component models and
-        design parameters
+        :param graph: Object containing structure of the network, structure and parameters describing component models and design parameters
         :return:
         """
         self.graph = graph
@@ -208,8 +206,7 @@ class Modesto:
         """
         Change the weather
 
-        :param new_data: The new data that describes the weather, in a dataframe (index is time),
-        columns are the different required signals
+        :param new_data: The new data that describes the weather, in a dataframe (index is time), columns are the different required signals
         :return:
         """
         pass

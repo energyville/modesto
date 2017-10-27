@@ -5,7 +5,7 @@ import logging
 import pandas as pd
 
 logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
+                    format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
 
@@ -19,7 +19,8 @@ G.add_node('p1', x=2600, y=5000, z=0,
            comps={})
 G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
            comps={'waterscheiGarden.buildingD': 'BuildingFixed',
-                  'waterscheiGarden.buildingT': 'BuildingFixed'})
+                  'waterscheiGarden.buildingT': 'BuildingFixed',
+                  'waterscheiGarden.storage':   'StorageVariable'})
 G.add_node('zwartbergNE', x=2000, y=5500, z=0,
            comps={'zwartbergNE.buildingD': 'BuildingFixed'})
 
@@ -47,6 +48,19 @@ modesto.change_design_param('waterscheiGarden.buildingT', 'delta_T', 20)
 modesto.change_design_param('waterscheiGarden.buildingT', 'mult', 20)
 modesto.change_user_behaviour('waterscheiGarden.buildingT', 'heat_profile', heat_profile)
 
+stor_design = { # Thi and Tlo need to be compatible with delta_T of previous
+    'Thi': 80,
+    'Tlo': 60,
+    'mflo_max': 110,
+    'volume': 5,
+    'ar': 1,
+    'dIns': 0.3,
+    'kIns': 0.024
+}
+
+for i in stor_design:
+    modesto.change_design_param('waterscheiGarden.storage', i, stor_design[i])
+
 modesto.change_design_param('bbThor', 'pipe_type', 20)
 modesto.change_design_param('spWaterschei', 'pipe_type', 20)
 modesto.change_design_param('spZwartbergNE', 'pipe_type', 20)
@@ -57,3 +71,7 @@ modesto.solve(tee=True)
 
 print [i.value for i in modesto.components['thorPark'].block.heat_flow.values()]
 
+print '\nStorage'
+print 'Heat flow', str([i.value for i in modesto.components['waterscheiGarden.storage'].block.heat_flow.values()])
+print 'Mass flow', str([i.value for i in modesto.components['waterscheiGarden.storage'].block.mass_flow.values()])
+print 'Energy', str([i.value for i in modesto.components['waterscheiGarden.storage'].block.heat_stor.values()])

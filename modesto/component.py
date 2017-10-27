@@ -1,12 +1,13 @@
 from __future__ import division
 
 import logging
+from math import pi, log, exp
 
 import pandas as pd
-from pyomo.core.base import Block, Param, Var, NonPositiveReals
+from pyomo.core.base import Block, Param, Var, NonPositiveReals, Constraint
 
 
-class Component:
+class Component(object):
     def __init__(self, name, horizon, time_step, design_param, states, user_param):
         """
         Base class for components
@@ -392,7 +393,7 @@ class StorageFixed(FixedProfile):
         FixedProfile.__init__(self, name, horizon, time_step)
 
 
-class StorageVariable(VariableProfile):
+class StorageVariable(Component):
     def __init__(self, name, horizon, time_step):
         """
         Class that describes a variable storage
@@ -402,12 +403,162 @@ class StorageVariable(VariableProfile):
         in seconds
         :param time_step: Time between two points
         """
-        VariableProfile.__init__(self, name, horizon, time_step)
 
-    def compile(self, parent):
+        design_params = {
+            'Thi': 'High temperature in tank [degC]',
+            'Tlo': 'Low temperature in tank [degC]',
+            'mflo_max': 'Maximal mass flow rate to and from storage vessel [kg/s]',
+            'volume': 'Storage volume [m3]',
+            'ar': 'Aspect ratio (height/width) [-]',
+            'dIns': 'Insulation thickness [m]',
+            'kIns': 'Thermal conductivity of insulation material [W/(m.K)]'
+        }
+        super(StorageVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, states=['heat_stor'], design_param=design_params, user_param=None)
+
+        # TODO choose between stored heat or state of charge as state (which one is easier for initialization?)
+
+        self.cyclic = False
+        self.max_mflo = None
+        self.volume = None
+        self.dIns = None
+        self.kIns = None
+
+        self.ar = None
+
+        self.temp_diff = None
+
+        self.UAw = None
+        self.UAtb = None
+        self.tau = None
+
+        self.temp_sup = None
+        self.temp_ret = None
+
+    def compile(self, topmodel, parent):
         """
-        Build the structure of the fixed heat demand profile for a building
+        Compile this model
 
+        :param topmodel: top optimization model with TIME and Te variable
+        :param parent: block above this level
         :return:
         """
-        pass
+        self.max_mflo = self.design_param['mflo_max']
+        self.volume = self.design_param['volume']
+        self.dIns = self.design_param['dIns']
+        self.kIns = self.design_param['kIns']
+
+        self.ar = self.design_param['ar']
+
+        self.temp_diff = self.design_param['Thi'] - self.design_param['Tlo']
+        self.temp_sup = self.design_param['Thi']
+        self.temp_ret = self.design_param['Tlo']
+
+        # Geometrical calculations
+        w = (4 * self.volume / self.ar / pi) ** (1 / 3)  # Width of tank
+        h = self.ar * w  # Height of tank
+
+        Atb = w ** 2 / 4 * pi  # Top/bottom surface of tank
+
+        # Heat transfer coefficients
+        self.UAw = 2 * pi * self.kIns * h / log((w + 2 * self.dIns) / w)
+        self.UAtb = Atb * self.kIns / self.dIns
+
+        # Time constant
+        self.tau = self.volume * 1000 * self.cp / self.UAw
+
+        ############################################################################################
+        # Initialize block
+
+        self.model = topmodel
+        self.make_block(parent)
+
+        ############################################################################################
+        # Parameters
+
+        ## Fixed heat loss
+        def _heat_loss_ct(b, t):
+            return self.UAw * (self.temp_ret - 18) + \
+                   self.UAtb * (
+                       self.temp_ret + self.temp_sup - 2 * 18)
+        # TODO implement varying outdoor temperature
+
+        self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
+
+        ############################################################################################
+        # Initialize variables
+        #       with upper and lower bounds
+
+        mflo_bounds = (
+            -self.max_mflo, self.max_mflo) if self.max_mflo is not None else (
+            None, None)
+        heat_bounds = (
+            (-self.max_mflo * self.temp_diff * self.cp,
+             self.max_mflo * self.temp_diff * self.cp) if self.max_mflo is not None else (
+                None, None))
+
+        ## In/out
+        self.block.mass_flow = Var(self.model.TIME, bounds=mflo_bounds)
+        self.block.heat_flow = Var(self.model.TIME, bounds=heat_bounds)
+
+        ## Internal
+        self.block.heat_stor = Var(self.model.TIME, bounds=(
+            0, self.volume * self.cp * 1000 * self.temp_diff))
+        self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
+        self.logger.debug('Tau:      {}s'.format(str(self.tau)))
+        self.logger.debug('Loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
+
+        #############################################################################################
+        # Equality constraints
+
+        self.block.heat_loss = Var(self.model.TIME)
+
+        def _eq_heat_loss(b, t):
+            return b.heat_loss[t] == (1 - exp(-self.time_step / self.tau)) * b.heat_stor[t] / self.time_step + \
+                                     b.heat_loss_ct[t]
+
+        self.block.eq_heat_loss = Constraint(self.model.TIME, rule=_eq_heat_loss)
+
+        ## State equation
+        def _state_eq(b, t):
+            if t < self.model.TIME[-1]:
+                return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])
+
+                # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
+
+            else:
+                # print str(t)
+                return Constraint.Skip
+
+        self.block.state_eq = Constraint(self.model.TIME, rule=_state_eq)
+
+        if self.cyclic:
+            def _eq_cyclic(b):
+                return b.heat_stor[0] == b.heat_stor[self.model.TIME[-1]]
+
+            self.block.eq_cyclic = Constraint(rule=_eq_cyclic)
+        #############################################################################################
+        # Initial state
+
+        try:
+            initial_state = self.initial_data[self.needed_states[0]]
+        except KeyError:
+            self.logger.warning('No initial state indicated for {}.'.format(self.name))
+            self.logger.warning('Assuming free initial state.')
+            initial_state = None
+
+        if initial_state is not None:
+            def _init_eq(b):
+                return b.heat_stor[0] == initial_state
+
+            self.block.init_eq = Constraint(rule=_init_eq)
+
+        # self.block.init = Constraint(expr=self.block.heat_stor[0] == 1 / 2 * self.vol * 1000 * self.temp_diff * self.cp)
+        # print 1 / 2 * self.vol * 1000 * self.temp_diff * self.cp
+
+        ## Mass flow and heat flow link
+        def _heat_bal(b, t):
+            return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
+
+        self.block.heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
+
+        self.logger.info('Optimization model Storage {} compiled'.format(self.name))
