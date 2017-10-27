@@ -1,6 +1,6 @@
 # Welcome to ``modesto``!
 
-![alt text](https://gitlab.mech.kuleuven.be/u0111619/m-oDESTO/blob/master/misc/Logo/modesto.png "Modesto Logo")
+<img src="../misc/Logo/modesto.png" width= "300px">
 
 ``modesto`` is the Multi-Objective District Energy Systems Toolbox for Optimization.
 It offers tools to construct optimization problem formulations for district energy systems,
