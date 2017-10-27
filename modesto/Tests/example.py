@@ -5,7 +5,7 @@ import logging
 import pandas as pd
 
 logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(name)-18s %(levelname)-8s %(message)s',
+                    format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
 

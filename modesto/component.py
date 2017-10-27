@@ -403,6 +403,7 @@ class StorageVariable(Component):
         in seconds
         :param time_step: Time between two points
         """
+
         design_params = {
             'Thi': 'High temperature in tank [degC]',
             'Tlo': 'Low temperature in tank [degC]',
@@ -535,8 +536,21 @@ class StorageVariable(Component):
                 return b.heat_stor[0] == b.heat_stor[self.model.TIME[-1]]
 
             self.block.eq_cyclic = Constraint(rule=_eq_cyclic)
+        #############################################################################################
+        # Initial state
 
-        # TODO check initialization
+        try:
+            initial_state = self.initial_data[self.needed_states[0]]
+        except KeyError:
+            self.logger.warning('No initial state indicated for {}.'.format(self.name))
+            self.logger.warning('Assuming free initial state.')
+            initial_state = None
+
+        if initial_state is not None:
+            def _init_eq(b):
+                return b.heat_stor[0] == initial_state
+
+            self.block.init_eq = Constraint(rule=_init_eq)
 
         # self.block.init = Constraint(expr=self.block.heat_stor[0] == 1 / 2 * self.vol * 1000 * self.temp_diff * self.cp)
         # print 1 / 2 * self.vol * 1000 * self.temp_diff * self.cp
