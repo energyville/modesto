@@ -14,7 +14,6 @@ Welcome to modesto's documentation!
 
 
 
-
 Indices and tables
 ==================
 
