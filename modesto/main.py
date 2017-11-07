@@ -250,7 +250,7 @@ class Modesto:
         :return:
         """
         assert comp in self.components, "%s is not recognized as a valid component" % comp
-        self.components[comp].change_initial_cond(state, val)
+        self.components[comp].change_initial_condition(state, val)
 
 
 class Node(object):

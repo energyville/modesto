@@ -8,7 +8,7 @@ from pyomo.core.base import Block, Param, Var, NonPositiveReals, Constraint
 
 
 class Component(object):
-    def __init__(self, name, horizon, time_step, design_param, states, user_param):
+    def __init__(self, name, horizon, time_step, design_param={}, states={}, user_param={}):
         """
         Base class for components
 
@@ -168,11 +168,11 @@ class Component(object):
         for param in self.needed_user_data:
             assert param in self.user_data, \
                 "No values for user data %s for component %s was indicated\n Description: %s" % \
-                (param, self.name, self.needed_design_param[param])
+                (param, self.name, self.needed_user_data[param])
         for param in self.needed_states:
             assert param in self.initial_data, \
                 "No initial value for state %s for component %s was indicated\n Description: %s" % \
-                (param, self.name, self.needed_design_param[param])
+                (param, self.name, self.needed_states[param])
 
     def obj_energy(self):
         """
@@ -202,7 +202,7 @@ class FixedProfile(Component):
         user_param = {'heat_profile': 'Heat use in one (average) building'}
         # TODO Link this to the build()
 
-        Component.__init__(self, name=name, horizon=horizon, time_step=time_step, design_param=design_param, states=[],
+        Component.__init__(self, name=name, horizon=horizon, time_step=time_step, design_param=design_param,
                            user_param=user_param)
 
         assert direction in [-1, 0, 1], "The input direction should be either -1, 0 or 1"
@@ -287,7 +287,7 @@ class VariableProfile(Component):
         :param time_step: Time between two points
         """
 
-        Component.__init__(self, name, horizon, time_step, [], [], [])
+        Component.__init__(self, name, horizon, time_step)
 
     def compile(self, parent):
         """
@@ -413,7 +413,13 @@ class StorageVariable(Component):
             'dIns': 'Insulation thickness [m]',
             'kIns': 'Thermal conductivity of insulation material [W/(m.K)]'
         }
-        super(StorageVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, states=['heat_stor'], design_param=design_params, user_param=None)
+
+        states = {
+            'heat_stor': 'Heat present in the tank'
+        }
+
+        super(StorageVariable, self).__init__(name=name, horizon=horizon, time_step=time_step,
+                                              states=states, design_param=design_params)
 
         # TODO choose between stored heat or state of charge as state (which one is easier for initialization?)
 
@@ -442,6 +448,8 @@ class StorageVariable(Component):
         :param parent: block above this level
         :return:
         """
+        self.check_data()
+
         self.max_mflo = self.design_param['mflo_max']
         self.volume = self.design_param['volume']
         self.dIns = self.design_param['dIns']
@@ -496,11 +504,11 @@ class StorageVariable(Component):
              self.max_mflo * self.temp_diff * self.cp) if self.max_mflo is not None else (
                 None, None))
 
-        ## In/out
+        # In/out
         self.block.mass_flow = Var(self.model.TIME, bounds=mflo_bounds)
         self.block.heat_flow = Var(self.model.TIME, bounds=heat_bounds)
 
-        ## Internal
+        # Internal
         self.block.heat_stor = Var(self.model.TIME, bounds=(
             0, self.volume * self.cp * 1000 * self.temp_diff))
         self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
@@ -518,7 +526,7 @@ class StorageVariable(Component):
 
         self.block.eq_heat_loss = Constraint(self.model.TIME, rule=_eq_heat_loss)
 
-        ## State equation
+        # State equation
         def _state_eq(b, t):
             if t < self.model.TIME[-1]:
                 return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])

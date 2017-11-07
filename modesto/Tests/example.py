@@ -64,6 +64,8 @@ stor_design = { # Thi and Tlo need to be compatible with delta_T of previous
 for i in stor_design:
     modesto.change_design_param('waterscheiGarden.storage', i, stor_design[i])
 
+modesto.change_initial_cond('waterscheiGarden.storage', 'heat_stor', 50+273.15)
+
 modesto.change_design_param('bbThor', 'pipe_type', 20)
 modesto.change_design_param('spWaterschei', 'pipe_type', 20)
 modesto.change_design_param('spZwartbergNE', 'pipe_type', 20)
