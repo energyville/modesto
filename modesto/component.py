@@ -271,7 +271,7 @@ class FixedProfile(Component):
     def change_user_data(self, kind, new_data):
         if kind == 'heat_profile' and not self.direction == 0:
             assert all(self.direction * i >= 0 for i in new_data)
-        Component.change_user_behaviour(kind, new_data)
+        Component.change_user_behaviour(self, kind, new_data)
 
 
 class VariableProfile(Component):

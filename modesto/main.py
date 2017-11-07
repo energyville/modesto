@@ -40,6 +40,9 @@ class Modesto:
 
         self.build(graph)
 
+        self.needed_weather_param = {'Te': 'The ambient temperature [K]'}
+        self.weather_param = {}
+
     def build(self, graph):
         """
         Build the structure of the optimization problem
@@ -111,8 +114,19 @@ class Modesto:
 
         :return:
         """
-        self.model.TIME = Set(initialize=range(self.n_steps), ordered=True)
 
+        # Check if all necessary weather data is available
+
+        for param in self.needed_weather_param:
+            assert param in self.weather_param, \
+                "No values for weather parameter %s was indicated\n Description: %s" % \
+                (param, self.needed_weather_param[param])
+
+        # General parameters
+        self.model.TIME = Set(initialize=range(self.n_steps), ordered=True)
+        self.model.Te = self.weather_param['Te']
+
+        # Components
         for name, edge in self.edges.items():
             edge.compile(self.model)
         for name, node in self.nodes.items():
@@ -202,14 +216,17 @@ class Modesto:
         assert comp in self.components, "%s is not recognized as a valid component" % comp
         self.components[comp].change_user_behaviour(kind, new_data)
 
-    def change_weather(self, new_data):
+    def change_weather(self, param, val):
         """
         Change the weather
 
-        :param new_data: The new data that describes the weather, in a dataframe (index is time), columns are the different required signals
+        :param param: Name of the parameter
+        :param val: The new data that describes the weather, in a dataframe (index is time), columns are the different required signals
         :return:
         """
-        pass
+        assert param in self.needed_weather_param, '%s is not recognized as a valid weather parameter' % param
+        assert isinstance(val, pd.DataFrame), '%s should be a pandas DataFrame object' % param
+        self.weather_param[param] = val
 
     def change_design_param(self, comp, param, val):
         """

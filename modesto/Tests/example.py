@@ -37,6 +37,9 @@ time_steps = 3600
 modesto = Modesto(n_steps*time_steps, time_steps, 'SimplePipe', G)
 
 heat_profile = pd.DataFrame([1000]*n_steps, index=range(n_steps))
+T_amb = pd.DataFrame([20+273.15]*n_steps, index=range(n_steps))
+
+modesto.change_weather('Te', T_amb)
 
 modesto.change_design_param('zwartbergNE.buildingD', 'delta_T', 20)
 modesto.change_design_param('zwartbergNE.buildingD', 'mult', 20)
