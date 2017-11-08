@@ -92,11 +92,11 @@ zwartberg_hf = modesto.get_result('zwartbergNE.buildingD', 'heat_flow')
 fig, ax = plt.subplots()
 
 ax.hold(True)
-l1,=ax.plot(prod_hf, linewidth=4)
+l1,=ax.plot(prod_hf)
 l3,=ax.plot([x + y + z for x, y, z in zip(waterschei_hf, zwartberg_hf, storage_hf)])
 ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
 
-ax.set_title('Power going out of network')
+ax.set_title('Heat flows [W]')
 
 fig.legend((l1, l3),
            ('Producer',
