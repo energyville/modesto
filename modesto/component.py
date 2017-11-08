@@ -117,15 +117,6 @@ class Component(object):
 
         self.user_data[kind] = new_data
 
-    def change_weather_data(self, new_data):
-        """
-        Change the weather data
-
-        :param new_data: New weather data
-        :return:
-        """
-        # TODO Do this centrally, not in every single component!
-        pass
 
     def change_initial_condition(self, state, val):
         """
@@ -264,9 +255,6 @@ class FixedProfile(Component):
             param_list += ';\n'
 
         return param_list
-
-    def change_weather_data(self, new_data):
-        print "WARNING: Trying to change the weather data of a fixed heat profile"
 
     def change_user_data(self, kind, new_data):
         if kind == 'heat_profile' and not self.direction == 0:
@@ -483,11 +471,11 @@ class StorageVariable(Component):
         ############################################################################################
         # Parameters
 
-        ## Fixed heat loss
+        # Fixed heat loss
         def _heat_loss_ct(b, t):
-            return self.UAw * (self.temp_ret - 18) + \
+            return self.UAw * (self.temp_ret - self.model.Te.iloc[t][0]) + \
                    self.UAtb * (
-                       self.temp_ret + self.temp_sup - 2 * 18)
+                       self.temp_ret + self.temp_sup - self.model.Te.iloc[t][0])
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
@@ -546,9 +534,9 @@ class StorageVariable(Component):
             self.block.eq_cyclic = Constraint(rule=_eq_cyclic)
         #############################################################################################
         # Initial state
-
         try:
-            initial_state = self.initial_data[self.needed_states[0]]
+            initial_state = self.initial_data['heat_stor']
+
         except KeyError:
             self.logger.warning('No initial state indicated for {}.'.format(self.name))
             self.logger.warning('Assuming free initial state.')
