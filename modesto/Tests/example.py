@@ -19,7 +19,6 @@ G.add_node('p1', x=2600, y=5000, z=0,
            comps={})
 G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
            comps={'waterscheiGarden.buildingD': 'BuildingFixed',
-                  'waterscheiGarden.buildingT': 'BuildingFixed',
                   'waterscheiGarden.storage':   'StorageVariable'})
 G.add_node('zwartbergNE', x=2000, y=5500, z=0,
            comps={'zwartbergNE.buildingD': 'BuildingFixed'})
@@ -51,15 +50,12 @@ modesto.change_user_behaviour('zwartbergNE.buildingD', 'heat_profile', heat_prof
 modesto.change_design_param('waterscheiGarden.buildingD', 'delta_T', 20)
 modesto.change_design_param('waterscheiGarden.buildingD', 'mult', 20)
 modesto.change_user_behaviour('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
-modesto.change_design_param('waterscheiGarden.buildingT', 'delta_T', 20)
-modesto.change_design_param('waterscheiGarden.buildingT', 'mult', 20)
-modesto.change_user_behaviour('waterscheiGarden.buildingT', 'heat_profile', heat_profile)
 
-stor_design = { # Thi and Tlo need to be compatible with delta_T of previous
+stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
     'Thi': 80+273.15,
     'Tlo': 60+273.15,
     'mflo_max': 110,
-    'volume': 5,
+    'volume': 10,
     'ar': 1,
     'dIns': 0.3,
     'kIns': 0.024
@@ -83,7 +79,29 @@ print modesto.get_result('zwartbergNE.buildingD', 'heat_flow')
 print modesto.get_result('thorPark', 'heat_flow')
 
 print '\nStorage'
-print 'Heat flow', modesto.get_result('waterscheiGarden.storage', 'heat_flow')
+print modesto.get_result('waterscheiGarden.storage', 'heat_flow')
 print 'Mass flow', modesto.get_result('waterscheiGarden.storage', 'mass_flow')
 print 'Energy', modesto.get_result('waterscheiGarden.storage', 'heat_stor')
+
+prod_hf = modesto.get_result('thorPark', 'heat_flow')
+prod_hf = [ -x for x in prod_hf]
+storage_hf = modesto.get_result('waterscheiGarden.storage', 'heat_flow')
+waterschei_hf = modesto.get_result('waterscheiGarden.buildingD', 'heat_flow')
+zwartberg_hf = modesto.get_result('zwartbergNE.buildingD', 'heat_flow')
+
+fig, ax = plt.subplots()
+
+ax.hold(True)
+l1,=ax.plot(prod_hf, linewidth=4)
+l3,=ax.plot([x + y + z for x, y, z in zip(waterschei_hf, zwartberg_hf, storage_hf)])
+ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
+
+ax.set_title('Power going out of network')
+
+fig.legend((l1, l3),
+           ('Producer',
+            'Users and storage'),
+            'lower center', ncol=3)
+
+plt.show()
 
