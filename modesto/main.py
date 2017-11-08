@@ -38,6 +38,8 @@ class Modesto:
 
         self.logger = logging.getLogger('modesto.main.Modesto')
 
+        self.allow_flow_reversal = True
+
         self.build(graph)
 
         self.needed_weather_param = {'Te': 'The ambient temperature [K]'}
@@ -99,7 +101,8 @@ class Modesto:
             # Create the modesto.Edge object
             self.edges[edge['name']] = Edge(edge['name'], edge,
                                             start_node, end_node,
-                                            self.horizon, self.time_step, self.pipe_model)
+                                            self.horizon, self.time_step,
+                                            self.pipe_model, self.allow_flow_reversal)
             # Add the modesto.Edge object to the graph
             self.graph[edge_tuple[0]][edge_tuple[1]]['conn'] = self.edges[edge['name']]
             self.components[edge['name']] = self.edges[edge['name']].pipe
@@ -173,7 +176,7 @@ class Modesto:
             self.model.pprint()
 
         opt = SolverFactory("gurobi")
-        opt.solve(self.model, tee=True)
+        opt.solve(self.model, tee=tee)
 
     def get_sol(self, name):
         """
@@ -184,7 +187,7 @@ class Modesto:
         """
         pass
 
-    def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_model=None):
+    def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_model=None, allow_flow_reversal=None):
         """
         Change the setting of the optimization problem
 
@@ -192,6 +195,7 @@ class Modesto:
         :param horizon: The horizon of the problem, in seconds
         :param time_step: The time between two points, in secinds
         :param pipe_model: The name of the type of pipe model to be used
+        :param allow_flow_reversal: Boolean indicating whether mass flow reversals are possible in the pipes
         :return:
         """
         if objective is not None:  # TODO Do we need this to be defined at the top level of modesto?
@@ -202,6 +206,8 @@ class Modesto:
             self.objective = time_step
         if pipe_model is not None:
             self.pipe_model = pipe_model
+        if allow_flow_reversal is not None:
+            self.allow_flow_reversal = allow_flow_reversal
 
     def change_user_behaviour(self, comp, kind, new_data):
         """
@@ -404,7 +410,7 @@ class Node(object):
 
 
 class Edge(object):
-    def __init__(self, name, edge, start_node, end_node, horizon, time_step, pipe_model):
+    def __init__(self, name, edge, start_node, end_node, horizon, time_step, pipe_model, allow_flow_reversal):
         """
         Connection object between two nodes in a graph
 
@@ -431,9 +437,9 @@ class Edge(object):
         self.length = self.get_length()
 
         self.pipe_model = pipe_model
-        self.pipe = self.build(pipe_model)  # TODO Better structure possible?
+        self.pipe = self.build(pipe_model, allow_flow_reversal)  # TODO Better structure possible?
 
-    def build(self, pipe_model):
+    def build(self, pipe_model, allow_flow_reversal):
 
         self.pipe_model = pipe_model
 
@@ -446,7 +452,8 @@ class Edge(object):
             cls = None
 
         if cls:
-            obj = cls(self.name, self.horizon, self.time_step, self.start_node.name, self.end_node.name, self.length)
+            obj = cls(self.name, self.horizon, self.time_step, self.start_node.name,
+                      self.end_node.name, self.length, allow_flow_reversal=allow_flow_reversal)
         else:
             obj = None
 
