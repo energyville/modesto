@@ -76,48 +76,14 @@ modesto.change_design_param('spZwartbergNE', 'pipe_type', 250)
 
 modesto.compile()
 modesto.set_objective('energy')
-modesto.solve(tee=True)
+modesto.solve(tee=False)
 
-# print [i.value for i in modesto.components['waterscheiGarden.buildingD'].block.heat_flow.values()]
-# print [i.value for i in modesto.components['zwartbergNE.buildingD'].block.heat_flow.values()]
-print [i.value for i in modesto.components['thorPark'].block.heat_flow.values()]
+print modesto.get_result('waterscheiGarden.buildingD', 'heat_flow')
+print modesto.get_result('zwartbergNE.buildingD', 'heat_flow')
+print modesto.get_result('thorPark', 'heat_flow')
 
 print '\nStorage'
-print 'Heat flow', str([i.value for i in modesto.components['waterscheiGarden.storage'].block.heat_flow.values()])
-print 'Mass flow', str([i.value for i in modesto.components['waterscheiGarden.storage'].block.mass_flow.values()])
-print 'Energy', str([i.value for i in modesto.components['waterscheiGarden.storage'].block.heat_stor.values()])
+print 'Heat flow', modesto.get_result('waterscheiGarden.storage', 'heat_flow')
+print 'Mass flow', modesto.get_result('waterscheiGarden.storage', 'mass_flow')
+print 'Energy', modesto.get_result('waterscheiGarden.storage', 'heat_stor')
 
-print '\nspWaterschei'
-print 'Heat flow in', str([i.value for i in modesto.components['spWaterschei'].block.heat_flow_in.values()])
-print 'Heat flow out', str([i.value for i in modesto.components['spWaterschei'].block.heat_flow_out.values()])
-print 'Mass flow', str([i.value for i in modesto.components['spWaterschei'].block.mass_flow.values()])
-
-print '\nspZwartbergNE'
-print 'Heat flow in', str([i.value for i in modesto.components['spZwartbergNE'].block.heat_flow_in.values()])
-print 'Heat flow out', str([i.value for i in modesto.components['spZwartbergNE'].block.heat_flow_out.values()])
-print 'Mass flow', str([i.value for i in modesto.components['spZwartbergNE'].block.mass_flow.values()])
-
-print '\nbbThor'
-print 'Heat flow in', str([i.value for i in modesto.components['bbThor'].block.heat_flow_in.values()])
-print 'Heat flow out', str([i.value for i in modesto.components['bbThor'].block.heat_flow_out.values()])
-print 'Mass flow', str([i.value for i in modesto.components['bbThor'].block.mass_flow.values()])
-# self.block.mass_flow_tot = Var(self.model.TIME, bounds=mflo_lb)
-# self.block.heat_loss = Var(self.model.TIME, self.block.DN_ind)
-# self.block.heat_loss_tot = Var(self.model.TIME)
-#
-# # Binaries
-# self.block.forward = Var(self.model.TIME, self.block.DN_ind,
-#                          within=Binary)  # mu +
-# self.block.reverse = Var(self.model.TIME, self.block.DN_ind,
-#                          within=Binary)  # mu -
-# self.block.dn_sel = Var(self.block.DN_ind, within=Binary)
-#
-# # Real 0-1: Weights
-# self.block.weight1 = Var(self.model.TIME, self.block.DN_ind,
-#                          bounds=(0, 1))
-# self.block.weight2 = Var(self.model.TIME, self.block.DN_ind,
-#                          bounds=(0, 1))
-# self.block.weight3 = Var(self.model.TIME, self.block.DN_ind,
-#                          bounds=(0, 1))
-# self.block.weight4 = Var(self.model.TIME, self.block.DN_ind,
-#                          bounds=(0, 1))

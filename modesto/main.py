@@ -29,6 +29,7 @@ class Modesto:
         self.n_steps = int(horizon / time_step)
         self.pipe_model = pipe_model
         self.graph = graph
+        self.results = None
 
         self.nodes = {}
         self.edges = {}
@@ -53,6 +54,8 @@ class Modesto:
         :param graph: Object containing structure of the network, structure and parameters describing component models and design parameters
         :return:
         """
+        self.results = None
+
         self.graph = graph
 
         self.__build_nodes()
@@ -176,16 +179,7 @@ class Modesto:
             self.model.pprint()
 
         opt = SolverFactory("gurobi")
-        opt.solve(self.model, tee=tee)
-
-    def get_sol(self, name):
-        """
-        Get the solution of a variable
-
-        :param name: Name of the variable
-        :return: A list containing the optimal values throughout the entire horizon of the variable
-        """
-        pass
+        self.results = opt.solve(self.model, tee=tee)
 
     def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_model=None, allow_flow_reversal=None):
         """
@@ -257,6 +251,36 @@ class Modesto:
         """
         assert comp in self.components, "%s is not recognized as a valid component" % comp
         self.components[comp].change_initial_condition(state, val)
+
+    def get_result(self, comp, name):
+        """
+        Returns the numerical values of a certain variable/parameter after optimization
+
+        :param comp: Name of the component to which the variable belongs
+        :param name: Name of the needed variable/parameter
+        :return: A list containing all values of the variable/parameter over the time horizon
+        """
+
+        assert self.results is not None, 'The optimization problem has not been solved yet.'
+        assert comp in self.components, '%s is not a valid component name' % comp
+
+        result = []
+
+        try:  # Variable
+            for i in self.model.TIME:
+                eval('result.append(self.components[comp].block.' + name + '.values()[i].value)')
+
+            return result
+
+        except AttributeError:
+
+            try:  # Parameter
+                result = eval('self.components[comp].block.' + name + '.values()')
+
+                return result
+
+            except AttributeError:  # Given name is neither a parameter nor a variable
+                self.logger.warning('The variable/parameter {}.{} does not exist, skipping collection of result'.format(comp, name))
 
 
 class Node(object):
