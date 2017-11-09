@@ -189,31 +189,9 @@ class Modesto:
         if pipe_model is not None:
             self.pipe_model = pipe_model
 
-    def change_user_behaviour(self, comp, kind, new_data):
+    def change_param(self, comp, param, val):
         """
-        Change the user behaviour of a certain component
-
-        :param comp: Name of the component
-        :param kind: Name of the kind of user data (e.g. mDHW)
-        :param new_data: The new data, in a dataframe (index is time)
-        :return:
-        """
-        # TODO Add resampling
-        assert comp in self.components, "%s is not recognized as a valid component" % comp
-        self.components[comp].change_user_behaviour(kind, new_data)
-
-    def change_weather(self, new_data):
-        """
-        Change the weather
-
-        :param new_data: The new data that describes the weather, in a dataframe (index is time), columns are the different required signals
-        :return:
-        """
-        pass
-
-    def change_design_param(self, comp, param, val):
-        """
-        Change a design parameter
+        Change aparameter
 
         :param comp: Name of the component
         :param param: name of the parameter
@@ -221,19 +199,7 @@ class Modesto:
         :return:
         """
         assert comp in self.components, "%s is not recognized as a valid component" % comp
-        self.components[comp].change_design_param(param, val)
-
-    def change_initial_cond(self, comp, state, val):
-        """
-        Change the initial condition of a state
-
-        :param comp: Name of the component
-        :param state: Name of the state
-        :param val: New initial value of the state
-        :return:
-        """
-        assert comp in self.components, "%s is not recognized as a valid component" % comp
-        self.components[comp].change_initial_cond(state, val)
+        self.components[comp].change_param(param, val)
 
 
 class Node(object):

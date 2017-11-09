@@ -2,6 +2,7 @@ import logging
 from pyomo.environ import *
 import pandas as pd
 from component import Component
+from parameter import DesignParameter, StateParameter, WeatherDataParameter
 import warnings
 
 
@@ -20,17 +21,16 @@ class Pipe(Component):
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
         """
 
-        design_param = ['pipe_type']  # Type of pipe model
-
-        Component.__init__(self, name, horizon, time_step, design_param, [], [])
+        Component.__init__(self,
+                           name=name,
+                           horizon=horizon,
+                           time_step=time_step,
+                           params=self.create_params())
 
         self.start_node = start_node
         self.end_node = end_node
         self.length = length
         self.allow_flow_reversal = allow_flow_reversal
-
-    def change_user_data(self, kind, new_data):
-        print "WARNING: Trying to change the user data of a pipe %s" % self.name
 
     def get_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
