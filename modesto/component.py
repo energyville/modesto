@@ -275,7 +275,8 @@ class VariableProfile(Component):
         :param time_step: Time between two points
         """
 
-        Component.__init__(self, name, horizon, time_step)
+        super(VariableProfile, self).__init__(name=name, horizon=horizon, time_step=time_step, design_param=[],
+                                              states=[], user_param=[])
 
     def compile(self, parent):
         """

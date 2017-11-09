@@ -42,6 +42,7 @@ class Modesto:
         self.allow_flow_reversal = True
 
         self.build(graph)
+        self.compiled = False
 
         self.needed_weather_param = {'Te': 'The ambient temperature [K]'}
         self.weather_param = {}
@@ -99,7 +100,7 @@ class Modesto:
             end_node = self.nodes[edge_tuple[1]]
 
             assert edge['name'] not in self.edges, "An edge with name %s already exists" % edge['name']
-            assert edge['name'] not in self.components, "An component with name %s already exists" % edge['name']
+            assert edge['name'] not in self.components, "A component with name %s already exists" % edge['name']
 
             # Create the modesto.Edge object
             self.edges[edge['name']] = Edge(edge['name'], edge,
@@ -120,6 +121,10 @@ class Modesto:
 
         :return:
         """
+        
+        # Check if not compiled already
+        if self.compiled:
+            self.logger.warning('Model was already compiled.')
 
         # Check if all necessary weather data is available
 
@@ -137,6 +142,8 @@ class Modesto:
             edge.compile(self.model)
         for name, node in self.nodes.items():
             node.compile(self.model)
+
+        self.compiled = True    # Change compilation flag
 
     def set_objective(self, objtype):
         """
