@@ -61,6 +61,8 @@ stor_design = { # Thi and Tlo need to be compatible with delta_T of previous
 for i in stor_design:
     modesto.change_param('waterscheiGarden.storage', i, stor_design[i])
 
+modesto.change_param('waterscheiGarden.storage', 'heat_stor', 6000000)
+
 modesto.compile()
 modesto.set_objective('energy')
 modesto.solve(tee=True)

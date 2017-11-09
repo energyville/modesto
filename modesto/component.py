@@ -419,7 +419,11 @@ class StorageVariable(Component):
                                     'm'),
             'kIns': DesignParameter('kIns',
                                     'Thermal conductivity of insulation material',
-                                    'W/(m.K)')
+                                    'W/(m.K)'),
+            'heat_stor': StateParameter('heat_stor',
+                                        'Heat stored in the thermal storage unit',
+                                        'J',
+                                        'initVal')
         }
 
         return params
@@ -442,6 +446,8 @@ class StorageVariable(Component):
         self.temp_diff = self.params['Thi'].v() - self.params['Tlo'].v()
         self.temp_sup = self.params['Thi'].v()
         self.temp_ret = self.params['Tlo'].v()
+
+        heat_stor_init = self.params['heat_stor']
 
         # Geometrical calculations
         w = (4 * self.volume / self.ar / pi) ** (1 / 3)  # Width of tank
@@ -529,16 +535,17 @@ class StorageVariable(Component):
         #############################################################################################
         # Initial state
 
-        try:
-            initial_state = self.params['heat_stor'].v()
-        except KeyError:
-            self.logger.warning('No initial state indicated for {}.'.format(self.name))
-            self.logger.warning('Assuming free initial state.')
-            initial_state = None
+        # TODO Move this to a separate general method for initializing states
+        if heat_stor_init.init_type == 'free':
+            pass
+        elif heat_stor_init.init_type == 'cyclic':
+            def _eq_cyclic(b):
+                return b.heat_stor[0] == b.heat_stor[self.model.TIME[-1]]
 
-        if initial_state is not None:
+            self.block.eq_cyclic = Constraint(rule=_eq_cyclic)
+        else:
             def _init_eq(b):
-                return b.heat_stor[0] == initial_state
+                return b.heat_stor[0] == heat_stor_init.v()
 
             self.block.init_eq = Constraint(rule=_init_eq)
 

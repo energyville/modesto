@@ -79,17 +79,33 @@ class DesignParameter(Parameter):
 
 class StateParameter(Parameter):
 
-    def __init__(self, name, description, unit, val=None):
+    def __init__(self, name, description, unit, init_type, val=None):
         """
         Class that describes an initial state parameter
 
         :param name: Name of the parameter (str)
         :param description: Description of the parameter (str)
         :param unit: Unit of the parameter (e.g. K, W, m...) (str)
+        :param init_type: Type of initialization constraint (str)
         :param val: Value of the parameter, if not given, it becomes None
         """
 
         Parameter.__init__(self, name, description, unit, val)
+
+        self.init_types = ['initVal', 'cyclic', 'free']
+
+        assert init_type in self.init_types, '%s is not an allowed type of initialization constraint'
+        self.init_type = init_type
+
+    def change_init_type(self, new_type):
+        """
+        Change the type of initialization constraint associated with the parameter
+
+        :param new_type: Name of the new type of initialization constraint
+        """
+
+        assert new_type in self.init_types, '%s is not an allowed type of initialization constraint'
+        self.init_type = new_type
 
 
 class DataFrameParameter(Parameter):
