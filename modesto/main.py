@@ -174,11 +174,12 @@ class Modesto:
         """
         return [self.components[comp] for comp in self.components]
 
-    def solve(self, tee=False):
+    def solve(self, tee=False, mipgap=0.1):
         """
         Solve a new optimization
 
         :param tee: If True, print the optimization model
+        :param mipgap: Set mip optimality gap. Default 10%
         :return:
         """
 
@@ -186,6 +187,8 @@ class Modesto:
             self.model.pprint()
 
         opt = SolverFactory("gurobi")
+        # opt.options["Threads"] = threads
+        opt.options["MIPGap"] = mipgap
         self.results = opt.solve(self.model, tee=tee)
 
     def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_model=None, allow_flow_reversal=None):
