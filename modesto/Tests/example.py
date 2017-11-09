@@ -3,6 +3,7 @@ from modesto.main import Modesto
 import matplotlib.pyplot as plt
 import logging
 import pandas as pd
+import numpy as np
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -53,7 +54,7 @@ modesto.opt_settings(allow_flow_reversal=False)
 modesto.change_weather('Te', T_amb)
 
 modesto.change_design_param('zwartbergNE.buildingD', 'delta_T', 20)
-modesto.change_design_param('zwartbergNE.buildingD', 'mult', 20)
+modesto.change_design_param('zwartbergNE.buildingD', 'mult', 2000)
 modesto.change_user_behaviour('zwartbergNE.buildingD', 'heat_profile', heat_profile)
 modesto.change_design_param('waterscheiGarden.buildingD', 'delta_T', 20)
 modesto.change_design_param('waterscheiGarden.buildingD', 'mult', 20)
@@ -74,9 +75,9 @@ for i in stor_design:
 
 modesto.change_initial_cond('waterscheiGarden.storage', 'heat_stor', 0)
 
-modesto.change_design_param('bbThor', 'pipe_type', 250)
-modesto.change_design_param('spWaterschei', 'pipe_type', 250)
-modesto.change_design_param('spZwartbergNE', 'pipe_type', 250)
+# modesto.change_design_param('bbThor', 'pipe_type', 250)
+# modesto.change_design_param('spWaterschei', 'pipe_type', 250)
+# modesto.change_design_param('spZwartbergNE', 'pipe_type', 250)
 
 ##################################
 # Solve the optimization problem #
@@ -84,7 +85,7 @@ modesto.change_design_param('spZwartbergNE', 'pipe_type', 250)
 
 modesto.compile()
 modesto.set_objective('energy')
-modesto.solve(tee=False)
+modesto.solve(tee=True, mipgap=0.01)
 
 ##################################
 # Collect result                 #
@@ -113,6 +114,8 @@ storage_hf = modesto.get_result('waterscheiGarden.storage', 'heat_flow')
 waterschei_hf = modesto.get_result('waterscheiGarden.buildingD', 'heat_flow')
 zwartberg_hf = modesto.get_result('zwartbergNE.buildingD', 'heat_flow')
 
+storage_soc = modesto.get_result('waterscheiGarden.storage', 'heat_stor')
+
 # Sum of heat flows
 prod_e = sum(prod_hf)
 storage_e = sum(storage_hf)
@@ -124,19 +127,35 @@ print '\nNetwork'
 print 'Efficiency', (storage_e + waterschei_e + zwartberg_e)/prod_e*100, '%'
 
 
-# fig, ax = plt.subplots()
-#
-# ax.hold(True)
-# l1,=ax.plot(prod_hf)
-# l3,=ax.plot([x + y + z for x, y, z in zip(waterschei_hf, zwartberg_hf, storage_hf)])
-# ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
-#
-# ax.set_title('Heat flows [W]')
-#
-# fig.legend((l1, l3),
-#            ('Producer',
-#             'Users and storage'),
-#             'lower center', ncol=3)
-#
-# plt.show()
+fig, ax = plt.subplots()
+
+ax.hold(True)
+l1,=ax.plot(prod_hf)
+l3,=ax.plot([x + y + z for x, y, z in zip(waterschei_hf, zwartberg_hf, storage_hf)])
+ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
+
+ax.set_title('Heat flows [W]')
+
+fig.legend((l1, l3),
+           ('Producer',
+            'Users and storage'),
+            'lower center', ncol=3)
+
+fig2 = plt.figure()
+
+ax2 = fig2.add_subplot(111)
+ax2.plot(storage_soc, label='Stored heat')
+ax2.plot(np.asarray(storage_hf)*3600, label="Charged heat")
+ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
+ax2.legend()
+
+fig3 = plt.figure()
+
+ax3 = fig3.add_subplot(111)
+ax3.plot(waterschei_hf, label='Waterschei')
+ax3.plot(zwartberg_hf, label="Zwartberg")
+ax3.axhline(y=0, linewidth=3, color='k', linestyle='--')
+ax3.legend()
+
+plt.show()
 
