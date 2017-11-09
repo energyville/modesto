@@ -29,6 +29,7 @@ class Modesto:
         self.n_steps = int(horizon / time_step)
         self.pipe_model = pipe_model
         self.graph = graph
+        self.results = None
 
         self.nodes = {}
         self.edges = {}
@@ -38,8 +39,13 @@ class Modesto:
 
         self.logger = logging.getLogger('modesto.main.Modesto')
 
+        self.allow_flow_reversal = True
+
         self.build(graph)
         self.compiled = False
+
+        self.needed_weather_param = {'Te': 'The ambient temperature [K]'}
+        self.weather_param = {}
 
     def build(self, graph):
         """
@@ -49,6 +55,8 @@ class Modesto:
         :param graph: Object containing structure of the network, structure and parameters describing component models and design parameters
         :return:
         """
+        self.results = None
+
         self.graph = graph
 
         self.__build_nodes()
@@ -97,7 +105,8 @@ class Modesto:
             # Create the modesto.Edge object
             self.edges[edge['name']] = Edge(edge['name'], edge,
                                             start_node, end_node,
-                                            self.horizon, self.time_step, self.pipe_model)
+                                            self.horizon, self.time_step,
+                                            self.pipe_model, self.allow_flow_reversal)
             # Add the modesto.Edge object to the graph
             self.graph[edge_tuple[0]][edge_tuple[1]]['conn'] = self.edges[edge['name']]
             self.components[edge['name']] = self.edges[edge['name']].pipe
@@ -112,10 +121,23 @@ class Modesto:
 
         :return:
         """
+        
+        # Check if not compiled already
         if self.compiled:
             self.logger.warning('Model was already compiled.')
-        self.model.TIME = Set(initialize=range(self.n_steps), ordered=True)
 
+        # Check if all necessary weather data is available
+
+        for param in self.needed_weather_param:
+            assert param in self.weather_param, \
+                "No values for weather parameter %s was indicated\n Description: %s" % \
+                (param, self.needed_weather_param[param])
+
+        # General parameters
+        self.model.TIME = Set(initialize=range(self.n_steps), ordered=True)
+        self.model.Te = self.weather_param['Te']
+
+        # Components
         for name, edge in self.edges.items():
             edge.compile(self.model)
         for name, node in self.nodes.items():
@@ -152,11 +174,12 @@ class Modesto:
         """
         return [self.components[comp] for comp in self.components]
 
-    def solve(self, tee=False):
+    def solve(self, tee=False, mipgap=0.1):
         """
         Solve a new optimization
 
         :param tee: If True, print the optimization model
+        :param mipgap: Set mip optimality gap. Default 10%
         :return:
         """
 
@@ -164,18 +187,11 @@ class Modesto:
             self.model.pprint()
 
         opt = SolverFactory("gurobi")
-        opt.solve(self.model, tee=True)
+        # opt.options["Threads"] = threads
+        opt.options["MIPGap"] = mipgap
+        self.results = opt.solve(self.model, tee=tee)
 
-    def get_sol(self, name):
-        """
-        Get the solution of a variable
-
-        :param name: Name of the variable
-        :return: A list containing the optimal values throughout the entire horizon of the variable
-        """
-        pass
-
-    def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_model=None):
+    def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_model=None, allow_flow_reversal=None):
         """
         Change the setting of the optimization problem
 
@@ -183,6 +199,7 @@ class Modesto:
         :param horizon: The horizon of the problem, in seconds
         :param time_step: The time between two points, in secinds
         :param pipe_model: The name of the type of pipe model to be used
+        :param allow_flow_reversal: Boolean indicating whether mass flow reversals are possible in the pipes
         :return:
         """
         if objective is not None:  # TODO Do we need this to be defined at the top level of modesto?
@@ -193,6 +210,8 @@ class Modesto:
             self.objective = time_step
         if pipe_model is not None:
             self.pipe_model = pipe_model
+        if allow_flow_reversal is not None:
+            self.allow_flow_reversal = allow_flow_reversal
 
     def change_user_behaviour(self, comp, kind, new_data):
         """
@@ -207,14 +226,17 @@ class Modesto:
         assert comp in self.components, "%s is not recognized as a valid component" % comp
         self.components[comp].change_user_behaviour(kind, new_data)
 
-    def change_weather(self, new_data):
+    def change_weather(self, param, val):
         """
         Change the weather
 
-        :param new_data: The new data that describes the weather, in a dataframe (index is time), columns are the different required signals
+        :param param: Name of the parameter
+        :param val: The new data that describes the weather, in a dataframe (index is time), columns are the different required signals
         :return:
         """
-        pass
+        assert param in self.needed_weather_param, '%s is not recognized as a valid weather parameter' % param
+        assert isinstance(val, pd.DataFrame), '%s should be a pandas DataFrame object' % param
+        self.weather_param[param] = val
 
     def change_design_param(self, comp, param, val):
         """
@@ -238,7 +260,37 @@ class Modesto:
         :return:
         """
         assert comp in self.components, "%s is not recognized as a valid component" % comp
-        self.components[comp].change_initial_cond(state, val)
+        self.components[comp].change_initial_condition(state, val)
+
+    def get_result(self, comp, name):
+        """
+        Returns the numerical values of a certain variable/parameter after optimization
+
+        :param comp: Name of the component to which the variable belongs
+        :param name: Name of the needed variable/parameter
+        :return: A list containing all values of the variable/parameter over the time horizon
+        """
+
+        assert self.results is not None, 'The optimization problem has not been solved yet.'
+        assert comp in self.components, '%s is not a valid component name' % comp
+
+        result = []
+
+        try:  # Variable
+            for i in self.model.TIME:
+                eval('result.append(self.components[comp].block.' + name + '.values()[i].value)')
+
+            return result
+
+        except AttributeError:
+
+            try:  # Parameter
+                result = eval('self.components[comp].block.' + name + '.values()')
+
+                return result
+
+            except AttributeError:  # Given name is neither a parameter nor a variable
+                self.logger.warning('The variable/parameter {}.{} does not exist, skipping collection of result'.format(comp, name))
 
 
 class Node(object):
@@ -392,7 +444,7 @@ class Node(object):
 
 
 class Edge(object):
-    def __init__(self, name, edge, start_node, end_node, horizon, time_step, pipe_model):
+    def __init__(self, name, edge, start_node, end_node, horizon, time_step, pipe_model, allow_flow_reversal):
         """
         Connection object between two nodes in a graph
 
@@ -419,9 +471,9 @@ class Edge(object):
         self.length = self.get_length()
 
         self.pipe_model = pipe_model
-        self.pipe = self.build(pipe_model)  # TODO Better structure possible?
+        self.pipe = self.build(pipe_model, allow_flow_reversal)  # TODO Better structure possible?
 
-    def build(self, pipe_model):
+    def build(self, pipe_model, allow_flow_reversal):
 
         self.pipe_model = pipe_model
 
@@ -434,7 +486,8 @@ class Edge(object):
             cls = None
 
         if cls:
-            obj = cls(self.name, self.horizon, self.time_step, self.start_node.name, self.end_node.name, self.length)
+            obj = cls(self.name, self.horizon, self.time_step, self.start_node.name,
+                      self.end_node.name, self.length, allow_flow_reversal=allow_flow_reversal)
         else:
             obj = None
 
