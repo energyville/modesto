@@ -287,7 +287,8 @@ class VariableProfile(Component):
         :param time_step: Time between two points
         """
 
-        Component.__init__(self, name, horizon, time_step, [], [], [])
+        super(VariableProfile, self).__init__(name=name, horizon=horizon, time_step=time_step, design_param=[],
+                                              states=[], user_param=[])
 
     def compile(self, parent):
         """
@@ -413,7 +414,8 @@ class StorageVariable(Component):
             'dIns': 'Insulation thickness [m]',
             'kIns': 'Thermal conductivity of insulation material [W/(m.K)]'
         }
-        super(StorageVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, states=['heat_stor'], design_param=design_params, user_param=None)
+        super(StorageVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, states=['heat_stor'],
+                                              design_param=design_params, user_param=None)
 
         # TODO choose between stored heat or state of charge as state (which one is easier for initialization?)
 
@@ -480,6 +482,7 @@ class StorageVariable(Component):
             return self.UAw * (self.temp_ret - 18) + \
                    self.UAtb * (
                        self.temp_ret + self.temp_sup - 2 * 18)
+
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
