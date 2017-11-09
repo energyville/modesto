@@ -145,6 +145,7 @@ class ExtensivePipe(Pipe):
         pipe_catalog = self.get_pipe_catalog()
         self.Rs = pipe_catalog['Rs']
         self.allow_flow_reversal = allow_flow_reversal
+        self.dn = None
 
     def compile(self, model):
         """
@@ -152,7 +153,9 @@ class ExtensivePipe(Pipe):
 
         :return:
         """
-
+        self.dn = self.get_design_param('pipe_type')
+        if self.dn is None:
+            self.logger.info('No dn set. Optimizing diameter.')
         self.make_block(model)
 
         # TODO Leave this here?
@@ -186,7 +189,10 @@ class ExtensivePipe(Pipe):
         Parameters and sets
         """
 
-        self.block.DN_ind = Set(initialize=vflomax.keys(), ordered=True)
+        if self.dn is None:
+            self.block.DN_ind = Set(initialize=vflomax.keys(), ordered=True)
+        else:
+            self.block.DN_ind = Set(initialize=[self.dn])
 
         # Maximum mass flow rate
         def _mass_flow_max(b, dn):

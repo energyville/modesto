@@ -57,6 +57,22 @@ class Component(object):
         else:
             print 'The optimization model of %s has not been built yet.' % self.name
 
+    def get_design_param(self, name):
+        """
+        Gets value of specified design param. Returns "None" if unknown
+
+        :param name:
+        :return:
+        """
+
+        try:
+            param = self.design_param[name]
+        except KeyError:
+            param = None
+            self.logger.warning('Design parameter {} does not (yet) exist in this component')
+
+        return param
+
     def get_heat(self, t):
         """
         Return heat_flow variable at time t
