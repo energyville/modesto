@@ -4,6 +4,8 @@ import sys
 from math import sqrt
 
 from pyomo.core.base import ConcreteModel, Objective, Constraint, Set, maximize
+from pyomo.opt import SolverFactory
+import pyomo.environ
 
 from component import *
 from pipe import *

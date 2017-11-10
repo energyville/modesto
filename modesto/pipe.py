@@ -1,14 +1,14 @@
-import logging
-from pyomo.environ import *
-import pandas as pd
-from component import Component
 import warnings
+
+import pandas as pd
+from pyomo.core.base import Param, Var, Constraint, Set, Binary, Block
+
+from component import Component
 
 
 class Pipe(Component):
-
     def __init__(self, name, horizon, time_step, start_node, end_node, length,
-                 temp_sup=70+273.15, temp_ret=50+273.15, allow_flow_reversal=False):
+                 temp_sup=70 + 273.15, temp_ret=50 + 273.15, allow_flow_reversal=False):
         """
         Class that sets up an optimization model for a DHC pipe
 
@@ -85,7 +85,6 @@ class Pipe(Component):
 
 
 class SimplePipe(Pipe):
-
     def __init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal=False):
         """
         Class that sets up a very simple model of pipe
@@ -124,7 +123,6 @@ class SimplePipe(Pipe):
 
 
 class ExtensivePipe(Pipe):
-
     def __init__(self, name, horizon, time_step, start_node,
                  end_node, length, allow_flow_reversal=True):
         """
@@ -140,7 +138,7 @@ class ExtensivePipe(Pipe):
         """
 
         Pipe.__init__(self, name, horizon, time_step, start_node,
-                           end_node, length, allow_flow_reversal=allow_flow_reversal)
+                      end_node, length, allow_flow_reversal=allow_flow_reversal)
 
         pipe_catalog = self.get_pipe_catalog()
         self.Rs = pipe_catalog['Rs']
@@ -390,4 +388,4 @@ class ExtensivePipe(Pipe):
         if self.dn is not None:
             return self.dn
         else:
-            return int(sum(dn*self.block.dn_sel[dn].value for dn in self.block.DN_ind))
+            return int(sum(dn * self.block.dn_sel[dn].value for dn in self.block.DN_ind))
