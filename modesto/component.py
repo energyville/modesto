@@ -59,6 +59,22 @@ class Component(object):
         else:
             print 'The optimization model of %s has not been built yet.' % self.name
 
+    def get_param(self, name):
+        """
+        Gets value of specified design param. Returns "None" if unknown
+
+        :param name:
+        :return:
+        """
+
+        try:
+            param = self.params[name]
+        except KeyError:
+            param = None
+            self.logger.warning('Design parameter {} does not (yet) exist in this component')
+
+        return param
+
     def get_heat(self, t):
         """
         Return heat_flow variable at time t
@@ -206,7 +222,6 @@ class FixedProfile(Component):
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
-
 
     # def fill_opt(self):
     #     """
@@ -371,7 +386,6 @@ class StorageVariable(Component):
         in seconds
         :param time_step: Time between two points
         """
-
         super(StorageVariable, self).__init__(name=name,
                                               horizon=horizon,
                                               time_step=time_step)
@@ -471,11 +485,11 @@ class StorageVariable(Component):
         ############################################################################################
         # Parameters
 
-        ## Fixed heat loss
+        # Fixed heat loss
         def _heat_loss_ct(b, t):
-            return self.UAw * (self.temp_ret - 18) + \
+            return self.UAw * (self.temp_ret - self.model.Te.iloc[t][0]) + \
                    self.UAtb * (
-                       self.temp_ret + self.temp_sup - 2 * 18)
+                       self.temp_ret + self.temp_sup - self.model.Te.iloc[t][0])
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
@@ -492,11 +506,11 @@ class StorageVariable(Component):
              self.max_mflo * self.temp_diff * self.cp) if self.max_mflo is not None else (
                 None, None))
 
-        ## In/out
+        # In/out
         self.block.mass_flow = Var(self.model.TIME, bounds=mflo_bounds)
         self.block.heat_flow = Var(self.model.TIME, bounds=heat_bounds)
 
-        ## Internal
+        # Internal
         self.block.heat_stor = Var(self.model.TIME, bounds=(
             0, self.volume * self.cp * 1000 * self.temp_diff))
         self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
@@ -514,7 +528,7 @@ class StorageVariable(Component):
 
         self.block.eq_heat_loss = Constraint(self.model.TIME, rule=_eq_heat_loss)
 
-        ## State equation
+        # State equation
         def _state_eq(b, t):
             if t < self.model.TIME[-1]:
                 return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])

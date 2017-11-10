@@ -8,7 +8,8 @@ import warnings
 
 class Pipe(Component):
 
-    def __init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal=False):
+    def __init__(self, name, horizon, time_step, start_node, end_node, length,
+                 temp_sup=70+273.15, temp_ret=50+273.15, allow_flow_reversal=False):
         """
         Class that sets up an optimization model for a DHC pipe
 
@@ -17,7 +18,9 @@ class Pipe(Component):
         :param time_step: Time between two points (int)
         :param start_node: Name of the start_node (str)
         :param end_node: Name of the stop_node (str)
-        :param length: Length of the pipe
+        :param length: Length of the pipe (real)
+        :param temp_sup: Supply temperature (real)
+        :param temp_ret: Return temperature (real)
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
         """
 
@@ -31,6 +34,18 @@ class Pipe(Component):
         self.end_node = end_node
         self.length = length
         self.allow_flow_reversal = allow_flow_reversal
+
+        self.temp_sup = temp_sup
+        self.temp_ret = temp_ret
+
+    @staticmethod
+    def get_pipe_catalog():
+        df = pd.read_csv('../../Data/PipeCatalog/IsoPlusDoubleStandard.txt', sep=' ',
+                         index_col='DN')
+        return df
+
+    def change_user_data(self, kind, new_data):
+        print "WARNING: Trying to change the user data of a pipe %s" % self.name
 
     def get_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
@@ -114,7 +129,7 @@ class SimplePipe(Pipe):
 class ExtensivePipe(Pipe):
 
     def __init__(self, name, horizon, time_step, start_node,
-                 end_node, allow_flow_reversal=False):
+                 end_node, length, allow_flow_reversal=True):
         """
         Class that sets up an extensive model of the pipe
 
@@ -123,22 +138,248 @@ class ExtensivePipe(Pipe):
         :param time_step: Time between two points (int)
         :param start_node: Node at the beginning of the pipe (str)
         :param end_node: Node at the end of the pipe (str)
+        :param length: Length of the pipe
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
         """
 
         Pipe.__init__(self, name, horizon, time_step, start_node,
-                           end_node, allow_flow_reversal)
+                           end_node, length, allow_flow_reversal=allow_flow_reversal)
 
-    def build_opt(self):
+        pipe_catalog = self.get_pipe_catalog()
+        self.Rs = pipe_catalog['Rs']
+        self.allow_flow_reversal = allow_flow_reversal
+        self.dn = None
+
+    def compile(self, model):
         """
         Build the structure of the optimization model
 
         :return:
         """
+        self.dn = self.get_param('pipe_type')
+        if self.dn is None:
+            self.logger.info('No dn set. Optimizing diameter.')
+        self.make_block(model)
 
-    def fill_opt(self):
-        """
-        Fill the parameters of the optimization model
+        # TODO Leave this here?
+        vflomax = {  # Maximal volume flow rate per DN in m3/h
+            # Taken from IsoPlus Double-Pipe catalog p. 7
+            # 20: 1.547,
+            # 25: 2.526,
+            # 32: 4.695,
+            # 40: 6.303,
+            # 50: 11.757,
+            # 65: 19.563,
+            # 80: 30.791,
+            # 100: 51.891,
+            # 125: 89.350,
+            # 150: 152.573,
+            # 200: 299.541,
+            250: 348 * 1.55,
+            # 300: 547 * 1.55,
+            # 350: 705 * 1.55,
+            # 400: 1550,
+            # 450: 1370 * 1.55
+            # 500: 1820 * 1.55,
+            # 600: 2920 * 1.55,
+            # 700: 4370 * 1.55,
+            # 800: 6240 * 1.55,
+            # 900: 9500 * 1.55,
+            # 1000: 14000 * 1.55
+        }
 
-        :return:
         """
+        Parameters and sets
+        """
+
+        if self.dn is None:
+            self.block.DN_ind = Set(initialize=vflomax.keys(), ordered=True)
+        else:
+            self.block.DN_ind = Set(initialize=[self.dn])
+
+        # Maximum mass flow rate
+        def _mass_flow_max(b, dn):
+            """
+            Rule that provides the maximum mass flow rate.
+
+            :param b: block identifier
+            :param t: time index
+            :param dn: DN index
+            :return: Mass flow rate in kg/s for given DN
+            """
+
+            return vflomax[dn] * 1000 / 3600  # Convert to mass flow rate in kg/s
+
+        self.block.mass_flow_max = Param(self.block.DN_ind, rule=_mass_flow_max)
+
+        # Maximal heat loss per unit length
+        def _heat_loss_max(b, t, dn):
+            """
+            Rule to calculate maximal heat loss per unit length
+
+            :param b: block identifier
+            :param t: time index
+            :param dn: DN index
+            :return: Heat loss in W/m
+            """
+            dq = (self.temp_sup + self.temp_ret - 2 * self.model.Te.iloc[t][0]) / \
+                 self.Rs[dn]
+            return dq
+
+        self.block.heat_loss_max = Param(self.model.TIME, self.block.DN_ind,
+                                         rule=_heat_loss_max)
+
+        # Mass flow rate from which heat losses stay constant
+        def _mass_flow_0(b, t, dn):
+            """
+            Rule that provides the mass flow rate from which the heat losses are presumably constant.
+
+            :param b: block identifier
+            :param dn: DN index
+            :return: Mass flow rate in kg/s for given DN
+            """
+            return b.heat_loss_max[t, dn] / self.cp / (
+                self.temp_sup - self.temp_ret)
+
+        self.block.mass_flow_0 = Param(self.model.TIME, self.block.DN_ind,
+                                       rule=_mass_flow_0)
+
+        """
+        Variables
+        """
+
+        mflo_lb = (None, None) if self.allow_flow_reversal else (0, None)
+
+        # Real valued
+        self.block.heat_flow_in = Var(self.model.TIME, bounds=mflo_lb)
+        self.block.heat_flow_out = Var(self.model.TIME, bounds=mflo_lb)
+        self.block.mass_flow = Var(self.model.TIME, self.block.DN_ind,
+                                   bounds=mflo_lb)
+        self.block.mass_flow_tot = Var(self.model.TIME, bounds=mflo_lb)
+        self.block.heat_loss = Var(self.model.TIME, self.block.DN_ind)
+        self.block.heat_loss_tot = Var(self.model.TIME)
+
+        # Binaries
+        self.block.forward = Var(self.model.TIME, self.block.DN_ind,
+                                 within=Binary)  # mu +
+        self.block.reverse = Var(self.model.TIME, self.block.DN_ind,
+                                 within=Binary)  # mu -
+        self.block.dn_sel = Var(self.block.DN_ind, within=Binary)
+
+        # Real 0-1: Weights
+        self.block.weight1 = Var(self.model.TIME, self.block.DN_ind,
+                                 bounds=(0, 1))
+        self.block.weight2 = Var(self.model.TIME, self.block.DN_ind,
+                                 bounds=(0, 1))
+        self.block.weight3 = Var(self.model.TIME, self.block.DN_ind,
+                                 bounds=(0, 1))
+        self.block.weight4 = Var(self.model.TIME, self.block.DN_ind,
+                                 bounds=(0, 1))
+
+        """
+        Pipe model
+        """
+
+        # Eq. (3.4)
+        def _eq_heat_bal(b, t):
+            """Heat balance of pipe"""
+            return b.heat_flow_in[t] == b.heat_flow_out[t] + b.heat_loss_tot[
+                                                                 t] * self.length
+
+        self.block.eq_heat_bal = Constraint(self.model.TIME, rule=_eq_heat_bal)
+
+        # Eq. (3.5)
+        def _eq_mass_flow_tot(b, t):
+            return b.mass_flow_tot[t] == sum(
+                b.mass_flow[t, dn] for dn in b.DN_ind)
+
+        self.block.eq_mass_flow_tot = Constraint(self.model.TIME,
+                                                 rule=_eq_mass_flow_tot)
+
+        def _ineq_mass_flow_max_lb(b, t, dn):
+            if self.allow_flow_reversal:
+                return - b.dn_sel[dn] * b.mass_flow_max[dn] <= b.mass_flow[
+                    t, dn]
+            else:
+                return 0 <= b.mass_flow[t, dn]
+
+        def _ineq_mass_flow_max_ub(b, t, dn):
+            return b.mass_flow[t, dn] <= b.dn_sel[dn] * b.mass_flow_max[dn]
+
+        self.block.ineq_mass_flow_max_lb = Constraint(self.model.TIME,
+                                                      self.block.DN_ind,
+                                                      rule=_ineq_mass_flow_max_lb)
+        self.block.ineq_mass_flow_max_ub = Constraint(self.model.TIME,
+                                                      self.block.DN_ind,
+                                                      rule=_ineq_mass_flow_max_ub)
+
+        # Eq. (3.6)
+        def _eq_heat_loss_tot(b, t):
+            return b.heat_loss_tot[t] == sum(
+                b.heat_loss[t, dn] for dn in b.DN_ind)
+
+        self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
+                                                 rule=_eq_heat_loss_tot)
+
+        # Eq. (3.7)
+        def _eq_mass_flow(b, t, dn):
+            return b.mass_flow[t, dn] == \
+                   (b.weight4[t, dn] - b.weight1[t, dn]) * b.mass_flow_max[
+                       dn] + (b.weight3[t, dn] - b.weight2[
+                       t, dn]) * b.mass_flow_0[t, dn]
+
+        self.block.eq_mass_flow = Constraint(self.model.TIME, self.block.DN_ind,
+                                             rule=_eq_mass_flow)
+
+        # Eq. (3.8)
+        def _eq_heat_loss(b, t, dn):
+            return b.heat_loss[t, dn] == (b.weight3[t, dn] + b.weight4[t, dn] -
+                                          b.weight1[t, dn] - b.weight2[t, dn]) * \
+                                         b.heat_loss_max[t, dn]
+
+        self.block.eq_heat_loss = Constraint(self.model.TIME, self.block.DN_ind,
+                                             rule=_eq_heat_loss)
+
+        # Eq. (3.9)
+        def _eq_sum_weights(b, t, dn):
+            return b.weight1[t, dn] + b.weight2[t, dn] + b.weight3[t, dn] + \
+                   b.weight4[t, dn] == 1
+
+        self.block.eq_sum_weights = Constraint(self.model.TIME,
+                                               self.block.DN_ind,
+                                               rule=_eq_sum_weights)
+
+        # Select only one diameter
+        def _eq_dn_sel(b):
+            return 1 == sum(b.dn_sel[dn] for dn in b.DN_ind)
+
+        self.block.eq_dn_sel = Constraint(rule=_eq_dn_sel)
+
+        # Eq. (3.10)
+        def _ineq_reverse(b, t, dn):
+            return b.weight1[t, dn] + b.weight2[t, dn] >= b.reverse[t, dn]
+
+        def _ineq_forward(b, t, dn):
+            return b.weight3[t, dn] + b.weight4[t, dn] >= b.forward[t, dn]
+
+        def _ineq_center(b, t, dn):
+            return b.weight2[t, dn] + b.weight3[t, dn] >= 1 - b.reverse[t, dn] - \
+                                                          b.forward[t, dn]
+
+        self.block.ineq_reverse = Constraint(self.model.TIME, self.block.DN_ind,
+                                             rule=_ineq_reverse)
+        self.block.ineq_forward = Constraint(self.model.TIME, self.block.DN_ind,
+                                             rule=_ineq_forward)
+        self.block.ineq_center = Constraint(self.model.TIME, self.block.DN_ind,
+                                            rule=_ineq_center)
+
+        # If DN is not selected, automatically make reverse and forward 0
+        def _ineq_non_selected(b, t, dn):
+            return b.forward[t, dn] + b.reverse[t, dn] <= b.dn_sel[dn]
+
+        self.block.ineq_non_selected = Constraint(self.model.TIME,
+                                                  self.block.DN_ind,
+                                                  rule=_ineq_non_selected)
+
+        self.logger.info(
+            'Optimization model Pipe {} compiled'.format(self.name))
