@@ -380,3 +380,14 @@ class ExtensivePipe(Pipe):
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
+
+    def get_diameter(self):
+        """
+        Show chosen diameter
+
+        :return:
+        """
+        if self.dn is not None:
+            return self.dn
+        else:
+            return int(sum(dn*self.block.dn_sel[dn].value for dn in self.block.DN_ind))

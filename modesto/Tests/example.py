@@ -57,7 +57,7 @@ modesto.change_design_param('zwartbergNE.buildingD', 'delta_T', 20)
 modesto.change_design_param('zwartbergNE.buildingD', 'mult', 2000)
 modesto.change_user_behaviour('zwartbergNE.buildingD', 'heat_profile', heat_profile)
 modesto.change_design_param('waterscheiGarden.buildingD', 'delta_T', 20)
-modesto.change_design_param('waterscheiGarden.buildingD', 'mult', 20)
+modesto.change_design_param('waterscheiGarden.buildingD', 'mult', 2000)
 modesto.change_user_behaviour('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
 
 stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
@@ -126,6 +126,10 @@ zwartberg_e = sum(zwartberg_hf)
 print '\nNetwork'
 print 'Efficiency', (storage_e + waterschei_e + zwartberg_e)/prod_e*100, '%'
 
+# Diameters
+print '\nDiameters'
+for i in ['bbThor', 'spWaterschei', 'spZwartbergNE']:
+    print i, ': ', str(modesto.components[i].get_diameter())
 
 fig, ax = plt.subplots()
 
@@ -140,6 +144,7 @@ fig.legend((l1, l3),
            ('Producer',
             'Users and storage'),
             'lower center', ncol=3)
+fig.tight_layout()
 
 fig2 = plt.figure()
 
@@ -148,14 +153,19 @@ ax2.plot(storage_soc, label='Stored heat')
 ax2.plot(np.asarray(storage_hf)*3600, label="Charged heat")
 ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
 ax2.legend()
+fig2.suptitle('Storage')
+fig2.tight_layout()
 
 fig3 = plt.figure()
 
 ax3 = fig3.add_subplot(111)
 ax3.plot(waterschei_hf, label='Waterschei')
 ax3.plot(zwartberg_hf, label="Zwartberg")
-ax3.axhline(y=0, linewidth=3, color='k', linestyle='--')
+ax3.plot(storage_hf, label='Storage')
+ax3.axhline(y=0, linewidth=1.5, color='k', linestyle='--')
 ax3.legend()
+ax3.set_ylabel('Heat Flow [W]')
+fig3.tight_layout()
 
 plt.show()
 
