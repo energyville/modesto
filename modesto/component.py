@@ -3,10 +3,9 @@ from __future__ import division
 import logging
 from math import pi, log, exp
 
-import pandas as pd
 from pyomo.core.base import Block, Param, Var, NonPositiveReals, Constraint
 
-from parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
+from parameter import StateParameter, DesignParameter, UserDataParameter
 
 
 class Component(object):
@@ -64,7 +63,7 @@ class Component(object):
         Gets value of specified design param. Returns "None" if unknown
 
         :param name: Name of the parameter (str)
-        :param time: If parameter consists of a series of values, the value at a certian can be selected time
+        :param time: If parameter consists of a series of values, the value at a certain can be selected time
         :return:
         """
 
@@ -147,6 +146,24 @@ class Component(object):
         :return:
         """
         return 0
+
+    def get_param_description(self, name=None):
+        """
+        Returns a string containing the description of a parameter
+
+        :param name: Name of the parameter. If None, all parameters are returned
+        :return: A dict of all descriptions
+        """
+        if name is None:
+            descriptions = {}
+            for parname, param in self.params.items():
+                descriptions[parname] = param.get_description()
+            return descriptions
+
+        elif name not in self.params:
+                raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
+        else:
+            return {name: self.params[name].get_description()}
 
 
 class FixedProfile(Component):

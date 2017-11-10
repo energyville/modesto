@@ -286,6 +286,23 @@ class Modesto:
             except AttributeError:  # Given name is neither a parameter nor a variable
                 self.logger.warning('The variable/parameter {}.{} does not exist, skipping collection of result'.format(comp, name))
 
+    def print_all_params(self):
+        descriptions = {'general': {}}
+        for name, param in self.params.items():
+            descriptions['general'][name] = param.get_description()
+
+        for comp in self.components:
+            descriptions[comp] = self.components[comp].get_param_description()
+
+        self._print_params(descriptions)
+
+    def _print_params(self, descriptions):
+        for comp in descriptions:
+            print '--- ', comp, ' ---\n'
+            for param, des in descriptions[comp].items():
+                print '-', param, '\n', des, '\n'
+
+
 
 
 class Node(object):

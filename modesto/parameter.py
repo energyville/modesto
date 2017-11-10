@@ -48,7 +48,11 @@ class Parameter(object):
 
         :return: A description of the parameter
         """
-        return 'Description: {}\nUnit: {}'.format(self.description, self.unit)
+        if self.value is None:
+            return 'Description: {}\nUnit: {}'.format(self.description, self.unit)
+        else:
+            return 'Description: {}\nUnit: {}\nValue: {}'.format(self.description, self.unit, self.value)
+
 
     def get_value(self, time=None):
         """
@@ -112,6 +116,9 @@ class StateParameter(Parameter):
 
         assert new_type in self.init_types, '%s is not an allowed type of initialization constraint'
         self.init_type = new_type
+
+    def get_description(self):
+        return Parameter.get_description(self) + '\nInitType: {}'.format(self.init_type)
 
 
 class DataFrameParameter(Parameter):

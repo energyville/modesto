@@ -79,6 +79,16 @@ for i in stor_design:
 
 modesto.change_param('waterscheiGarden.storage', 'heat_stor', 0)
 
+##################################
+# Print parameters               #
+##################################
+
+modesto.print_all_params()
+
+##################################
+# Solve                          #
+##################################
+
 modesto.compile()
 modesto.set_objective('energy')
 modesto.solve(tee=False, mipgap=0.01)

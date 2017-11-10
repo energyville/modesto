@@ -53,9 +53,6 @@ class Pipe(Component):
 
         return params
 
-    def change_user_data(self, kind, new_data):
-        print "WARNING: Trying to change the user data of a pipe %s" % self.name
-
     def get_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
@@ -166,8 +163,6 @@ class ExtensivePipe(Pipe):
         :return:
         """
 
-        print self.params
-        print self.get_param('pipe_type')
         self.dn = self.get_param('pipe_type')
         if self.dn is None:
             self.logger.info('No dn set. Optimizing diameter.')
