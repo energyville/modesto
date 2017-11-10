@@ -350,7 +350,8 @@ class ProducerVariable(Component):
                          'PEF': 'Factor to convert heat source to primary energy '
                                 '(e.g. if producer uses electricity) [-]',
                          'CO2': 'amount of CO2 released when using primary energy source [kg/kWh]',
-                         'fuel_cost': 'cost of fuel/electricity to generate heat [euro/kWh]'}
+                         'fuel_cost': 'cost of fuel/electricity to generate heat [euro/kWh]',
+                         'Qmax': 'Maximum possible heat output [W]'}
 
         Component.__init__(self, name, horizon, time_step, design_param=design_params)
 
@@ -359,7 +360,7 @@ class ProducerVariable(Component):
 
     def compile(self, topmodel, parent):
         """
-        Build the structure of ta producer model
+        Build the structure of a producer model
 
         :return:
         """
@@ -369,7 +370,7 @@ class ProducerVariable(Component):
         self.make_block(parent)
 
         self.block.mass_flow = Var(self.model.TIME, within=NonPositiveReals)
-        self.block.heat_flow = Var(self.model.TIME, within=NonPositiveReals)
+        self.block.heat_flow = Var(self.model.TIME, bounds=(-self.design_param['Qmax'], 0))
 
     # TODO Objectives are all the same, only difference is the value of the weight...
     def obj_energy(self):
