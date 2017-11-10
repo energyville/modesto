@@ -75,9 +75,9 @@ for i in stor_design:
 
 modesto.change_initial_cond('waterscheiGarden.storage', 'heat_stor', 0)
 
-# modesto.change_design_param('bbThor', 'pipe_type', 250)
-# modesto.change_design_param('spWaterschei', 'pipe_type', 250)
-# modesto.change_design_param('spZwartbergNE', 'pipe_type', 250)
+# modesto.change_design_param('bbThor', 'pipe_type', 200)
+# modesto.change_design_param('spWaterschei', 'pipe_type', 125)
+# modesto.change_design_param('spZwartbergNE', 'pipe_type', 125)
 
 ##################################
 # Solve the optimization problem #

@@ -25,7 +25,6 @@ class Component(object):
         self.logger.info('Initializing Component {}'.format(name))
 
         self.name = name
-
         assert horizon % time_step == 0, "The horizon of the optimization problem should be multiple of the time step."
         self.horizon = horizon
         self.time_step = time_step
