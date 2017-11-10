@@ -266,7 +266,7 @@ class Modesto:
 
     def get_result(self, comp, name):
         """
-        Returns the numerical values of a certain variable/parameter after optimization
+        Returns the numerical values of a certain parameter or time-dependent variable after optimization
 
         :param comp: Name of the component to which the variable belongs
         :param name: Name of the needed variable/parameter
