@@ -59,11 +59,12 @@ class Component(object):
         else:
             print 'The optimization model of %s has not been built yet.' % self.name
 
-    def get_param(self, name):
+    def get_param(self, name, time=None):
         """
         Gets value of specified design param. Returns "None" if unknown
 
-        :param name:
+        :param name: Name of the parameter (str)
+        :param time: If parameter consists of a series of values, the value at a certian can be selected time
         :return:
         """
 
@@ -71,9 +72,9 @@ class Component(object):
             param = self.params[name]
         except KeyError:
             param = None
-            self.logger.warning('Design parameter {} does not (yet) exist in this component')
+            self.logger.warning('Parameter {} does not (yet) exist in this component')
 
-        return param
+        return param.get_value(time)
 
     def get_heat(self, t):
         """

@@ -44,6 +44,15 @@ class Pipe(Component):
                          index_col='DN')
         return df
 
+    def create_params(self):
+        params = {
+            'pipe_type': DesignParameter('pipe_type',
+                                         'Type of pipe (IsoPlus Double Standard)',
+                                         'DN')
+        }
+
+        return params
+
     def change_user_data(self, kind, new_data):
         print "WARNING: Trying to change the user data of a pipe %s" % self.name
 
@@ -156,6 +165,9 @@ class ExtensivePipe(Pipe):
 
         :return:
         """
+
+        print self.params
+        print self.get_param('pipe_type')
         self.dn = self.get_param('pipe_type')
         if self.dn is None:
             self.logger.info('No dn set. Optimizing diameter.')
@@ -164,28 +176,28 @@ class ExtensivePipe(Pipe):
         # TODO Leave this here?
         vflomax = {  # Maximal volume flow rate per DN in m3/h
             # Taken from IsoPlus Double-Pipe catalog p. 7
-            # 20: 1.547,
-            # 25: 2.526,
-            # 32: 4.695,
-            # 40: 6.303,
-            # 50: 11.757,
-            # 65: 19.563,
-            # 80: 30.791,
-            # 100: 51.891,
-            # 125: 89.350,
-            # 150: 152.573,
-            # 200: 299.541,
+            20: 1.547,
+            25: 2.526,
+            32: 4.695,
+            40: 6.303,
+            50: 11.757,
+            65: 19.563,
+            80: 30.791,
+            100: 51.891,
+            125: 89.350,
+            150: 152.573,
+            200: 299.541,
             250: 348 * 1.55,
-            # 300: 547 * 1.55,
-            # 350: 705 * 1.55,
-            # 400: 1550,
-            # 450: 1370 * 1.55
-            # 500: 1820 * 1.55,
-            # 600: 2920 * 1.55,
-            # 700: 4370 * 1.55,
-            # 800: 6240 * 1.55,
-            # 900: 9500 * 1.55,
-            # 1000: 14000 * 1.55
+            300: 547 * 1.55,
+            350: 705 * 1.55,
+            400: 1550,
+            450: 1370 * 1.55,
+            500: 1820 * 1.55,
+            600: 2920 * 1.55,
+            700: 4370 * 1.55,
+            800: 6240 * 1.55,
+            900: 9500 * 1.55,
+            1000: 14000 * 1.55
         }
 
         """

@@ -126,12 +126,8 @@ class Modesto:
         if self.compiled:
             self.logger.warning('Model was already compiled.')
 
-        # Check if all necessary weather data is available
-
-        for param in self.needed_weather_param:
-            assert param in self.weather_param, \
-                "No values for weather parameter %s was indicated\n Description: %s" % \
-                (param, self.needed_weather_param[param])
+        # Check whether all necessry parameters are there
+        self.check_data()
 
         # General parameters
         self.model.TIME = Set(initialize=range(self.n_steps), ordered=True)
@@ -144,6 +140,21 @@ class Modesto:
             node.compile(self.model)
 
         self.compiled = True    # Change compilation flag
+
+    def check_data(self):
+        """
+        Checks whether all parameters have been assigned a value,
+        if not an error is raised
+
+        """
+
+        for param in self.needed_weather_param:
+            if param not in self.weather_param:
+                raise Exception("No values for weather parameter %s was indicated\n Description: %s" %
+                (param, self.needed_weather_param[param]))
+
+        for comp in self.components:
+            self.components[comp].check_data()
 
     def set_objective(self, objtype):
         """

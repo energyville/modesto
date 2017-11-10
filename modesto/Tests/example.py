@@ -64,6 +64,10 @@ modesto.change_param('waterscheiGarden.buildingT', 'delta_T', 20)
 modesto.change_param('waterscheiGarden.buildingT', 'mult', 20)
 modesto.change_param('waterscheiGarden.buildingT', 'heat_profile', heat_profile)
 
+modesto.change_param('spWaterschei', 'pipe_type', 250)
+modesto.change_param('spZwartbergNE', 'pipe_type', 250)
+modesto.change_param('bbThor', 'pipe_type', 250)
+
 stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
     'Thi': 80+273.15,
     'Tlo': 60+273.15,
@@ -81,7 +85,7 @@ modesto.change_param('waterscheiGarden.storage', 'heat_stor', 6000000)
 
 modesto.compile()
 modesto.set_objective('energy')
-modesto.solve(tee=True, mipgap=0.01)
+modesto.solve(tee=False, mipgap=0.01)
 
 ##################################
 # Collect result                 #

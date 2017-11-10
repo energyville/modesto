@@ -1,6 +1,7 @@
 from __future__ import division
 
 import pandas as pd
+import logging
 
 
 class Parameter(object):
@@ -21,6 +22,9 @@ class Parameter(object):
 
         self.value = val
 
+        self.logger = logging.getLogger('modesto.parameter.Parameter')
+        self.logger.info('Initializing Parameter {}'.format(name))
+
     def change_value(self, new_val):
         """
         Change the value of the parameter
@@ -36,30 +40,32 @@ class Parameter(object):
 
         """
         if self.value is None:
-            print 'ERROR: {} does not have a value yet. Please, add one before optimizing.{}'.\
-                format(self.name, self.get_description())
-            raise
+            raise Exception('{} does not have a value yet. Please, add one before optimizing.\n{}'.\
+                format(self.name, self.get_description()))
 
     def get_description(self):
         """
 
         :return: A description of the parameter
         """
-        return 'Description: {}\nUnit: [{}]'.format(self.description, self.unit)
+        return 'Description: {}\nUnit: {}'.format(self.description, self.unit)
 
-    def get_value(self):
+    def get_value(self, time=None):
         """
 
         :return: Current value of the parameter
         """
 
         if self.value is None:
-            print 'Warning: {} does not have a value yet'.format(self.name)
+            self.logger.warning('{} does not have a value yet'.format(self.name))
+
+        if (time is not None) and (not isinstance(self.value, pd.DataFrame)):
+            self.logger.warning('{} is not a time series'.format(self.name))
 
         return self.value
 
-    def v(self):
-        return self.get_value()
+    def v(self, time=None):
+        return self.get_value(time)
 
 
 class DesignParameter(Parameter):
