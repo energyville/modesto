@@ -73,6 +73,11 @@ stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
 for i in stor_design:
     modesto.change_design_param('waterscheiGarden.storage', i, stor_design[i])
 
+modesto.change_design_param('thorPark', 'efficiency', 0.95)
+modesto.change_design_param('thorPark', 'PEF', 1)
+modesto.change_design_param('thorPark', 'CO2', 0.178)  # based on HHV of CH4
+modesto.change_design_param('thorPark', 'fuel_cost', 0.034)  # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics
+
 modesto.change_initial_cond('waterscheiGarden.storage', 'heat_stor', 0)
 
 # modesto.change_design_param('bbThor', 'pipe_type', 250)
@@ -84,8 +89,8 @@ modesto.change_initial_cond('waterscheiGarden.storage', 'heat_stor', 0)
 ##################################
 
 modesto.compile()
-modesto.set_objective('energy')
-modesto.solve(tee=True, mipgap=0.01)
+modesto.set_objective('CO2')
+modesto.solve(tee=False, mipgap=0.01)
 
 ##################################
 # Collect result                 #

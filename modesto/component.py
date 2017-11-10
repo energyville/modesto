@@ -189,6 +189,22 @@ class Component(object):
         """
         return 0
 
+    def obj_cost(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_co2(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
 
 class FixedProfile(Component):
     def __init__(self, name, horizon, time_step, direction=0):
@@ -278,33 +294,6 @@ class FixedProfile(Component):
         Component.change_user_behaviour(self, kind, new_data)
 
 
-class VariableProfile(Component):
-    # TODO Assuming that variable profile means State-Space model
-
-    def __init__(self, name, horizon, time_step):
-        """
-        Class for components with a variable heating profile
-
-        :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
-        :param time_step: Time between two points
-        """
-
-        super(VariableProfile, self).__init__(name=name, horizon=horizon, time_step=time_step, design_param=[],
-                                              states=[], user_param=[])
-
-    def compile(self, parent):
-        """
-        Build the structure of a component model
-
-        :param parent: The main optimization model
-        :return:
-        """
-
-        self.make_block(parent)
-
-
 class BuildingFixed(FixedProfile):
     def __init__(self, name, horizon, time_step):
         """
@@ -318,7 +307,7 @@ class BuildingFixed(FixedProfile):
         FixedProfile.__init__(self, name, horizon, time_step, direction=-1)
 
 
-class BuildingVariable(VariableProfile):
+class BuildingVariable(Component):
     # TODO How to implement DHW tank? Separate model from Building or together?
     # TODO Model DHW user without tank? -> set V_tank = 0
 
@@ -331,7 +320,7 @@ class BuildingVariable(VariableProfile):
         in seconds
         :param time_step: Time between two points
         """
-        VariableProfile.__init__(self, name, horizon, time_step)
+        Component.__init__(self, name, horizon, time_step, {}, {}, {})
 
 
 class ProducerFixed(FixedProfile):
@@ -347,7 +336,7 @@ class ProducerFixed(FixedProfile):
         FixedProfile.__init__(self, name, horizon, time_step, direction=1)
 
 
-class ProducerVariable(VariableProfile):
+class ProducerVariable(Component):
     def __init__(self, name, horizon, time_step):
         """
         Class that describes a variable producer
@@ -357,7 +346,13 @@ class ProducerVariable(VariableProfile):
         in seconds
         :param time_step: Time between two points
         """
-        VariableProfile.__init__(self, name, horizon, time_step)
+        design_params = {'efficiency': 'Efficiency of the heat source [-]',
+                         'PEF': 'Factor to convert heat source to primary energy '
+                                '(e.g. if producer uses electricity) [-]',
+                         'CO2': 'amount of CO2 released when using primary energy source [kg/kWh]',
+                         'fuel_cost': 'cost of fuel/electricity to generate heat [euro/kWh]'}
+
+        Component.__init__(self, name, horizon, time_step, design_param=design_params)
 
         self.logger = logging.getLogger('comps.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
@@ -376,14 +371,38 @@ class ProducerVariable(VariableProfile):
         self.block.mass_flow = Var(self.model.TIME, within=NonPositiveReals)
         self.block.heat_flow = Var(self.model.TIME, within=NonPositiveReals)
 
+    # TODO Objectives are all the same, only difference is the value of the weight...
     def obj_energy(self):
         """
         Generator for energy objective variables to be summed
 
         :return:
         """
-        return sum(self.get_heat(t) for t in range(self.n_steps))
 
+        eta = self.design_param['efficiency']
+        pef = self.design_param['PEF']
+        # TODO add factor to convert to actual energy?
+        return sum(pef*eta*self.get_heat(t) for t in range(self.n_steps))
+
+    def obj_cost(self):
+        """
+        Generator for cost objective variables to be summed
+
+        :return:
+        """
+
+        cost = self.design_param['fuel_cost']
+        return sum(cost*self.get_heat(t) for t in range(self.n_steps))
+
+    def obj_co2(self):
+        """
+        Generator for CO2 objective variables to be summed
+
+        :return:
+        """
+
+        co2 = self.design_param['CO2']
+        return sum(co2 * self.get_heat(t) for t in range(self.n_steps))
 
 class StorageFixed(FixedProfile):
     def __init__(self, name, horizon, time_step):
