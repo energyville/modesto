@@ -22,7 +22,6 @@ G.add_node('p1', x=2600, y=5000, z=0,
            comps={})
 G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
            comps={'waterscheiGarden.buildingD': 'BuildingFixed',
-                  'waterscheiGarden.buildingT': 'BuildingFixed',
                   'waterscheiGarden.storage':   'StorageVariable'})
 G.add_node('zwartbergNE', x=2000, y=5500, z=0,
            comps={'zwartbergNE.buildingD': 'BuildingFixed'})
@@ -47,22 +46,19 @@ modesto = Modesto(n_steps*time_steps, time_steps, 'ExtensivePipe', G)
 # Fill in the parameters         #
 ##################################
 
-heat_profile = pd.DataFrame([1000]*n_steps, index=range(n_steps))
+heat_profile = pd.DataFrame([1000]*(n_steps), index=range(n_steps))
 T_amb = pd.DataFrame([20+273.15]*n_steps, index=range(n_steps))
 
 modesto.opt_settings(allow_flow_reversal=False)
 
-modesto.change_weather('Te', T_amb)
+modesto.change_general_param('Te', T_amb)
 
 modesto.change_param('zwartbergNE.buildingD', 'delta_T', 20)
-modesto.change_param('zwartbergNE.buildingD', 'mult', 20)
+modesto.change_param('zwartbergNE.buildingD', 'mult', 2000)
 modesto.change_param('zwartbergNE.buildingD', 'heat_profile', heat_profile)
 modesto.change_param('waterscheiGarden.buildingD', 'delta_T', 20)
 modesto.change_param('waterscheiGarden.buildingD', 'mult', 20)
 modesto.change_param('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
-modesto.change_param('waterscheiGarden.buildingT', 'delta_T', 20)
-modesto.change_param('waterscheiGarden.buildingT', 'mult', 20)
-modesto.change_param('waterscheiGarden.buildingT', 'heat_profile', heat_profile)
 
 modesto.change_param('spWaterschei', 'pipe_type', 250)
 modesto.change_param('spZwartbergNE', 'pipe_type', 250)
@@ -81,7 +77,7 @@ stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
 for i in stor_design:
     modesto.change_param('waterscheiGarden.storage', i, stor_design[i])
 
-modesto.change_param('waterscheiGarden.storage', 'heat_stor', 6000000)
+modesto.change_param('waterscheiGarden.storage', 'heat_stor', 0)
 
 modesto.compile()
 modesto.set_objective('energy')

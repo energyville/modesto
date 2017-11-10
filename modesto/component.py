@@ -189,8 +189,7 @@ class FixedProfile(Component):
                                     '-'),
             'heat_profile': UserDataParameter('heat_profile',
                                               'Heat use in one (average) building',
-                                              'W',
-                                              self.n_steps)
+                                              'W')
         }
 
         return params
@@ -488,9 +487,9 @@ class StorageVariable(Component):
 
         # Fixed heat loss
         def _heat_loss_ct(b, t):
-            return self.UAw * (self.temp_ret - self.model.Te.iloc[t][0]) + \
+            return self.UAw * (self.temp_ret - self.model.Te[t]) + \
                    self.UAtb * (
-                       self.temp_ret + self.temp_sup - self.model.Te.iloc[t][0])
+                       self.temp_ret + self.temp_sup - self.model.Te[t])
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)

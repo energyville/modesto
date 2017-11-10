@@ -116,7 +116,7 @@ class StateParameter(Parameter):
 
 class DataFrameParameter(Parameter):
 
-    def __init__(self, name, description, unit, nvals, val=None):
+    def __init__(self, name, description, unit, val=None):
         """
         Class that describes a parameter with a value consisting of a dataframe
 
@@ -126,8 +126,6 @@ class DataFrameParameter(Parameter):
         :param val: Value of the parameter, if not given, it becomes None
         :param nvals: Number of values that should be in the dataframe (int)
         """
-
-        self.nvals = nvals
 
         Parameter.__init__(self, name, description, unit, val)
 
@@ -145,7 +143,8 @@ class DataFrameParameter(Parameter):
             print 'Warning: {} does not have a value yet'.format(self.name)
             return None
         else:
-            assert time in self.value.index, '{} is not a valid index for the {} dataframe'.format(time, self.name)
+            if time not in self.value.index:
+                raise IndexError('{} is not a valid index for the {} parameter'.format(time, self.name))
             return self.value.iloc[time][0]
 
     def v(self, time=None):
@@ -158,10 +157,8 @@ class DataFrameParameter(Parameter):
         :param new_val: New value of the parameter
         """
 
-        assert isinstance(new_val, pd.DataFrame), 'The new value of {} should be a pandas DataFrame'.format(self.name)
-        assert len(new_val.index) == self.nvals, \
-            "The length of the given user data is %s, but should be %s" \
-            % (len(new_val.index), self.nvals)
+        assert isinstance(new_val, pd.DataFrame), \
+            'The new value of {} should be a pandas DataFrame'.format(self.name)
 
         self.value = new_val
 

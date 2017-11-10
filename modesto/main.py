@@ -35,7 +35,7 @@ class Modesto:
         self.edges = {}
         self.components = {}
 
-        # self.weather_data = pd.DataFrame()
+        self.params = self.create_params()
 
         self.logger = logging.getLogger('modesto.main.Modesto')
 
@@ -44,8 +44,16 @@ class Modesto:
         self.build(graph)
         self.compiled = False
 
-        self.needed_weather_param = {'Te': 'The ambient temperature [K]'}
-        self.weather_param = {}
+    @staticmethod
+    def create_params():
+
+        params = {
+            'Te': WeatherDataParameter('Te',
+                                       'Ambient temperature',
+                                       'K')
+        }
+
+        return params
 
     def build(self, graph):
         """
@@ -126,12 +134,16 @@ class Modesto:
         if self.compiled:
             self.logger.warning('Model was already compiled.')
 
-        # Check whether all necessry parameters are there
+        # Check whether all necessary parameters are there
         self.check_data()
 
         # General parameters
         self.model.TIME = Set(initialize=range(self.n_steps), ordered=True)
-        self.model.Te = self.weather_param['Te']
+
+        def _ambient_temp(b, t):
+            return self.params['Te'].v(t)
+
+        self.model.Te = Param(self.model.TIME, rule=_ambient_temp)
 
         # Components
         for name, edge in self.edges.items():
@@ -148,10 +160,8 @@ class Modesto:
 
         """
 
-        for param in self.needed_weather_param:
-            if param not in self.weather_param:
-                raise Exception("No values for weather parameter %s was indicated\n Description: %s" %
-                (param, self.needed_weather_param[param]))
+        for name, param in self.params.items():
+            param.check()
 
         for comp in self.components:
             self.components[comp].check_data()
@@ -224,17 +234,16 @@ class Modesto:
         if allow_flow_reversal is not None:
             self.allow_flow_reversal = allow_flow_reversal
 
-    def change_weather(self, param, val):
+    def change_general_param(self, param, val):
         """
-        Change the weather
+        Change a parameter that can be used by all components
 
         :param param: Name of the parameter
-        :param val: The new data that describes the weather, in a dataframe (index is time), columns are the different required signals
+        :param val: The new data
         :return:
         """
-        assert param in self.needed_weather_param, '%s is not recognized as a valid weather parameter' % param
-        assert isinstance(val, pd.DataFrame), '%s should be a pandas DataFrame object' % param
-        self.weather_param[param] = val
+        assert param in self.params, '%s is not recognized as a valid parameter' % param
+        self.params[param].change_value(val)
 
     def change_param(self, comp, param, val):
         """

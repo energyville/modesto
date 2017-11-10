@@ -234,7 +234,7 @@ class ExtensivePipe(Pipe):
             :param dn: DN index
             :return: Heat loss in W/m
             """
-            dq = (self.temp_sup + self.temp_ret - 2 * self.model.Te.iloc[t][0]) / \
+            dq = (self.temp_sup + self.temp_ret - 2 * self.model.Te[t]) / \
                  self.Rs[dn]
             return dq
 
