@@ -133,7 +133,6 @@ class Component(object):
 
         self.user_data[kind] = new_data
 
-
     def change_initial_condition(self, state, val):
         """
         Change the initial value of a state
@@ -376,14 +375,15 @@ class ProducerVariable(Component):
     def obj_energy(self):
         """
         Generator for energy objective variables to be summed
+        Unit: kWh
 
         :return:
         """
 
         eta = self.design_param['efficiency']
         pef = self.design_param['PEF']
-        # TODO add factor to convert to actual energy?
-        return sum(pef*eta*self.get_heat(t) for t in range(self.n_steps))
+        # TODO review * and / please
+        return sum(pef / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
 
     def obj_cost(self):
         """
@@ -391,9 +391,9 @@ class ProducerVariable(Component):
 
         :return:
         """
-
+        # TODO is cost per delivered unit of heat or per consumed primary energy?
         cost = self.design_param['fuel_cost']
-        return sum(cost*self.get_heat(t) for t in range(self.n_steps))
+        return sum(cost * self.get_heat(t) for t in range(self.n_steps))
 
     def obj_co2(self):
         """
@@ -402,8 +402,11 @@ class ProducerVariable(Component):
         :return:
         """
 
+        eta = self.design_param['efficiency']
+        pef = self.design_param['PEF']
         co2 = self.design_param['CO2']
-        return sum(co2 * self.get_heat(t) for t in range(self.n_steps))
+        return sum(co2 * pef / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+
 
 class StorageFixed(FixedProfile):
     def __init__(self, name, horizon, time_step):
@@ -513,6 +516,7 @@ class StorageVariable(Component):
             return self.UAw * (self.temp_ret - self.model.Te.iloc[t][0]) + \
                    self.UAtb * (
                        self.temp_ret + self.temp_sup - self.model.Te.iloc[t][0])
+
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
