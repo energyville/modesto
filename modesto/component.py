@@ -380,7 +380,7 @@ class ProducerVariable(Component):
                          'fuel_cost': 'cost of fuel/electricity to generate heat [euro/kWh]',
                          'Qmax': 'Maximum possible heat output [W]'}
 
-        super(ProducerVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1)
+        super(ProducerVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1, design_param=design_params)
 
         self.logger = logging.getLogger('comps.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
