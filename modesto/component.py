@@ -133,7 +133,6 @@ class Component(object):
 
         self.user_data[kind] = new_data
 
-
     def change_initial_condition(self, state, val):
         """
         Change the initial value of a state
@@ -182,6 +181,22 @@ class Component(object):
                 (param, self.name, self.needed_states[param])
 
     def obj_energy(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_cost(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_co2(self):
         """
         Yield summation of energy variables for objective function, but only for relevant component types
 
@@ -278,33 +293,6 @@ class FixedProfile(Component):
         Component.change_user_behaviour(self, kind, new_data)
 
 
-class VariableProfile(Component):
-    # TODO Assuming that variable profile means State-Space model
-
-    def __init__(self, name, horizon, time_step):
-        """
-        Class for components with a variable heating profile
-
-        :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
-        :param time_step: Time between two points
-        """
-
-        super(VariableProfile, self).__init__(name=name, horizon=horizon, time_step=time_step, design_param=[],
-                                              states=[], user_param=[])
-
-    def compile(self, parent):
-        """
-        Build the structure of a component model
-
-        :param parent: The main optimization model
-        :return:
-        """
-
-        self.make_block(parent)
-
-
 class BuildingFixed(FixedProfile):
     def __init__(self, name, horizon, time_step):
         """
@@ -318,7 +306,7 @@ class BuildingFixed(FixedProfile):
         FixedProfile.__init__(self, name, horizon, time_step, direction=-1)
 
 
-class BuildingVariable(VariableProfile):
+class BuildingVariable(Component):
     # TODO How to implement DHW tank? Separate model from Building or together?
     # TODO Model DHW user without tank? -> set V_tank = 0
 
@@ -331,7 +319,7 @@ class BuildingVariable(VariableProfile):
         in seconds
         :param time_step: Time between two points
         """
-        VariableProfile.__init__(self, name, horizon, time_step)
+        Component.__init__(self, name, horizon, time_step, {}, {}, {})
 
 
 class ProducerFixed(FixedProfile):
@@ -347,7 +335,7 @@ class ProducerFixed(FixedProfile):
         FixedProfile.__init__(self, name, horizon, time_step, direction=1)
 
 
-class ProducerVariable(VariableProfile):
+class ProducerVariable(Component):
     def __init__(self, name, horizon, time_step):
         """
         Class that describes a variable producer
@@ -357,14 +345,21 @@ class ProducerVariable(VariableProfile):
         in seconds
         :param time_step: Time between two points
         """
-        VariableProfile.__init__(self, name, horizon, time_step)
+        design_params = {'efficiency': 'Efficiency of the heat source [-]',
+                         'PEF': 'Factor to convert heat source to primary energy '
+                                '(e.g. if producer uses electricity) [-]',
+                         'CO2': 'amount of CO2 released when using primary energy source [kg/kWh]',
+                         'fuel_cost': 'cost of fuel/electricity to generate heat [euro/kWh]',
+                         'Qmax': 'Maximum possible heat output [W]'}
+
+        Component.__init__(self, name, horizon, time_step, design_param=design_params)
 
         self.logger = logging.getLogger('comps.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
 
     def compile(self, topmodel, parent):
         """
-        Build the structure of ta producer model
+        Build the structure of a producer model
 
         :return:
         """
@@ -374,15 +369,45 @@ class ProducerVariable(VariableProfile):
         self.make_block(parent)
 
         self.block.mass_flow = Var(self.model.TIME, within=NonPositiveReals)
-        self.block.heat_flow = Var(self.model.TIME, within=NonPositiveReals)
+        self.block.heat_flow = Var(self.model.TIME, bounds=(-self.design_param['Qmax'], 0))
 
+    # TODO Objectives are all the same, only difference is the value of the weight...
     def obj_energy(self):
         """
         Generator for energy objective variables to be summed
+        Unit: kWh (primary energy)
 
         :return:
         """
-        return sum(self.get_heat(t) for t in range(self.n_steps))
+
+        eta = self.design_param['efficiency']
+        pef = self.design_param['PEF']
+
+        return sum(pef / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+
+    def obj_cost(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.design_param['fuel_cost']  # cost consumed heat source (fuel/electricity)
+        eta = self.design_param['efficiency']
+        return sum(cost / eta * self.get_heat(t) for t in range(self.n_steps))
+
+    def obj_co2(self):
+        """
+        Generator for CO2 objective variables to be summed
+        Unit: kg CO2
+
+        :return:
+        """
+
+        eta = self.design_param['efficiency']
+        pef = self.design_param['PEF']
+        co2 = self.design_param['CO2']  # CO2 emission per kWh of heat source (fuel/electricity)
+        return sum(co2 / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
 
 
 class StorageFixed(FixedProfile):
@@ -493,6 +518,7 @@ class StorageVariable(Component):
             return self.UAw * (self.temp_ret - self.model.Te.iloc[t][0]) + \
                    self.UAtb * (
                        self.temp_ret + self.temp_sup - self.model.Te.iloc[t][0])
+
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
