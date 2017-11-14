@@ -156,19 +156,23 @@ class Modesto:
         :param objtype:
         :return:
         """
-        objtypes = ['energy']
+        objtypes = ['energy', 'cost', 'CO2']
 
         if objtype == 'energy':
-            def energy_obj(model):
+            def obj(model):
                 return sum(comp.obj_energy() for comp in self.iter_components())
-            self.model.OBJ = Objective(rule=energy_obj, sense=minimize)
-            # !!! Maximize because heat into the network has negative sign
-            self.logger.debug('{} objective set'.format(objtype))
-
+        elif objtype == 'cost':
+            def obj(model):
+                return sum(comp.obj_cost() for comp in self.iter_components())
+        elif objtype == 'CO2':
+            def obj(model):
+                return sum(comp.obj_co2() for comp in self.iter_components())
         else:
-            self.logger.warning(
-                'Objective type {} not recognized. Try one of these: {}'.format(objtype, *objtypes.keys()))
-            self.model.OBJ = Objective(expr=1)
+            raise Exception('{} is not recognized as a valid objective')
+
+        self.model.OBJ = Objective(rule=obj, sense=maximize)
+        # !!! Maximize because heat into the network has negative sign
+        self.logger.debug('{} objective set'.format(objtype))
 
     def iter_components(self):
         """
