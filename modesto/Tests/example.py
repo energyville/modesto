@@ -75,8 +75,8 @@ for i in stor_design:
 
 prod_design = {'efficiency': 0.95,
                'PEF': 1,
-               'CO2': 0.178,  # based on HHV of CH4
-               'fuel_cost': 0.034,  # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics
+               'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
+               'fuel_cost': 0.034,  # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                'Qmax': 10e6}
 
 

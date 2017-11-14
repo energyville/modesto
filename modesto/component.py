@@ -375,36 +375,37 @@ class ProducerVariable(Component):
     def obj_energy(self):
         """
         Generator for energy objective variables to be summed
-        Unit: kWh
+        Unit: kWh (primary energy)
 
         :return:
         """
 
         eta = self.design_param['efficiency']
         pef = self.design_param['PEF']
-        # TODO review * and / please
+
         return sum(pef / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
 
     def obj_cost(self):
         """
         Generator for cost objective variables to be summed
+        Unit: euro
 
         :return:
         """
-        # TODO is cost per delivered unit of heat or per consumed primary energy?
-        cost = self.design_param['fuel_cost']
+        cost = self.design_param['fuel_cost']  # cost consumed heat source (fuel/electricity)
         return sum(cost * self.get_heat(t) for t in range(self.n_steps))
 
     def obj_co2(self):
         """
         Generator for CO2 objective variables to be summed
+        Unit: kg CO2
 
         :return:
         """
 
         eta = self.design_param['efficiency']
         pef = self.design_param['PEF']
-        co2 = self.design_param['CO2']
+        co2 = self.design_param['CO2']  # CO2 emission per kWh of heat source (fuel/electricity)
         return sum(co2 * pef / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
 
 
