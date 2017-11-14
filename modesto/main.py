@@ -3,9 +3,11 @@ from __future__ import division
 import sys
 from math import sqrt
 
-from pyomo.core.base import ConcreteModel, Objective, Constraint, Set, maximize
+from pyomo.core.base import ConcreteModel, Objective, Constraint, Set, maximize, minimize
 from pyomo.opt import SolverFactory
 import pyomo.environ
+from pyomo.core.base.var import IndexedVar
+from pyomo.core.base.param import IndexedParam
 
 from component import *
 from pipe import *
@@ -123,7 +125,7 @@ class Modesto:
 
         :return:
         """
-        
+
         # Check if not compiled already
         if self.compiled:
             self.logger.warning('Model was already compiled.')
@@ -159,7 +161,7 @@ class Modesto:
         if objtype == 'energy':
             def energy_obj(model):
                 return sum(comp.obj_energy() for comp in self.iter_components())
-            self.model.OBJ = Objective(rule=energy_obj, sense=maximize)
+            self.model.OBJ = Objective(rule=energy_obj, sense=minimize)
             # !!! Maximize because heat into the network has negative sign
             self.logger.debug('{} objective set'.format(objtype))
 
@@ -266,33 +268,39 @@ class Modesto:
 
     def get_result(self, comp, name):
         """
-        Returns the numerical values of a certain variable/parameter after optimization
+        Returns the numerical values of a certain parameter or time-dependent variable after optimization
 
         :param comp: Name of the component to which the variable belongs
         :param name: Name of the needed variable/parameter
         :return: A list containing all values of the variable/parameter over the time horizon
         """
 
-        assert self.results is not None, 'The optimization problem has not been solved yet.'
-        assert comp in self.components, '%s is not a valid component name' % comp
+        if self.results is None:
+            raise Exception('The optimization problem has not been solved yet.')
+        if comp not in self.components:
+            raise Exception('%s is not a valid component name' % comp)
 
         result = []
 
-        try:  # Variable
+        obj = self.components[comp].block.find_component(name)
+        if obj is None:
+            raise Exception('{} is not a valid parameter or variable of {}'.format(name, comp))
+
+        if isinstance(obj, IndexedVar):
             for i in self.model.TIME:
-                eval('result.append(self.components[comp].block.' + name + '.values()[i].value)')
+                result.append(obj.values()[i].value)
 
             return result
 
-        except AttributeError:
+        elif isinstance(obj, IndexedParam):
+            result = obj.values()
 
-            try:  # Parameter
-                result = eval('self.components[comp].block.' + name + '.values()')
+            return result
 
-                return result
-
-            except AttributeError:  # Given name is neither a parameter nor a variable
-                self.logger.warning('The variable/parameter {}.{} does not exist, skipping collection of result'.format(comp, name))
+        else:
+            self.logger.warning('{}.{} was a different type of variable/parameter than what has been implemented: '
+                                '{}'.format(comp, name, type(obj)))
+            return None
 
 
 class Node(object):
@@ -362,11 +370,10 @@ class Node(object):
             cls = None
 
         if cls:
-            obj = cls(name, self.horizon, self.time_step)
+            obj = cls(name, horizon=self.horizon, time_step=self.time_step)
         else:
-            obj = None
+            raise ValueError("%s is not a valid class name! (component is %s, in node %s)" % (ctype, name, self.name))
 
-        assert obj is not None, "%s is not a valid class name! (component is %s, in node %s)" % (ctype, name, self.name)
 
         self.logger.info('Component {} added to {}'.format(name, self.name))
 

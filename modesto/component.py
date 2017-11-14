@@ -4,11 +4,12 @@ import logging
 from math import pi, log, exp
 
 import pandas as pd
-from pyomo.core.base import Block, Param, Var, NonPositiveReals, Constraint
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
 
 
 class Component(object):
-    def __init__(self, name, horizon, time_step, design_param={}, states={}, user_param={}):
+
+    def __init__(self, name=None, horizon=None, time_step=None, design_param={}, states={}, user_param={}, direction=None):
         """
         Base class for components
 
@@ -19,8 +20,8 @@ class Component(object):
         :param design_param: Required design parameters to set up the model (list)
         :param states: Required states that have to be initialized to set up the model (list)
         :param user_param: Required data about user behaviour to set up the model (list)
+        :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
-
         self.logger = logging.getLogger('modesto.component.Component')
         self.logger.info('Initializing Component {}'.format(name))
 
@@ -42,7 +43,13 @@ class Component(object):
         self.needed_states = states
         self.needed_user_data = user_param
 
-        self.cp = 4180
+        self.cp = 4180  # TODO make this static variable
+
+        if direction is None:
+            raise ValueError('Set direction either to 1 or -1.')
+        elif direction not in [-1, 1]:
+            raise ValueError('Direction should be -1 or 1.')
+        self.direction = direction
 
     def pprint(self, txtfile=None):
         """
@@ -80,7 +87,7 @@ class Component(object):
         :return:
         """
         assert self.block is not None, "The optimization model for %s has not been compiled" % self.name
-        return self.block.heat_flow[t]
+        return self.direction * self.block.heat_flow[t]
 
     def get_mflo(self, t):
         """
@@ -90,7 +97,7 @@ class Component(object):
         :return:
         """
         assert self.block is not None, "The optimization model for %s has not been compiled" % self.name
-        return self.block.mass_flow[t]
+        return self.direction * self.block.mass_flow[t]
 
     def make_block(self, parent):
         """
@@ -131,7 +138,6 @@ class Component(object):
             % (len(new_data.index), self.n_steps)
 
         self.user_data[kind] = new_data
-
 
     def change_initial_condition(self, state, val):
         """
@@ -190,7 +196,7 @@ class Component(object):
 
 
 class FixedProfile(Component):
-    def __init__(self, name, horizon, time_step, direction=0):
+    def __init__(self, name=None, horizon=None, time_step=None, direction=None):
         """
         Class for a component with a fixed heating profile
 
@@ -198,21 +204,15 @@ class FixedProfile(Component):
         :param horizon: Horizon of the optimization problem,
         in seconds
         :param time_step: Time between two points
-        :param direction: Indicates possible signs of heat flow
-        0: both + and -,
-        1: only + (heat to the network),
-        -1, only - (heat from the network)
+        :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
         design_param = {'delta_T': 'Temperature difference across substation [K]',
                         'mult': 'Number of buildings in the cluster'}
         user_param = {'heat_profile': 'Heat use in one (average) building'}
         # TODO Link this to the build()
 
-        Component.__init__(self, name=name, horizon=horizon, time_step=time_step, design_param=design_param,
-                           user_param=user_param)
-
-        assert direction in [-1, 0, 1], "The input direction should be either -1, 0 or 1"
-        self.direction = direction
+        super(FixedProfile, self).__init__(name=name, horizon=horizon, time_step=time_step,
+                                           design_param=design_param, user_param=user_param, direction=direction)
 
     def compile(self, topmodel, parent):
         """
@@ -280,7 +280,7 @@ class FixedProfile(Component):
 class VariableProfile(Component):
     # TODO Assuming that variable profile means State-Space model
 
-    def __init__(self, name, horizon, time_step):
+    def __init__(self, name, horizon, time_step, direction):
         """
         Class for components with a variable heating profile
 
@@ -290,8 +290,8 @@ class VariableProfile(Component):
         :param time_step: Time between two points
         """
 
-        super(VariableProfile, self).__init__(name=name, horizon=horizon, time_step=time_step, design_param=[],
-                                              states=[], user_param=[])
+        super(VariableProfile, self).__init__(name=name, horizon=horizon, time_step=time_step, design_param={},
+                                              states={}, user_param={}, direction=direction)
 
     def compile(self, parent):
         """
@@ -313,8 +313,9 @@ class BuildingFixed(FixedProfile):
         :param horizon: Horizon of the optimization problem,
         in seconds
         :param time_step: Time between two points
+        :param direction: Standard heat and mass flow direction for positive flows. 1 for producer components, -1 for consumer components
         """
-        FixedProfile.__init__(self, name, horizon, time_step, direction=-1)
+        super(BuildingFixed, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=-1)
 
 
 class BuildingVariable(VariableProfile):
@@ -330,7 +331,7 @@ class BuildingVariable(VariableProfile):
         in seconds
         :param time_step: Time between two points
         """
-        VariableProfile.__init__(self, name, horizon, time_step)
+        super(BuildingVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=-1)
 
 
 class ProducerFixed(FixedProfile):
@@ -343,7 +344,7 @@ class ProducerFixed(FixedProfile):
         in seconds
         :param time_step: Time between two points
         """
-        FixedProfile.__init__(self, name, horizon, time_step, direction=1)
+        super(ProducerFixed, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1)
 
 
 class ProducerVariable(VariableProfile):
@@ -356,14 +357,14 @@ class ProducerVariable(VariableProfile):
         in seconds
         :param time_step: Time between two points
         """
-        VariableProfile.__init__(self, name, horizon, time_step)
+        super(ProducerVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1)
 
         self.logger = logging.getLogger('comps.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
 
     def compile(self, topmodel, parent):
         """
-        Build the structure of ta producer model
+        Build the structure of a producer model
 
         :return:
         """
@@ -372,8 +373,8 @@ class ProducerVariable(VariableProfile):
         self.model = topmodel
         self.make_block(parent)
 
-        self.block.mass_flow = Var(self.model.TIME, within=NonPositiveReals)
-        self.block.heat_flow = Var(self.model.TIME, within=NonPositiveReals)
+        self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
+        self.block.heat_flow = Var(self.model.TIME, within=NonNegativeReals)
 
     def obj_energy(self):
         """
@@ -394,7 +395,7 @@ class StorageFixed(FixedProfile):
         in seconds
         :param time_step: Time between two points
         """
-        FixedProfile.__init__(self, name, horizon, time_step)
+        super(StorageFixed, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=-1)
 
 
 class StorageVariable(Component):
@@ -422,8 +423,8 @@ class StorageVariable(Component):
             'heat_stor': 'Heat present in the tank'
         }
 
-        super(StorageVariable, self).__init__(name=name, horizon=horizon, time_step=time_step,
-                                              states=states, design_param=design_params)
+        super(StorageVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, states=states,
+                                              design_param=design_params, direction=-1)
 
         # TODO choose between stored heat or state of charge as state (which one is easier for initialization?)
 
@@ -492,6 +493,7 @@ class StorageVariable(Component):
             return self.UAw * (self.temp_ret - self.model.Te.iloc[t][0]) + \
                    self.UAtb * (
                        self.temp_ret + self.temp_sup - self.model.Te.iloc[t][0])
+
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)

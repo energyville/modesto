@@ -25,7 +25,10 @@ class Pipe(Component):
 
         design_param = ['pipe_type']  # Type of pipe model
 
-        Component.__init__(self, name, horizon, time_step, design_param, [], [])
+        super(Pipe, self).__init__(name=name, horizon=horizon, time_step=time_step, design_param=design_param,
+                                   states={},
+                                   user_param={}, direction=1)
+        # TODO actually pipe does not need a direction
 
         self.start_node = start_node
         self.end_node = end_node
@@ -278,8 +281,7 @@ class ExtensivePipe(Pipe):
         # Eq. (3.4)
         def _eq_heat_bal(b, t):
             """Heat balance of pipe"""
-            return b.heat_flow_in[t] == b.heat_flow_out[t] + b.heat_loss_tot[
-                                                                 t] * self.length
+            return b.heat_flow_in[t] == b.heat_flow_out[t] + b.heat_loss_tot[t]
 
         self.block.eq_heat_bal = Constraint(self.model.TIME, rule=_eq_heat_bal)
 
@@ -310,7 +312,7 @@ class ExtensivePipe(Pipe):
 
         # Eq. (3.6)
         def _eq_heat_loss_tot(b, t):
-            return b.heat_loss_tot[t] == sum(
+            return b.heat_loss_tot[t] == self.length * sum(
                 b.heat_loss[t, dn] for dn in b.DN_ind)
 
         self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
