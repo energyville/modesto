@@ -3,7 +3,9 @@ from __future__ import division
 import sys
 from math import sqrt
 
-from pyomo.core.base import ConcreteModel, Objective, Constraint, Set, maximize
+from pyomo.core.base import ConcreteModel, Objective, Constraint, Set, maximize, minimize
+from pyomo.opt import SolverFactory
+import pyomo.environ
 from pyomo.core.base.var import IndexedVar
 from pyomo.core.base.param import IndexedParam
 
@@ -123,7 +125,7 @@ class Modesto:
 
         :return:
         """
-        
+
         # Check if not compiled already
         if self.compiled:
             self.logger.warning('Model was already compiled.')
@@ -372,11 +374,10 @@ class Node(object):
             cls = None
 
         if cls:
-            obj = cls(name, self.horizon, self.time_step)
+            obj = cls(name, horizon=self.horizon, time_step=self.time_step)
         else:
-            obj = None
+            raise ValueError("%s is not a valid class name! (component is %s, in node %s)" % (ctype, name, self.name))
 
-        assert obj is not None, "%s is not a valid class name! (component is %s, in node %s)" % (ctype, name, self.name)
 
         self.logger.info('Component {} added to {}'.format(name, self.name))
 
