@@ -123,7 +123,6 @@ print 'Energy', modesto.get_result('waterscheiGarden.storage', 'heat_stor')
 
 # Heat flows
 prod_hf = modesto.get_result('thorPark', 'heat_flow')
-prod_hf = [x for x in prod_hf]
 storage_hf = modesto.get_result('waterscheiGarden.storage', 'heat_flow')
 waterschei_hf = modesto.get_result('waterscheiGarden.buildingD', 'heat_flow')
 zwartberg_hf = modesto.get_result('zwartbergNE.buildingD', 'heat_flow')
