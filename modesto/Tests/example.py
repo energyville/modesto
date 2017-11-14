@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+from pyomo.core.base import value
 
 from modesto.main import Modesto
 
@@ -53,7 +54,7 @@ modesto = Modesto(n_steps * time_steps, time_steps, 'ExtensivePipe', G)
 heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
 T_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
 
-modesto.opt_settings(allow_flow_reversal=True)
+modesto.opt_settings(allow_flow_reversal=False)
 
 modesto.change_weather('Te', T_amb)
 
@@ -80,9 +81,9 @@ for i in stor_design:
 prod_design = {'efficiency': 0.95,
                'PEF': 1,
                'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-               'fuel_cost': 0.034,  # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
+               'fuel_cost': 0.034,
+               # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                'Qmax': 10e6}
-
 
 for i in prod_design:
     modesto.change_design_param('thorPark', i, prod_design[i])
@@ -99,7 +100,12 @@ modesto.change_design_param('spZwartbergNE', 'pipe_type', 125)
 
 modesto.compile()
 modesto.set_objective('energy')
-modesto.solve(tee=True, mipgap=0.00)
+
+# modesto.model.OBJ_ENERGY.pprint()
+# modesto.model.OBJ_COST.pprint()
+# modesto.model.OBJ_CO2.pprint()
+
+modesto.solve(tee=True, mipgap=0.01)
 
 ##################################
 # Collect result                 #
@@ -155,10 +161,18 @@ print 'spZwartbergNE: ', modesto.get_result('spZwartbergNE', 'heat_loss_tot')
 # print modesto.components['bbThor'].block.find_component('heat_loss').pprint()
 #
 print '\nMass flows'
-print 'bbThor: ', modesto.get_result('bbThor','mass_flow')
-print 'spWaterschei: ',modesto.get_result('spWaterschei','mass_flow')
-print 'spZwartbergNE: ',modesto.get_result('spZwartbergNE','mass_flow')
+print 'bbThor: ', modesto.get_result('bbThor', 'mass_flow')
+print 'spWaterschei: ', modesto.get_result('spWaterschei', 'mass_flow')
+print 'spZwartbergNE: ', modesto.get_result('spZwartbergNE', 'mass_flow')
 
+print '\nObjective function'
+print 'Energy:', value(modesto.model.OBJ_ENERGY)
+print 'Cost:  ', value(modesto.model.OBJ_COST)
+
+
+print '\nTest'
+hf = modesto.components['waterscheiGarden.buildingD'].block.heat_flow
+print [value(hf[i]) for i in hf]
 # print '\nWeights'
 # print modesto.components['bbThor'].block.find_component('weight3').pprint()
 
@@ -167,7 +181,7 @@ fig, ax = plt.subplots()
 
 ax.hold(True)
 l1, = ax.plot(prod_hf)
-l3, = ax.plot([x + y+ z for x, y, z in zip(waterschei_hf, storage_hf, zwartberg_hf,)])  # , )])  #
+l3, = ax.plot([x + y + z for x, y, z in zip(waterschei_hf, storage_hf, zwartberg_hf, )])  # , )])  #
 ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
 
 ax.set_title('Heat flows [W]')
