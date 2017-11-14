@@ -287,8 +287,7 @@ class ExtensivePipe(Pipe):
 
         # Eq. (3.5)
         def _eq_mass_flow_tot(b, t):
-            return b.mass_flow_tot[t] == sum(
-                b.mass_flow[t, dn] for dn in b.DN_ind)
+            return b.mass_flow_tot[t] == sum(b.dn_sel[dn] * b.mass_flow[t, dn] for dn in b.DN_ind)
 
         self.block.eq_mass_flow_tot = Constraint(self.model.TIME,
                                                  rule=_eq_mass_flow_tot)
@@ -312,8 +311,7 @@ class ExtensivePipe(Pipe):
 
         # Eq. (3.6)
         def _eq_heat_loss_tot(b, t):
-            return b.heat_loss_tot[t] == self.length * sum(
-                b.heat_loss[t, dn] for dn in b.DN_ind)
+            return b.heat_loss_tot[t] == self.length * sum(b.dn_sel[dn] * b.heat_loss[t, dn] for dn in b.DN_ind)
 
         self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
                                                  rule=_eq_heat_loss_tot)
@@ -372,7 +370,7 @@ class ExtensivePipe(Pipe):
 
         # If DN is not selected, automatically make reverse and forward 0
         def _ineq_non_selected(b, t, dn):
-            return b.forward[t, dn] + b.reverse[t, dn] <= b.dn_sel[dn]
+            return b.forward[t, dn] + b.reverse[t, dn] <= 1  # b.dn_sel[dn]
 
         self.block.ineq_non_selected = Constraint(self.model.TIME,
                                                   self.block.DN_ind,

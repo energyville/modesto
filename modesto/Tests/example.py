@@ -49,7 +49,7 @@ modesto = Modesto(n_steps * time_steps, time_steps, 'ExtensivePipe', G)
 # Fill in the parameters         #
 ##################################
 
-heat_profile = pd.DataFrame([5000] * n_steps, index=range(n_steps))
+heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
 T_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
 
 modesto.opt_settings(allow_flow_reversal=False)
@@ -78,8 +78,8 @@ stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
 
 # modesto.change_initial_cond('waterscheiGarden.storage', 'heat_stor', 0)
 
-# modesto.change_design_param('bbThor', 'pipe_type', 65)
-# modesto.change_design_param('spWaterschei', 'pipe_type', 65)
+modesto.change_design_param('bbThor', 'pipe_type', 50)
+modesto.change_design_param('spWaterschei', 'pipe_type', 50)
 # modesto.change_design_param('spZwartbergNE', 'pipe_type', 125)
 
 ##################################
@@ -143,12 +143,10 @@ print 'spWaterschei: ', modesto.get_result('spWaterschei', 'heat_loss_tot')
 # print modesto.components['bbThor'].block.find_component('heat_loss').pprint()
 #
 print '\nMass flows'
-print modesto.components['bbThor'].block.find_component('heat_flow_in').pprint()
-print modesto.components['spWaterschei'].block.find_component('heat_flow_in').pprint()
 print modesto.components['waterscheiGarden.buildingD'].block.find_component('mass_flow').pprint()
 
-print '\nWeights'
-print modesto.components['bbThor'].block.find_component('weight3').pprint()
+# print '\nWeights'
+# print modesto.components['bbThor'].block.find_component('weight3').pprint()
 
 
 fig, ax = plt.subplots()
