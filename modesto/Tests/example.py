@@ -101,9 +101,9 @@ modesto.change_design_param('spZwartbergNE', 'pipe_type', 125)
 modesto.compile()
 modesto.set_objective('energy')
 
-# modesto.model.OBJ_ENERGY.pprint()
-# modesto.model.OBJ_COST.pprint()
-# modesto.model.OBJ_CO2.pprint()
+modesto.model.OBJ_ENERGY.pprint()
+modesto.model.OBJ_COST.pprint()
+modesto.model.OBJ_CO2.pprint()
 
 modesto.solve(tee=True, mipgap=0.01)
 
@@ -114,8 +114,8 @@ modesto.solve(tee=True, mipgap=0.01)
 print '\nWaterschei.buildingD'
 print 'Heat flow', modesto.get_result('waterscheiGarden.buildingD', 'heat_flow')
 
-# print '\nzwartbergNE.buildingD'
-# print 'Heat flow', modesto.get_result('zwartbergNE.buildingD', 'heat_flow')
+print '\nzwartbergNE.buildingD'
+print 'Heat flow', modesto.get_result('zwartbergNE.buildingD', 'heat_flow')
 
 print '\nthorPark'
 print 'Heat flow', modesto.get_result('thorPark', 'heat_flow')
@@ -156,25 +156,16 @@ print 'bbThor: ', modesto.get_result('bbThor', 'heat_loss_tot')
 print 'spWaterschei: ', modesto.get_result('spWaterschei', 'heat_loss_tot')
 print 'spZwartbergNE: ', modesto.get_result('spZwartbergNE', 'heat_loss_tot')
 
-#
-# print '\nDN heat losses'
-# print modesto.components['bbThor'].block.find_component('heat_loss').pprint()
-#
+# Mass flows
 print '\nMass flows'
 print 'bbThor: ', modesto.get_result('bbThor', 'mass_flow')
 print 'spWaterschei: ', modesto.get_result('spWaterschei', 'mass_flow')
 print 'spZwartbergNE: ', modesto.get_result('spZwartbergNE', 'mass_flow')
 
+# Objectives
 print '\nObjective function'
 print 'Energy:', value(modesto.model.OBJ_ENERGY)
 print 'Cost:  ', value(modesto.model.OBJ_COST)
-
-
-print '\nTest'
-hf = modesto.components['waterscheiGarden.buildingD'].block.heat_flow
-print [value(hf[i]) for i in hf]
-# print '\nWeights'
-# print modesto.components['bbThor'].block.find_component('weight3').pprint()
 
 
 fig, ax = plt.subplots()
