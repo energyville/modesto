@@ -53,7 +53,6 @@ class Parameter(object):
         else:
             return 'Description: {}\nUnit: {}\nValue: {}'.format(self.description, self.unit, self.value)
 
-
     def get_value(self, time=None):
         """
 
@@ -131,7 +130,6 @@ class DataFrameParameter(Parameter):
         :param description: Description of the parameter (str)
         :param unit: Unit of the parameter (e.g. K, W, m...) (str)
         :param val: Value of the parameter, if not given, it becomes None
-        :param nvals: Number of values that should be in the dataframe (int)
         """
 
         Parameter.__init__(self, name, description, unit, val)

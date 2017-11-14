@@ -287,22 +287,63 @@ class Modesto:
                 self.logger.warning('The variable/parameter {}.{} does not exist, skipping collection of result'.format(comp, name))
 
     def print_all_params(self):
+        """
+        Print all parameters in the optimization problem
+
+        :return:
+        """
         descriptions = {'general': {}}
         for name, param in self.params.items():
             descriptions['general'][name] = param.get_description()
 
         for comp in self.components:
-            descriptions[comp] = self.components[comp].get_param_description()
+            descriptions[comp] = {}
+            for name in self.components[comp].get_params():
+                descriptions[comp][name] = self.components[comp].get_param_description(name)
 
         self._print_params(descriptions)
 
-    def _print_params(self, descriptions):
+    def print_comp_param(self, comp, *args):
+        """
+        Print parameters of a component
+
+        :param comp: Name of the component
+        :param args: Names of the parameters, if None are given, all will be printed
+        :return:
+        """
+        descriptions = {comp: {}}
+
+        if comp not in self.components:
+            raise IndexError('%s is not recognized a valid component' % comp)
+        if not args:
+            for name in self.components[comp].get_params():
+                descriptions[comp][name] = self.components[comp].get_param_description(name)
+        for name in args:
+            if name not in self.components[comp].params:
+                raise IndexError('%s is not a valid parameter of %s' % (name, comp))
+            descriptions[comp][name] = self.components[comp].get_param_description(name)
+
+        self._print_params(descriptions)
+
+    def print_general_param(self, name):
+        """
+        Print a single, general parameter
+
+        :param name: Name of the parameter
+        :return:
+        """
+
+        if name not in self.params:
+            raise IndexError('%s is not a valid general parameter ' % name)
+
+        self._print_params({'general': {name: self.params[name].get_description()}})
+
+    @staticmethod
+    def _print_params(descriptions):
         for comp in descriptions:
             print '--- ', comp, ' ---\n'
             for param, des in descriptions[comp].items():
                 print '-', param, '\n', des, '\n'
-
-
 
 
 class Node(object):

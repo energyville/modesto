@@ -163,7 +163,7 @@ class ExtensivePipe(Pipe):
         :return:
         """
 
-        self.dn = self.get_param('pipe_type')
+        self.dn = self.params['pipe_type'].v()
         if self.dn is None:
             self.logger.info('No dn set. Optimizing diameter.')
         self.make_block(model)

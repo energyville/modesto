@@ -58,7 +58,15 @@ class Component(object):
         else:
             print 'The optimization model of %s has not been built yet.' % self.name
 
-    def get_param(self, name, time=None):
+    def get_params(self):
+        """
+
+        :return: A list of all parameters necessary for this type of component
+        """
+
+        return self.params.keys()
+
+    def get_param_value(self, name, time=None):
         """
         Gets value of specified design param. Returns "None" if unknown
 
@@ -147,23 +155,18 @@ class Component(object):
         """
         return 0
 
-    def get_param_description(self, name=None):
+    def get_param_description(self, name):
         """
         Returns a string containing the description of a parameter
 
         :param name: Name of the parameter. If None, all parameters are returned
         :return: A dict of all descriptions
         """
-        if name is None:
-            descriptions = {}
-            for parname, param in self.params.items():
-                descriptions[parname] = param.get_description()
-            return descriptions
 
-        elif name not in self.params:
+        if name not in self.params:
                 raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
         else:
-            return {name: self.params[name].get_description()}
+            return self.params[name].get_description()
 
 
 class FixedProfile(Component):
