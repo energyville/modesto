@@ -2,7 +2,6 @@ import logging
 
 import matplotlib.pyplot as plt
 import networkx as nx
-import numpy as np
 import pandas as pd
 
 from modesto.main import Modesto
@@ -50,7 +49,7 @@ modesto = Modesto(n_steps * time_steps, time_steps, 'ExtensivePipe', G)
 # Fill in the parameters         #
 ##################################
 
-heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
+heat_profile = pd.DataFrame([5000] * n_steps, index=range(n_steps))
 T_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
 
 modesto.opt_settings(allow_flow_reversal=False)
@@ -61,7 +60,7 @@ modesto.change_weather('Te', T_amb)
 # modesto.change_design_param('zwartbergNE.buildingD', 'mult', 2000)
 # modesto.change_user_behaviour('zwartbergNE.buildingD', 'heat_profile', heat_profile)
 modesto.change_design_param('waterscheiGarden.buildingD', 'delta_T', 20)
-modesto.change_design_param('waterscheiGarden.buildingD', 'mult', 2000)
+modesto.change_design_param('waterscheiGarden.buildingD', 'mult', 200)
 modesto.change_user_behaviour('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
 
 stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
@@ -79,8 +78,8 @@ stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
 
 # modesto.change_initial_cond('waterscheiGarden.storage', 'heat_stor', 0)
 
-# modesto.change_design_param('bbThor', 'pipe_type', 150)
-# modesto.change_design_param('spWaterschei', 'pipe_type', 150)
+# modesto.change_design_param('bbThor', 'pipe_type', 65)
+# modesto.change_design_param('spWaterschei', 'pipe_type', 65)
 # modesto.change_design_param('spZwartbergNE', 'pipe_type', 125)
 
 ##################################
@@ -113,7 +112,7 @@ print 'Heat flow', modesto.get_result('thorPark', 'heat_flow')
 
 # Heat flows
 prod_hf = modesto.get_result('thorPark', 'heat_flow')
-prod_hf = [-x for x in prod_hf]
+prod_hf = [x for x in prod_hf]
 # storage_hf = modesto.get_result('waterscheiGarden.storage', 'heat_flow')
 waterschei_hf = modesto.get_result('waterscheiGarden.buildingD', 'heat_flow')
 # zwartberg_hf = modesto.get_result('zwartbergNE.buildingD', 'heat_flow')
@@ -134,6 +133,23 @@ print '\nNetwork'
 print '\nDiameters'
 for i in ['bbThor', 'spWaterschei']:  # , 'spZwartbergNE'
     print i, ': ', str(modesto.components[i].get_diameter())
+
+# Pipe heat losses
+print '\nPipe heat losses'
+print 'bbThor: ', modesto.get_result('bbThor', 'heat_loss_tot')
+print 'spWaterschei: ', modesto.get_result('spWaterschei', 'heat_loss_tot')
+#
+# print '\nDN heat losses'
+# print modesto.components['bbThor'].block.find_component('heat_loss').pprint()
+#
+print '\nMass flows'
+print modesto.components['bbThor'].block.find_component('heat_flow_in').pprint()
+print modesto.components['spWaterschei'].block.find_component('heat_flow_in').pprint()
+print modesto.components['waterscheiGarden.buildingD'].block.find_component('mass_flow').pprint()
+
+print '\nWeights'
+print modesto.components['bbThor'].block.find_component('weight3').pprint()
+
 
 fig, ax = plt.subplots()
 
