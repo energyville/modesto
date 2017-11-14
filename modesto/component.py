@@ -393,7 +393,8 @@ class ProducerVariable(Component):
         :return:
         """
         cost = self.design_param['fuel_cost']  # cost consumed heat source (fuel/electricity)
-        return sum(cost * self.get_heat(t) for t in range(self.n_steps))
+        eta = self.design_param['efficiency']
+        return sum(cost / eta * self.get_heat(t) for t in range(self.n_steps))
 
     def obj_co2(self):
         """
@@ -406,7 +407,7 @@ class ProducerVariable(Component):
         eta = self.design_param['efficiency']
         pef = self.design_param['PEF']
         co2 = self.design_param['CO2']  # CO2 emission per kWh of heat source (fuel/electricity)
-        return sum(co2 * pef / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+        return sum(co2 / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
 
 
 class StorageFixed(FixedProfile):
