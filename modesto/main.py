@@ -3,10 +3,11 @@ from __future__ import division
 import sys
 from math import sqrt
 
-from pyomo.core.base import ConcreteModel, Objective, minimize
+from pyomo.core.base import ConcreteModel, Objective, minimize, value
 from pyomo.core.base.param import IndexedParam
 from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
+# noinspection PyUnresolvedReferences
 import pyomo.environ
 
 from component import *
@@ -50,6 +51,9 @@ class Modesto:
 
         self.needed_weather_param = {'Te': 'The ambient temperature [K]'}
         self.weather_param = {}
+
+        self.objectives = {}
+        self.act_objective = None
 
     def build(self, graph):
         """
@@ -171,9 +175,11 @@ class Modesto:
         self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
         self.model.OBJ_CO2 = Objective(rule=obj_co2, sense=minimize)
 
-        self.model.OBJ_ENERGY.deactivate()
-        self.model.OBJ_CO2.deactivate()
-        self.model.OBJ_COST.deactivate()
+        self.objectives = {
+            'energy': self.model.OBJ_ENERGY,
+            'cost': self.model.OBJ_COST,
+            'co2': self.model.OBJ_CO2
+        }
 
     def set_objective(self, objtype):
         """
@@ -186,12 +192,11 @@ class Modesto:
         if objtype not in objtypes:
             raise ValueError('Choose an objective type from {}'.format(*objtypes))
 
-        if objtype == 'energy':
-            self.model.OBJ_ENERGY.activate()
-        elif objtype == 'cost':
-            self.model.OBJ_COST.activate()
-        elif objtype == 'CO2':
-            self.model.OBJ_CO2.activate()
+        for obj in self.objectives.values():
+            obj.deactivate()
+
+        self.objectives[objtype].activate()
+        self.act_objective = self.objectives[objtype]
 
         self.logger.debug('{} objective set'.format(objtype))
 
@@ -232,11 +237,11 @@ class Modesto:
         :return:
         """
         if objective is not None:  # TODO Do we need this to be defined at the top level of modesto?
-            self.objective = objective
+            self.set_objective(objective)
         if horizon is not None:
             self.horizon = horizon
         if time_step is not None:
-            self.objective = time_step
+            self.time_step = time_step
         if pipe_model is not None:
             self.pipe_model = pipe_model
         if allow_flow_reversal is not None:
@@ -326,6 +331,28 @@ class Modesto:
             self.logger.warning('{}.{} was a different type of variable/parameter than what has been implemented: '
                                 '{}'.format(comp, name, type(obj)))
             return None
+
+    def get_objective(self, objtype=None):
+        """
+        Return value of objective function. With no argument supplied, the active objective is returned. Otherwise, the
+        objective specified in the argument is returned.
+
+        :param objtype: Name of the objective to be returned. Default None: returns the active objective.
+        :return:
+        """
+        if objtype is None:
+            # Find active objective
+            if self.act_objective is not None:
+                obj = self.act_objective
+            else:
+                raise ValueError('No active objective found.')
+
+        else:
+            assert objtype in self.objectives.keys(), 'Requested objective does not exist. Please choose from {}'.format(
+                self.objectives.keys())
+            obj = self.objectives[objtype]
+
+        return value(obj)
 
 
 class Node(object):
