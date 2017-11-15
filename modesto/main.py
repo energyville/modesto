@@ -3,15 +3,15 @@ from __future__ import division
 import sys
 from math import sqrt
 
+# noinspection PyUnresolvedReferences
+import pyomo.environ
+from component import *
+from pipe import *
 from pyomo.core.base import ConcreteModel, Objective, minimize, value
 from pyomo.core.base.param import IndexedParam
 from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
-# noinspection PyUnresolvedReferences
-import pyomo.environ
-
-from component import *
-from pipe import *
+from pyomo.opt import SolverStatus, TerminationCondition
 
 
 class Modesto:
@@ -208,12 +208,13 @@ class Modesto:
         """
         return [self.components[comp] for comp in self.components]
 
-    def solve(self, tee=False, mipgap=0.1):
+    def solve(self, tee=False, mipgap=0.1, verbose=False):
         """
         Solve a new optimization
 
         :param tee: If True, print the optimization model
         :param mipgap: Set mip optimality gap. Default 10%
+        :param verbose: True to print extra diagnostic information
         :return:
         """
 
@@ -224,6 +225,21 @@ class Modesto:
         # opt.options["Threads"] = threads
         opt.options["MIPGap"] = mipgap
         self.results = opt.solve(self.model, tee=tee)
+
+        if verbose:
+            print self.results
+
+        if (self.results.solver.status == SolverStatus.ok) and (
+                    self.results.solver.termination_condition == TerminationCondition.optimal):
+            status = 0
+        elif self.results.solver.termination_condition == TerminationCondition.infeasible:
+            status = 1
+            self.logger.warning('Model is infeasible')
+        else:
+            status = -1
+            self.logger.error('Solver status: ', self.results.solver.status)
+
+        return status
 
     def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_model=None, allow_flow_reversal=None):
         """
