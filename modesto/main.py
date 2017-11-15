@@ -3,11 +3,11 @@ from __future__ import division
 import sys
 from math import sqrt
 
-from pyomo.core.base import ConcreteModel, Objective, Constraint, Set, maximize, minimize
+from pyomo.core.base import ConcreteModel, Objective, minimize
+from pyomo.core.base.param import IndexedParam
+from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 import pyomo.environ
-from pyomo.core.base.var import IndexedVar
-from pyomo.core.base.param import IndexedParam
 
 from component import *
 from pipe import *
@@ -147,7 +147,33 @@ class Modesto:
         for name, node in self.nodes.items():
             node.compile(self.model)
 
-        self.compiled = True    # Change compilation flag
+        self.build_objectives()
+
+        self.compiled = True  # Change compilation flag
+
+    def build_objectives(self):
+        """
+        Initialize different objectives
+
+        :return:
+        """
+
+        def obj_energy(model):
+            return sum(comp.obj_energy() for comp in self.iter_components())
+
+        def obj_cost(model):
+            return sum(comp.obj_cost() for comp in self.iter_components())
+
+        def obj_co2(model):
+            return sum(comp.obj_co2() for comp in self.iter_components())
+
+        self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
+        self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
+        self.model.OBJ_CO2 = Objective(rule=obj_co2, sense=minimize)
+
+        self.model.OBJ_ENERGY.deactivate()
+        self.model.OBJ_CO2.deactivate()
+        self.model.OBJ_COST.deactivate()
 
     def set_objective(self, objtype):
         """
@@ -157,21 +183,16 @@ class Modesto:
         :return:
         """
         objtypes = ['energy', 'cost', 'CO2']
+        if objtype not in objtypes:
+            raise ValueError('Choose an objective type from {}'.format(*objtypes))
 
         if objtype == 'energy':
-            def obj(model):
-                return sum(comp.obj_energy() for comp in self.iter_components())
+            self.model.OBJ_ENERGY.activate()
         elif objtype == 'cost':
-            def obj(model):
-                return sum(comp.obj_cost() for comp in self.iter_components())
+            self.model.OBJ_COST.activate()
         elif objtype == 'CO2':
-            def obj(model):
-                return sum(comp.obj_co2() for comp in self.iter_components())
-        else:
-            raise Exception('{} is not recognized as a valid objective')
+            self.model.OBJ_CO2.activate()
 
-        self.model.OBJ = Objective(rule=obj, sense=maximize)
-        # !!! Maximize because heat into the network has negative sign
         self.logger.debug('{} objective set'.format(objtype))
 
     def iter_components(self):
@@ -377,7 +398,6 @@ class Node(object):
             obj = cls(name, horizon=self.horizon, time_step=self.time_step)
         else:
             raise ValueError("%s is not a valid class name! (component is %s, in node %s)" % (ctype, name, self.name))
-
 
         self.logger.info('Component {} added to {}'.format(name, self.name))
 
