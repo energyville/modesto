@@ -5,7 +5,7 @@ from math import pi, log, exp
 import pandas as pd
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
 
-from parameter import StateParameter, DesignParameter, UserDataParameter
+from parameter import StateParameter, DesignParameter, UserDataParameter, DataFrameParameter
 
 
 class Component(object):
@@ -129,6 +129,19 @@ class Component(object):
         self.logger.info(
             'Optimization block for Component {} initialized'.format(self.name))
 
+    def compile(self, topmodel, parent):
+        """
+        Add all necessary equations to the model
+
+        :return:
+        """
+        self.check_data()
+
+        self.model = topmodel
+        self.make_block(parent)
+
+        self.create_opt_params()
+
     def change_param(self, param, new_data):
         """
         Change the value of a parameter
@@ -189,6 +202,67 @@ class Component(object):
         """
         return 0
 
+    def create_opt_params(self):
+        """
+        Create the Pyomo Parameter objects for each of the parameters of the component
+
+        :return:
+        """
+
+        for name, param in self.params.items():
+
+            if isinstance(param, DataFrameParameter):
+                def _par_decl_df(b, t):
+                    return param.v(t)
+
+                self.block.add_component(name, Param(self.model.TIME, doc=name, rule=_par_decl_df, mutable=True))
+
+            elif isinstance(param, StateParameter):
+                # Prevent the state (as a function of time) is overwritten by parameter
+                pass
+            else:
+                self.block.add_component(name, Param(doc=name, initialize=param.v(), mutable=True))
+
+    def add_init_constraint(self, state_name, init_type, value=None):
+        """
+        Add an initialization constraint to the model
+
+        :param state_name: Name of the state that is being initialized
+        :param init_type: Type of initialization (free, cyclic or fixedVal)
+        :param value: In case of a fixed value, this input indicates the initial value
+        :return:
+        """
+        state = self.block.find_component(state_name)
+
+        if init_type == 'free':
+            pass
+        elif init_type == 'cyclic':
+            def _eq_init(b):
+                return state[0] == state[self.model.TIME[-1]]
+
+            self.block.add_component(state_name + '_init_eq', Constraint(rule=_eq_init))
+
+        elif init_type == 'fixedVal':
+            print state
+            if value is None:
+                ValueError('In case of initialization type \'fixedVal\', value cannot be None')
+            def _eq_init(b):
+                return state[0] == value
+
+            self.block.add_component(state_name + '_init_eq', Constraint(rule=_eq_init))
+
+    def add_all_init_constraints(self):
+        """
+        Add all initialization constraints to the problem
+
+        :return:
+        """
+        for name, param in self.params.items():
+            if isinstance(param, StateParameter):
+                self.add_init_constraint(state_name=name,
+                                         init_type=param.get_init_type(),
+                                         value=param.v())
+
 
 class FixedProfile(Component):
     def __init__(self, name=None, horizon=None, time_step=None, direction=None):
@@ -234,20 +308,13 @@ class FixedProfile(Component):
         :param parent: The node model
         :return:
         """
-        self.check_data()
-
-        mult = self.params['mult']
-        delta_T = self.params['delta_T']
-        heat_profile = self.params['heat_profile']
-
-        self.model = topmodel
-        self.make_block(parent)
+        Component.compile(self, topmodel, parent)
 
         def _mass_flow(b, t):
-            return mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
+            return b.mult * b.heat_profile[t] / self.cp / b.delta_T
 
         def _heat_flow(b, t):
-            return mult.v() * heat_profile.v(t)
+            return b.mult * b.heat_profile[t]
 
         self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
         self.block.heat_flow = Param(self.model.TIME, rule=_heat_flow)
@@ -300,16 +367,6 @@ class VariableProfile(Component):
         super(VariableProfile, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=direction)
 
         self.params = self.create_params()
-
-    def compile(self, parent):
-        """
-        Build the structure of a component model
-
-        :param parent: The main optimization model
-        :return:
-        """
-
-        self.make_block(parent)
 
 
 class BuildingFixed(FixedProfile):
@@ -399,10 +456,7 @@ class ProducerVariable(Component):
 
         :return:
         """
-        self.check_data()
-
-        self.model = topmodel
-        self.make_block(parent)
+        Component.compile(self, topmodel, parent)
 
         self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
         self.block.heat_flow = Var(self.model.TIME, bounds=(0, self.params['Qmax'].v()))
@@ -416,10 +470,7 @@ class ProducerVariable(Component):
         :return:
         """
 
-        eta = self.params['efficiency'].v()
-        pef = self.params['PEF'].v()
-
-        return sum(pef / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+        return sum(self.block.PEF / self.block.efficiency * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
 
     def obj_cost(self):
         """
@@ -428,9 +479,7 @@ class ProducerVariable(Component):
 
         :return:
         """
-        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
-        eta = self.params['efficiency'].v()
-        return sum(cost / eta * self.get_heat(t) for t in range(self.n_steps))
+        return sum(self.block.fuel_cost / self.block.efficiency * self.get_heat(t) for t in range(self.n_steps))
 
     def obj_co2(self):
         """
@@ -440,10 +489,7 @@ class ProducerVariable(Component):
         :return:
         """
 
-        eta = self.params['efficiency'].v()
-        pef = self.params['PEF'].v()
-        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
-        return sum(co2 / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+        return sum(self.block.CO2 / self.block.efficiency * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
 
 
 class StorageFixed(FixedProfile):
@@ -475,23 +521,6 @@ class StorageVariable(Component):
         self.params = self.create_params()
 
         # TODO choose between stored heat or state of charge as state (which one is easier for initialization?)
-
-        self.cyclic = False
-        self.max_mflo = None
-        self.volume = None
-        self.dIns = None
-        self.kIns = None
-
-        self.ar = None
-
-        self.temp_diff = None
-
-        self.UAw = None
-        self.UAtb = None
-        self.tau = None
-
-        self.temp_sup = None
-        self.temp_ret = None
 
     def create_params(self):
         params = {
@@ -532,6 +561,8 @@ class StorageVariable(Component):
         :param parent: block above this level
         :return:
         """
+
+        # TODO Find easier way to define extra parameters here
         self.max_mflo = self.params['mflo_max'].v()
         self.volume = self.params['volume'].v()
         self.dIns = self.params['dIns'].v()
@@ -542,8 +573,6 @@ class StorageVariable(Component):
         self.temp_diff = self.params['Thi'].v() - self.params['Tlo'].v()
         self.temp_sup = self.params['Thi'].v()
         self.temp_ret = self.params['Tlo'].v()
-
-        heat_stor_init = self.params['heat_stor']
 
         # Geometrical calculations
         w = (4 * self.volume / self.ar / pi) ** (1 / 3)  # Width of tank
@@ -622,32 +651,13 @@ class StorageVariable(Component):
 
         self.block.state_eq = Constraint(self.model.TIME, rule=_state_eq)
 
-        if self.cyclic:
-            def _eq_cyclic(b):
-                return b.heat_stor[0] == b.heat_stor[self.model.TIME[-1]]
-
-            self.block.eq_cyclic = Constraint(rule=_eq_cyclic)
         #############################################################################################
         # Initial state
 
-        # TODO Move this to a separate general method for initializing states
-        if heat_stor_init.init_type == 'free':
-            pass
-        elif heat_stor_init.init_type == 'cyclic':
-            def _eq_cyclic(b):
-                return b.heat_stor[0] == b.heat_stor[self.model.TIME[-1]]
+        self.add_all_init_constraints()
 
-            self.block.eq_cyclic = Constraint(rule=_eq_cyclic)
-        else:
-            def _init_eq(b):
-                return b.heat_stor[0] == heat_stor_init.v()
-
-            self.block.init_eq = Constraint(rule=_init_eq)
-
-        # self.block.init = Constraint(expr=self.block.heat_stor[0] == 1 / 2 * self.vol * 1000 * self.temp_diff * self.cp)
-        # print 1 / 2 * self.vol * 1000 * self.temp_diff * self.cp
-
-        ## Mass flow and heat flow link
+        #############################################################################################
+        # Mass flow and heat flow link
         def _heat_bal(b, t):
             return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
 

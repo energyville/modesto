@@ -64,7 +64,7 @@ def construct_model():
     optmodel.change_param('zwartbergNE.buildingD', 'mult', 2000)
     optmodel.change_param('zwartbergNE.buildingD', 'heat_profile', heat_profile)
     optmodel.change_param('waterscheiGarden.buildingD', 'delta_T', 20)
-    optmodel.change_param('waterscheiGarden.buildingD', 'mult', 20)
+    optmodel.change_param('waterscheiGarden.buildingD', 'mult', 200)
     optmodel.change_param('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
 
     optmodel.change_param('bbThor', 'pipe_type', 150)

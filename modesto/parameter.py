@@ -125,6 +125,9 @@ class StateParameter(Parameter):
 
         self.init_type = new_type
 
+    def get_init_type(self):
+        return self.init_type
+
     def change_upper_bound(self, new_ub):
         """
         Change the allowed upper value of a state,
@@ -133,6 +136,9 @@ class StateParameter(Parameter):
         :param new_ub: New value of the upper bound
         """
         self.ub = new_ub
+
+    def get_upper_bound(self):
+        return self.ub
 
     def change_lower_bound(self, new_lb):
         """
@@ -143,6 +149,9 @@ class StateParameter(Parameter):
         """
         self.lb = new_lb
 
+    def get_lower_bound(self):
+        return self.lb
+
     def change_slack(self, new_slack):
         """
         Change value of the slack,
@@ -152,6 +161,9 @@ class StateParameter(Parameter):
         :param new_slack: New value of the upper bound
         """
         self.slack = new_slack
+
+    def get_slack(self):
+        return self.slack
 
     def get_description(self):
         return Parameter.get_description(self) + '\nInitType: {} \nUpper bound: {} \nLower bound: {} \nSlack: {}'\
