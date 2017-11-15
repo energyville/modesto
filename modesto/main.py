@@ -3,7 +3,12 @@ from __future__ import division
 import sys
 from math import sqrt
 
-from pyomo.core.base import ConcreteModel, Objective, Constraint, Set, maximize
+from pyomo.core.base import ConcreteModel, Objective, minimize, value
+from pyomo.core.base.param import IndexedParam
+from pyomo.core.base.var import IndexedVar
+from pyomo.opt import SolverFactory
+# noinspection PyUnresolvedReferences
+import pyomo.environ
 
 from component import *
 from pipe import *
@@ -54,6 +59,9 @@ class Modesto:
         }
 
         return params
+
+        self.objectives = {}
+        self.act_objective = None
 
     def build(self, graph):
         """
@@ -129,7 +137,7 @@ class Modesto:
 
         :return:
         """
-        
+
         # Check if not compiled already
         if self.compiled:
             self.logger.warning('Model was already compiled.')
@@ -151,7 +159,35 @@ class Modesto:
         for name, node in self.nodes.items():
             node.compile(self.model)
 
-        self.compiled = True    # Change compilation flag
+        self.build_objectives()
+
+        self.compiled = True  # Change compilation flag
+
+    def build_objectives(self):
+        """
+        Initialize different objectives
+
+        :return:
+        """
+
+        def obj_energy(model):
+            return sum(comp.obj_energy() for comp in self.iter_components())
+
+        def obj_cost(model):
+            return sum(comp.obj_cost() for comp in self.iter_components())
+
+        def obj_co2(model):
+            return sum(comp.obj_co2() for comp in self.iter_components())
+
+        self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
+        self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
+        self.model.OBJ_CO2 = Objective(rule=obj_co2, sense=minimize)
+
+        self.objectives = {
+            'energy': self.model.OBJ_ENERGY,
+            'cost': self.model.OBJ_COST,
+            'co2': self.model.OBJ_CO2
+        }
 
     def check_data(self):
         """
@@ -173,19 +209,17 @@ class Modesto:
         :param objtype:
         :return:
         """
-        objtypes = ['energy']
+        objtypes = ['energy', 'cost', 'CO2']
+        if objtype not in objtypes:
+            raise ValueError('Choose an objective type from {}'.format(*objtypes))
 
-        if objtype == 'energy':
-            def energy_obj(model):
-                return sum(comp.obj_energy() for comp in self.iter_components())
-            self.model.OBJ = Objective(rule=energy_obj, sense=maximize)
-            # !!! Maximize because heat into the network has negative sign
-            self.logger.debug('{} objective set'.format(objtype))
+        for obj in self.objectives.values():
+            obj.deactivate()
 
-        else:
-            self.logger.warning(
-                'Objective type {} not recognized. Try one of these: {}'.format(objtype, *objtypes.keys()))
-            self.model.OBJ = Objective(expr=1)
+        self.objectives[objtype].activate()
+        self.act_objective = self.objectives[objtype]
+
+        self.logger.debug('{} objective set'.format(objtype))
 
     def iter_components(self):
         """
@@ -224,11 +258,11 @@ class Modesto:
         :return:
         """
         if objective is not None:  # TODO Do we need this to be defined at the top level of modesto?
-            self.objective = objective
+            self.set_objective(objective)
         if horizon is not None:
             self.horizon = horizon
         if time_step is not None:
-            self.objective = time_step
+            self.time_step = time_step
         if pipe_model is not None:
             self.pipe_model = pipe_model
         if allow_flow_reversal is not None:
@@ -293,33 +327,61 @@ class Modesto:
 
     def get_result(self, comp, name):
         """
-        Returns the numerical values of a certain variable/parameter after optimization
+        Returns the numerical values of a certain parameter or time-dependent variable after optimization
 
         :param comp: Name of the component to which the variable belongs
         :param name: Name of the needed variable/parameter
         :return: A list containing all values of the variable/parameter over the time horizon
         """
 
-        assert self.results is not None, 'The optimization problem has not been solved yet.'
-        assert comp in self.components, '%s is not a valid component name' % comp
+        if self.results is None:
+            raise Exception('The optimization problem has not been solved yet.')
+        if comp not in self.components:
+            raise Exception('%s is not a valid component name' % comp)
 
         result = []
 
-        try:  # Variable
+        obj = self.components[comp].block.find_component(name)
+        if obj is None:
+            raise Exception('{} is not a valid parameter or variable of {}'.format(name, comp))
+
+        if isinstance(obj, IndexedVar):
             for i in self.model.TIME:
-                eval('result.append(self.components[comp].block.' + name + '.values()[i].value)')
+                result.append(obj.values()[i].value)
 
             return result
 
-        except AttributeError:
+        elif isinstance(obj, IndexedParam):
+            result = obj.values()
 
-            try:  # Parameter
-                result = eval('self.components[comp].block.' + name + '.values()')
+            return result
 
-                return result
+        else:
+            self.logger.warning('{}.{} was a different type of variable/parameter than what has been implemented: '
+                                '{}'.format(comp, name, type(obj)))
+            return None
 
-            except AttributeError:  # Given name is neither a parameter nor a variable
-                self.logger.warning('The variable/parameter {}.{} does not exist, skipping collection of result'.format(comp, name))
+    def get_objective(self, objtype=None):
+        """
+        Return value of objective function. With no argument supplied, the active objective is returned. Otherwise, the
+        objective specified in the argument is returned.
+
+        :param objtype: Name of the objective to be returned. Default None: returns the active objective.
+        :return:
+        """
+        if objtype is None:
+            # Find active objective
+            if self.act_objective is not None:
+                obj = self.act_objective
+            else:
+                raise ValueError('No active objective found.')
+
+        else:
+            assert objtype in self.objectives.keys(), 'Requested objective does not exist. Please choose from {}'.format(
+                self.objectives.keys())
+            obj = self.objectives[objtype]
+
+        return value(obj)
 
     def print_all_params(self):
         """
@@ -448,11 +510,9 @@ class Node(object):
             cls = None
 
         if cls:
-            obj = cls(name, self.horizon, self.time_step)
+            obj = cls(name, horizon=self.horizon, time_step=self.time_step)
         else:
-            obj = None
-
-        assert obj is not None, "%s is not a valid class name! (component is %s, in node %s)" % (ctype, name, self.name)
+            raise ValueError("%s is not a valid class name! (component is %s, in node %s)" % (ctype, name, self.name))
 
         self.logger.info('Component {} added to {}'.format(name, self.name))
 

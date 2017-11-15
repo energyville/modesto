@@ -1,15 +1,16 @@
-import logging
-from pyomo.environ import *
+import warnings
+
 import pandas as pd
+from pyomo.core.base import Param, Var, Constraint, Set, Binary, Block
+
 from component import Component
 from parameter import DesignParameter, StateParameter, WeatherDataParameter
 import warnings
 
 
 class Pipe(Component):
-
     def __init__(self, name, horizon, time_step, start_node, end_node, length,
-                 temp_sup=70+273.15, temp_ret=50+273.15, allow_flow_reversal=False):
+                 temp_sup=70 + 273.15, temp_ret=50 + 273.15, allow_flow_reversal=False):
         """
         Class that sets up an optimization model for a DHC pipe
 
@@ -23,12 +24,10 @@ class Pipe(Component):
         :param temp_ret: Return temperature (real)
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
         """
+        super(Pipe, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1)
+        # TODO actually pipe does not need a direction
 
-        Component.__init__(self,
-                           name=name,
-                           horizon=horizon,
-                           time_step=time_step,
-                           params=self.create_params())
+        self.params = self.create_params()
 
         self.start_node = start_node
         self.end_node = end_node
@@ -94,7 +93,6 @@ class Pipe(Component):
 
 
 class SimplePipe(Pipe):
-
     def __init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal=False):
         """
         Class that sets up a very simple model of pipe
@@ -133,7 +131,6 @@ class SimplePipe(Pipe):
 
 
 class ExtensivePipe(Pipe):
-
     def __init__(self, name, horizon, time_step, start_node,
                  end_node, length, allow_flow_reversal=True):
         """
@@ -149,7 +146,7 @@ class ExtensivePipe(Pipe):
         """
 
         Pipe.__init__(self, name, horizon, time_step, start_node,
-                           end_node, length, allow_flow_reversal=allow_flow_reversal)
+                      end_node, length, allow_flow_reversal=allow_flow_reversal)
 
         pipe_catalog = self.get_pipe_catalog()
         self.Rs = pipe_catalog['Rs']
@@ -290,15 +287,13 @@ class ExtensivePipe(Pipe):
         # Eq. (3.4)
         def _eq_heat_bal(b, t):
             """Heat balance of pipe"""
-            return b.heat_flow_in[t] == b.heat_flow_out[t] + b.heat_loss_tot[
-                                                                 t] * self.length
+            return b.heat_flow_in[t] == b.heat_flow_out[t] + b.heat_loss_tot[t]
 
         self.block.eq_heat_bal = Constraint(self.model.TIME, rule=_eq_heat_bal)
 
         # Eq. (3.5)
         def _eq_mass_flow_tot(b, t):
-            return b.mass_flow_tot[t] == sum(
-                b.mass_flow[t, dn] for dn in b.DN_ind)
+            return b.mass_flow_tot[t] == sum(b.dn_sel[dn] * b.mass_flow[t, dn] for dn in b.DN_ind)
 
         self.block.eq_mass_flow_tot = Constraint(self.model.TIME,
                                                  rule=_eq_mass_flow_tot)
@@ -322,8 +317,7 @@ class ExtensivePipe(Pipe):
 
         # Eq. (3.6)
         def _eq_heat_loss_tot(b, t):
-            return b.heat_loss_tot[t] == sum(
-                b.heat_loss[t, dn] for dn in b.DN_ind)
+            return b.heat_loss_tot[t] == self.length * sum(b.dn_sel[dn] * b.heat_loss[t, dn] for dn in b.DN_ind)
 
         self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
                                                  rule=_eq_heat_loss_tot)
@@ -382,7 +376,7 @@ class ExtensivePipe(Pipe):
 
         # If DN is not selected, automatically make reverse and forward 0
         def _ineq_non_selected(b, t, dn):
-            return b.forward[t, dn] + b.reverse[t, dn] <= b.dn_sel[dn]
+            return b.forward[t, dn] + b.reverse[t, dn] <= 1  # b.dn_sel[dn]
 
         self.block.ineq_non_selected = Constraint(self.model.TIME,
                                                   self.block.DN_ind,
@@ -390,3 +384,14 @@ class ExtensivePipe(Pipe):
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
+
+    def get_diameter(self):
+        """
+        Show chosen diameter
+
+        :return:
+        """
+        if self.dn is not None:
+            return self.dn
+        else:
+            return int(sum(dn * self.block.dn_sel[dn].value for dn in self.block.DN_ind))

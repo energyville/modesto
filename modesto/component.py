@@ -2,29 +2,28 @@ from __future__ import division
 
 import logging
 from math import pi, log, exp
-
-from pyomo.core.base import Block, Param, Var, NonPositiveReals, Constraint
+import pandas as pd
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
 
 from parameter import StateParameter, DesignParameter, UserDataParameter
 
 
 class Component(object):
-    def __init__(self, name, horizon, time_step, params=None):
+
+    def __init__(self, name=None, horizon=None, time_step=None, params=None, direction=None):
         """
         Base class for components
 
         :param name: Name of the component
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param params: Required parameters to set up the model (dict)
+        :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
-
         self.logger = logging.getLogger('modesto.component.Component')
         self.logger.info('Initializing Component {}'.format(name))
 
         self.name = name
-
         assert horizon % time_step == 0, "The horizon of the optimization problem should be multiple of the time step."
         self.horizon = horizon
         self.time_step = time_step
@@ -36,7 +35,13 @@ class Component(object):
 
         self.params = params
 
-        self.cp = 4180
+        self.cp = 4180  # TODO make this static variable
+
+        if direction is None:
+            raise ValueError('Set direction either to 1 or -1.')
+        elif direction not in [-1, 1]:
+            raise ValueError('Direction should be -1 or 1.')
+        self.direction = direction
 
     def create_params(self):
         """
@@ -91,7 +96,7 @@ class Component(object):
         :return:
         """
         assert self.block is not None, "The optimization model for %s has not been compiled" % self.name
-        return self.block.heat_flow[t]
+        return self.direction * self.block.heat_flow[t]
 
     def get_mflo(self, t):
         """
@@ -101,7 +106,7 @@ class Component(object):
         :return:
         """
         assert self.block is not None, "The optimization model for %s has not been compiled" % self.name
-        return self.block.mass_flow[t]
+        return self.direction * self.block.mass_flow[t]
 
     def make_block(self, parent):
         """
@@ -132,11 +137,11 @@ class Component(object):
         :param new_data: The new value of the parameter
         :return:
         """
-
         if param not in self.params:
             raise Exception("{} is not recognized as a valid parameter for {}".format(param, self.name))
 
         self.params[param].change_value(new_data)
+
 
     def check_data(self):
         """
@@ -168,9 +173,25 @@ class Component(object):
         else:
             return self.params[name].get_description()
 
+    def obj_cost(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_co2(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
 
 class FixedProfile(Component):
-    def __init__(self, name, horizon, time_step, direction=0):
+    def __init__(self, name=None, horizon=None, time_step=None, direction=None):
         """
         Class for a component with a fixed heating profile
 
@@ -178,20 +199,11 @@ class FixedProfile(Component):
         :param horizon: Horizon of the optimization problem,
         in seconds
         :param time_step: Time between two points
-        :param direction: Indicates possible signs of heat flow
-        0: both + and -,
-        1: only + (heat to the network),
-        -1, only - (heat from the network)
+        :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
-
-        Component.__init__(self, name=name,
-                           horizon=horizon,
-                           time_step=time_step)
+        super(FixedProfile, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=direction)
 
         self.params = self.create_params()
-
-        assert direction in [-1, 0, 1], "The input direction should be either -1, 0 or 1"
-        self.direction = direction
 
     def create_params(self):
         """
@@ -275,7 +287,7 @@ class FixedProfile(Component):
 class VariableProfile(Component):
     # TODO Assuming that variable profile means State-Space model
 
-    def __init__(self, name, horizon, time_step):
+    def __init__(self, name, horizon, time_step, direction):
         """
         Class for components with a variable heating profile
 
@@ -283,12 +295,9 @@ class VariableProfile(Component):
         :param horizon: Horizon of the optimization problem,
         in seconds
         :param time_step: Time between two points
+        :param direction: Standard heat and mass flow direction for positive flows. 1 for producer components, -1 for consumer components
         """
-
-        Component.__init__(self,
-                           name=name,
-                           horizon=horizon,
-                           time_step=time_step)
+        super(VariableProfile, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=direction)
 
         self.params = self.create_params()
 
@@ -313,10 +322,10 @@ class BuildingFixed(FixedProfile):
         in seconds
         :param time_step: Time between two points
         """
-        FixedProfile.__init__(self, name, horizon, time_step, direction=-1)
+        super(BuildingFixed, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=-1)
 
 
-class BuildingVariable(VariableProfile):
+class BuildingVariable(Component):
     # TODO How to implement DHW tank? Separate model from Building or together?
     # TODO Model DHW user without tank? -> set V_tank = 0
 
@@ -329,7 +338,7 @@ class BuildingVariable(VariableProfile):
         in seconds
         :param time_step: Time between two points
         """
-        VariableProfile.__init__(self, name, horizon, time_step)
+        super(BuildingVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=-1)
 
 
 class ProducerFixed(FixedProfile):
@@ -342,10 +351,10 @@ class ProducerFixed(FixedProfile):
         in seconds
         :param time_step: Time between two points
         """
-        FixedProfile.__init__(self, name, horizon, time_step, direction=1)
+        super(ProducerFixed, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1)
 
 
-class ProducerVariable(VariableProfile):
+class ProducerVariable(Component):
     def __init__(self, name, horizon, time_step):
         """
         Class that describes a variable producer
@@ -355,14 +364,38 @@ class ProducerVariable(VariableProfile):
         in seconds
         :param time_step: Time between two points
         """
-        VariableProfile.__init__(self, name, horizon, time_step)
+
+        super(ProducerVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1)
+
+        self.params = self.create_params()
 
         self.logger = logging.getLogger('comps.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
 
+    def create_params(self):
+        params = {
+            'efficiency': DesignParameter('efficiency',
+                                          'Efficiency of the heat source',
+                                          '-'),
+            'PEF': DesignParameter('PEF',
+                                   'Factor to convert heat source to primary energy',
+                                   '-'),
+            'CO2': DesignParameter('CO2',
+                                   'amount of CO2 released when using primary energy source',
+                                   'kg/kWh'),
+            'fuel_cost': DesignParameter('fuel_cost',
+                                          'cost of fuel/electricity to generate heat',
+                                          'euro/kWh'),
+            'Qmax': DesignParameter('Qmax',
+                                    'Maximum possible heat output',
+                                    'W')
+        }
+
+        return params
+
     def compile(self, topmodel, parent):
         """
-        Build the structure of ta producer model
+        Build the structure of a producer model
 
         :return:
         """
@@ -371,16 +404,46 @@ class ProducerVariable(VariableProfile):
         self.model = topmodel
         self.make_block(parent)
 
-        self.block.mass_flow = Var(self.model.TIME, within=NonPositiveReals)
-        self.block.heat_flow = Var(self.model.TIME, within=NonPositiveReals)
+        self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
+        self.block.heat_flow = Var(self.model.TIME, bounds=(0, self.params['Qmax'].v()))
 
+    # TODO Objectives are all the same, only difference is the value of the weight...
     def obj_energy(self):
         """
         Generator for energy objective variables to be summed
+        Unit: kWh (primary energy)
 
         :return:
         """
-        return sum(self.get_heat(t) for t in range(self.n_steps))
+
+        eta = self.params['efficiency'].v()
+        pef = self.params['PEF'].v()
+
+        return sum(pef / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+
+    def obj_cost(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
+        eta = self.params['efficiency'].v()
+        return sum(cost / eta * self.get_heat(t) for t in range(self.n_steps))
+
+    def obj_co2(self):
+        """
+        Generator for CO2 objective variables to be summed
+        Unit: kg CO2
+
+        :return:
+        """
+
+        eta = self.params['efficiency'].v()
+        pef = self.params['PEF'].v()
+        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        return sum(co2 / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
 
 
 class StorageFixed(FixedProfile):
@@ -393,7 +456,7 @@ class StorageFixed(FixedProfile):
         in seconds
         :param time_step: Time between two points
         """
-        FixedProfile.__init__(self, name, horizon, time_step)
+        super(StorageFixed, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=-1)
 
 
 class StorageVariable(Component):
@@ -406,9 +469,8 @@ class StorageVariable(Component):
         in seconds
         :param time_step: Time between two points
         """
-        super(StorageVariable, self).__init__(name=name,
-                                              horizon=horizon,
-                                              time_step=time_step)
+
+        super(StorageVariable, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=-1)
 
         self.params = self.create_params()
 
@@ -508,8 +570,7 @@ class StorageVariable(Component):
         # Fixed heat loss
         def _heat_loss_ct(b, t):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
-                   self.UAtb * (
-                       self.temp_ret + self.temp_sup - self.model.Te[t])
+                   self.UAtb * (self.temp_ret + self.temp_sup - self.model.Te[t])
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
