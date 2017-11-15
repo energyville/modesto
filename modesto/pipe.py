@@ -4,6 +4,8 @@ import pandas as pd
 from pyomo.core.base import Param, Var, Constraint, Set, Binary, Block
 
 from component import Component
+from parameter import DesignParameter, StateParameter, WeatherDataParameter
+import warnings
 
 
 class Pipe(Component):
@@ -22,13 +24,10 @@ class Pipe(Component):
         :param temp_ret: Return temperature (real)
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
         """
-
-        design_param = ['pipe_type']  # Type of pipe model
-
-        super(Pipe, self).__init__(name=name, horizon=horizon, time_step=time_step, design_param=design_param,
-                                   states={},
-                                   user_param={}, direction=1)
+        super(Pipe, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1)
         # TODO actually pipe does not need a direction
+
+        self.params = self.create_params()
 
         self.start_node = start_node
         self.end_node = end_node
@@ -44,8 +43,14 @@ class Pipe(Component):
                          index_col='DN')
         return df
 
-    def change_user_data(self, kind, new_data):
-        print "WARNING: Trying to change the user data of a pipe %s" % self.name
+    def create_params(self):
+        params = {
+            'pipe_type': DesignParameter('pipe_type',
+                                         'Type of pipe (IsoPlus Double Standard)',
+                                         'DN')
+        }
+
+        return params
 
     def get_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
@@ -154,7 +159,8 @@ class ExtensivePipe(Pipe):
 
         :return:
         """
-        self.dn = self.get_design_param('pipe_type')
+
+        self.dn = self.params['pipe_type'].v()
         if self.dn is None:
             self.logger.info('No dn set. Optimizing diameter.')
         self.make_block(model)
@@ -220,7 +226,7 @@ class ExtensivePipe(Pipe):
             :param dn: DN index
             :return: Heat loss in W/m
             """
-            dq = (self.temp_sup + self.temp_ret - 2 * self.model.Te.iloc[t][0]) / \
+            dq = (self.temp_sup + self.temp_ret - 2 * self.model.Te[t]) / \
                  self.Rs[dn]
             return dq
 
