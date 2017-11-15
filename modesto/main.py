@@ -40,7 +40,7 @@ class Modesto:
         self.edges = {}
         self.components = {}
 
-        # self.weather_data = pd.DataFrame()
+        self.params = self.create_params()
 
         self.logger = logging.getLogger('modesto.main.Modesto')
 
@@ -49,8 +49,16 @@ class Modesto:
         self.build(graph)
         self.compiled = False
 
-        self.needed_weather_param = {'Te': 'The ambient temperature [K]'}
-        self.weather_param = {}
+    @staticmethod
+    def create_params():
+
+        params = {
+            'Te': WeatherDataParameter('Te',
+                                       'Ambient temperature',
+                                       'K')
+        }
+
+        return params
 
         self.objectives = {}
         self.act_objective = None
@@ -134,16 +142,16 @@ class Modesto:
         if self.compiled:
             self.logger.warning('Model was already compiled.')
 
-        # Check if all necessary weather data is available
-
-        for param in self.needed_weather_param:
-            assert param in self.weather_param, \
-                "No values for weather parameter %s was indicated\n Description: %s" % \
-                (param, self.needed_weather_param[param])
+        # Check whether all necessary parameters are there
+        self.check_data()
 
         # General parameters
         self.model.TIME = Set(initialize=range(self.n_steps), ordered=True)
-        self.model.Te = self.weather_param['Te']
+
+        def _ambient_temp(b, t):
+            return self.params['Te'].v(t)
+
+        self.model.Te = Param(self.model.TIME, rule=_ambient_temp)
 
         # Components
         for name, edge in self.edges.items():
@@ -180,6 +188,19 @@ class Modesto:
             'cost': self.model.OBJ_COST,
             'co2': self.model.OBJ_CO2
         }
+
+    def check_data(self):
+        """
+        Checks whether all parameters have been assigned a value,
+        if not an error is raised
+
+        """
+
+        for name, param in self.params.items():
+            param.check()
+
+        for comp in self.components:
+            self.components[comp].check_data()
 
     def set_objective(self, objtype):
         """
@@ -263,54 +284,62 @@ class Modesto:
         if allow_flow_reversal is not None:
             self.allow_flow_reversal = allow_flow_reversal
 
-    def change_user_behaviour(self, comp, kind, new_data):
+    def change_general_param(self, param, val):
         """
-        Change the user behaviour of a certain component
-
-        :param comp: Name of the component
-        :param kind: Name of the kind of user data (e.g. mDHW)
-        :param new_data: The new data, in a dataframe (index is time)
-        :return:
-        """
-        # TODO Add resampling
-        assert comp in self.components, "%s is not recognized as a valid component" % comp
-        self.components[comp].change_user_behaviour(kind, new_data)
-
-    def change_weather(self, param, val):
-        """
-        Change the weather
+        Change a parameter that can be used by all components
 
         :param param: Name of the parameter
-        :param val: The new data that describes the weather, in a dataframe (index is time), columns are the different required signals
+        :param val: The new data
         :return:
         """
-        assert param in self.needed_weather_param, '%s is not recognized as a valid weather parameter' % param
-        assert isinstance(val, pd.DataFrame), '%s should be a pandas DataFrame object' % param
-        self.weather_param[param] = val
+        assert param in self.params, '%s is not recognized as a valid parameter' % param
+        self.params[param].change_value(val)
 
-    def change_design_param(self, comp, param, val):
+    def change_param(self, comp, param, val):
         """
-        Change a design parameter
-
+        Change a parameter
         :param comp: Name of the component
         :param param: name of the parameter
         :param val: New value of the parameter
         :return:
         """
         assert comp in self.components, "%s is not recognized as a valid component" % comp
-        self.components[comp].change_design_param(param, val)
+        self.components[comp].change_param(param, val)
 
-    def change_initial_cond(self, comp, state, val):
+    def change_state_bounds(self, comp, state, new_ub, new_lb, slack):
         """
-        Change the initial condition of a state
+        Change the interval of possible values of a certain state, and
+        indicate whether it is a slack variable or not
+
+        :param comp: Name of the component
+        :param state: Name of the param
+        :param new_ub: New upper bound
+        :param new_lb:  New lower bound
+        :param slack: Boolean indicating whether a slack should be added (True) or not (False)
+        """
+        # TODO Adapt method so you can change only one of the settings?
+        if comp not in self.components:
+            raise IndexError("%s is not recognized as a valid component" % comp)
+        if state not in self.components[comp].params:
+            raise IndexError('%s is not recognized as a valid parameter' % state)
+
+        self.components[comp].params[state].change_upper_bound(new_ub)
+        self.components[comp].params[state].change_lower_bound(new_lb)
+        self.components[comp].params[state].change_slack(slack)
+
+    def change_init_type(self, comp, state, new_type):
+        """
+        Change the type of initialization constraint
 
         :param comp: Name of the component
         :param state: Name of the state
-        :param val: New initial value of the state
-        :return:
         """
-        assert comp in self.components, "%s is not recognized as a valid component" % comp
-        self.components[comp].change_initial_condition(state, val)
+        if comp not in self.components:
+            raise IndexError("%s is not recognized as a valid component" % comp)
+        if state not in self.components[comp].params:
+            raise IndexError('%s is not recognized as a valid parameter' % state)
+
+        self.components[comp].params[state].change_init_type(new_type)
 
     def get_result(self, comp, name):
         """
@@ -369,6 +398,65 @@ class Modesto:
             obj = self.objectives[objtype]
 
         return value(obj)
+
+    def print_all_params(self):
+        """
+        Print all parameters in the optimization problem
+
+        :return:
+        """
+        descriptions = {'general': {}}
+        for name, param in self.params.items():
+            descriptions['general'][name] = param.get_description()
+
+        for comp in self.components:
+            descriptions[comp] = {}
+            for name in self.components[comp].get_params():
+                descriptions[comp][name] = self.components[comp].get_param_description(name)
+
+        self._print_params(descriptions)
+
+    def print_comp_param(self, comp, *args):
+        """
+        Print parameters of a component
+
+        :param comp: Name of the component
+        :param args: Names of the parameters, if None are given, all will be printed
+        :return:
+        """
+        descriptions = {comp: {}}
+
+        if comp not in self.components:
+            raise IndexError('%s is not recognized a valid component' % comp)
+        if not args:
+            for name in self.components[comp].get_params():
+                descriptions[comp][name] = self.components[comp].get_param_description(name)
+        for name in args:
+            if name not in self.components[comp].params:
+                raise IndexError('%s is not a valid parameter of %s' % (name, comp))
+            descriptions[comp][name] = self.components[comp].get_param_description(name)
+
+        self._print_params(descriptions)
+
+    def print_general_param(self, name):
+        """
+        Print a single, general parameter
+
+        :param name: Name of the parameter
+        :return:
+        """
+
+        if name not in self.params:
+            raise IndexError('%s is not a valid general parameter ' % name)
+
+        self._print_params({'general': {name: self.params[name].get_description()}})
+
+    @staticmethod
+    def _print_params(descriptions):
+        for comp in descriptions:
+            print '--- ', comp, ' ---\n'
+            for param, des in descriptions[comp].items():
+                print '-', param, '\n', des, '\n'
 
 
 class Node(object):
