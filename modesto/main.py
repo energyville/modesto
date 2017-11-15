@@ -256,6 +256,41 @@ class Modesto:
         assert comp in self.components, "%s is not recognized as a valid component" % comp
         self.components[comp].change_param(param, val)
 
+    def change_state_bounds(self, comp, state, new_ub, new_lb, slack):
+        """
+        Change the interval of possible values of a certain state, and
+        indicate whether it is a slack variable or not
+
+        :param comp: Name of the component
+        :param state: Name of the param
+        :param new_ub: New upper bound
+        :param new_lb:  New lower bound
+        :param slack: Boolean indicating whether a slack should be added (True) or not (False)
+        """
+        # TODO Adapt method so you can change only one of the settings?
+        if comp not in self.components:
+            raise IndexError("%s is not recognized as a valid component" % comp)
+        if state not in self.components[comp].params:
+            raise IndexError('%s is not recognized as a valid parameter' % state)
+
+        self.components[comp].params[state].change_upper_bound(new_ub)
+        self.components[comp].params[state].change_lower_bound(new_lb)
+        self.components[comp].params[state].change_slack(slack)
+
+    def change_init_type(self, comp, state, new_type):
+        """
+        Change the type of initialization constraint
+
+        :param comp: Name of the component
+        :param state: Name of the state
+        """
+        if comp not in self.components:
+            raise IndexError("%s is not recognized as a valid component" % comp)
+        if state not in self.components[comp].params:
+            raise IndexError('%s is not recognized as a valid parameter' % state)
+
+        self.components[comp].params[state].change_init_type(new_type)
+
     def get_result(self, comp, name):
         """
         Returns the numerical values of a certain variable/parameter after optimization

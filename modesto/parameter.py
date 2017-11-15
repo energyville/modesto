@@ -88,23 +88,30 @@ class DesignParameter(Parameter):
 
 class StateParameter(Parameter):
 
-    def __init__(self, name, description, unit, init_type, val=None):
+    def __init__(self, name, description, unit, init_type, val=None, ub=None, lb=None, slack=False):
         """
         Class that describes an initial state parameter
 
         :param name: Name of the parameter (str)
         :param description: Description of the parameter (str)
         :param unit: Unit of the parameter (e.g. K, W, m...) (str)
-        :param init_type: Type of initialization constraint (str)
+        :param init_type: Type of initialization constraint (str):
+        Possibilities are: fixedVal: A value is chosen by te user
+                           cyclic: Begin and end state must be equel
+                           free: Begin state can be freely chosen by optimization
         :param val: Value of the parameter, if not given, it becomes None
         """
 
         Parameter.__init__(self, name, description, unit, val)
 
-        self.init_types = ['initVal', 'cyclic', 'free']
-
+        self.init_types = ['fixedVal', 'cyclic', 'free']
+        # TODO FixedVal, documentation!
         assert init_type in self.init_types, '%s is not an allowed type of initialization constraint'
         self.init_type = init_type
+
+        self.ub = ub
+        self.lb = lb
+        self.slack = slack
 
     def change_init_type(self, new_type):
         """
@@ -113,11 +120,42 @@ class StateParameter(Parameter):
         :param new_type: Name of the new type of initialization constraint
         """
 
-        assert new_type in self.init_types, '%s is not an allowed type of initialization constraint'
+        if new_type not in self.init_types:
+            raise IndexError('%s is not an allowed type of initialization constraint')
+
         self.init_type = new_type
 
+    def change_upper_bound(self, new_ub):
+        """
+        Change the allowed upper value of a state,
+        if None, no upper bound will be set
+
+        :param new_ub: New value of the upper bound
+        """
+        self.ub = new_ub
+
+    def change_lower_bound(self, new_lb):
+        """
+        Change the allowed lower value of a state,
+        if None, no lower bound will be set
+
+        :param new_lb: New value of the upper bound
+        """
+        self.lb = new_lb
+
+    def change_slack(self, new_slack):
+        """
+        Change value of the slack,
+        If False, no slack for this state will be introduced
+        if True, a slack for this variable will be introduced
+
+        :param new_slack: New value of the upper bound
+        """
+        self.slack = new_slack
+
     def get_description(self):
-        return Parameter.get_description(self) + '\nInitType: {}'.format(self.init_type)
+        return Parameter.get_description(self) + '\nInitType: {} \nUpper bound: {} \nLower bound: {} \nSlack: {}'\
+            .format(self.init_type, self.ub, self.lb, self.slack)
 
 
 class DataFrameParameter(Parameter):

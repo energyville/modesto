@@ -77,17 +77,19 @@ stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
 for i in stor_design:
     modesto.change_param('waterscheiGarden.storage', i, stor_design[i])
 
+modesto.change_init_type('waterscheiGarden.storage', 'heat_stor', 'fixedVal')
+modesto.change_state_bounds('waterscheiGarden.storage', 'heat_stor', 50, 0, False)
 modesto.change_param('waterscheiGarden.storage', 'heat_stor', 0)
 
 ##################################
 # Print parameters               #
 ##################################
 
-# modesto.print_all_params()
-# modesto.print_general_param('Te')
-# modesto.print_comp_param('thorPark')
-# modesto.print_comp_param('waterscheiGarden.storage')
-# modesto.print_comp_param('waterscheiGarden.storage', 'kIns', 'volume')
+modesto.print_all_params()
+modesto.print_general_param('Te')
+modesto.print_comp_param('thorPark')
+modesto.print_comp_param('waterscheiGarden.storage')
+modesto.print_comp_param('waterscheiGarden.storage', 'kIns', 'volume')
 
 ##################################
 # Solve                          #

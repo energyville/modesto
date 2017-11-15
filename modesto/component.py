@@ -457,7 +457,7 @@ class StorageVariable(Component):
             'heat_stor': StateParameter('heat_stor',
                                         'Heat stored in the thermal storage unit',
                                         'J',
-                                        'initVal')
+                                        'fixedVal')
         }
 
         return params
