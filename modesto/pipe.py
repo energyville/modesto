@@ -1,9 +1,13 @@
 import warnings
 
+import os
 import pandas as pd
+from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, Set, Binary, Block
 
 from component import Component
+
+CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
 
 class Pipe(Component):
@@ -40,7 +44,7 @@ class Pipe(Component):
 
     @staticmethod
     def get_pipe_catalog():
-        df = pd.read_csv('../../Data/PipeCatalog/IsoPlusDoubleStandard.txt', sep=' ',
+        df = pd.read_csv(os.path.join(CATALOG_PATH, 'IsoPlusDoubleStandard.txt'), sep=' ',
                          index_col='DN')
         return df
 
