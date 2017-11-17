@@ -399,3 +399,160 @@ class ExtensivePipe(Pipe):
             return self.dn
         else:
             return int(sum(dn * self.block.dn_sel[dn].value for dn in self.block.DN_ind))
+
+
+class NodeMethod(Pipe):
+
+    def __init__(self, name, horizon, time_step, start_node,
+                 end_node, length, allow_flow_reversal=False):
+        """
+        Class that sets up an extensive model of the pipe
+
+        :param name: Name of the pipe (str)
+        :param horizon: Horizon of the optimization problem, in seconds (int)
+        :param time_step: Time between two points (int)
+        :param start_node: Node at the beginning of the pipe (str)
+        :param end_node: Node at the end of the pipe (str)
+        :param length: Length of the pipe
+        :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
+        """
+
+        Pipe.__init__(self, name, horizon, time_step, start_node,
+                      end_node, length, allow_flow_reversal=allow_flow_reversal)
+
+        pipe_catalog = self.get_pipe_catalog()
+        self.Rs = pipe_catalog['Rs']
+        self.Di = pipe_catalog['Di']
+        self.allow_flow_reversal = allow_flow_reversal
+        self.mf_history = [1] * 20
+        self.temp_history = [self.temp_sup+273.15] * 20
+
+        # TODO Update temperature and mass flow history
+        # TODO Link temperatures in nodes
+
+    def get_temperature(self, node, t):
+        assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
+        if node == self.start_node:
+            return self.block.temperature_in[t]
+        elif node == self.end_node:
+            return self.block.temperature_out[t]
+        else:
+            warnings.warn('Warning: node not contained in this pipe')
+            exit(1)
+
+    def compile(self, model):
+        """
+
+
+        :return:
+        """
+
+        self.check_data()
+        self.make_block(model)
+        self.block.all_time = Set(initialize=range(len(self.mf_history) + self.horizon), ordered=True)
+
+        surface = np.pi*self.Di**2/4
+        Z = surface*self.rho*self.length
+
+        self.block.mass_flow_tot = Param(self.model.TIME)
+        self.block.temperatures = Var(self.block.all_time)
+        self.block.temperature_out = Var(self.model.TIME)
+        self.block.temperature_in = Var(self.model.TIME)
+
+        # Declare list filled with all previous mass flows for every optimization step #################################
+
+        def _decl_mf_history(b, t):
+            if t < self.horizon:
+                return self.block.mass_flow_tot[t]
+            else:
+                return self.mf_history[t-self.horizon]
+
+        self.block.mf_history = Param(self.model.all_time, rule=_decl_mf_history)
+
+        # Declare list filled with all previous temperatures for every optimization step ###############################
+
+        def _decl_temp_history(b, t):
+            if t < self.horizon:
+                return b.temperatures[t] == b.temperature_in[t]
+            else:
+                return b.temperatures[t] == self.temp_history[t]
+
+        self.block.temp_history = Constraint(self.model.all_time, rule=_decl_temp_history)
+
+        # Define n #####################################################################################################
+
+        # Eq 3.4.7
+        def _decl_n(b, t):
+            sum_m = 0
+            for i in self.model.all_time:
+                sum_m += b.history[t-i]*self.time_step
+
+                if sum_m > Z:
+                    return i
+            self.logger.warning('A proper value for n could not be calculated')
+            return i
+
+        self.block.n = Param(self.model.TIME, rule=_decl_n)
+
+        self.block.n_set = Set(initialize=range(self.block.n), ordered=True)
+
+        # Define R #####################################################################################################
+
+        # Eq 3.4.3
+        def _decl_r(b, t):
+            return sum(self.mf_history[0:b.n])
+
+        self.block.R = Param(self.model.TIME, rule=_decl_r)
+
+        # Define m #####################################################################################################
+
+        # Eq. 3.4.8
+        def _decl_m(b, t):
+            sum_m = 0
+            for i in self.model.all_time:
+                sum_m += b.history[t-i] * self.time_step
+
+                if sum_m > Z + self.block.mass_flow_tot[t]:
+                    return i
+            self.logger.warning('A proper value for m could not be calculated')
+            return i
+
+        self.block.m = Param(self.model.TIME, rule=_decl_m)
+
+        self.block.m_set = Set(initialize=range(self.block.m), ordered=True)
+
+        # Define Y #####################################################################################################
+
+        self.block.Y = Var(self.model.TIME)
+
+        # Eq. 3.4.9
+        def _y(b, t):
+            return b.Y[t] == sum(b.mass_flow_tot[i] * b.temperatures[i] * self.time_step
+                              for i in range(t+b.n+1, t+b.m-1))
+
+        self.block._def_y = Constraint(self.model.TIME, rule=_y)
+
+        # Define S #####################################################################################################
+        self.block.S = Var(self.model.TIME)
+
+        # Eq 3.4.10 and 3.4.11
+        def _s(b, t):
+            if b.m > b.n:
+                return b.S[t] == sum(b.mass_flow_tot[i] * self.time_step
+                                     for i in range(t, t+b.m-1))
+
+            else:
+                return b.S[t] == b.R[t]
+
+        self.block._def_s = Constraint(self.model.TIME, rule=_s)
+
+        # Define outgoing temperature ##################################################################################
+
+        # Eq. 3.4.12
+        def _def_temp_out(b, t):
+            return b.temperature_out == ((b.R[t] - Z) * b.temperatures[t+b.n] + b.Y +
+                                         (b.mass_flow_tot[t]*self.time_step-b.S+Z) *
+                                         b.temperatures[t+b.n]) \
+                                        / b.mass_flow_tot[t] / self.time_step
+
+        self.block.def_temp_out = Constraint(self.model.TIME, rule=_def_temp_out)
