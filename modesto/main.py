@@ -32,7 +32,13 @@ class Modesto:
         self.time_step = time_step
         assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
         self.n_steps = int(horizon / time_step)
+
         self.pipe_model = pipe_model
+        if pipe_model == 'NodeMethod':
+            self.temperature_driven = True
+        else:
+            self.temperature_driven = False
+
         self.graph = graph
         self.results = None
 
@@ -460,7 +466,7 @@ class Modesto:
 
 
 class Node(object):
-    def __init__(self, name, graph, node, horizon, time_step):
+    def __init__(self, name, graph, node, horizon, time_step, temperature_driven=False):
         """
         Class that represents a geographical network location,
         associated with a number of components and connected to other nodes through edges
@@ -485,6 +491,8 @@ class Node(object):
         self.model = None
         self.block = None
         self.comps = {}
+
+        self.temperature_driven = temperature_driven
 
         self.build()
 
@@ -563,7 +571,7 @@ class Node(object):
         :return:
         """
 
-        def pipe(graph, edgetuple):
+        def get_pipe(graph, edgetuple):
             """
             Return Pipe model in specified edge of graph
 
@@ -575,17 +583,58 @@ class Node(object):
 
         edges = list(self.graph.in_edges(self.name)) + list(self.graph.out_edges(self.name))
 
-        def _heat_bal(b, t):
-            return 0 == sum(self.comps[i].get_heat(t) for i in self.comps) \
-                        + sum(
-                pipe(self.graph, edge).get_heat(self.name, t) for edge in edges)
+        incoming_comps = []
+        incoming_pipes = []
+        outgoing_comps = []
+        outgoing_pipes = []
+
+        # TODO No mass flow reversal yet
+        if self.temperature_driven:
+            for _, comp in self.comps.items():
+                if comp.get_direction() == 1:
+                    incoming_comps.append(comp)
+                else:
+                    outgoing_comps.append(comp)
+
+            for _, edge_name in edges:
+                edge = get_pipe(self.graph, edge_name)
+                if edge.get_direction(self.name) == 1:
+                    incoming_pipes.append(edge)
+                else:
+                    outgoing_pipes.append(edge)
+
+            self.block.mix_temp = Var(self.model.TIME)
+
+            def _temp_bal_incoming(b, t):
+                return (sum(comp.get_mflo(t) for comp in incoming_comps) +
+                       sum(pipe.get_mflo(self.name, t) for pipe in incoming_pipes)) * b.mix_temp[t]  == \
+                       sum(comp.get_mflo(t) * comp.get_temperature(t) for comp in incoming_comps) + \
+                       sum(pipe.get_mflo(self.name, t) * pipe.get_temperature(self.name, t) for pipe in incoming_pipes)
+
+            self.block.def_mixed_temp = Constraint(self.model.TIME, rule=_temp_bal_incoming)
+
+            def temp_bal_outgoing_pipe(b, t, comp):
+                if comp in outgoing_pipes:
+                    return comp.get_temperature(self.name, t) == b.mix_temp[t]
+                elif comp in outgoing_comps:
+                    return comp.get_temperature(t) == b.mix_temp[t]
+                else:
+                    pass
+
+        else:
+
+            def _heat_bal(b, t):
+                return 0 == sum(self.comps[i].get_heat(t) for i in self.comps) \
+                            + sum(
+                    get_pipe(self.graph, edge).get_heat(self.name, t) for edge in edges)
+
+            self.block.ineq_heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
 
         def _mass_bal(b, t):
             return 0 == sum(self.comps[i].get_mflo(t) for i in self.comps) \
                         + sum(
-                pipe(self.graph, edge).get_mflo(self.name, t) for edge in edges)
+                get_pipe(self.graph, edge).get_mflo(self.name, t) for edge in edges)
 
-        self.block.ineq_heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
         self.block.ineq_mass_bal = Constraint(self.model.TIME, rule=_mass_bal)
 
     def _make_block(self, model):
@@ -655,7 +704,8 @@ class Edge(object):
         else:
             obj = None
 
-        assert obj is not None, "%s is not a valid class name! (pipe %s)" % (pipe_model, self.name)
+        if obj is None:
+            raise ValueError("%s is not a valid class name! (pipe %s)" % (pipe_model, self.name))
 
         self.logger.info('Pipe model {} added to {}'.format(pipe_model, self.name))
 
