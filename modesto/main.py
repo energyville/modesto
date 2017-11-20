@@ -7,6 +7,7 @@ from math import sqrt
 import pyomo.environ
 from component import *
 from pipe import *
+from parameter import *
 from pyomo.core.base import ConcreteModel, Objective, minimize, value
 from pyomo.core.base.param import IndexedParam
 from pyomo.core.base.var import IndexedVar
@@ -97,7 +98,12 @@ class Modesto:
         for node in self.graph.nodes:
             # Create the node
             assert node not in self.nodes, "Node %s already exists" % node.name
-            self.nodes[node] = (Node(node, self.graph, self.graph.nodes[node], self.horizon, self.time_step))
+            self.nodes[node] = (Node(node,
+                                     self.graph,
+                                     self.graph.nodes[node],
+                                     self.horizon,
+                                     self.time_step,
+                                     self.temperature_driven))
 
             # Add the new components
             new_components = self.nodes[node].get_components()
@@ -125,10 +131,15 @@ class Modesto:
             assert edge['name'] not in self.components, "A component with name %s already exists" % edge['name']
 
             # Create the modesto.Edge object
-            self.edges[edge['name']] = Edge(edge['name'], edge,
-                                            start_node, end_node,
-                                            self.horizon, self.time_step,
-                                            self.pipe_model, self.allow_flow_reversal)
+            self.edges[edge['name']] = Edge(name=edge['name'],
+                                            edge=edge,
+                                            start_node=start_node,
+                                            end_node=end_node,
+                                            horizon=self.horizon,
+                                            time_step=self.time_step,
+                                            pipe_model=self.pipe_model,
+                                            allow_flow_reversal=self.allow_flow_reversal,
+                                            temperature_driven=self.temperature_driven)
             # Add the modesto.Edge object to the graph
             self.graph[edge_tuple[0]][edge_tuple[1]]['conn'] = self.edges[edge['name']]
             self.components[edge['name']] = self.edges[edge['name']].pipe
@@ -153,6 +164,7 @@ class Modesto:
 
         # General parameters
         self.model.TIME = Set(initialize=range(self.n_steps), ordered=True)
+        self.model.lines = Set(initialize=['supply', 'return'])
 
         def _ambient_temp(b, t):
             return self.params['Te'].v(t)
@@ -534,7 +546,9 @@ class Node(object):
             cls = None
 
         if cls:
-            obj = cls(name, horizon=self.horizon, time_step=self.time_step)
+            obj = cls(name, horizon=self.horizon,
+                      time_step=self.time_step,
+                      temperature_driven=self.temperature_driven)
         else:
             raise ValueError("%s is not a valid class name! (component is %s, in node %s)" % (ctype, name, self.name))
 
@@ -582,6 +596,9 @@ class Node(object):
             return graph.get_edge_data(*edgetuple)['conn'].pipe
 
         edges = list(self.graph.in_edges(self.name)) + list(self.graph.out_edges(self.name))
+        pipes = {}
+        for edge in edges:
+            pipes[edge] = get_pipe(self.graph, edge)
 
         incoming_comps = []
         incoming_pipes = []
@@ -596,30 +613,38 @@ class Node(object):
                 else:
                     outgoing_comps.append(comp)
 
-            for _, edge_name in edges:
-                edge = get_pipe(self.graph, edge_name)
-                if edge.get_direction(self.name) == 1:
-                    incoming_pipes.append(edge)
+            for _, pipe in pipes.items():
+                if pipe.get_direction(self.name) == -1:
+                    incoming_pipes.append(pipe)
                 else:
-                    outgoing_pipes.append(edge)
+                    outgoing_pipes.append(pipe)
 
-            self.block.mix_temp = Var(self.model.TIME)
+            self.block.mix_temp = Var(self.model.TIME, self.model.lines)
 
-            def _temp_bal_incoming(b, t):
+            def _temp_bal_incoming(b, t, l):
                 return (sum(comp.get_mflo(t) for comp in incoming_comps) +
-                       sum(pipe.get_mflo(self.name, t) for pipe in incoming_pipes)) * b.mix_temp[t]  == \
-                       sum(comp.get_mflo(t) * comp.get_temperature(t) for comp in incoming_comps) + \
-                       sum(pipe.get_mflo(self.name, t) * pipe.get_temperature(self.name, t) for pipe in incoming_pipes)
+                       sum(pipe.get_mflo(self.name, t) for pipe in incoming_pipes)) * b.mix_temp[t, l] == \
+                       sum(comp.get_mflo(t) * comp.get_temperature(t, l) for comp in incoming_comps) + \
+                       sum(pipe.get_mflo(self.name, t) * pipe.get_temperature(self.name, t, l) for pipe in incoming_pipes)
 
-            self.block.def_mixed_temp = Constraint(self.model.TIME, rule=_temp_bal_incoming)
+            self.block.def_mixed_temp = Constraint(self.model.TIME, self.model.lines, rule=_temp_bal_incoming)
 
-            def temp_bal_outgoing_pipe(b, t, comp):
+            def _temp_bal_outgoing(b, t, l, comp):
                 if comp in outgoing_pipes:
-                    return comp.get_temperature(self.name, t) == b.mix_temp[t]
+                    return comp.get_temperature(self.name, t, l) == b.mix_temp[t, l]
                 elif comp in outgoing_comps:
-                    return comp.get_temperature(t) == b.mix_temp[t]
+                    return comp.get_temperature(t, l) == b.mix_temp[t, l]
                 else:
-                    pass
+                    return Constraint.Skip
+
+            self.block.outgoing_temp_comps = Constraint(self.model.TIME,
+                                                        self.model.lines,
+                                                        self.comps.values(),
+                                                        rule=_temp_bal_outgoing)
+            self.block.outgoing_temp_pipes = Constraint(self.model.TIME,
+                                                        self.model.lines,
+                                                        pipes.values(),
+                                                        rule=_temp_bal_outgoing)
 
         else:
 
@@ -630,12 +655,12 @@ class Node(object):
 
             self.block.ineq_heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
 
-        def _mass_bal(b, t):
-            return 0 == sum(self.comps[i].get_mflo(t) for i in self.comps) \
-                        + sum(
-                get_pipe(self.graph, edge).get_mflo(self.name, t) for edge in edges)
+            def _mass_bal(b, t):
+                return 0 == sum(self.comps[i].get_mflo(t) for i in self.comps) \
+                            + sum(
+                    get_pipe(self.graph, edge).get_mflo(self.name, t) for edge in edges)
 
-        self.block.ineq_mass_bal = Constraint(self.model.TIME, rule=_mass_bal)
+            self.block.ineq_mass_bal = Constraint(self.model.TIME, rule=_mass_bal)
 
     def _make_block(self, model):
         """
@@ -657,7 +682,8 @@ class Node(object):
 
 
 class Edge(object):
-    def __init__(self, name, edge, start_node, end_node, horizon, time_step, pipe_model, allow_flow_reversal):
+    def __init__(self, name, edge, start_node, end_node, horizon,
+                 time_step, pipe_model, allow_flow_reversal, temperature_driven):
         """
         Connection object between two nodes in a graph
 
@@ -683,10 +709,19 @@ class Edge(object):
         self.end_node = end_node
         self.length = self.get_length()
 
+        self.temperature_driven = temperature_driven
+
         self.pipe_model = pipe_model
         self.pipe = self.build(pipe_model, allow_flow_reversal)  # TODO Better structure possible?
 
     def build(self, pipe_model, allow_flow_reversal):
+        """
+        Creates the supply and pipe components
+
+        :param pipe_model: The name of the pipe ;odel to be used
+        :param allow_flow_reversal: True if flow reversal is allowed
+        :return: The pipe object
+        """
 
         self.pipe_model = pipe_model
 
@@ -700,7 +735,8 @@ class Edge(object):
 
         if cls:
             obj = cls(self.name, self.horizon, self.time_step, self.start_node.name,
-                      self.end_node.name, self.length, allow_flow_reversal=allow_flow_reversal)
+                      self.end_node.name, self.length, allow_flow_reversal=allow_flow_reversal,
+                      temperature_driven=self.temperature_driven)
         else:
             obj = None
 
