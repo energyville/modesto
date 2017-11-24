@@ -102,7 +102,7 @@ class Component(object):
             param = self.params[name]
         except KeyError:
             param = None
-            self.logger.warning('Parameter {} does not (yet) exist in this component')
+            self.logger.warning('Parameter {} does not (yet) exist in this component'.format(name))
 
         return param.get_value(time)
 
@@ -134,16 +134,29 @@ class Component(object):
             raise Exception("The optimization model for %s has not been compiled" % self.name)
         return self.direction * self.block.heat_flow[t]
 
-    def get_mflo(self, t):
+    def get_mflo(self, t, compiled=True):
         """
         Return mass_flow variable at time t
 
         :param t:
+        :param compiled: If True, the compilation of the model is assumed to be finished. If False, other means to get to the mass flow are used
         :return:
         """
-        if self.block is None:
-            raise Exception("The optimization model for %s has not been compiled" % self.name)
-        return self.direction * self.block.mass_flow[t]
+        # TODO Find something better!
+        if not compiled:
+            try:
+                return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v()\
+                         / self.cp / self.params['delta_T'].v()
+            except:
+                try:
+                    return self.direction * self.params['heat_profile'].v() \
+                           / self.cp / self.params['delta_T'].v()
+                except:
+                    return None
+        else:
+            if self.block is None:
+                raise Exception("The optimization model for %s has not been compiled" % self.name)
+            return self.direction * self.block.mass_flow[t]
 
     def get_direction(self):
         """
@@ -271,7 +284,10 @@ class FixedProfile(Component):
                                     '-'),
             'heat_profile': UserDataParameter('heat_profile',
                                               'Heat use in one (average) building',
-                                              'W')
+                                              'W'),
+            'mass_flow': UserDataParameter('mass_flow',
+                                           'Mass flow through one (average) building substation',
+                                           'kg/s')
         }
 
         return params
@@ -289,6 +305,7 @@ class FixedProfile(Component):
         mult = self.params['mult']
         delta_T = self.params['delta_T']
         heat_profile = self.params['heat_profile']
+        mass_flow = self.params['mass_flow']
 
         self.model = topmodel
         self.make_block(parent)
@@ -462,11 +479,14 @@ class ProducerVariable(Component):
                                    'amount of CO2 released when using primary energy source',
                                    'kg/kWh'),
             'fuel_cost': DesignParameter('fuel_cost',
-                                          'cost of fuel/electricity to generate heat',
-                                          'euro/kWh'),
+                                         'cost of fuel/electricity to generate heat',
+                                         'euro/kWh'),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
-                                    'W')
+                                    'W'),
+            'mass_flow': UserDataParameter('mass_flow',
+                                           'Flow through the production unit substation',
+                                           'kg/s')
         }
 
         return params
@@ -489,10 +509,10 @@ class ProducerVariable(Component):
                 return self.params['mass_flow'].v(t)
 
             self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
-            self.block.temperatures = Var(self.model.TIME, self.model.lines, within=NonNegativeReals)
+            self.block.temperatures = Var(self.model.TIME, self.model.lines, bounds=(320, 400))
 
             def _decl_temperatures(b, t):
-                return b.temperatures[t, 'return'] - b.temperatures[t, 'supply'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
+                return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
 
             self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
 
