@@ -201,14 +201,19 @@ class Modesto:
         def obj_co2(model):
             return sum(comp.obj_co2() for comp in self.iter_components())
 
+        def obj_temp(model):
+            return sum(comp.obj_co2() for comp in self.iter_components())
+
         self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
         self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
         self.model.OBJ_CO2 = Objective(rule=obj_co2, sense=minimize)
+        self.model.OBJ_TEMP = Objective(rule=obj_temp, sense=minimize)
 
         self.objectives = {
             'energy': self.model.OBJ_ENERGY,
             'cost': self.model.OBJ_COST,
-            'co2': self.model.OBJ_CO2
+            'co2': self.model.OBJ_CO2,
+            'temp': self.model.OBJ_TEMP
         }
 
     def check_data(self):
@@ -233,9 +238,8 @@ class Modesto:
         :param objtype:
         :return:
         """
-        objtypes = ['energy', 'cost', 'CO2']
-        if objtype not in objtypes:
-            raise ValueError('Choose an objective type from {}'.format(*objtypes))
+        if objtype not in self.objectives:
+            raise ValueError('Choose an objective type from {}'.format(objtypes))
 
         for obj in self.objectives.values():
             obj.deactivate()

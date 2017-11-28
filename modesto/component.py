@@ -248,6 +248,13 @@ class Component(object):
         """
         return 0
 
+    def obj_temp(self):
+        """
+        Yield summation of temperatures for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
 
 class FixedProfile(Component):
     def __init__(self, name=None, horizon=None, time_step=None, direction=None, temperature_driven=False):
@@ -557,6 +564,16 @@ class ProducerVariable(Component):
         pef = self.params['PEF'].v()
         co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
         return sum(co2 / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+
+    def obj_temp(self):
+        """
+        Generator for supply and return temperatures to be summed
+        Unit: K
+
+        :return:
+        """
+
+        return sum(self.get_temperature(t, 'supply') + self.get_temperature(t, 'return') for t in range(self.n_steps))
 
 
 class StorageFixed(FixedProfile):

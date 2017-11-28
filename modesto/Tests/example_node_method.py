@@ -46,7 +46,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 100
+    n_steps = 10
     time_steps = 3600
 
     optmodel = Modesto(n_steps * time_steps, time_steps, 'NodeMethod', G)
@@ -129,6 +129,7 @@ if __name__ == '__main__':
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
     optmodel.model.OBJ_CO2.pprint()
+    optmodel.model.OBJ_TEMP.pprint()
 
     optmodel.solve(tee=True, mipgap=0.01)
 
