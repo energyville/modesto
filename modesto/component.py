@@ -509,7 +509,7 @@ class ProducerVariable(Component):
                 return self.params['mass_flow'].v(t)
 
             self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
-            self.block.temperatures = Var(self.model.TIME, self.model.lines, bounds=(320, 400))
+            self.block.temperatures = Var(self.model.TIME, self.model.lines, bounds=(293, 363))
 
             def _decl_temperatures(b, t):
                 return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp

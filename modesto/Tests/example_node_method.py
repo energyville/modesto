@@ -23,30 +23,30 @@ logger = logging.getLogger('Main.py')
 def construct_model():
     G = nx.DiGraph()
 
-    G.add_node('ThorPark', x=40, y=40, z=0,
+    G.add_node('ThorPark', x=4000, y=4000, z=0,
                comps={'thorPark': 'ProducerVariable'})
-    G.add_node('p1', x=26, y=50, z=0,
+    G.add_node('p1', x=2600, y=5000, z=0,
                comps={})
-    G.add_node('waterscheiGarden', x=25, y=46, z=0,
+    G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
                comps={'waterscheiGarden.buildingD': 'BuildingFixed',
                       # 'waterscheiGarden.storage': 'StorageVariable'
                       }
                )
-    G.add_node('zwartbergNE', x=20, y=55, z=0,
+    G.add_node('zwartbergNE', x=2000, y=5500, z=0,
                comps={'zwartbergNE.buildingD': 'BuildingFixed'})
 
     G.add_edge('ThorPark', 'p1', name='bbThor')
     G.add_edge('p1', 'waterscheiGarden', name='spWaterschei')
     G.add_edge('p1', 'zwartbergNE', name='spZwartbergNE')
 
-    # nx.draw(G, with_labels=True, font_weight='bold')
+    # nx.draw(G, with_labels=True)
     # plt.show()
 
     ###################################
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 10
+    n_steps = 100
     time_steps = 3600
 
     optmodel = Modesto(n_steps * time_steps, time_steps, 'NodeMethod', G)
@@ -55,7 +55,8 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    heat_profile = pd.DataFrame([1] * n_steps, index=range(n_steps))
+    step = [500] * (n_steps/2) + [1000] * (n_steps/2)
+    heat_profile = pd.DataFrame(step, index=range(n_steps))
     t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
 
     optmodel.opt_settings(allow_flow_reversal=False)
@@ -65,11 +66,11 @@ def construct_model():
     optmodel.change_param('zwartbergNE.buildingD', 'mult', 1000)
     optmodel.change_param('zwartbergNE.buildingD', 'heat_profile', heat_profile)
     optmodel.change_param('waterscheiGarden.buildingD', 'delta_T', 20)
-    optmodel.change_param('waterscheiGarden.buildingD', 'mult', 1000)
+    optmodel.change_param('waterscheiGarden.buildingD', 'mult', 5000)
     optmodel.change_param('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
 
     optmodel.change_param('bbThor', 'pipe_type', 150)
-    optmodel.change_param('spWaterschei', 'pipe_type', 200)
+    optmodel.change_param('spWaterschei', 'pipe_type', 150)
     optmodel.change_param('spZwartbergNE', 'pipe_type', 125)
 
     # stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
@@ -151,12 +152,12 @@ if __name__ == '__main__':
     print 'T return', optmodel.get_result('thorPark', 'temperatures', 'return')
 
     print '\nspWaterschei'
-    print 'T supply', optmodel.get_result('spWaterschei', 'temperatures', 'supply')
-    print 'T return', optmodel.get_result('spWaterschei', 'temperatures', 'return')
     print 'T supply in', optmodel.get_result('spWaterschei', 'temperature_in', 'supply')
     print 'T supply out', optmodel.get_result('spWaterschei', 'temperature_out', 'supply')
     print 'T return in', optmodel.get_result('spWaterschei', 'temperature_in', 'return')
     print 'T return out', optmodel.get_result('spWaterschei', 'temperature_out', 'return')
+    print 'Wall temperature', optmodel.get_result('spWaterschei', 'wall_temp', 'supply')
+    print 'Wall temperature', optmodel.get_result('spWaterschei', 'wall_temp', 'return')
 
     print '\nspZwartbergNE'
     print 'T supply in', optmodel.get_result('spZwartbergNE', 'temperature_in', 'supply')
@@ -190,6 +191,9 @@ if __name__ == '__main__':
     # storage_e = sum(storage_hf)
     waterschei_e = sum(waterschei_hf)
     zwartberg_e = sum(zwartberg_hf)
+
+    prod_t_sup = optmodel.get_result('thorPark', 'temperatures', 'supply')
+    prod_t_ret = optmodel.get_result('thorPark', 'temperatures', 'return')
 
     # Efficiency
     print '\nNetwork'
@@ -235,13 +239,13 @@ if __name__ == '__main__':
 
     fig2 = plt.figure()
 
-    # ax2 = fig2.add_subplot(111)
-    # ax2.plot(storage_soc, label='Stored heat')
-    # ax2.plot(np.asarray(storage_hf) * 3600, label="Charged heat")
+    ax2 = fig2.add_subplot(111)
+    ax2.plot(np.asarray(prod_t_sup) - 273.15, label='Supply temperature [K]')
+    ax2.plot(np.asarray(prod_t_ret) - 273.15, label="Return temperature [K]")
     # ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
-    # ax2.legend()
-    # fig2.suptitle('Storage')
-    # fig2.tight_layout()
+    ax2.legend()
+    fig2.suptitle('Production')
+    fig2.tight_layout()
 
     fig3 = plt.figure()
 
