@@ -256,6 +256,7 @@ class Component(object):
         """
         return 0
 
+
 class FixedProfile(Component):
     def __init__(self, name=None, horizon=None, time_step=None, direction=None, temperature_driven=False):
         """
@@ -292,10 +293,20 @@ class FixedProfile(Component):
             'heat_profile': UserDataParameter('heat_profile',
                                               'Heat use in one (average) building',
                                               'W'),
-            'mass_flow': UserDataParameter('mass_flow',
-                                           'Mass flow through one (average) building substation',
-                                           'kg/s')
         }
+
+        if self.temperature_driven:
+            params['mass_flow'] = UserDataParameter('mass_flow',
+                                                    'Mass flow through one (average) building substation',
+                                                    'kg/s')
+            params['temperature_supply'] = StateParameter('temperature_supply',
+                                                          'Initial supply temperature at the component',
+                                                          'K',
+                                                          'fixedVal')
+            params['temperature_return'] = StateParameter('temperature_return',
+                                                          'Initial return temperature at the component',
+                                                          'K',
+                                                          'fixedVal')
 
         return params
 
@@ -312,7 +323,6 @@ class FixedProfile(Component):
         mult = self.params['mult']
         delta_T = self.params['delta_T']
         heat_profile = self.params['heat_profile']
-        mass_flow = self.params['mass_flow']
 
         self.model = topmodel
         self.make_block(parent)
@@ -330,9 +340,17 @@ class FixedProfile(Component):
             self.block.temperatures = Var(self.model.TIME, self.model.lines)
 
             def _decl_temperatures(b, t):
-                return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
+                # if t == 0:
+                #     return Constraint.Skip
+                # else:
+                    return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
+                           b.heat_flow[t]/b.mass_flow[t]/self.cp
+
+            # def _init_temperatures(b, l):
+            #     return b.temperatures[0, l] == self.params['temperature_supply'].v()
 
             self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
+            # self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -491,11 +509,26 @@ class ProducerVariable(Component):
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
-            'mass_flow': UserDataParameter('mass_flow',
-                                           'Flow through the production unit substation',
-                                           'kg/s')
         }
 
+        if self.temperature_driven:
+            params['mass_flow'] = UserDataParameter('mass_flow',
+                                                    'Flow through the production unit substation',
+                                                    'kg/s')
+            params['temperature_max'] = DesignParameter('temperature_max',
+                                                        'Maximum allowed water temperature',
+                                                        'K')
+            params['temperature_min'] = DesignParameter('temperature_min',
+                                                        'Minimum allowed water temperature',
+                                                        'K')
+            params['temperature_supply'] = StateParameter('temperature_supply',
+                                                          'Initial supply temperature at the component',
+                                                          'K',
+                                                          'fixedVal')
+            params['temperature_return'] = StateParameter('temperature_return',
+                                                          'Initial return temperature at the component',
+                                                          'K',
+                                                          'fixedVal')
         return params
 
     def compile(self, topmodel, parent):
@@ -516,12 +549,22 @@ class ProducerVariable(Component):
                 return self.params['mass_flow'].v(t)
 
             self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
-            self.block.temperatures = Var(self.model.TIME, self.model.lines, bounds=(293, 363))
+            self.block.temperatures = Var(self.model.TIME,
+                                          self.model.lines,
+                                          bounds=(self.params['temperature_min'].v(),
+                                                  self.params['temperature_max'].v()))
 
             def _decl_temperatures(b, t):
-                return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
+                # if t == 0:
+                #     return Constraint.Skip
+                # else:
+                    return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
+
+            # def _init_temperature(b, l):
+            #     return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
             self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
+            # self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperature)
 
         else:
             self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)

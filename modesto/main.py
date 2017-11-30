@@ -201,20 +201,23 @@ class Modesto:
         def obj_co2(model):
             return sum(comp.obj_co2() for comp in self.iter_components())
 
-        def obj_temp(model):
-            return sum(comp.obj_co2() for comp in self.iter_components())
-
         self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
         self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
         self.model.OBJ_CO2 = Objective(rule=obj_co2, sense=minimize)
-        self.model.OBJ_TEMP = Objective(rule=obj_temp, sense=minimize)
 
         self.objectives = {
             'energy': self.model.OBJ_ENERGY,
             'cost': self.model.OBJ_COST,
-            'co2': self.model.OBJ_CO2,
-            'temp': self.model.OBJ_TEMP
+            'co2': self.model.OBJ_CO2
         }
+
+        if self.temperature_driven:
+            def obj_temp(model):
+                return sum(comp.obj_temp() for comp in self.iter_components())
+
+            self.model.OBJ_TEMP = Objective(rule=obj_temp, sense=minimize)
+
+            self.objectives['temp'] = self.model.OBJ_TEMP
 
     def check_data(self):
         """
@@ -736,14 +739,14 @@ class Node(object):
             def _heat_bal(b, t):
                 return 0 == sum(self.comps[i].get_heat(t) for i in self.comps) \
                             + sum(
-                    self.get_pipe(self.graph, edge).get_heat(self.name, t) for edge in pipes.keys())
+                    pipe.get_heat(self.name, t) for pipe in pipes.values())
 
             self.block.ineq_heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
 
             def _mass_bal(b, t):
                 return 0 == sum(self.comps[i].get_mflo(t) for i in self.comps) \
                             + sum(
-                    self.get_pipe(self.graph, edge).get_mflo(self.name, t) for edge in pipes.keys())
+                    pipe.get_mflo(self.name, t) for pipe in pipes.values())
 
             self.block.ineq_mass_bal = Constraint(self.model.TIME, rule=_mass_bal)
 
