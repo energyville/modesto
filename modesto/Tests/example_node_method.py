@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-from pyomo.core.base import value
+# noinspection PyUnresolvedReferences
 import pyomo.environ
-
+# noinspection PyUnresolvedReferences
+from pyomo.core.base import value
 
 from modesto.main import Modesto
 
@@ -55,7 +56,9 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    step = [500] * (n_steps/2) + [1000] * (n_steps/2)
+    step = np.linspace(100, 1000, n_steps).tolist()
+
+    # step = [500] * (n_steps/2) + [1000] * (n_steps/2)
     heat_profile = pd.DataFrame(step, index=range(n_steps))
     t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
 
@@ -87,7 +90,7 @@ def construct_model():
                    'temperature_return': 333.15,
                    'temperature_max': 363.15,
                    'temperature_min': 303.15}
-
+    # TODO misschien is een functie die  een dict met parameternamen en waardes aanneemt en vervolgens alles aanpast handiger dan zelf nog een for loop moeten schrijven
     for i in prod_design:
         optmodel.change_param('thorPark', i, prod_design[i])
 
@@ -104,6 +107,7 @@ def construct_model():
     optmodel.calculate_mf()
 
     return optmodel
+
 
 ##################################
 # Solve                          #
