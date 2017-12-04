@@ -523,7 +523,7 @@ class NodeMethod(Pipe):
 
         self.block.all_time = Set(initialize=range(len(self.mf_history) + self.n_steps), ordered=True)
 
-        pipe_wall_rho = 0.134  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html kg/m^3
+        pipe_wall_rho = 134*10**3  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html kg/m^3
         pipe_wall_c = 324  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html J/kg/K
         pipe_wall_volume = np.pi*(self.Do[dn]**2-self.Di[dn]**2)/4*self.length
         C = pipe_wall_volume * pipe_wall_c * pipe_wall_rho
