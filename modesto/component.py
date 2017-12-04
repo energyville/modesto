@@ -340,17 +340,17 @@ class FixedProfile(Component):
             self.block.temperatures = Var(self.model.TIME, self.model.lines)
 
             def _decl_temperatures(b, t):
-                # if t == 0:
-                #     return Constraint.Skip
-                # else:
+                if t == 0:
+                    return Constraint.Skip
+                else:
                     return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
                            b.heat_flow[t]/b.mass_flow[t]/self.cp
 
-            # def _init_temperatures(b, l):
-            #     return b.temperatures[0, l] == self.params['temperature_supply'].v()
+            def _init_temperatures(b, l):
+                return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
             self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
-            # self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
+            self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -509,6 +509,9 @@ class ProducerVariable(Component):
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
+            'ramp': DesignParameter('ramp',
+                                    'Maximum ramp (increase in heat output',
+                                    'W/s'),
         }
 
         if self.temperature_driven:
@@ -549,25 +552,42 @@ class ProducerVariable(Component):
                 return self.params['mass_flow'].v(t)
 
             self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
+        else:
+            self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
+
+        def _decl_init_heat_flow(b):
+            return b.heat_flow[0] == (self.params['temperature_supply'].v() -
+                                      self.params['temperature_return'].v()) * \
+                                     self.cp*b.mass_flow[0]
+
+        self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
+
+        def _decl_ramp(b, t):
+            if t==0:
+                return b.heat_flow[t] <= self.params['ramp'].v()*self.time_step
+            else:
+                return b.heat_flow[t] - b.heat_flow[t-1] <= self.params['ramp'].v()*self.time_step
+
+        self.block.decl_ramp = Constraint(self.model.TIME, rule=_decl_ramp)
+
+        if self.temperature_driven:
+
             self.block.temperatures = Var(self.model.TIME,
                                           self.model.lines,
                                           bounds=(self.params['temperature_min'].v(),
                                                   self.params['temperature_max'].v()))
 
             def _decl_temperatures(b, t):
-                # if t == 0:
-                #     return Constraint.Skip
-                # else:
+                if t == 0:
+                    return Constraint.Skip
+                else:
                     return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
 
-            # def _init_temperature(b, l):
-            #     return b.temperatures[0, l] == self.params['temperature_' + l].v()
+            def _init_temperature(b, l):
+                return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
             self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
-            # self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperature)
-
-        else:
-            self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
+            self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperature)
 
     # TODO Objectives are all the same, only difference is the value of the weight...
 
