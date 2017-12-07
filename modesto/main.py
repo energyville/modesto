@@ -383,12 +383,14 @@ class Modesto:
 
         if self.results is None:
             raise Exception('The optimization problem has not been solved yet.')
-        if comp not in self.components:
-            raise Exception('%s is not a valid component name' % comp)
-
+        if comp in self.components:
+            obj = self.components[comp].block.find_component(name)
+        elif comp in self.nodes:
+            obj = self.nodes[comp].block.find_component(name)
+        else:
+            raise Exception('%s is not a valid component or node name' % comp)
         result = []
 
-        obj = self.components[comp].block.find_component(name)
         if obj is None:
             raise Exception('{} is not a valid parameter or variable of {}'.format(name, comp))
 
@@ -412,6 +414,7 @@ class Modesto:
             self.logger.warning('{}.{} was a different type of variable/parameter than what has been implemented: '
                                 '{}'.format(comp, name, type(obj)))
             return None
+
 
     def get_objective(self, objtype=None):
         """
