@@ -47,8 +47,8 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 100
-    time_step = 600
+    n_steps = 288
+    time_step = 300
 
     optmodel = Modesto(n_steps * time_step, time_step, 'NodeMethod', G)
 
@@ -66,12 +66,12 @@ def construct_model():
     optmodel.change_general_param('Te', t_amb)
 
     optmodel.change_param('zwartbergNE.buildingD', 'delta_T', 20)
-    optmodel.change_param('zwartbergNE.buildingD', 'mult', 1000)
+    optmodel.change_param('zwartbergNE.buildingD', 'mult', 100)
     optmodel.change_param('zwartbergNE.buildingD', 'heat_profile', heat_profile)
     optmodel.change_param('zwartbergNE.buildingD', 'temperature_return', 333.15)
     optmodel.change_param('zwartbergNE.buildingD', 'temperature_supply', 353.15)
     optmodel.change_param('waterscheiGarden.buildingD', 'delta_T', 20)
-    optmodel.change_param('waterscheiGarden.buildingD', 'mult', 5000)
+    optmodel.change_param('waterscheiGarden.buildingD', 'mult', 500)
     optmodel.change_param('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
     optmodel.change_param('waterscheiGarden.buildingD', 'temperature_return', 333.15)
     optmodel.change_param('waterscheiGarden.buildingD', 'temperature_supply', 353.15)
@@ -85,11 +85,12 @@ def construct_model():
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': 0.034,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 1e7,
+                   'Qmax': 4e6,
                    'temperature_supply': 353.15,
-                   'temperature_return': 333.15,
+                   'temperature_return': 353.15,
                    'temperature_max': 363.15,
-                   'temperature_min': 303.15}
+                   'temperature_min': 303.15,
+                   'ramp': 10}
     # TODO misschien is een functie die  een dict met parameternamen en waardes aanneemt en vervolgens alles aanpast handiger dan zelf nog een for loop moeten schrijven
     for i in prod_design:
         optmodel.change_param('thorPark', i, prod_design[i])
@@ -123,48 +124,48 @@ if __name__ == '__main__':
     optmodel.model.OBJ_CO2.pprint()
     optmodel.model.OBJ_TEMP.pprint()
 
-    optmodel.solve(tee=False, mipgap=0.01)
+    optmodel.solve(tee=True, mipgap=0.01)
 
     ##################################
     # Collect result                 #
     ##################################
+    #
+    # print '\nWaterschei.buildingD'
+    # print 'Heat flow', optmodel.get_result('waterscheiGarden.buildingD', 'heat_flow')
+    # print 'T supply', optmodel.get_result('waterscheiGarden.buildingD', 'temperatures', 'supply')
+    # print 'T return', optmodel.get_result('waterscheiGarden.buildingD', 'temperatures', 'return')
 
-    print '\nWaterschei.buildingD'
-    print 'Heat flow', optmodel.get_result('waterscheiGarden.buildingD', 'heat_flow')
-    print 'T supply', optmodel.get_result('waterscheiGarden.buildingD', 'temperatures', 'supply')
-    print 'T return', optmodel.get_result('waterscheiGarden.buildingD', 'temperatures', 'return')
+    # print '\nzwartbergNE.buildingD'
+    # print 'Heat flow', optmodel.get_result('zwartbergNE.buildingD', 'heat_flow')
+    # print 'T supply', optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'supply')
+    # print 'T return', optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'return')
 
-    print '\nzwartbergNE.buildingD'
-    print 'Heat flow', optmodel.get_result('zwartbergNE.buildingD', 'heat_flow')
-    print 'T supply', optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'supply')
-    print 'T return', optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'return')
+    # print '\nthorPark'
+    # print 'Heat flow', optmodel.get_result('thorPark', 'heat_flow')
+    # print 'T supply', optmodel.get_result('thorPark', 'temperatures', 'supply')
+    # print 'T return', optmodel.get_result('thorPark', 'temperatures', 'return')
 
-    print '\nthorPark'
-    print 'Heat flow', optmodel.get_result('thorPark', 'heat_flow')
-    print 'T supply', optmodel.get_result('thorPark', 'temperatures', 'supply')
-    print 'T return', optmodel.get_result('thorPark', 'temperatures', 'return')
-
-    print '\nspWaterschei'
-    print 'T supply in', optmodel.get_result('spWaterschei', 'temperature_in', 'supply')
-    print 'T supply out', optmodel.get_result('spWaterschei', 'temperature_out', 'supply')
-    print 'T return in', optmodel.get_result('spWaterschei', 'temperature_in', 'return')
-    print 'T return out', optmodel.get_result('spWaterschei', 'temperature_out', 'return')
-    print 'Wall temperature', optmodel.get_result('spWaterschei', 'wall_temp', 'supply')
-    print 'Wall temperature', optmodel.get_result('spWaterschei', 'wall_temp', 'return')
-
-    print '\nspZwartbergNE'
-    print 'T supply in', optmodel.get_result('spZwartbergNE', 'temperature_in', 'supply')
-    print 'T supply out', optmodel.get_result('spZwartbergNE', 'temperature_out', 'supply')
-    print 'T return in', optmodel.get_result('spZwartbergNE', 'temperature_in', 'return')
-    print 'T return out', optmodel.get_result('spZwartbergNE', 'temperature_out', 'return')
+    # print '\nspWaterschei'
+    # print 'T supply in', optmodel.get_result('spWaterschei', 'temperature_in', 'supply')
+    # print 'T supply out', optmodel.get_result('spWaterschei', 'temperature_out', 'supply')
+    # print 'T return in', optmodel.get_result('spWaterschei', 'temperature_in', 'return')
+    # print 'T return out', optmodel.get_result('spWaterschei', 'temperature_out', 'return')
+    # print 'Wall temperature', optmodel.get_result('spWaterschei', 'wall_temp', 'supply')
+    # print 'Wall temperature', optmodel.get_result('spWaterschei', 'wall_temp', 'return')
+    #
+    # print '\nspZwartbergNE'
+    # print 'T supply in', optmodel.get_result('spZwartbergNE', 'temperature_in', 'supply')
+    # print 'T supply out', optmodel.get_result('spZwartbergNE', 'temperature_out', 'supply')
+    # print 'T return in', optmodel.get_result('spZwartbergNE', 'temperature_in', 'return')
+    # print 'T return out', optmodel.get_result('spZwartbergNE', 'temperature_out', 'return')
 
     print '\nbbThor'
     print 'T supply in', optmodel.get_result('bbThor', 'temperature_in', 'supply')
     print 'T supply out', optmodel.get_result('bbThor', 'temperature_out', 'supply')
     print 'T return in', optmodel.get_result('bbThor', 'temperature_in', 'return')
     print 'T return out', optmodel.get_result('bbThor', 'temperature_out', 'return')
-    print 'Wall temperature supply', optmodel.get_result('bbThor', 'wall_temp', 'supply')
-    print 'Wall temperature return', optmodel.get_result('bbThor', 'wall_temp', 'return')
+    # print 'Wall temperature supply', optmodel.get_result('ThorPark', 'mix_temp', 'supply')
+    # print 'Wall temperature return', optmodel.get_result('ThorPark', 'mix_temp', 'return')
 
     # print '\nStorage'
     # print 'Heat flow', optmodel.get_result('waterscheiGarden.storage', 'heat_flow')
@@ -193,6 +194,10 @@ if __name__ == '__main__':
     ws_t_ret = optmodel.get_result('waterscheiGarden.buildingD', 'temperatures', 'return')
     zw_t_sup = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'supply')
     zw_t_ret = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'return')
+    pipe_t_sup_out = optmodel.get_result('bbThor', 'temperature_out', 'supply')
+    pipe_t_ret_out = optmodel.get_result('bbThor', 'temperature_out', 'return')
+    pipe_t_sup_in = optmodel.get_result('bbThor', 'temperature_in', 'supply')
+    pipe_t_ret_in = optmodel.get_result('bbThor', 'temperature_in', 'return')
 
     # Efficiency
     print '\nNetwork'
@@ -204,16 +209,16 @@ if __name__ == '__main__':
     #     print i, ': ', str(optmodel.components[i].get_diameter())
 
     # Pipe heat losses
-    print '\nPipe heat losses'
+    # print '\nPipe heat losses'
     # print 'bbThor: ', optmodel.get_result('bbThor', 'heat_loss_tot')
     # print 'spWaterschei: ', optmodel.get_result('spWaterschei', 'heat_loss_tot')
     # print 'spZwartbergNE: ', optmodel.get_result('spZwartbergNE', 'heat_loss_tot')
 
     # Mass flows
-    print '\nMass flows'
-    print 'bbThor: ', optmodel.get_result('bbThor', 'mass_flow_tot')
-    print 'spWaterschei: ', optmodel.get_result('spWaterschei', 'mass_flow_tot')
-    print 'spZwartbergNE: ', optmodel.get_result('spZwartbergNE', 'mass_flow_tot')
+    # print '\nMass flows'
+    # print 'bbThor: ', optmodel.get_result('bbThor', 'mass_flow_tot')
+    # print 'spWaterschei: ', optmodel.get_result('spWaterschei', 'mass_flow_tot')
+    # print 'spZwartbergNE: ', optmodel.get_result('spZwartbergNE', 'mass_flow_tot')
 
     # Objectives
     print '\nObjective function'
@@ -225,7 +230,7 @@ if __name__ == '__main__':
 
     ax.hold(True)
     l1, = ax.plot(prod_hf)
-    l3, = ax.plot([x + y for x, y in zip(waterschei_hf, zwartberg_hf, )])  # , )])  #
+    l3, = ax.plot([x+y for x, y in zip(waterschei_hf, zwartberg_hf,)])  # , )])  #
     ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
 
     ax.set_title('Heat flows [W]')
@@ -260,5 +265,20 @@ if __name__ == '__main__':
     ax3.legend()
     ax3.set_ylabel('Heat Flow [W]')
     fig3.tight_layout()
+
+    fig4 = plt.figure()
+
+    ax4 = fig4.add_subplot(111)
+    ax4.plot(np.asarray(pipe_t_sup_in) - 273.15, label='Pipe supply temperature in [degrees C]')
+    ax4.plot(np.asarray(pipe_t_sup_out) - 273.15, label="Pipe supply temperature out [degrees C]")
+    ax4.plot(np.asarray(pipe_t_ret_in) - 273.15, label='Pipe return temperature in [degrees C]')
+    ax4.plot(np.asarray(pipe_t_ret_out) - 273.15, label="Pipe return temperature out [degrees C]")
+    ax2.plot(np.asarray(zw_t_sup) - 273.15, label='Supply temperature ZW [degrees C]')
+    ax2.plot(np.asarray(zw_t_ret) - 273.15, label="Return temperature ZW [degrees C]")
+    # ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
+    ax4.legend()
+    fig4.suptitle('Temperatures')
+    fig4.tight_layout()
+
 
     plt.show()
