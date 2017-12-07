@@ -518,6 +518,7 @@ class NodeMethod(Pipe):
         dn = self.params['pipe_type'].v()
         if dn is None:
             self.logger.info('No dn set. Optimizing diameter.')
+            # TODO denk dat diameter opt niet mogelijk is voor node model, dit verandert toch hoeveel elementen er in de buis zitten?
 
         self.make_block(model)
 

@@ -496,13 +496,12 @@ class Modesto:
 
     def calculate_mf(self):
         """
-        Given the heat demands of all substations, calculate the mass flow throughout the netire network
+        Given the heat demands of all substations, calculate the mass flow throughout the entire network
 
-        :param producer_node: Name of the node for which the equation is kipped to get a determined system
+        :param producer_node: Name of the node for which the equation is skipped to get a determined system
         :return:
         """
         result = collections.defaultdict(list)
-
         # Take into account mult factors!!
         inc_matrix = -nx.incidence_matrix(self.graph, oriented=True).todense()
 
