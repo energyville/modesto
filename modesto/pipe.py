@@ -1,3 +1,5 @@
+from __future__ import division
+
 import warnings
 
 import os
@@ -6,15 +8,17 @@ from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, Set, Binary, Block
 
 from component import Component
-from parameter import DesignParameter, StateParameter, WeatherDataParameter
+from parameter import DesignParameter, StateParameter, UserDataParameter
 import warnings
+
+import numpy as np
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
 
 class Pipe(Component):
-    def __init__(self, name, horizon, time_step, start_node, end_node, length,
-                 temp_sup=70 + 273.15, temp_ret=50 + 273.15, allow_flow_reversal=False):
+    def __init__(self, name, horizon, time_step, start_node, end_node, length, temp_sup=70 + 273.15,
+                 temp_ret=50 + 273.15, allow_flow_reversal=False, temperature_driven=False, direction=1):
         """
         Class that sets up an optimization model for a DHC pipe
 
@@ -27,8 +31,13 @@ class Pipe(Component):
         :param temp_sup: Supply temperature (real)
         :param temp_ret: Return temperature (real)
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
+        :param direction: 1 for a supply line, -1 for a return line
         """
-        super(Pipe, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1)
+        super(Pipe, self).__init__(name=name,
+                                   horizon=horizon,
+                                   time_step=time_step,
+                                   direction=direction,
+                                   temperature_driven=temperature_driven)
         # TODO actually pipe does not need a direction
 
         self.params = self.create_params()
@@ -54,6 +63,7 @@ class Pipe(Component):
                                          'DN')
         }
 
+
         return params
 
     def get_mflo(self, node, t):
@@ -76,6 +86,16 @@ class Pipe(Component):
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
 
+    def get_direction(self, node, line='supply'):
+        assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
+        if node == self.start_node:
+            return 1
+        elif node == self.end_node:
+            return -1
+        else:
+            warnings.warn('Warning: node not contained in this pipe')
+            exit(1)
+
     def make_block(self, model):
         """
         Make a separate block in the parent model.
@@ -93,11 +113,12 @@ class Pipe(Component):
         self.block = self.model.__getattribute__(self.name)
 
         self.logger.info(
-            'Optimization block for Component {} initialized'.format(self.name))
+            'Optimization block for Pipe {} initialized'.format(self.name))
 
 
 class SimplePipe(Pipe):
-    def __init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal=False):
+    def __init__(self, name, horizon, time_step, start_node, end_node,
+                 length, allow_flow_reversal=False, temperature_driven=False):
         """
         Class that sets up a very simple model of pipe
         No inertia, no time delays, heat_in = heat_out
@@ -111,7 +132,15 @@ class SimplePipe(Pipe):
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
         """
 
-        Pipe.__init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal)
+        Pipe.__init__(self,
+                      name=name,
+                      horizon=horizon,
+                      time_step=time_step,
+                      start_node=start_node,
+                      end_node=end_node,
+                      length=length,
+                      allow_flow_reversal=allow_flow_reversal,
+                      temperature_driven=temperature_driven)
 
     def compile(self, model):
         """
@@ -136,7 +165,7 @@ class SimplePipe(Pipe):
 
 class ExtensivePipe(Pipe):
     def __init__(self, name, horizon, time_step, start_node,
-                 end_node, length, allow_flow_reversal=True):
+                 end_node, length, allow_flow_reversal=True, temperature_driven=False):
         """
         Class that sets up an extensive model of the pipe
 
@@ -149,8 +178,15 @@ class ExtensivePipe(Pipe):
         :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
         """
 
-        Pipe.__init__(self, name, horizon, time_step, start_node,
-                      end_node, length, allow_flow_reversal=allow_flow_reversal)
+        Pipe.__init__(self,
+                      name=name,
+                      horizon=horizon,
+                      time_step=time_step,
+                      start_node=start_node,
+                      end_node=end_node,
+                      length=length,
+                      allow_flow_reversal=allow_flow_reversal,
+                      temperature_driven=temperature_driven)
 
         pipe_catalog = self.get_pipe_catalog()
         self.Rs = pipe_catalog['Rs']
@@ -399,3 +435,305 @@ class ExtensivePipe(Pipe):
             return self.dn
         else:
             return int(sum(dn * self.block.dn_sel[dn].value for dn in self.block.DN_ind))
+
+
+class NodeMethod(Pipe):
+
+    def __init__(self, name, horizon, time_step, start_node,
+                 end_node, length, allow_flow_reversal=False, temperature_driven=False, direction=1):
+        """
+        Class that sets up an extensive model of the pipe
+
+        :param name: Name of the pipe (str)
+        :param horizon: Horizon of the optimization problem, in seconds (int)
+        :param time_step: Time between two points (int)
+        :param start_node: Node at the beginning of the pipe (str)
+        :param end_node: Node at the end of the pipe (str)
+        :param length: Length of the pipe
+        :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool):
+        :param direction: 1 for a supply line, -1 for return line
+        """
+
+        Pipe.__init__(self,
+                      name=name,
+                      horizon=horizon,
+                      time_step=time_step,
+                      start_node=start_node,
+                      end_node=end_node,
+                      length=length,
+                      allow_flow_reversal=allow_flow_reversal,
+                      temperature_driven=temperature_driven,
+                      direction=direction)
+
+        pipe_catalog = self.get_pipe_catalog()
+        self.Rs = pipe_catalog['Rs']
+        self.Di = pipe_catalog['Di']
+        self.Do = pipe_catalog['Do']
+        self.allow_flow_reversal = allow_flow_reversal
+        self.mf_history = [1.5] * 40
+        self.temp_history = {'supply': [353.15] * 40,
+                             'return': [333.15] * 40}
+
+        self.params = self.create_params()
+
+    def create_params(self):
+
+        params = Pipe.create_params(self)
+
+        params['mass_flow'] = UserDataParameter('mass_flow',
+                                           'Mass flow to or from the component (positive)',
+                                           'kg/s')
+
+        return params
+
+    def get_temperature(self, node, t, line):
+        assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
+        if node == self.start_node:
+            if line == 'supply':
+                return self.block.temperature_in[t, line]
+            elif line == 'return':
+                return self.block.temperature_out[t, line]
+            else:
+                raise ValueError('The input line can only take the values from {}'.format(self.model.lines.values))
+        elif node == self.end_node:
+            if line == 'supply':
+                return self.block.temperature_out[t, line]
+            elif line == 'return':
+                return self.block.temperature_in[t, line]
+            else:
+                raise ValueError('The input line can only take the values from {}'.format(self.model.lines.values))
+        else:
+            warnings.warn('Warning: node not contained in this pipe')
+            exit(1)
+
+    def compile(self, model):
+        """
+
+
+        :return:
+        """
+
+        self.check_data()
+
+        dn = self.params['pipe_type'].v()
+        if dn is None:
+            self.logger.info('No dn set. Optimizing diameter.')
+            # TODO denk dat diameter opt niet mogelijk is voor node model, dit verandert toch hoeveel elementen er in de buis zitten?
+
+        self.make_block(model)
+
+        self.block.all_time = Set(initialize=range(len(self.mf_history) + self.n_steps), ordered=True)
+
+        pipe_wall_rho = 7.85*10**3  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html kg/m^3
+        pipe_wall_c = 461   # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html J/kg/K
+        pipe_wall_volume = np.pi*(self.Do[dn]**2-self.Di[dn]**2)/4*self.length
+        C = pipe_wall_volume * pipe_wall_c * pipe_wall_rho
+        surface = np.pi*self.Di[dn]**2/4  # cross sectional area of the pipe
+        Z = surface*self.rho*self.length  # water mass in the pipe
+        # TODO Move capacity?
+        # TODO Undisturbed ground temperature
+        Tu = 10 + 273.15
+
+        def _decl_mf(b, t):
+            return self.params['mass_flow'].v(t)
+
+        self.block.mass_flow_tot = Param(self.model.TIME, rule=_decl_mf)
+
+        # Declare temperature variables ################################################################################
+
+        self.block.temperatures = Var(self.block.all_time, self.model.lines)  # all temperatures (historical and future)
+        self.block.temperature_out_nhc = Var(self.model.TIME, self.model.lines)  # no heat capacity (only future)
+        self.block.temperature_out_nhl = Var(self.model.TIME, self.model.lines)  # no heat losses (only future)
+        self.block.temperature_out = Var(self.model.TIME, self.model.lines)  # no heat losses (only future)
+        self.block.temperature_in = Var(self.model.TIME, self.model.lines)  # incoming temperature (future)
+
+        # Declare list filled with all previous mass flows and future mass flows #######################################
+
+        def _decl_mf_history(b, t):
+            if t < self.n_steps:
+                return self.block.mass_flow_tot[self.n_steps - t - 1]
+            else:
+                return self.mf_history[t-self.n_steps]
+
+        self.block.mf_history = Param(self.block.all_time, rule=_decl_mf_history)
+
+        # Declare list filled with all previous temperatures for every optimization step ###############################
+
+        def _decl_temp_history(b, t, l):
+            if t < self.n_steps:
+                return b.temperatures[t, l] == b.temperature_in[self.n_steps - t - 1, l]
+            else:
+                return b.temperatures[t, l] == self.temp_history[l][t-self.n_steps]
+
+        self.block.def_temp_history = Constraint(self.block.all_time, self.model.lines, rule=_decl_temp_history)
+
+        # Define n #####################################################################################################
+
+        # Eq 3.4.7
+        def _decl_n(b, t):
+            sum_m = 0
+            for i in range(len(self.block.all_time) - (self.n_steps - 1 - t)):
+                sum_m += b.mf_history[self.n_steps - 1 - t + i]*self.time_step
+                if sum_m > Z:
+                    return i
+            self.logger.warning('A proper value for n could not be calculated')
+            return i
+
+        self.block.n = Param(self.model.TIME, rule=_decl_n)
+
+        # Define R #####################################################################################################
+
+        # Eq 3.4.3
+        def _decl_r(b, t):
+            return sum(self.block.mf_history[i] for i in
+                       range(self.n_steps - 1 - t, self.n_steps - 1 - t + b.n[t] + 1))*self.time_step
+
+        self.block.R = Param(self.model.TIME, rule=_decl_r)
+
+        # Define m #####################################################################################################
+
+        # Eq. 3.4.8
+
+        def _decl_m(b, t):
+            sum_m = 0
+            for i in range(len(self.block.all_time) - (self.n_steps - 1 - t)):
+                sum_m += b.mf_history[self.n_steps - 1 - t + i] * self.time_step
+                if sum_m > Z + self.block.mass_flow_tot[t]*self.time_step:
+                    return i
+            self.logger.warning('A proper value for m could not be calculated')
+            return i
+
+        self.block.m = Param(self.model.TIME, rule=_decl_m)
+
+        # Define Y #####################################################################################################
+
+        # Eq. 3.4.9
+        self.block.Y = Var(self.model.TIME, self.model.lines)
+
+        def _y(b, t, l):
+            return b.Y[t, l] == sum(b.mf_history[i] * b.temperatures[i, l] * self.time_step
+                                    for i in range(self.n_steps - 1 - t + b.n[t] + 1, self.n_steps - 1 - t + b.m[t]))
+
+        self.block.def_Y = Constraint(self.model.TIME, self.model.lines, rule=_y)
+
+        # Define S #####################################################################################################
+
+        # Eq 3.4.10 and 3.4.11
+        def _s(b, t):
+            if b.m[t] > b.n[t]:
+                return sum(b.mf_history[i] * self.time_step
+                           for i in range(self.n_steps - 1 - t, self.n_steps - 1 - t + b.m[t]))
+
+            else:
+                return b.R[t]
+
+        self.block.S = Param(self.model.TIME, rule=_s)
+
+        # Define outgoing temperature, without wall capacity and heat losses ###########################################
+
+        # Eq. 3.4.12
+        def _def_temp_out(b, t, l):
+            return b.temperature_out_nhc[t, l] == ((b.R[t] - Z) * b.temperatures[self.n_steps - 1 - t + b.n[t], l]
+                                                   + b.Y[t, l] + (b.mass_flow_tot[t]*self.time_step-b.S[t]+Z) *
+                                                   b.temperatures[self.n_steps - 1 - t + b.m[t], l]) \
+                                                   / b.mass_flow_tot[t] / self.time_step
+
+        self.block.def_temp_out_nhc = Constraint(self.model.TIME, self.model.lines, rule=_def_temp_out)
+
+        # Pipe wall heat capacity ######################################################################################
+
+        # Eq. 3.4.20
+
+        def _k(b):
+            return 1/self.Rs[dn]
+
+        self.block.K = Param(rule=_k)
+
+        # Eq. 3.4.14
+
+        self.block.wall_temp = Var(self.model.TIME, self.model.lines)
+
+        def _wall_capacity(b, t, l):
+            # TODO improve init
+            if t == 0:
+                t_wall = 323.15
+            else:
+                t_wall = b.wall_temp[t-1, l]
+            return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * b.mass_flow_tot[t]
+                                                   * self.cp * self.time_step
+                                                   + C * t_wall) / \
+                                                   (C + b.mass_flow_tot[t] * self.cp * self.time_step)
+
+        self.block.temp_out_nhl = Constraint(self.model.TIME, self.model.lines, rule=_wall_capacity)
+
+        # Eq. 3.4.15
+
+        def _temp_wall(b, t, l):
+            if b.mass_flow_tot[t] == 0:
+                # TODO improve init
+                if t == 0:
+                    t_wall = 323.15
+                else:
+                    t_wall = b.wall_temp[t-1, l]
+                return b.wall_temp[t, l] == t_wall * \
+                                            np.exp(-b.K * self.time_step /
+                                                   (surface * self.rho * self.cp + C/self.length)) + Tu
+            else:
+                return b.wall_temp[t, l] == b.temperature_out_nhl[t, l]
+
+        self.block.temp_wall = Constraint(self.model.TIME, self.model.lines, rule=_temp_wall)
+
+        # Heat losses ##################################################################################################
+
+        # Eq. 3.4.24
+
+        def _tk(b, t):
+            return self.time_step * (b.m[t]+b.n[t])/2
+
+        self.block.tk = Param(self.model.TIME, rule=_tk)
+
+        # Eq. 3.4.27
+
+        def _temp_out(b, t, l):
+            if b.mass_flow_tot[t] == 0:
+                # TODO improve init
+                if t == 0:
+                    t_out = 300
+                else:
+                    t_out = b.temperature_out[t - 1, l]
+                return b.temperature_out[t, l] == t_out * \
+                                                  np.exp(-b.K*self.time_step /
+                                                         (surface * self.rho * self.cp + C/self.length)) + Tu
+            elif t == 0:
+                return b.temperature_out[t, l] == 353.15
+            else:
+                return b.temperature_out[t, l] == Tu + (b.temperature_out_nhl[t, l] - Tu) * \
+                                                        np.exp(-(b.K * b.tk[t]) /
+                                                               (surface * self.rho * self.cp))
+
+        self.block.def_temp_out = Constraint(self.model.TIME, self.model.lines, rule=_temp_out)
+
+        self.block.pprint()
+
+        # # Eq. 3.4.17
+        #
+        # self.block.wall_temp = Var(self.model.TIME, self.model.lines)
+        #
+        # def _wall_capacity(b, t, l):
+        #     return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * (b.mass_flow_tot[t, l]
+        #                                            * self.cp * self.time_step - self.C/2)
+        #                                            + self.C * b.wall_temp[t-1, l]) / \
+        #                                           (self.C/2 + b.mass_flow_tot[t, l] * self.cp * self.time_step)
+        #
+        # self.block.wall_capacity = Constraint(self.model.TIME, self.model.lines, rule=_wall_capacity)
+        #
+        # # Eq. 3.4.18
+        #
+        # def _wall_temp(b, t, l):
+        #     return b.wall_temp[t, l] == b.wall_temp[t-1, l] + \
+        #                                 ((b.temperature_out_nhc[t, l] - b.temperature_out_nhl[t, l]) *
+        #                                  b.mass_flow_tot[t, l] * self.cp * self.time_step) / self.C
+
+        # Heat losses ##################################################################################################
+
+        # Eq. 3.4.15
