@@ -69,6 +69,9 @@ class Modesto:
         params = {
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
+                                       'K'),
+            'Tg': WeatherDataParameter('Tg',
+                                       'Undisturbed ground temperature',
                                        'K')
         }
 
@@ -174,6 +177,11 @@ class Modesto:
             return self.params['Te'].v(t)
 
         self.model.Te = Param(self.model.TIME, rule=_ambient_temp)
+
+        def _ground_temp(b, t):
+            return self.params['Tg'].v(t)
+
+        self.model.Tg = Param(self.model.TIME, rule=_ground_temp)
 
         # Components
         for name, edge in self.edges.items():

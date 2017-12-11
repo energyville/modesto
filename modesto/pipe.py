@@ -494,6 +494,16 @@ class NodeMethod(Pipe):
                                                                  'Historic incoming temperatures for the return line, first value is the most recent value',
                                                                  'K')
 
+        params['wall_temperature_supply'] = StateParameter('wall_temperature_supply',
+                                                           'Initial temperature of supply pipe wall',
+                                                           'K',
+                                                           'fixedVal')
+
+        params['wall_temperature_return'] = StateParameter('wall_temperature_return',
+                                                           'Initial temperature of return pipe wall',
+                                                           'K',
+                                                           'fixedVal')
+
         return params
 
     def get_temperature(self, node, t, line):
@@ -543,7 +553,6 @@ class NodeMethod(Pipe):
         Z = surface*self.rho*self.length  # water mass in the pipe
         # TODO Move capacity?
         # TODO Undisturbed ground temperature
-        Tu = 10 + 273.15
 
         def _decl_mf(b, t):
             return self.params['mass_flow'].v(t)
@@ -671,31 +680,35 @@ class NodeMethod(Pipe):
 
         self.block.wall_temp = Var(self.model.TIME, self.model.lines)
 
-        def _wall_capacity(b, t, l):
+        def _temp_out_nhl(b, t, l):
             # TODO improve init
             if t == 0:
-                t_wall = 313.15
+                return Constraint.Skip
             else:
-                t_wall = b.wall_temp[t-1, l]
-            return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * b.mass_flow_tot[t]
-                                                   * self.cp * self.time_step
-                                                   + C * t_wall) / \
-                                                   (C + b.mass_flow_tot[t] * self.cp * self.time_step)
+                return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * b.mass_flow_tot[t]
+                                                       * self.cp * self.time_step
+                                                       + C * b.wall_temp[t-1, l]) / \
+                                                       (C + b.mass_flow_tot[t] * self.cp * self.time_step)
 
-        self.block.temp_out_nhl = Constraint(self.model.TIME, self.model.lines, rule=_wall_capacity)
+        self.block.temp_out_nhl = Constraint(self.model.TIME, self.model.lines, rule=_temp_out_nhl)
 
         # Eq. 3.4.15
+
+        def _init_temp_wall(b, l):
+            return b.wall_temp[0, l] == self.params['wall_temperature_' + l].v()
+
+        self.block.init_temp_wall = Constraint(self.model.lines, rule=_init_temp_wall)
 
         def _temp_wall(b, t, l):
             if b.mass_flow_tot[t] == 0:
                 # TODO improve init
                 if t == 0:
-                    t_wall = 313.15
+                    t_wall = 353.15
                 else:
                     t_wall = b.wall_temp[t-1, l]
                 return b.wall_temp[t, l] == t_wall * \
                                             np.exp(-b.K * self.time_step /
-                                                   (surface * self.rho * self.cp + C/self.length)) + Tu
+                                                   (surface * self.rho * self.cp + C/self.length)) + self.model.Tg[t]
             else:
                 return b.wall_temp[t, l] == b.temperature_out_nhl[t, l]
 
@@ -721,9 +734,11 @@ class NodeMethod(Pipe):
                     t_out = b.temperature_out[t - 1, l]
                 return b.temperature_out[t, l] == t_out * \
                                                   np.exp(-b.K*self.time_step /
-                                                         (surface * self.rho * self.cp + C/self.length)) + Tu
+                                                         (surface * self.rho * self.cp + C/self.length)) \
+                                                  + self.model.Tg[t]
             else:
-                return b.temperature_out[t, l] == Tu + (b.temperature_out_nhl[t, l] - Tu) * \
+                return b.temperature_out[t, l] == self.model.Tg[t] + \
+                                                  (b.temperature_out_nhl[t, l] - self.model.Tg[t]) * \
                                                         np.exp(-(b.K * b.tk[t]) /
                                                                (surface * self.rho * self.cp))
 
