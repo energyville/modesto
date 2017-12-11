@@ -342,6 +342,8 @@ class FixedProfile(Component):
             def _decl_temperatures(b, t):
                 if t == 0:
                     return Constraint.Skip
+                elif b.mass_flow[t] == 0:
+                    return  b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
                 else:
                     return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
                            b.heat_flow[t]/b.mass_flow[t]/self.cp
@@ -587,6 +589,8 @@ class ProducerVariable(Component):
             def _decl_temperatures(b, t):
                 if t == 0:
                     return Constraint.Skip
+                elif b.mass_flow[t] == 0:
+                    return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
                 else:
                     return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
 
@@ -642,6 +646,8 @@ class ProducerVariable(Component):
 
         :return:
         """
+
+        # return sum((70+273.15 - self.get_temperature(t, 'supply'))**2 for t in range(self.n_steps))
 
         return sum(self.get_temperature(t, 'supply') + self.get_temperature(t, 'return') for t in range(self.n_steps))
 

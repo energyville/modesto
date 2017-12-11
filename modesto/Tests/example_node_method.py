@@ -47,7 +47,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 300
+    n_steps = 288
     time_step = 300
 
     optmodel = Modesto(n_steps * time_step, time_step, 'NodeMethod', G)
@@ -58,13 +58,13 @@ def construct_model():
 
     step = np.linspace(100, 1000, n_steps).tolist()
 
-    # step = [500] * (n_steps/2) + [1000] * (n_steps/2)
+    # step = [0] * (n_steps/2) + [1000] * (n_steps/2)
     heat_profile = pd.DataFrame(step, index=range(n_steps))
     t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
     t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
     temp_history_return = pd.DataFrame([50 + 273.15] * 20, index=range(20))
     temp_history_supply = pd.DataFrame([70 + 273.15] * 20, index=range(20))
-    mass_flow_history = pd.DataFrame([70 + 273.15] * 20, index=range(20))
+    mass_flow_history = pd.DataFrame([10] * 20, index=range(20))
 
     optmodel.opt_settings(allow_flow_reversal=False)
     optmodel.change_general_param('Te', t_amb)
@@ -87,6 +87,8 @@ def construct_model():
     optmodel.change_param('bbThor', 'mass_flow_history', mass_flow_history)
     optmodel.change_param('bbThor', 'wall_temperature_supply', 343.15)
     optmodel.change_param('bbThor', 'wall_temperature_return', 323.15)
+    optmodel.change_param('bbThor', 'temperature_out_supply', 343.15)
+    optmodel.change_param('bbThor', 'temperature_out_return', 323.15)
     # optmodel.change_param('spWaterschei', 'pipe_type', 150)
     # optmodel.change_param('spZwartbergNE', 'pipe_type', 125)
 
@@ -127,7 +129,7 @@ def construct_model():
 if __name__ == '__main__':
     optmodel = construct_model()
     optmodel.compile()
-    optmodel.set_objective('temp')
+    optmodel.set_objective('energy')
 
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
