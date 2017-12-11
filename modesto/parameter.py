@@ -184,7 +184,7 @@ class DataFrameParameter(Parameter):
         """
 
         if time is None:
-            Parameter.get_value(self)
+            return self.value.ix[:, 0].tolist()
         elif self.value is None:
             print 'Warning: {} does not have a value yet'.format(self.name)
             return None
