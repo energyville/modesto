@@ -470,9 +470,9 @@ class NodeMethod(Pipe):
         self.Di = pipe_catalog['Di']
         self.Do = pipe_catalog['Do']
         self.allow_flow_reversal = allow_flow_reversal
-        self.mf_history = [1.5] * 40
-        self.temp_history = {'supply': [353.15] * 40,
-                             'return': [333.15] * 40}
+        self.mf_history = [1.5] * 1
+        self.temp_history = {'supply': [343.15] * 1,
+                             'return': [323.15] * 1}
 
         self.params = self.create_params()
 
@@ -481,8 +481,10 @@ class NodeMethod(Pipe):
         params = Pipe.create_params(self)
 
         params['mass_flow'] = UserDataParameter('mass_flow',
-                                           'Mass flow to or from the component (positive)',
-                                           'kg/s')
+                                                'Predicted mass flows through the pipe (positive if rom start to stop node)',
+                                                'kg/s')
+
+
 
         return params
 
@@ -566,6 +568,13 @@ class NodeMethod(Pipe):
                 return b.temperatures[t, l] == self.temp_history[l][t-self.n_steps]
 
         self.block.def_temp_history = Constraint(self.block.all_time, self.model.lines, rule=_decl_temp_history)
+
+        # Initialize incoming temperature ##############################################################################
+
+        def _decl_init_temp_in(b, l):
+            return b.temperature_in[0, l] == self.temp_history[l][0]  # TODO better initialization??
+
+        self.block.decl_init_temp_in = Constraint(self.model.lines, rule=_decl_init_temp_in)
 
         # Define n #####################################################################################################
 
@@ -656,7 +665,7 @@ class NodeMethod(Pipe):
         def _wall_capacity(b, t, l):
             # TODO improve init
             if t == 0:
-                t_wall = 323.15
+                t_wall = 313.15
             else:
                 t_wall = b.wall_temp[t-1, l]
             return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * b.mass_flow_tot[t]
@@ -672,7 +681,7 @@ class NodeMethod(Pipe):
             if b.mass_flow_tot[t] == 0:
                 # TODO improve init
                 if t == 0:
-                    t_wall = 323.15
+                    t_wall = 313.15
                 else:
                     t_wall = b.wall_temp[t-1, l]
                 return b.wall_temp[t, l] == t_wall * \
@@ -704,8 +713,8 @@ class NodeMethod(Pipe):
                 return b.temperature_out[t, l] == t_out * \
                                                   np.exp(-b.K*self.time_step /
                                                          (surface * self.rho * self.cp + C/self.length)) + Tu
-            elif t == 0:
-                return b.temperature_out[t, l] == 353.15
+            # elif t == 0:
+            #     return b.temperature_out[t, l] == self.temp_history[l][0]
             else:
                 return b.temperature_out[t, l] == Tu + (b.temperature_out_nhl[t, l] - Tu) * \
                                                         np.exp(-(b.K * b.tk[t]) /

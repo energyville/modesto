@@ -717,6 +717,8 @@ class Node(object):
             self.block.def_mixed_temp = Constraint(self.model.TIME, self.model.lines, rule=_temp_bal_incoming)
 
             def _temp_bal_outgoing(b, t, l, comp):
+                if t == 0:
+                    return Constraint.Skip
                 if comp in outgoing_pipes[l]:
                     return p[comp].get_temperature(self.name, t, l) == b.mix_temp[t, l]
                 elif comp in outgoing_comps[l]:

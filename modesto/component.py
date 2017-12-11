@@ -563,8 +563,8 @@ class ProducerVariable(Component):
         self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
 
         def _decl_ramp(b, t):
-            if t==0:
-                return b.heat_flow[t] <= self.params['ramp'].v()*self.time_step
+            if t == 0:
+                return Constraint.Skip
             else:
                 return b.heat_flow[t] - b.heat_flow[t-1] <= self.params['ramp'].v()*self.time_step
 

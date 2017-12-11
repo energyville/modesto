@@ -26,19 +26,19 @@ def construct_model():
 
     G.add_node('ThorPark', x=4000, y=4000, z=0,
                comps={'thorPark': 'ProducerVariable'})
-    G.add_node('p1', x=2600, y=5000, z=0,
-               comps={})
+    # G.add_node('p1', x=2600, y=5000, z=0,
+    #            comps={})
     G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
                comps={'waterscheiGarden.buildingD': 'BuildingFixed',
                       # 'waterscheiGarden.storage': 'StorageVariable'
                       }
                )
-    G.add_node('zwartbergNE', x=2000, y=5500, z=0,
-               comps={'zwartbergNE.buildingD': 'BuildingFixed'})
+    # G.add_node('zwartbergNE', x=2000, y=5500, z=0,
+    #            comps={'zwartbergNE.buildingD': 'BuildingFixed'})
 
-    G.add_edge('ThorPark', 'p1', name='bbThor')
-    G.add_edge('p1', 'waterscheiGarden', name='spWaterschei')
-    G.add_edge('p1', 'zwartbergNE', name='spZwartbergNE')
+    G.add_edge('ThorPark', 'waterscheiGarden', name='bbThor')
+    # G.add_edge('p1', 'waterscheiGarden', name='spWaterschei')
+    # G.add_edge('p1', 'zwartbergNE', name='spZwartbergNE')
 
     # nx.draw(G, with_labels=True)
     # plt.show()
@@ -47,7 +47,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 288
+    n_steps = 300
     time_step = 300
 
     optmodel = Modesto(n_steps * time_step, time_step, 'NodeMethod', G)
@@ -65,20 +65,20 @@ def construct_model():
     optmodel.opt_settings(allow_flow_reversal=False)
     optmodel.change_general_param('Te', t_amb)
 
-    optmodel.change_param('zwartbergNE.buildingD', 'delta_T', 20)
-    optmodel.change_param('zwartbergNE.buildingD', 'mult', 100)
-    optmodel.change_param('zwartbergNE.buildingD', 'heat_profile', heat_profile)
-    optmodel.change_param('zwartbergNE.buildingD', 'temperature_return', 333.15)
-    optmodel.change_param('zwartbergNE.buildingD', 'temperature_supply', 353.15)
+    # optmodel.change_param('zwartbergNE.buildingD', 'delta_T', 20)
+    # optmodel.change_param('zwartbergNE.buildingD', 'mult', 100)
+    # optmodel.change_param('zwartbergNE.buildingD', 'heat_profile', heat_profile)
+    # optmodel.change_param('zwartbergNE.buildingD', 'temperature_return', 323.15)
+    # optmodel.change_param('zwartbergNE.buildingD', 'temperature_supply', 343.15)
     optmodel.change_param('waterscheiGarden.buildingD', 'delta_T', 20)
     optmodel.change_param('waterscheiGarden.buildingD', 'mult', 500)
     optmodel.change_param('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
-    optmodel.change_param('waterscheiGarden.buildingD', 'temperature_return', 333.15)
-    optmodel.change_param('waterscheiGarden.buildingD', 'temperature_supply', 353.15)
+    optmodel.change_param('waterscheiGarden.buildingD', 'temperature_return', 323.15)
+    optmodel.change_param('waterscheiGarden.buildingD', 'temperature_supply', 343.15)
 
     optmodel.change_param('bbThor', 'pipe_type', 150)
-    optmodel.change_param('spWaterschei', 'pipe_type', 150)
-    optmodel.change_param('spZwartbergNE', 'pipe_type', 125)
+    # optmodel.change_param('spWaterschei', 'pipe_type', 150)
+    # optmodel.change_param('spZwartbergNE', 'pipe_type', 125)
 
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
@@ -86,8 +86,8 @@ def construct_model():
                    'fuel_cost': 0.034,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 4e6,
-                   'temperature_supply': 353.15,
-                   'temperature_return': 353.15,
+                   'temperature_supply': 343.15,
+                   'temperature_return': 323.15,
                    'temperature_max': 363.15,
                    'temperature_min': 303.15,
                    'ramp': 10}
@@ -178,7 +178,7 @@ if __name__ == '__main__':
     prod_hf = optmodel.get_result('thorPark', 'heat_flow')
     # storage_hf = optmodel.get_result('waterscheiGarden.storage', 'heat_flow')
     waterschei_hf = optmodel.get_result('waterscheiGarden.buildingD', 'heat_flow')
-    zwartberg_hf = optmodel.get_result('zwartbergNE.buildingD', 'heat_flow')
+    # zwartberg_hf = optmodel.get_result('zwartbergNE.buildingD', 'heat_flow')
 
     # storage_soc = optmodel.get_result('waterscheiGarden.storage', 'heat_stor')
 
@@ -186,14 +186,14 @@ if __name__ == '__main__':
     prod_e = sum(prod_hf)
     # storage_e = sum(storage_hf)
     waterschei_e = sum(waterschei_hf)
-    zwartberg_e = sum(zwartberg_hf)
+    # zwartberg_e = sum(zwartberg_hf)
 
     prod_t_sup = optmodel.get_result('thorPark', 'temperatures', 'supply')
     prod_t_ret = optmodel.get_result('thorPark', 'temperatures', 'return')
     ws_t_sup = optmodel.get_result('waterscheiGarden.buildingD', 'temperatures', 'supply')
     ws_t_ret = optmodel.get_result('waterscheiGarden.buildingD', 'temperatures', 'return')
-    zw_t_sup = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'supply')
-    zw_t_ret = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'return')
+    # zw_t_sup = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'supply')
+    # zw_t_ret = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'return')
     pipe_t_sup_out = optmodel.get_result('bbThor', 'temperature_out', 'supply')
     pipe_t_ret_out = optmodel.get_result('bbThor', 'temperature_out', 'return')
     pipe_t_sup_in = optmodel.get_result('bbThor', 'temperature_in', 'supply')
@@ -201,7 +201,7 @@ if __name__ == '__main__':
 
     # Efficiency
     print '\nNetwork'
-    print 'Efficiency', (waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+    print 'Efficiency', (waterschei_e ) / prod_e * 100, '%'  #+ zwartberg_e
 
     # Diameters
     # print '\nDiameters'
@@ -230,7 +230,7 @@ if __name__ == '__main__':
 
     ax.hold(True)
     l1, = ax.plot(prod_hf)
-    l3, = ax.plot([x+y for x, y in zip(waterschei_hf, zwartberg_hf,)])  # , )])  #
+    l3, = ax.plot([x for x in zip(waterschei_hf, )])  # , )])  #zwartberg_hf,
     ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
 
     ax.set_title('Heat flows [W]')
@@ -248,8 +248,8 @@ if __name__ == '__main__':
     ax2.plot(np.asarray(prod_t_ret) - 273.15, '--', label="Return temperature prod [degrees C]")
     ax2.plot(np.asarray(ws_t_sup) - 273.15, ':', label='Supply temperature WS [degrees C]')
     ax2.plot(np.asarray(ws_t_ret) - 273.15, ':', label="Return temperature WS [degrees C]")
-    ax2.plot(np.asarray(zw_t_sup) - 273.15, label='Supply temperature ZW [degrees C]')
-    ax2.plot(np.asarray(zw_t_ret) - 273.15, label="Return temperature ZW [degrees C]")
+    # ax2.plot(np.asarray(zw_t_sup) - 273.15, label='Supply temperature ZW [degrees C]')
+    # ax2.plot(np.asarray(zw_t_ret) - 273.15, label="Return temperature ZW [degrees C]")
     # ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax2.legend()
     fig2.suptitle('Temperatures')
@@ -259,7 +259,7 @@ if __name__ == '__main__':
 
     ax3 = fig3.add_subplot(111)
     ax3.plot(waterschei_hf, label='Waterschei')
-    ax3.plot(zwartberg_hf, label="Zwartberg")
+    # ax3.plot(zwartberg_hf, label="Zwartberg")
     # ax3.plot(storage_hf, label='Storage')
     ax3.axhline(y=0, linewidth=1.5, color='k', linestyle='--')
     ax3.legend()
@@ -273,8 +273,8 @@ if __name__ == '__main__':
     ax4.plot(np.asarray(pipe_t_sup_out) - 273.15, label="Pipe supply temperature out [degrees C]")
     ax4.plot(np.asarray(pipe_t_ret_in) - 273.15, label='Pipe return temperature in [degrees C]')
     ax4.plot(np.asarray(pipe_t_ret_out) - 273.15, label="Pipe return temperature out [degrees C]")
-    ax2.plot(np.asarray(zw_t_sup) - 273.15, label='Supply temperature ZW [degrees C]')
-    ax2.plot(np.asarray(zw_t_ret) - 273.15, label="Return temperature ZW [degrees C]")
+    # ax2.plot(np.asarray(zw_t_sup) - 273.15, label='Supply temperature ZW [degrees C]')
+    # ax2.plot(np.asarray(zw_t_ret) - 273.15, label="Return temperature ZW [degrees C]")
     # ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax4.legend()
     fig4.suptitle('Temperatures')
