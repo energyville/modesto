@@ -470,9 +470,7 @@ class NodeMethod(Pipe):
         self.Di = pipe_catalog['Di']
         self.Do = pipe_catalog['Do']
         self.allow_flow_reversal = allow_flow_reversal
-        self.mf_history = [1.5] * 1
-        self.temp_history = {'supply': [343.15] * 1,
-                             'return': [323.15] * 1}
+        self.history_length = 0  # Number of known historical values
 
         self.params = self.create_params()
 
@@ -484,7 +482,17 @@ class NodeMethod(Pipe):
                                                 'Predicted mass flows through the pipe (positive if rom start to stop node)',
                                                 'kg/s')
 
+        params['mass_flow_history'] = UserDataParameter('mass_flow_history',
+                                                        'Historic mass flows through the pipe (positive if rom start to stop node)',
+                                                        'kg/s')
 
+        params['temperature_history_supply'] = UserDataParameter('temperature_history_supply',
+                                                                 'Historic incoming temperatures for the supply line, first value is the most recent value',
+                                                                 'K')
+
+        params['temperature_history_return'] = UserDataParameter('temperature_history_return',
+                                                                 'Historic incoming temperatures for the return line, first value is the most recent value',
+                                                                 'K')
 
         return params
 
@@ -517,6 +525,7 @@ class NodeMethod(Pipe):
 
         self.check_data()
 
+
         dn = self.params['pipe_type'].v()
         if dn is None:
             self.logger.info('No dn set. Optimizing diameter.')
@@ -524,7 +533,7 @@ class NodeMethod(Pipe):
 
         self.make_block(model)
 
-        self.block.all_time = Set(initialize=range(len(self.mf_history) + self.n_steps), ordered=True)
+        self.block.all_time = Set(initialize=range(self.history_length + self.n_steps), ordered=True)
 
         pipe_wall_rho = 7.85*10**3  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html kg/m^3
         pipe_wall_c = 461   # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html J/kg/K
@@ -555,7 +564,7 @@ class NodeMethod(Pipe):
             if t < self.n_steps:
                 return self.block.mass_flow_tot[self.n_steps - t - 1]
             else:
-                return self.mf_history[t-self.n_steps]
+                return self.params['mass_flow_history'].v(t-self.n_steps)
 
         self.block.mf_history = Param(self.block.all_time, rule=_decl_mf_history)
 
@@ -565,14 +574,14 @@ class NodeMethod(Pipe):
             if t < self.n_steps:
                 return b.temperatures[t, l] == b.temperature_in[self.n_steps - t - 1, l]
             else:
-                return b.temperatures[t, l] == self.temp_history[l][t-self.n_steps]
+                return b.temperatures[t, l] == self.params['temperature_history_' + l].v(t-self.n_steps)
 
         self.block.def_temp_history = Constraint(self.block.all_time, self.model.lines, rule=_decl_temp_history)
 
         # Initialize incoming temperature ##############################################################################
 
         def _decl_init_temp_in(b, l):
-            return b.temperature_in[0, l] == self.temp_history[l][0]  # TODO better initialization??
+            return b.temperature_in[0, l] == self.params['temperature_history_' + l].v(0)  # TODO better initialization??
 
         self.block.decl_init_temp_in = Constraint(self.model.lines, rule=_decl_init_temp_in)
 
@@ -713,8 +722,6 @@ class NodeMethod(Pipe):
                 return b.temperature_out[t, l] == t_out * \
                                                   np.exp(-b.K*self.time_step /
                                                          (surface * self.rho * self.cp + C/self.length)) + Tu
-            # elif t == 0:
-            #     return b.temperature_out[t, l] == self.temp_history[l][0]
             else:
                 return b.temperature_out[t, l] == Tu + (b.temperature_out_nhl[t, l] - Tu) * \
                                                         np.exp(-(b.K * b.tk[t]) /
