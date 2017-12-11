@@ -170,8 +170,8 @@ if __name__ == '__main__':
     print 'T supply out', optmodel.get_result('bbThor', 'temperature_out', 'supply')
     print 'T return in', optmodel.get_result('bbThor', 'temperature_in', 'return')
     print 'T return out', optmodel.get_result('bbThor', 'temperature_out', 'return')
-    # print 'Wall temperature supply', optmodel.get_result('ThorPark', 'mix_temp', 'supply')
-    # print 'Wall temperature return', optmodel.get_result('ThorPark', 'mix_temp', 'return')
+    print 'Wall temperature supply', optmodel.get_result('ThorPark', 'mix_temp', 'supply')
+    print 'Wall temperature return', optmodel.get_result('ThorPark', 'mix_temp', 'return')
 
     # print '\nStorage'
     # print 'Heat flow', optmodel.get_result('waterscheiGarden.storage', 'heat_flow')
