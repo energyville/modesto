@@ -350,7 +350,7 @@ class Modesto:
         assert comp in self.components, "%s is not recognized as a valid component" % comp
         self.components[comp].change_param(param, val)
 
-    def change_params(self, comp, dict):
+    def change_params(self, dict, comp=None):
         """
         Change multiple parameters of a component at once
 
@@ -359,8 +359,12 @@ class Modesto:
         values the corresponding new values of the parameters
         """
 
-        for param, val in dict.items():
-            self.change_param(comp, param, val)
+        if comp is None:
+            for param, val in dict.items():
+                self.change_general_param(param, val)
+        else:
+            for param, val in dict.items():
+                self.change_param(comp, param, val)
 
     def change_state_bounds(self, comp, state, new_ub, new_lb, slack):
         """
