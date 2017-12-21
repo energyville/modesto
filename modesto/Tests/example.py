@@ -81,8 +81,7 @@ def construct_model():
         'kIns': 0.024
     }
 
-    for i in stor_design:
-        optmodel.change_param('waterscheiGarden.storage', i, stor_design[i])
+    optmodel.change_params(dict=stor_design, comp='waterscheiGarden.storage')
 
     optmodel.change_init_type('waterscheiGarden.storage', 'heat_stor', 'fixedVal')
     optmodel.change_state_bounds('waterscheiGarden.storage', 'heat_stor', 50, 0, False)
@@ -93,10 +92,11 @@ def construct_model():
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': 0.034,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 10e6}
+                   'Qmax': 10e6,
+                   'ramp': 1e6/3600,
+                   'ramp_cost': 0.01}
 
-    for i in prod_design:
-        optmodel.change_param('thorPark', i, prod_design[i])
+    optmodel.change_params(prod_design, 'thorPark')
 
     ##################################
     # Print parameters               #
