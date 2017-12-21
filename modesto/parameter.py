@@ -40,8 +40,9 @@ class Parameter(object):
 
         """
         if self.value is None:
-            raise Exception('{} does not have a value yet. Please, add one before optimizing.\n{}'.\
-                format(self.name, self.get_description()))
+            return False
+        else:
+            return True
 
     def get_description(self):
         """
@@ -169,6 +170,8 @@ class DataFrameParameter(Parameter):
         :param unit: Unit of the parameter (e.g. K, W, m...) (str)
         :param val: Value of the parameter, if not given, it becomes None
         """
+        if isinstance(val, pd.DataFrame):
+            raise TypeError('The value of this parameter (user/weather data)should be a pandas DataFrame')
 
         Parameter.__init__(self, name, description, unit, val)
 
@@ -181,7 +184,7 @@ class DataFrameParameter(Parameter):
         """
 
         if time is None:
-            Parameter.get_value(self)
+            return self.value.ix[:, 0].tolist()
         elif self.value is None:
             print 'Warning: {} does not have a value yet'.format(self.name)
             return None
