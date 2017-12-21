@@ -180,20 +180,19 @@ def compare_ramping_costs():
         heat[rc] = optmodel.get_result('thorPark', 'heat_flow')
 
     fig1 = plt.figure()
-
     ax1 = fig1.add_subplot(111)
     ax1.semilogx(ramp_cost, cost)
     fig1.suptitle('Cost of heating [euro]')
     fig1.tight_layout()
 
     fig2 = plt.figure()
-
     ax2 = fig2.add_subplot(111)
     for rc in ramp_cost:
         ax2.plot(range(n_steps), heat[rc], label=rc)
     fig2.suptitle('Heat injection [W]')
     ax2.legend()
     fig2.tight_layout()
+
     plt.show()
 
 if __name__ == '__main__':
@@ -227,9 +226,9 @@ if __name__ == '__main__':
     zw_t_ret = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'return')
 
     # Mass flows through the network
-    mf = {'bbThor': optmodel.get_result('bbThor', 'mass_flow_tot'),
-          'spWaterschei': optmodel.get_result('spWaterschei', 'mass_flow_tot'),
-          'spZwartbergNE': optmodel.get_result('spZwartbergNE', 'mass_flow_tot')}
+    mf = {'bbThor': optmodel.get_result('bbThor', 'mass_flow'),
+          'spWaterschei': optmodel.get_result('spWaterschei', 'mass_flow'),
+          'spZwartbergNE': optmodel.get_result('spZwartbergNE', 'mass_flow')}
 
     # Determine ratio between distance travelled and pipe length, important for good behaviour model
     maximum = 0
@@ -288,7 +287,6 @@ if __name__ == '__main__':
     fig2.tight_layout()
 
     fig3 = plt.figure()
-
     ax3 = fig3.add_subplot(111)
     ax3.plot(waterschei_hf, label='Waterschei')
     ax3.plot(zwartberg_hf, label="Zwartberg")
