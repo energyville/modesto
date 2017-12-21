@@ -226,9 +226,9 @@ if __name__ == '__main__':
     zw_t_ret = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'return')
 
     # Mass flows through the network
-    mf = {'bbThor': optmodel.get_result('bbThor', 'mass_flow_tot'),
-          'spWaterschei': optmodel.get_result('spWaterschei', 'mass_flow_tot'),
-          'spZwartbergNE': optmodel.get_result('spZwartbergNE', 'mass_flow_tot')}
+    mf = {'bbThor': optmodel.get_result('bbThor', 'mass_flow'),
+          'spWaterschei': optmodel.get_result('spWaterschei', 'mass_flow'),
+          'spZwartbergNE': optmodel.get_result('spZwartbergNE', 'mass_flow')}
 
     # Determine ratio between distance travelled and pipe length, important for good behaviour model
     maximum = 0

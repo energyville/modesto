@@ -198,9 +198,9 @@ if __name__ == '__main__':
 
     # Mass flows
     print '\nMass flows'
-    print 'bbThor: ', optmodel.get_result('bbThor', 'mass_flow_tot')
-    print 'spWaterschei: ', optmodel.get_result('spWaterschei', 'mass_flow_tot')
-    print 'spZwartbergNE: ', optmodel.get_result('spZwartbergNE', 'mass_flow_tot')
+    print 'bbThor: ', optmodel.get_result('bbThor', 'mass_flow')
+    print 'spWaterschei: ', optmodel.get_result('spWaterschei', 'mass_flow')
+    print 'spZwartbergNE: ', optmodel.get_result('spZwartbergNE', 'mass_flow')
 
     # Objectives
     print '\nObjective function'
