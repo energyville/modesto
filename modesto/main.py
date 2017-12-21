@@ -165,6 +165,7 @@ class Modesto:
         # Check if not compiled already
         if self.compiled:
             self.logger.warning('Model was already compiled.')
+            self.model = ConcreteModel()
 
         # Check whether all necessary parameters are there
         self.check_data()
@@ -206,16 +207,21 @@ class Modesto:
         def obj_cost(model):
             return sum(comp.obj_cost() for comp in self.iter_components())
 
+        def obj_cost_ramp(model):
+            return sum(comp.obj_cost_ramp() for comp in self.iter_components())
+
         def obj_co2(model):
             return sum(comp.obj_co2() for comp in self.iter_components())
 
         self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
         self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
+        self.model.OBJ_COST_RAMP = Objective(rule=obj_cost_ramp, sense=minimize)
         self.model.OBJ_CO2 = Objective(rule=obj_co2, sense=minimize)
 
         self.objectives = {
             'energy': self.model.OBJ_ENERGY,
             'cost': self.model.OBJ_COST,
+            'cost_ramp': self.model.OBJ_COST_RAMP,
             'co2': self.model.OBJ_CO2
         }
 
@@ -578,6 +584,32 @@ class Modesto:
         for tuple in tuples:
             edges.append(dict[tuple])
         return edges
+
+    def get_pipe_diameter(self, pipe):
+        """
+        Get the diameter of a certain pipe
+
+        :param pipe: Name of the pipe
+        :return: diameter
+        """
+
+        if pipe not in self.components:
+            raise KeyError('{} is not recognized as an existing pipe'.format(pipe))
+
+        return self.components[pipe].get_diameter()
+
+    def get_pipe_length(self, pipe):
+        """
+        Get the length of a certain pipe
+
+        :param pipe: Name of the pipe
+        :return: length
+        """
+
+        if pipe not in self.components:
+            raise KeyError('{} is not recognized as an existing pipe'.format(pipe))
+
+        return self.components[pipe].get_length()
 
 
 class Node(object):

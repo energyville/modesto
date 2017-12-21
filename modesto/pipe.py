@@ -552,7 +552,7 @@ class NodeMethod(Pipe):
         self.block.all_time = Set(initialize=range(self.history_length + self.n_steps), ordered=True)
 
         pipe_wall_rho = 7.85*10**3  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html kg/m^3
-        pipe_wall_c = 461   # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html J/kg/K
+        pipe_wall_c = 461  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html J/kg/K
         pipe_wall_volume = np.pi*(self.Do[dn]**2-self.Di[dn]**2)/4*self.length
         C = pipe_wall_volume * pipe_wall_c * pipe_wall_rho
         surface = np.pi*self.Di[dn]**2/4  # cross sectional area of the pipe
@@ -688,7 +688,7 @@ class NodeMethod(Pipe):
 
         self.block.wall_temp = Var(self.model.TIME, self.model.lines)
 
-        def _temp_out_nhl(b, t, l):
+        def _decl_temp_out_nhl(b, t, l):
             if t == 0:
                 return Constraint.Skip
             elif b.mass_flow_tot[t] == 0:
@@ -698,15 +698,6 @@ class NodeMethod(Pipe):
                                                        * self.cp * self.time_step
                                                        + C * b.wall_temp[t-1, l]) / \
                                                        (C + b.mass_flow_tot[t] * self.cp * self.time_step)
-
-        self.block.temp_out_nhl = Constraint(self.model.TIME, self.model.lines, rule=_temp_out_nhl)
-
-        # Eq. 3.4.15
-
-        def _init_temp_wall(b, l):
-            return b.wall_temp[0, l] == self.params['wall_temperature_' + l].v()
-
-        self.block.init_temp_wall = Constraint(self.model.lines, rule=_init_temp_wall)
 
         def _temp_wall(b, t, l):
             if b.mass_flow_tot[t] == 0:
@@ -719,6 +710,43 @@ class NodeMethod(Pipe):
             else:
                 return b.wall_temp[t, l] == b.temperature_out_nhl[t, l]
 
+        # self.block.temp_wall = Constraint(self.model.TIME, self.model.lines, rule=_temp_wall)
+
+        # Eq. 3.4.15
+
+        def _init_temp_wall(b, l):
+            return b.wall_temp[0, l] == self.params['wall_temperature_' + l].v()
+
+        self.block.init_temp_wall = Constraint(self.model.lines, rule=_init_temp_wall)
+
+        # def _decl_temp_out_nhl(b, t, l):
+        #     if t == 0:
+        #         return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * (b.mass_flow_tot[t]
+        #                                                * self.cp * self.time_step - C/2)
+        #                                                + C * b.wall_temp[t, l]) / \
+        #                                           (C/2 + b.mass_flow_tot[t] * self.cp * self.time_step)
+        #     else:
+        #         return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * (b.mass_flow_tot[t]
+        #                                                * self.cp * self.time_step - C/2)
+        #                                                + C * b.wall_temp[t-1, l]) / \
+        #                                               (C/2 + b.mass_flow_tot[t] * self.cp * self.time_step)
+
+        self.block.decl_temp_out_nhl = Constraint(self.model.TIME, self.model.lines, rule=_decl_temp_out_nhl)
+
+        # Eq. 3.4.18
+
+        # def _temp_wall(b, t, l):
+        #     if t == 0:
+        #         return Constraint.Skip
+        #     elif b.mass_flow_tot[t] == 0:
+        #         return b.wall_temp[t, l] == self.model.Tg[t] + (b.wall_temp[t-1, l] - self.model.Tg[t]) * \
+        #                                     np.exp(-b.K * self.time_step /
+        #                                            (surface * self.rho * self.cp + C/self.length))
+        #     else:
+        #         return b.wall_temp[t, l] == b.wall_temp[t-1, l] + \
+        #                             ((b.temperature_out_nhc[t, l] - b.temperature_out_nhl[t, l]) *
+        #                              b.mass_flow_tot[t] * self.cp * self.time_step) / C
+
         self.block.temp_wall = Constraint(self.model.TIME, self.model.lines, rule=_temp_wall)
 
         # Heat losses ##################################################################################################
@@ -726,7 +754,11 @@ class NodeMethod(Pipe):
         # Eq. 3.4.24
 
         def _tk(b, t):
-            return self.time_step * (b.m[t]+b.n[t])/2
+            delta_time = self.time_step * ((b.R[t] - Z) * b.n[t]
+                                           + sum(b.mf_history[self.n_steps - 1 - t + i] * self.time_step * i for i in range(b.n[t] + 1, b.m[t]))
+                                           + (b.mass_flow_tot[t] * self.time_step - b.S[t] + Z) * b.m[t]) \
+                    / b.mass_flow_tot[t] / self.time_step
+            return delta_time
 
         self.block.tk = Param(self.model.TIME, rule=_tk)
 
@@ -749,27 +781,8 @@ class NodeMethod(Pipe):
 
         self.block.def_temp_out = Constraint(self.model.TIME, self.model.lines, rule=_temp_out)
 
-        self.block.pprint()
+    def get_diameter(self):
+        return self.Di[self.params['pipe_type'].v()]
 
-        # # Eq. 3.4.17
-        #
-        # self.block.wall_temp = Var(self.model.TIME, self.model.lines)
-        #
-        # def _wall_capacity(b, t, l):
-        #     return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * (b.mass_flow_tot[t, l]
-        #                                            * self.cp * self.time_step - self.C/2)
-        #                                            + self.C * b.wall_temp[t-1, l]) / \
-        #                                           (self.C/2 + b.mass_flow_tot[t, l] * self.cp * self.time_step)
-        #
-        # self.block.wall_capacity = Constraint(self.model.TIME, self.model.lines, rule=_wall_capacity)
-        #
-        # # Eq. 3.4.18
-        #
-        # def _wall_temp(b, t, l):
-        #     return b.wall_temp[t, l] == b.wall_temp[t-1, l] + \
-        #                                 ((b.temperature_out_nhc[t, l] - b.temperature_out_nhl[t, l]) *
-        #                                  b.mass_flow_tot[t, l] * self.cp * self.time_step) / self.C
-
-        # Heat losses ##################################################################################################
-
-        # Eq. 3.4.15
+    def get_length(self):
+        return self.length

@@ -4,6 +4,7 @@ import logging
 from math import pi, log, exp
 import pandas as pd
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
+import numpy as np
 
 from parameter import StateParameter, DesignParameter, UserDataParameter
 
@@ -240,6 +241,14 @@ class Component(object):
         """
         return 0
 
+    def obj_cost_ramp(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
     def obj_co2(self):
         """
         Yield summation of energy variables for objective function, but only for relevant component types
@@ -307,6 +316,12 @@ class FixedProfile(Component):
                                                           'Initial return temperature at the component',
                                                           'K',
                                                           'fixedVal')
+            params['temperature_max'] = DesignParameter('temperature_max',
+                                                          'Maximun allowed water temperature at the component',
+                                                          'K')
+            params['temperature_min'] = DesignParameter('temperature_min',
+                                                          'Minimum allowed temperature at the component',
+                                                          'K')
 
         return params
 
@@ -337,7 +352,9 @@ class FixedProfile(Component):
         self.block.heat_flow = Param(self.model.TIME, rule=_heat_flow)
 
         if self.temperature_driven:
-            self.block.temperatures = Var(self.model.TIME, self.model.lines)
+            self.block.temperatures = Var(self.model.TIME, self.model.lines,
+                                          bounds=(self.params['temperature_min'].v(),
+                                                  self.params['temperature_max'].v()))
 
             def _decl_temperatures(b, t):
                 if t == 0:
@@ -491,7 +508,7 @@ class ProducerVariable(Component):
 
         self.params = self.create_params()
 
-        self.logger = logging.getLogger('comps.VarProducer')
+        self.logger = logging.getLogger('modesto.components.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
 
     def create_params(self):
@@ -512,8 +529,11 @@ class ProducerVariable(Component):
                                     'Maximum possible heat output',
                                     'W'),
             'ramp': DesignParameter('ramp',
-                                    'Maximum ramp (increase in heat output',
+                                    'Maximum ramp (increase in heat output)',
                                     'W/s'),
+            'ramp_cost': DesignParameter('ramp_cost',
+                                         'Ramping cost',
+                                         'euro/(W/s)')
         }
 
         if self.temperature_driven:
@@ -548,6 +568,7 @@ class ProducerVariable(Component):
         self.make_block(parent)
 
         self.block.heat_flow = Var(self.model.TIME, bounds=(0, self.params['Qmax'].v()))
+        self.block.ramping_cost = Var(self.model.TIME)
 
         if self.temperature_driven:
             def _mass_flow(b, t):
@@ -576,29 +597,56 @@ class ProducerVariable(Component):
             else:
                 return b.heat_flow[t-1] - b.heat_flow[t] <= self.params['ramp'].v() * self.time_step
 
+        def _decl_upward_ramp_cost(b, t):
+            if t == 0:
+                return b.ramping_cost[t] == 0
+            else:
+                return b.ramping_cost[t] >= (b.heat_flow[t] - b.heat_flow[t-1])*self.params['ramp_cost'].v()
+
+        def _decl_downward_ramp_cost(b, t):
+            if t == 0:
+                return Constraint.Skip
+            else:
+                return b.ramping_cost[t] >= (b.heat_flow[t-1] - b.heat_flow[t])*self.params['ramp_cost'].v()
+
         self.block.decl_upward_ramp = Constraint(self.model.TIME, rule=_decl_upward_ramp)
         self.block.decl_downward_ramp = Constraint(self.model.TIME, rule=_decl_downward_ramp)
+        self.block.decl_downward_ramp_cost = Constraint(self.model.TIME, rule=_decl_downward_ramp_cost)
+        self.block.decl_upward_ramp_cost = Constraint(self.model.TIME, rule=_decl_upward_ramp_cost)
 
         if self.temperature_driven:
 
             self.block.temperatures = Var(self.model.TIME,
-                                          self.model.lines,
-                                          bounds=(self.params['temperature_min'].v(),
-                                                  self.params['temperature_max'].v()))
+                                          self.model.lines)
+
+            def _limit_temperatures(b, t):
+                return self.params['temperature_min'].v() <= b.temperatures[t, 'supply'] <= self.params['temperature_max'].v()
+
+            self.block.limit_teperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
 
             def _decl_temperatures(b, t):
                 if t == 0:
                     return Constraint.Skip
                 elif b.mass_flow[t] == 0:
-                    return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
+                    return Constraint.Skip
                 else:
                     return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
 
             def _init_temperature(b, l):
                 return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
+            def _decl_temp_mf0(b, t):
+                if (not t == 0) and b.mass_flow[t] == 0:
+                    return b.temperatures[t, 'supply'] == b.temperatures[t-1, 'supply']
+                else:
+                    return Constraint.Skip
+
             self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
             self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperature)
+            self.block.dec_temp_mf0 = Constraint(self.model.TIME, rule=_decl_temp_mf0)
+
+    def get_ramp_cost(self, t):
+        return self.block.ramping_cost[t]
 
     # TODO Objectives are all the same, only difference is the value of the weight...
 
@@ -613,7 +661,7 @@ class ProducerVariable(Component):
         eta = self.params['efficiency'].v()
         pef = self.params['PEF'].v()
 
-        return sum(pef / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+        return sum(pef / eta * (self.get_heat(t)) * self.time_step / 3600 for t in range(self.n_steps))
 
     def obj_cost(self):
         """
@@ -624,7 +672,18 @@ class ProducerVariable(Component):
         """
         cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
-        return sum(cost / eta * self.get_heat(t) for t in range(self.n_steps))
+        return sum(cost[t] / eta * self.get_heat(t) for t in range(self.n_steps)) #
+
+    def obj_cost_ramp(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
+        eta = self.params['efficiency'].v()
+        return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t) for t in range(self.n_steps)) #
 
     def obj_co2(self):
         """
@@ -649,7 +708,7 @@ class ProducerVariable(Component):
 
         # return sum((70+273.15 - self.get_temperature(t, 'supply'))**2 for t in range(self.n_steps))
 
-        return sum(self.get_temperature(t, 'supply') + self.get_temperature(t, 'return') for t in range(self.n_steps))
+        return sum(self.get_temperature(t, 'supply') for t in self.model.TIME)
 
 
 class StorageFixed(FixedProfile):
