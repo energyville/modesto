@@ -56,20 +56,41 @@ def construct_model():
 
     heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
     t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
+    t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
 
     optmodel.opt_settings(allow_flow_reversal=False)
-    optmodel.change_general_param('Te', t_amb)
 
-    optmodel.change_param('zwartbergNE.buildingD', 'delta_T', 20)
-    optmodel.change_param('zwartbergNE.buildingD', 'mult', 2000)
-    optmodel.change_param('zwartbergNE.buildingD', 'heat_profile', heat_profile)
-    optmodel.change_param('waterscheiGarden.buildingD', 'delta_T', 20)
-    optmodel.change_param('waterscheiGarden.buildingD', 'mult', 20)
-    optmodel.change_param('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
+    # general parameters
 
-    optmodel.change_param('bbThor', 'pipe_type', 150)
-    optmodel.change_param('spWaterschei', 'pipe_type', 200)
-    optmodel.change_param('spZwartbergNE', 'pipe_type', 125)
+    general_params = {'Te': t_amb,
+                      'Tg': t_g}
+
+    optmodel.change_params(general_params)
+
+    # building parameters
+
+    zw_building_params = {'delta_T': 20,
+                          'mult': 2000,
+                          'heat_profile': heat_profile,
+                          }
+
+    ws_building_params = zw_building_params.copy()
+    ws_building_params['mult'] = 20
+
+    optmodel.change_params(zw_building_params, 'zwartbergNE.buildingD')
+    optmodel.change_params(ws_building_params, 'waterscheiGarden.buildingD')
+
+    bbThor_params = {'pipe_type': 150}
+    spWaterschei_params = bbThor_params.copy()
+    spWaterschei_params['pipe_type'] = 200
+    spZwartbergNE_params = bbThor_params.copy()
+    spZwartbergNE_params['pipe_type'] = 125
+
+    optmodel.change_params(bbThor_params, 'bbThor')
+    optmodel.change_params(spWaterschei_params, 'spWaterschei')
+    optmodel.change_params(bbThor_params, 'spZwartbergNE')
+
+    # Storage parameters
 
     stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
         'Thi': 80 + 273.15,
@@ -78,25 +99,26 @@ def construct_model():
         'volume': 10,
         'ar': 1,
         'dIns': 0.3,
-        'kIns': 0.024
+        'kIns': 0.024,
+        'heat_stor': 0
     }
 
-    for i in stor_design:
-        optmodel.change_param('waterscheiGarden.storage', i, stor_design[i])
-
+    optmodel.change_params(stor_design, 'waterscheiGarden.storage')
     optmodel.change_init_type('waterscheiGarden.storage', 'heat_stor', 'fixedVal')
     optmodel.change_state_bounds('waterscheiGarden.storage', 'heat_stor', 50, 0, False)
-    optmodel.change_param('waterscheiGarden.storage', 'heat_stor', 0)
+
+    # Production parameters
 
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'fuel_cost': 0.034,
+                   'fuel_cost': [0.034] * n_steps,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 10e6}
+                   'Qmax': 10e6,
+                   'ramp_cost': 0.01,
+                   'ramp': 10e6/3600}
 
-    for i in prod_design:
-        optmodel.change_param('thorPark', i, prod_design[i])
+    optmodel.change_params(prod_design, 'thorPark')
 
     ##################################
     # Print parameters               #

@@ -575,15 +575,16 @@ class ProducerVariable(Component):
                 return self.params['mass_flow'].v(t)
 
             self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
+
+            def _decl_init_heat_flow(b):
+                return b.heat_flow[0] == (self.params['temperature_supply'].v() -
+                                          self.params['temperature_return'].v()) * \
+                                         self.cp * b.mass_flow[0]
+
+            self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
+
         else:
             self.block.mass_flow = Var(self.model.TIME, within=NonNegativeReals)
-
-        def _decl_init_heat_flow(b):
-            return b.heat_flow[0] == (self.params['temperature_supply'].v() -
-                                      self.params['temperature_return'].v()) * \
-                                     self.cp*b.mass_flow[0]
-
-        self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
 
         def _decl_upward_ramp(b, t):
             if t == 0:

@@ -243,7 +243,9 @@ class Modesto:
             self.add_mf()
 
         for name, param in self.params.items():
-            param.check()
+            if not param.check():
+                raise ValueError('No value has been given for the general parameter {}. \n{}'.
+                                 format(name, param.get_description()))
 
         for comp in self.components:
             self.components[comp].check_data()
