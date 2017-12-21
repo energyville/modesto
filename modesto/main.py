@@ -346,10 +346,21 @@ class Modesto:
         :param comp: Name of the component
         :param param: name of the parameter
         :param val: New value of the parameter
-        :return:
         """
         assert comp in self.components, "%s is not recognized as a valid component" % comp
         self.components[comp].change_param(param, val)
+
+    def change_params(self, comp, dict):
+        """
+        Change multiple parameters of a component at once
+
+        :param comp: Name of the component
+        :param dict: Dictionary, with keys being names of the parameters,
+        values the corresponding new values of the parameters
+        """
+
+        for param, val in dict.items():
+            self.change_param(comp, param, val)
 
     def change_state_bounds(self, comp, state, new_ub, new_lb, slack):
         """
