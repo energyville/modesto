@@ -23,7 +23,7 @@ logger = logging.getLogger('Main.py')
 # Set up the optimization problem #
 ###################################
 
-n_steps = 288*2
+n_steps = 20
 time_step = 150
 
 
@@ -77,6 +77,10 @@ def construct_model():
 
     # Ground temperature
     t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
+
+    # Fuel cost
+    c_f = pd.DataFrame([0.034] * int(n_steps/2) + [0.034] * int(n_steps/2), index=range(n_steps))
+    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
 
     # Historical temperatures and mass flows
     temp_history_return = pd.DataFrame([return_temp] * 20, index=range(20))
@@ -134,8 +138,7 @@ def construct_model():
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'fuel_cost': [0.034] * int(n_steps/2) + [0.034] * int(n_steps/2),
-                   # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
+                   'fuel_cost': c_f,
                    'Qmax': 2e6,
                    'temperature_supply': supply_temp,
                    'temperature_return': return_temp,
@@ -170,7 +173,7 @@ def compare_ramping_costs():
     heat = {}
 
     for rc in ramp_cost:
-        optmodel.change_param(node='ThorPark', comp='plat', name='ramp_cost', val=rc)
+        optmodel.change_param(node='ThorPark', comp='plant', name='ramp_cost', val=rc)
         optmodel.compile()
         optmodel.set_objective('cost_ramp')
 
@@ -201,7 +204,7 @@ if __name__ == '__main__':
 
     optmodel.opt_settings(allow_flow_reversal=False)
     optmodel.compile()
-    optmodel.set_objective('cost_ramp')
+    optmodel.set_objective('cost')
 
     optmodel.solve(tee=False, mipgap=0.01)
 

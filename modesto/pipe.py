@@ -115,6 +115,12 @@ class Pipe(Component):
         self.logger.info(
             'Optimization block for Pipe {} initialized'.format(self.name))
 
+    def compile(self, model):
+
+        self.check_data()
+        self.make_block(model)
+        self.create_opt_params()
+
 
 class SimplePipe(Pipe):
     def __init__(self, name, horizon, time_step, start_node, end_node,
@@ -542,12 +548,11 @@ class NodeMethod(Pipe):
 
         :return:
         """
+        Pipe.compile(self, model)
 
-        self.check_data()
         self.history_length = len(self.params['mass_flow_history'].v())
 
         dn = self.params['pipe_type'].v()
-        self.make_block(model)
 
         self.block.all_time = Set(initialize=range(self.history_length + self.n_steps), ordered=True)
 
@@ -558,11 +563,6 @@ class NodeMethod(Pipe):
         surface = np.pi*self.Di[dn]**2/4  # cross sectional area of the pipe
         Z = surface*self.rho*self.length  # water mass in the pipe
         # TODO Move capacity?
-
-        def _decl_mf(b, t):
-            return self.params['mass_flow'].v(t)
-
-        self.block.mass_flow = Param(self.model.TIME, rule=_decl_mf)
 
         # Declare temperature variables ################################################################################
 
@@ -630,7 +630,7 @@ class NodeMethod(Pipe):
             sum_m = 0
             for i in range(len(self.block.all_time) - (self.n_steps - 1 - t)):
                 sum_m += b.mf_history[self.n_steps - 1 - t + i] * self.time_step
-                if sum_m > Z + self.block.mass_flow[t]*self.time_step:
+                if sum_m > Z + b.mass_flow[t]*self.time_step:
                     return i
             self.logger.warning('A proper value for m could not be calculated')
             return i

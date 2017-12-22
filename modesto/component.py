@@ -55,21 +55,6 @@ class Component(object):
         """
         return {}
 
-    def add_design_param(self, name, description, unit, value=None):
-        if name in self.params.items():
-            raise IndexError('A design parameter with the name \'{}\' already exists'.format(name))
-        self.params[name] = DesignParameter(name, description, unit, value)
-
-    def add_state_param(self, name, description, unit, init_type, value=None):
-        if name in self.params.items():
-            raise IndexError('A state parameter with the name \'{}\' already exists'.format(name))
-        self.params[name] = StateParameter(name, description, unit, value, init_type)
-
-    def add_user_data(self, name, description, unit, value=None):
-        if name in self.params.items():
-            raise IndexError('User data with the name \'{}\' already exists'.format(name))
-        self.params[name] = UserDataParameter(name, description, unit, value)
-
     def pprint(self, txtfile=None):
         """
         Pretty print this block
@@ -278,7 +263,7 @@ class Component(object):
         """
         return 0
 
-def create_opt_params(self):
+    def create_opt_params(self):
         """
         Create the Pyomo Parameter objects for each of the parameters of the component
 
@@ -291,7 +276,7 @@ def create_opt_params(self):
                 def _par_decl_df(b, t):
                     return param.v(t)
 
-                self.block.add_component(name, Param(self.model.TIME, doc=name, rule=_par_decl_df, mutable=True))
+                self.block.add_component(name, Param(param.get_index(), doc=name, rule=_par_decl_df, mutable=False))
 
             elif isinstance(param, StateParameter):
                 # Prevent the state (as a function of time) is overwritten by parameter
@@ -409,13 +394,9 @@ class FixedProfile(Component):
         """
         Component.compile(self, topmodel, parent)
 
-        def _mass_flow(b, t):
-            return b.mult * b.heat_profile[t] / self.cp / b.delta_T
-
         def _heat_flow(b, t):
             return b.mult * b.heat_profile[t]
 
-        self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
         self.block.heat_flow = Param(self.model.TIME, rule=_heat_flow)
 
         if self.temperature_driven:
@@ -437,6 +418,13 @@ class FixedProfile(Component):
 
             self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
             self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
+
+        else:
+
+            def _mass_flow(b, t):
+                return b.mult * b.heat_profile[t] / self.cp / b.delta_T
+
+            self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -579,9 +567,9 @@ class ProducerVariable(Component):
             'CO2': DesignParameter('CO2',
                                    'amount of CO2 released when using primary energy source',
                                    'kg/kWh'),
-            'fuel_cost': DesignParameter('fuel_cost',
-                                         'cost of fuel/electricity to generate heat',
-                                         'euro/kWh'),
+            'fuel_cost': UserDataParameter('fuel_cost',
+                                           'cost of fuel/electricity to generate heat',
+                                           'euro/kWh'),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
@@ -625,10 +613,6 @@ class ProducerVariable(Component):
         self.block.ramping_cost = Var(self.model.TIME)
 
         if self.temperature_driven:
-            def _mass_flow(b, t):
-                return self.params['mass_flow'].v(t)
-
-            self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
 
             def _decl_init_heat_flow(b):
                 return b.heat_flow[0] == (self.params['temperature_supply'].v() -
@@ -715,7 +699,6 @@ class ProducerVariable(Component):
 
         return sum(self.block.PEF / self.block.efficiency * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
 
-
     def obj_cost(self):
         """
         Generator for cost objective variables to be summed
@@ -723,7 +706,7 @@ class ProducerVariable(Component):
 
         :return:
         """
-        return sum(self.block.fuel_cost / self.block.efficiency * self.get_heat(t) for t in range(self.n_steps))
+        return sum(self.block.fuel_cost[t] * self.get_heat(t) / self.block.efficiency for t in range(self.n_steps))
 
     def obj_cost_ramp(self):
         """
@@ -732,10 +715,8 @@ class ProducerVariable(Component):
 
         :return:
         """
-        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
-        eta = self.params['efficiency'].v()
-        return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t) for t in range(self.n_steps)) #
-
+        return sum(self.get_ramp_cost(t) + self.block.fuel_cost[t]
+                    * self.get_heat(t) / self.block.efficiency for t in range(self.n_steps)) #
 
     def obj_co2(self):
         """

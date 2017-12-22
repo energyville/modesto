@@ -220,6 +220,11 @@ class DataFrameParameter(Parameter):
 
         self.value = new_val
 
+    def get_index(self):
+        if self.value is None:
+            raise ValueError('No value has been given for parameter {}.'.format(self.name))
+        return list(self.value.index)
+
 
 class UserDataParameter(DataFrameParameter):
 

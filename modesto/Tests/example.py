@@ -57,6 +57,7 @@ def construct_model():
     heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
     t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
     t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
+    c_f = pd.DataFrame([0.034] * n_steps, index=range(n_steps))
 
     optmodel.opt_settings(allow_flow_reversal=False)
 
@@ -113,7 +114,7 @@ def construct_model():
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'fuel_cost': [0.034] * n_steps,
+                   'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 10e6,
                    'ramp_cost': 0.01,
