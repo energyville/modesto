@@ -36,7 +36,9 @@ class Modesto:
         self.time_step = time_step
         assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
         self.n_steps = int(horizon / time_step)
-        self.time = range(self.n_steps)
+
+        self.state_time = range(self.n_steps+1)
+        self.time = self.state_time[:-1]
 
         self.pipe_model = pipe_model
         if pipe_model == 'NodeMethod':
@@ -172,6 +174,7 @@ class Modesto:
 
         # General parameters
         self.model.TIME = Set(initialize=self.time, ordered=True)
+        self.model.X_TIME = Set(initialize=self.state_time, ordered=True)  # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
         self.model.lines = Set(initialize=['supply', 'return'])
 
         def _ambient_temp(b, t):
@@ -427,8 +430,8 @@ class Modesto:
 
         if isinstance(obj, IndexedVar):
             if index is None:
-                for i in self.model.TIME:
-                    result.append(obj.values()[i].value)
+                for i in obj:
+                    result.append(value(obj[i]))
 
             else:
                 for i in self.model.TIME:
