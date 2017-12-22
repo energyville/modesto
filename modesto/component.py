@@ -868,7 +868,7 @@ class StorageVariable(Component):
             self.block.supply_temperature = Var(self.model.TIME)
 
         # Internal
-        self.block.heat_stor = Var(self.model.TIME, bounds=(
+        self.block.heat_stor = Var(self.model.X_TIME, bounds=(
             0, self.volume * self.cp * 1000 * self.temp_diff))
         self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
         self.logger.debug('Tau:      {}s'.format(str(self.tau)))
@@ -887,14 +887,9 @@ class StorageVariable(Component):
 
         # State equation
         def _state_eq(b, t):
-            if t < self.model.TIME[-1]:
-                return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])
+            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])
 
-                # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
-
-            else:
-                # print str(t)
-                return Constraint.Skip
+            # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
         self.block.state_eq = Constraint(self.model.TIME, rule=_state_eq)
 
