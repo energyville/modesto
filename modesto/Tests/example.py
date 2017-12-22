@@ -23,16 +23,16 @@ def construct_model():
     G = nx.DiGraph()
 
     G.add_node('ThorPark', x=4000, y=4000, z=0,
-               comps={'thorPark': 'ProducerVariable'})
+               comps={'plant': 'ProducerVariable'})
     G.add_node('p1', x=2600, y=5000, z=0,
                comps={})
     G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
-               comps={'waterscheiGarden.buildingD': 'BuildingFixed',
-                      'waterscheiGarden.storage': 'StorageVariable'
+               comps={'buildingD': 'BuildingFixed',
+                      'storage': 'StorageVariable'
                       }
                )
     G.add_node('zwartbergNE', x=2000, y=5500, z=0,
-               comps={'zwartbergNE.buildingD': 'BuildingFixed'})
+               comps={'buildingD': 'BuildingFixed'})
 
     G.add_edge('ThorPark', 'p1', name='bbThor')
     G.add_edge('p1', 'waterscheiGarden', name='spWaterschei')
@@ -56,20 +56,41 @@ def construct_model():
 
     heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
     t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
+    t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
 
     optmodel.opt_settings(allow_flow_reversal=False)
-    optmodel.change_general_param('Te', t_amb)
 
-    optmodel.change_param('zwartbergNE.buildingD', 'delta_T', 20)
-    optmodel.change_param('zwartbergNE.buildingD', 'mult', 2000)
-    optmodel.change_param('zwartbergNE.buildingD', 'heat_profile', heat_profile)
-    optmodel.change_param('waterscheiGarden.buildingD', 'delta_T', 20)
-    optmodel.change_param('waterscheiGarden.buildingD', 'mult', 200)
-    optmodel.change_param('waterscheiGarden.buildingD', 'heat_profile', heat_profile)
+    # general parameters
 
-    optmodel.change_param('bbThor', 'pipe_type', 150)
-    optmodel.change_param('spWaterschei', 'pipe_type', 200)
-    optmodel.change_param('spZwartbergNE', 'pipe_type', 125)
+    general_params = {'Te': t_amb,
+                      'Tg': t_g}
+
+    optmodel.change_params(general_params)
+
+    # building parameters
+
+    zw_building_params = {'delta_T': 20,
+                          'mult': 2000,
+                          'heat_profile': heat_profile,
+                          }
+
+    ws_building_params = zw_building_params.copy()
+    ws_building_params['mult'] = 20
+
+    optmodel.change_params(zw_building_params, node='zwartbergNE', comp='buildingD')
+    optmodel.change_params(ws_building_params, node='waterscheiGarden', comp='buildingD')
+
+    bbThor_params = {'pipe_type': 150}
+    spWaterschei_params = bbThor_params.copy()
+    spWaterschei_params['pipe_type'] = 200
+    spZwartbergNE_params = bbThor_params.copy()
+    spZwartbergNE_params['pipe_type'] = 125
+
+    optmodel.change_params(bbThor_params, comp='bbThor')
+    optmodel.change_params(spWaterschei_params, comp='spWaterschei')
+    optmodel.change_params(bbThor_params, comp='spZwartbergNE')
+
+    # Storage parameters
 
     stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
         'Thi': 80 + 273.15,
@@ -78,25 +99,27 @@ def construct_model():
         'volume': 10,
         'ar': 1,
         'dIns': 0.3,
-        'kIns': 0.024
+        'kIns': 0.024,
+        'heat_stor': 0
     }
 
-    for i in stor_design:
-        optmodel.change_param('waterscheiGarden.storage', i, stor_design[i])
+    optmodel.change_params(dict=stor_design, node='waterscheiGarden', comp='storage')
 
-    optmodel.change_init_type('waterscheiGarden.storage', 'heat_stor', 'fixedVal')
-    optmodel.change_state_bounds('waterscheiGarden.storage', 'heat_stor', 50, 0, False)
-    optmodel.change_param('waterscheiGarden.storage', 'heat_stor', 0)
+    optmodel.change_init_type('heat_stor', 'fixedVal', node='waterscheiGarden', comp='storage')
+    optmodel.change_state_bounds('heat_stor', 50, 0, False, node='waterscheiGarden', comp='storage')
+
+    # Production parameters
 
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'fuel_cost': 0.034,
+                   'fuel_cost': [0.034] * n_steps,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 10e6}
+                   'Qmax': 10e6,
+                   'ramp_cost': 0.01,
+                   'ramp': 10e6/3600}
 
-    for i in prod_design:
-        optmodel.change_param('thorPark', i, prod_design[i])
+    optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
     ##################################
     # Print parameters               #
@@ -104,9 +127,9 @@ def construct_model():
 
     optmodel.print_all_params()
     optmodel.print_general_param('Te')
-    optmodel.print_comp_param('thorPark')
-    optmodel.print_comp_param('waterscheiGarden.storage')
-    optmodel.print_comp_param('waterscheiGarden.storage', 'kIns', 'volume')
+    optmodel.print_comp_param('ThorPark', 'plant')
+    optmodel.print_comp_param('waterscheiGarden', 'storage')
+    optmodel.print_comp_param('waterscheiGarden', 'storage', 'kIns', 'volume')
 
     return optmodel
 
@@ -130,28 +153,28 @@ if __name__ == '__main__':
     ##################################
 
     print '\nWaterschei.buildingD'
-    print 'Heat flow', optmodel.get_result('waterscheiGarden.buildingD', 'heat_flow')
+    print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden', comp='buildingD')
 
     print '\nzwartbergNE.buildingD'
-    print 'Heat flow', optmodel.get_result('zwartbergNE.buildingD', 'heat_flow')
+    print 'Heat flow', optmodel.get_result('heat_flow', node='zwartbergNE', comp='buildingD')
 
     print '\nthorPark'
-    print 'Heat flow', optmodel.get_result('thorPark', 'heat_flow')
+    print 'Heat flow', optmodel.get_result('heat_flow', node='ThorPark', comp='plant')
 
     print '\nStorage'
-    print 'Heat flow', optmodel.get_result('waterscheiGarden.storage', 'heat_flow')
-    print 'Mass flow', optmodel.get_result('waterscheiGarden.storage', 'mass_flow')
-    print 'Energy', optmodel.get_result('waterscheiGarden.storage', 'heat_stor')
+    print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden', comp='storage')
+    print 'Mass flow', optmodel.get_result('mass_flow', node='waterscheiGarden', comp='storage')
+    print 'Energy', optmodel.get_result('heat_stor', node='waterscheiGarden', comp='storage')
 
     # -- Efficiency calculation --
 
     # Heat flows
-    prod_hf = optmodel.get_result('thorPark', 'heat_flow')
-    storage_hf = optmodel.get_result('waterscheiGarden.storage', 'heat_flow')
-    waterschei_hf = optmodel.get_result('waterscheiGarden.buildingD', 'heat_flow')
-    zwartberg_hf = optmodel.get_result('zwartbergNE.buildingD', 'heat_flow')
+    prod_hf = optmodel.get_result('heat_flow', node='ThorPark', comp='plant')
+    storage_hf = optmodel.get_result('heat_flow', node='waterscheiGarden', comp='storage')
+    waterschei_hf = optmodel.get_result('heat_flow', node='waterscheiGarden', comp='buildingD')
+    zwartberg_hf = optmodel.get_result('heat_flow', node='zwartbergNE', comp='buildingD')
 
-    storage_soc = optmodel.get_result('waterscheiGarden.storage', 'heat_stor')
+    storage_soc = optmodel.get_result('heat_stor', node='waterscheiGarden', comp='storage')
 
     # Sum of heat flows
     prod_e = sum(prod_hf)
@@ -176,9 +199,9 @@ if __name__ == '__main__':
 
     # Mass flows
     print '\nMass flows'
-    print 'bbThor: ', optmodel.get_result('bbThor', 'mass_flow_tot')
-    print 'spWaterschei: ', optmodel.get_result('spWaterschei', 'mass_flow_tot')
-    print 'spZwartbergNE: ', optmodel.get_result('spZwartbergNE', 'mass_flow_tot')
+    print 'bbThor: ', optmodel.get_result('mass_flow', comp='bbThor')
+    print 'spWaterschei: ', optmodel.get_result('mass_flow', comp='spWaterschei')
+    print 'spZwartbergNE: ', optmodel.get_result('mass_flow', comp='spZwartbergNE')
 
     # Objectives
     print '\nObjective function'
