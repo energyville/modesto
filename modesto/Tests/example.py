@@ -23,16 +23,16 @@ def construct_model():
     G = nx.DiGraph()
 
     G.add_node('ThorPark', x=4000, y=4000, z=0,
-               comps={'thorPark': 'ProducerVariable'})
+               comps={'plant': 'ProducerVariable'})
     G.add_node('p1', x=2600, y=5000, z=0,
                comps={})
     G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
-               comps={'waterscheiGarden.buildingD': 'BuildingFixed',
-                      'waterscheiGarden.storage': 'StorageVariable'
+               comps={'buildingD': 'BuildingFixed',
+                      'storage': 'StorageVariable'
                       }
                )
     G.add_node('zwartbergNE', x=2000, y=5500, z=0,
-               comps={'zwartbergNE.buildingD': 'BuildingFixed'})
+               comps={'buildingD': 'BuildingFixed'})
 
     G.add_edge('ThorPark', 'p1', name='bbThor')
     G.add_edge('p1', 'waterscheiGarden', name='spWaterschei')
@@ -77,8 +77,8 @@ def construct_model():
     ws_building_params = zw_building_params.copy()
     ws_building_params['mult'] = 20
 
-    optmodel.change_params(zw_building_params, 'zwartbergNE.buildingD')
-    optmodel.change_params(ws_building_params, 'waterscheiGarden.buildingD')
+    optmodel.change_params(zw_building_params, node='zwartbergNE', comp='buildingD')
+    optmodel.change_params(ws_building_params, node='waterscheiGarden', comp='buildingD')
 
     bbThor_params = {'pipe_type': 150}
     spWaterschei_params = bbThor_params.copy()
@@ -86,9 +86,9 @@ def construct_model():
     spZwartbergNE_params = bbThor_params.copy()
     spZwartbergNE_params['pipe_type'] = 125
 
-    optmodel.change_params(bbThor_params, 'bbThor')
-    optmodel.change_params(spWaterschei_params, 'spWaterschei')
-    optmodel.change_params(bbThor_params, 'spZwartbergNE')
+    optmodel.change_params(bbThor_params, comp='bbThor')
+    optmodel.change_params(spWaterschei_params, comp='spWaterschei')
+    optmodel.change_params(bbThor_params, comp='spZwartbergNE')
 
     # Storage parameters
 
@@ -103,10 +103,10 @@ def construct_model():
         'heat_stor': 0
     }
 
-    optmodel.change_params(dict=stor_design, comp='waterscheiGarden.storage')
+    optmodel.change_params(dict=stor_design, node='waterscheiGarden', comp='storage')
 
-    optmodel.change_init_type('waterscheiGarden.storage', 'heat_stor', 'fixedVal')
-    optmodel.change_state_bounds('waterscheiGarden.storage', 'heat_stor', 50, 0, False)
+    optmodel.change_init_type('heat_stor', 'fixedVal', node='waterscheiGarden', comp='storage')
+    optmodel.change_state_bounds('heat_stor', 50, 0, False, node='waterscheiGarden', comp='storage')
 
     # Production parameters
 
@@ -119,7 +119,7 @@ def construct_model():
                    'ramp_cost': 0.01,
                    'ramp': 10e6/3600}
 
-    optmodel.change_params(prod_design, 'thorPark')
+    optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
     ##################################
     # Print parameters               #
@@ -127,9 +127,9 @@ def construct_model():
 
     optmodel.print_all_params()
     optmodel.print_general_param('Te')
-    optmodel.print_comp_param('thorPark')
-    optmodel.print_comp_param('waterscheiGarden.storage')
-    optmodel.print_comp_param('waterscheiGarden.storage', 'kIns', 'volume')
+    optmodel.print_comp_param('ThorPark', 'plant')
+    optmodel.print_comp_param('waterscheiGarden', 'storage')
+    optmodel.print_comp_param('waterscheiGarden', 'storage', 'kIns', 'volume')
 
     return optmodel
 
@@ -153,28 +153,28 @@ if __name__ == '__main__':
     ##################################
 
     print '\nWaterschei.buildingD'
-    print 'Heat flow', optmodel.get_result('waterscheiGarden.buildingD', 'heat_flow')
+    print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden', comp='buildingD')
 
     print '\nzwartbergNE.buildingD'
-    print 'Heat flow', optmodel.get_result('zwartbergNE.buildingD', 'heat_flow')
+    print 'Heat flow', optmodel.get_result('heat_flow', node='zwartbergNE', comp='buildingD')
 
     print '\nthorPark'
-    print 'Heat flow', optmodel.get_result('thorPark', 'heat_flow')
+    print 'Heat flow', optmodel.get_result('heat_flow', node='ThorPark', comp='plant')
 
     print '\nStorage'
-    print 'Heat flow', optmodel.get_result('waterscheiGarden.storage', 'heat_flow')
-    print 'Mass flow', optmodel.get_result('waterscheiGarden.storage', 'mass_flow')
-    print 'Energy', optmodel.get_result('waterscheiGarden.storage', 'heat_stor')
+    print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden', comp='storage')
+    print 'Mass flow', optmodel.get_result('mass_flow', node='waterscheiGarden', comp='storage')
+    print 'Energy', optmodel.get_result('heat_stor', node='waterscheiGarden', comp='storage')
 
     # -- Efficiency calculation --
 
     # Heat flows
-    prod_hf = optmodel.get_result('thorPark', 'heat_flow')
-    storage_hf = optmodel.get_result('waterscheiGarden.storage', 'heat_flow')
-    waterschei_hf = optmodel.get_result('waterscheiGarden.buildingD', 'heat_flow')
-    zwartberg_hf = optmodel.get_result('zwartbergNE.buildingD', 'heat_flow')
+    prod_hf = optmodel.get_result('heat_flow', node='ThorPark', comp='plant')
+    storage_hf = optmodel.get_result('heat_flow', node='waterscheiGarden', comp='storage')
+    waterschei_hf = optmodel.get_result('heat_flow', node='waterscheiGarden', comp='buildingD')
+    zwartberg_hf = optmodel.get_result('heat_flow', node='zwartbergNE', comp='buildingD')
 
-    storage_soc = optmodel.get_result('waterscheiGarden.storage', 'heat_stor')
+    storage_soc = optmodel.get_result('heat_stor', node='waterscheiGarden', comp='storage')
 
     # Sum of heat flows
     prod_e = sum(prod_hf)
@@ -199,9 +199,9 @@ if __name__ == '__main__':
 
     # Mass flows
     print '\nMass flows'
-    print 'bbThor: ', optmodel.get_result('bbThor', 'mass_flow')
-    print 'spWaterschei: ', optmodel.get_result('spWaterschei', 'mass_flow')
-    print 'spZwartbergNE: ', optmodel.get_result('spZwartbergNE', 'mass_flow')
+    print 'bbThor: ', optmodel.get_result('mass_flow', comp='bbThor')
+    print 'spWaterschei: ', optmodel.get_result('mass_flow', comp='spWaterschei')
+    print 'spZwartbergNE: ', optmodel.get_result('mass_flow', comp='spZwartbergNE')
 
     # Objectives
     print '\nObjective function'
