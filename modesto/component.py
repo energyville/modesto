@@ -650,7 +650,7 @@ class ProducerVariable(Component):
                                    'kg/kWh'),
             'fuel_cost': UserDataParameter('fuel_cost',
                                            'cost of fuel/electricity to generate heat',
-                                           'euro/kWh'),
+                                           'euro/MWh'),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
@@ -789,7 +789,8 @@ class ProducerVariable(Component):
 
         :return:
         """
-        return sum(self.block.fuel_cost[t] * self.get_heat(t) / self.block.efficiency for t in range(self.n_steps))
+        return sum(self.block.fuel_cost[t] * self.get_heat(t) / self.block.efficiency *
+                   self.time_step / 3600 / 10**6 for t in range(self.n_steps))
 
     def obj_cost_ramp(self):
         """
@@ -799,7 +800,8 @@ class ProducerVariable(Component):
         :return:
         """
         return sum(self.get_ramp_cost(t) + self.block.fuel_cost[t]
-                    * self.get_heat(t) / self.block.efficiency for t in range(self.n_steps)) #
+                    * self.get_heat(t) / self.block.efficiency *
+                   self.time_step / 3600 / 10**6 for t in range(self.n_steps)) #
 
     def obj_co2(self):
         """

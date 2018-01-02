@@ -45,7 +45,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 5
+    n_steps = 6
     time_steps = 3600
 
     optmodel = Modesto(n_steps * time_steps, time_steps, 'ExtensivePipe', G)
@@ -57,7 +57,7 @@ def construct_model():
     heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
     t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
     t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
-    c_f = pd.DataFrame([0.034] * n_steps, index=range(n_steps))
+    c_f = pd.DataFrame([34] * int(n_steps/2) + [100] * int(n_steps/2), index=range(n_steps))
 
     optmodel.opt_settings(allow_flow_reversal=False)
 
@@ -97,11 +97,11 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
-        'volume': 1,
+        'volume': 10,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': 0
+        'heat_stor': -10
     }
 
     optmodel.change_params(dict=stor_design, node='waterscheiGarden', comp='storage')
@@ -141,7 +141,7 @@ def construct_model():
 if __name__ == '__main__':
     optmodel = construct_model()
     optmodel.compile()
-    optmodel.set_objective('energy')
+    optmodel.set_objective('cost')
 
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
@@ -166,6 +166,8 @@ if __name__ == '__main__':
     print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden', comp='storage')
     print 'Mass flow', optmodel.get_result('mass_flow', node='waterscheiGarden', comp='storage')
     print 'Energy', optmodel.get_result('heat_stor', node='waterscheiGarden', comp='storage')
+    print 'Upper slack', optmodel.get_result('heat_stor_uslack', node='waterscheiGarden', comp='storage')
+    print 'Lower slack', optmodel.get_result('heat_stor_lslack', node='waterscheiGarden', comp='storage')
 
     # -- Efficiency calculation --
 

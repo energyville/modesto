@@ -162,9 +162,12 @@ class Modesto:
         self.model.Slack = Var()
 
         def def_slack(model):
-            return model.Slack == 10**9*sum(comp.obj_slack() for comp in self.iter_components())
+            return model.Slack == 0.001*sum(comp.obj_slack() for comp in self.iter_components())
 
         self.model.def_slack = Constraint(rule=def_slack)
+
+        self.model.Slack.pprint()
+        self.model.def_slack.pprint()
 
         def obj_energy(model):
             return model.Slack + sum(comp.obj_energy() for comp in self.iter_components())
@@ -296,7 +299,7 @@ class Modesto:
         :return:
         """
 
-        if tee:
+        if verbose:
             self.model.pprint()
 
         opt = SolverFactory("gurobi")
