@@ -971,7 +971,6 @@ class StorageVariable(Component):
 
         if (self.params['heat_stor'].ub > max_energy) or (self.params['heat_stor'].ub is None):
             self.params['heat_stor'].change_upper_bound(max_energy)
-
         self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
         self.logger.debug('Tau:      {}s'.format(str(self.tau)))
         self.logger.debug('Loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
@@ -989,14 +988,9 @@ class StorageVariable(Component):
 
         # State equation
         def _state_eq(b, t):
-            if t < self.model.TIME[-1]:
-                return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])
+            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])
 
-                # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
-
-            else:
-                # print str(t)
-                return Constraint.Skip
+            # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
         self.block.state_eq = Constraint(self.model.TIME, rule=_state_eq)
 
