@@ -97,7 +97,7 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
-        'volume': 10,
+        'volume': 1,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
@@ -107,7 +107,7 @@ def construct_model():
     optmodel.change_params(dict=stor_design, node='waterscheiGarden', comp='storage')
 
     optmodel.change_init_type('heat_stor', 'fixedVal', node='waterscheiGarden', comp='storage')
-    optmodel.change_state_bounds('heat_stor', 50, 0, False, node='waterscheiGarden', comp='storage')
+    optmodel.change_state_bounds('heat_stor', lb=0, slack=True, node='waterscheiGarden', comp='storage')
 
     # Production parameters
 
@@ -229,7 +229,7 @@ if __name__ == '__main__':
 
     ax2 = fig2.add_subplot(111)
     ax2.plot(storage_soc, label='Stored heat')
-    ax2.plot(np.asarray(storage_hf) * 3600, label="Charged heat")
+    # ax2.plot(np.asarray(storage_hf) * 3600, label="Charged heat")
     ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax2.legend()
     fig2.suptitle('Storage')

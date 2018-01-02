@@ -35,6 +35,7 @@ class Component(object):
         self.block = None  # The component model
 
         self.params = params
+        self.slack_list = []
 
         self.cp = 4180  # TODO make this static variable
         self.rho = 1000
@@ -152,6 +153,17 @@ class Component(object):
         """
         return self.direction
 
+    def get_slack(self, slack_name, t):
+        """
+        Get the value of a slack variable at a certian time
+
+        :param slack_name: Name of the slack variable
+        :param t: Time
+        :return: Value of slack
+        """
+
+        return self.block.find_component(slack_name)[t]
+
     def make_block(self, parent):
         """
         Make a separate block in the parent model.
@@ -210,14 +222,6 @@ class Component(object):
                 raise Exception('{} of {} does not have a value yet. Please, add one before optimizing.\n{}'. \
                                 format(name, self.name, param.get_description()))
 
-    def obj_energy(self):
-        """
-        Yield summation of energy variables for objective function, but only for relevant component types
-
-        :return:
-        """
-        return 0
-
     def get_param_description(self, name):
         """
         Returns a string containing the description of a parameter
@@ -230,6 +234,27 @@ class Component(object):
                 raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
         else:
             return self.params[name].get_description()
+
+    def obj_slack(self):
+        """
+        Yields summation of all slack variables
+
+        :return:
+        """
+        slack = 0
+
+        for slack_name in self.slack_list:
+            slack += sum(self.get_slack(slack_name, t) for t in self.model.TIME)
+
+        return slack
+
+    def obj_energy(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
 
     def obj_cost(self):
         """
@@ -304,7 +329,6 @@ class Component(object):
             self.block.add_component(state_name + '_init_eq', Constraint(rule=_eq_init))
 
         elif init_type == 'fixedVal':
-            print state
             if value is None:
                 ValueError('In case of initialization type \'fixedVal\', value cannot be None')
             def _eq_init(b):
@@ -324,6 +348,61 @@ class Component(object):
                                          init_type=param.get_init_type(),
                                          value=param.v())
 
+    def add_state_bounds_no_slack(self, state_name, ub=None, lb=None):
+        # TODO only single numbers possible, add time series!
+
+        state = self.block.find_component(state_name)
+
+        if ub is not None:
+            def _ub(b, t):
+                return state[t] <= ub
+
+            self.block.add_component(state_name + '_ub', Constraint(self.model.TIME, rule=_ub))
+
+        if lb is not None:
+            def _lb(b, t):
+                return state[t] >= lb
+
+            self.block.add_component(state_name + '_lb', Constraint(self.model.TIME, rule=_lb))
+
+    def add_state_bounds_slack(self, state_name, ub=None, lb=None):
+        # TODO only single numbers possible, add time series!
+
+        u_slack_name = state_name + '_uslack'
+        l_slack_name = state_name + '_lslack'
+
+        self.slack_list.append(u_slack_name)
+        self.slack_list.append(l_slack_name)
+
+        self.block.add_component(u_slack_name, Var(self.model.TIME, within=NonNegativeReals))
+        self.block.add_component(l_slack_name, Var(self.model.TIME, within=NonNegativeReals))
+
+        state = self.block.find_component(state_name)
+        u_slack = self.block.find_component(u_slack_name)
+        l_slack = self.block.find_component(l_slack_name)
+
+        if ub is not None:
+            def _ub(b, t):
+                return state[t] <= ub + u_slack[t]
+
+            self.block.add_component(state_name + '_ub', Constraint(self.model.TIME, rule=_ub))
+
+        if lb is not None:
+            def _lb(b, t):
+                return state[t] >= lb - l_slack[t]
+
+            self.block.add_component(state_name + '_lb', Constraint(self.model.TIME, rule=_lb))
+
+    def add_all_state_bounds(self):
+        for param, param_obj in self.params.items():
+            if isinstance(param_obj, StateParameter):
+                ub = param_obj.get_upper_bound()
+                lb = param_obj.get_lower_bound()
+
+                if param_obj.get_slack():
+                    self.add_state_bounds_slack(param, ub, lb)
+                else:
+                    self.add_state_bounds_no_slack(param, ub, lb)
 
 class FixedProfile(Component):
     def __init__(self, name=None, horizon=None, time_step=None, direction=None, temperature_driven=False):
@@ -425,6 +504,8 @@ class FixedProfile(Component):
                 return b.mult * b.heat_profile[t] / self.cp / b.delta_T
 
             self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
+
+        self.add_all_state_bounds()
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -684,6 +765,8 @@ class ProducerVariable(Component):
             self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperature)
             self.block.dec_temp_mf0 = Constraint(self.model.TIME, rule=_decl_temp_mf0)
 
+        self.add_all_state_bounds()
+
     def get_ramp_cost(self, t):
         return self.block.ramping_cost[t]
 
@@ -880,8 +963,13 @@ class StorageVariable(Component):
             self.block.supply_temperature = Var(self.model.TIME)
 
         # Internal
-        self.block.heat_stor = Var(self.model.TIME, bounds=(
-            0, self.volume * self.cp * 1000 * self.temp_diff))
+        self.block.heat_stor = Var(self.model.TIME)
+
+        max_energy = self.volume * self.cp * 1000 * self.temp_diff
+
+        if (self.params['heat_stor'].ub > max_energy) or (self.params['heat_stor'].ub is None):
+            self.params['heat_stor'].change_upper_bound(max_energy)
+
         self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
         self.logger.debug('Tau:      {}s'.format(str(self.tau)))
         self.logger.debug('Loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
@@ -914,6 +1002,12 @@ class StorageVariable(Component):
         # Initial state
 
         self.add_all_init_constraints()
+
+        #############################################################################################
+
+        # Add state bounds
+
+        self.add_all_state_bounds()
 
         #############################################################################################
         # Mass flow and heat flow link

@@ -159,17 +159,24 @@ class Modesto:
         :return:
         """
 
+        self.model.Slack = Var()
+
+        def def_slack(model):
+            return model.Slack == 10**9*sum(comp.obj_slack() for comp in self.iter_components())
+
+        self.model.def_slack = Constraint(rule=def_slack)
+
         def obj_energy(model):
-            return sum(comp.obj_energy() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_energy() for comp in self.iter_components())
 
         def obj_cost(model):
-            return sum(comp.obj_cost() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_cost() for comp in self.iter_components())
 
         def obj_cost_ramp(model):
-            return sum(comp.obj_cost_ramp() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_cost_ramp() for comp in self.iter_components())
 
         def obj_co2(model):
-            return sum(comp.obj_co2() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_co2() for comp in self.iter_components())
 
         self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
         self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
@@ -373,25 +380,30 @@ class Modesto:
             for param, val in dict.items():
                 self.change_param(node, comp, param, val)
 
-    def change_state_bounds(self, state, new_ub, new_lb, slack, comp=None, node=None):
+    def change_state_bounds(self, state, ub=None, lb=None, slack=None, comp=None, node=None):
         """
         Change the interval of possible values of a certain state, and
         indicate whether it is a slack variable or not
 
         :param comp: Name of the component
         :param state: Name of the param
-        :param new_ub: New upper bound
-        :param new_lb:  New lower bound
+        :param ub: New upper bound
+        :param lb:  New lower bound
         :param slack: Boolean indicating whether a slack should be added (True) or not (False)
         """
-        # TODO Adapt method so you can change only one of the settings?
         comp_obj = self.get_component(comp, node)
 
-        comp_obj.params[state].change_upper_bound(new_ub)
-        comp_obj.params[state].change_lower_bound(new_lb)
-        comp_obj.params[state].change_slack(slack)
+        if not isinstance(comp_obj.params[state], StateParameter):
+            raise TypeError('You can only change state bounds of a state parameter')
 
-    def change_init_type(self, state, new_type, node=None, comp=None):
+        if ub is not None:
+            comp_obj.params[state].change_upper_bound(ub)
+        if lb is not None:
+            comp_obj.params[state].change_lower_bound(lb)
+        if slack is not None:
+            comp_obj.params[state].change_slack(slack)
+
+    def change_init_type(self, state, type, node=None, comp=None):
         """
         Change the type of initialization constraint
 
@@ -401,7 +413,7 @@ class Modesto:
 
         comp_obj = self.get_component(comp, node)
 
-        comp_obj.params[state].change_init_type(new_type)
+        comp_obj.params[state].change_init_type(type)
 
     def get_component(self, name, node=None):
         """
@@ -413,6 +425,7 @@ class Modesto:
         """
 
         if name not in self.components[node]:
+            print self.components[None]
             raise KeyError('There is no component named {} at node {}'.format(name, node))
         return self.components[node][name]
 
