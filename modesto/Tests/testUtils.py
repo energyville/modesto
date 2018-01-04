@@ -15,7 +15,11 @@ fig, axs = plt.subplots(2,1)
 axs[0].plot(test[:'20140104'])
 axs[1].plot(test_res[:'20140104'])
 
+fig2 = plt.figure()
+test[:'20140104'].plot(subplots=True)
+
 plt.show()
+
 
 
 
