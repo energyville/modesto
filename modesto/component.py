@@ -244,7 +244,7 @@ class Component(object):
         slack = 0
 
         for slack_name in self.slack_list:
-            slack += sum(self.get_slack(slack_name, t) for t in self.model.TIME)
+            slack += sum(self.get_slack(slack_name, t) for t in self.model.X_TIME)
 
         return slack
 
@@ -357,13 +357,13 @@ class Component(object):
             def _ub(b, t):
                 return state[t] <= ub
 
-            self.block.add_component(state_name + '_ub', Constraint(self.model.TIME, rule=_ub))
+            self.block.add_component(state_name + '_ub', Constraint(self.model.X_TIME, rule=_ub))
 
         if lb is not None:
             def _lb(b, t):
                 return state[t] >= lb
 
-            self.block.add_component(state_name + '_lb', Constraint(self.model.TIME, rule=_lb))
+            self.block.add_component(state_name + '_lb', Constraint(self.model.X_TIME, rule=_lb))
 
     def add_state_bounds_slack(self, state_name, ub=None, lb=None):
         # TODO only single numbers possible, add time series!
@@ -374,8 +374,8 @@ class Component(object):
         self.slack_list.append(u_slack_name)
         self.slack_list.append(l_slack_name)
 
-        self.block.add_component(u_slack_name, Var(self.model.TIME, within=NonNegativeReals))
-        self.block.add_component(l_slack_name, Var(self.model.TIME, within=NonNegativeReals))
+        self.block.add_component(u_slack_name, Var(self.model.X_TIME, within=NonNegativeReals))
+        self.block.add_component(l_slack_name, Var(self.model.X_TIME, within=NonNegativeReals))
 
         state = self.block.find_component(state_name)
         u_slack = self.block.find_component(u_slack_name)
@@ -383,15 +383,15 @@ class Component(object):
 
         if ub is not None:
             def _ub(b, t):
-                return state[t] <= ub + u_slack[t]
+                return state[t] - u_slack[t] <= ub
 
-            self.block.add_component(state_name + '_ub', Constraint(self.model.TIME, rule=_ub))
+            self.block.add_component(state_name + '_ub', Constraint(self.model.X_TIME, rule=_ub))
 
         if lb is not None:
             def _lb(b, t):
-                return state[t] >= lb - l_slack[t]
+                return state[t] - l_slack[t] >= lb
 
-            self.block.add_component(state_name + '_lb', Constraint(self.model.TIME, rule=_lb))
+            self.block.add_component(state_name + '_lb', Constraint(self.model.X_TIME, rule=_lb))
 
     def add_all_state_bounds(self):
         for param, param_obj in self.params.items():
@@ -400,9 +400,10 @@ class Component(object):
                 lb = param_obj.get_lower_bound()
 
                 if param_obj.get_slack():
-                    self.add_state_bounds_slack(param, ub, lb)
+                    self.add_state_bounds_slack(param, ub=ub, lb=lb)
                 else:
-                    self.add_state_bounds_no_slack(param, ub, lb)
+                    self.add_state_bounds_no_slack(param, ub=ub, lb=lb)
+
 
 class FixedProfile(Component):
     def __init__(self, name=None, horizon=None, time_step=None, direction=None, temperature_driven=False):
@@ -647,7 +648,7 @@ class ProducerVariable(Component):
                                    '-'),
             'CO2': DesignParameter('CO2',
                                    'amount of CO2 released when using primary energy source',
-                                   'kg/kWh'),
+                                   'kg/MWh'),
             'fuel_cost': UserDataParameter('fuel_cost',
                                            'cost of fuel/electricity to generate heat',
                                            'euro/MWh'),
@@ -775,12 +776,13 @@ class ProducerVariable(Component):
     def obj_energy(self):
         """
         Generator for energy objective variables to be summed
-        Unit: kWh (primary energy)
+        Unit: MWh (primary energy)
 
         :return:
         """
 
-        return sum(self.block.PEF / self.block.efficiency * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+        return sum(self.block.PEF / self.block.efficiency * self.get_heat(t) *
+                   self.time_step / 3600 / 10**6 for t in range(self.n_steps))
 
     def obj_cost(self):
         """
@@ -811,7 +813,8 @@ class ProducerVariable(Component):
         :return:
         """
 
-        return sum(self.block.CO2 / self.block.efficiency * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+        return sum(self.block.CO2 / self.block.efficiency * self.get_heat(t) *
+                   self.time_step / 3600 / 10**6 for t in range(self.n_steps))
 
     def obj_temp(self):
         """
@@ -909,25 +912,42 @@ class StorageVariable(Component):
         self.volume = self.params['volume'].v()
         self.dIns = self.params['dIns'].v()
         self.kIns = self.params['kIns'].v()
+        print 'volume: ', self.volume
+        print 'dIns: ', self.dIns
+        print 'kIns: ', self.kIns
 
         self.ar = self.params['ar'].v()
+
+        print 'ar: ', self.ar
 
         self.temp_diff = self.params['Thi'].v() - self.params['Tlo'].v()
         self.temp_sup = self.params['Thi'].v()
         self.temp_ret = self.params['Tlo'].v()
 
+        print 'temp_diff: ', self.temp_diff
+
         # Geometrical calculations
         w = (4 * self.volume / self.ar / pi) ** (1 / 3)  # Width of tank
         h = self.ar * w  # Height of tank
 
+        print 'width: ', w
+        print 'h: ', h
+
         Atb = w ** 2 / 4 * pi  # Top/bottom surface of tank
 
+        print 'top bottom surface: ', Atb
+
         # Heat transfer coefficients
-        self.UAw = 2 * pi * self.kIns * h / log((w + 2 * self.dIns) / w)
+        self.UAw = 2 * pi * self.kIns * (h + 2 * self.dIns) / log((w + 2 * self.dIns) / w)
         self.UAtb = Atb * self.kIns / self.dIns
+
+        print 'UAw: ', self.UAw
+        print 'UAtb: ', self.UAtb
 
         # Time constant
         self.tau = self.volume * 1000 * self.cp / self.UAw
+
+        print 'tau: ', self.tau
 
         ############################################################################################
         # Initialize block
@@ -941,8 +961,7 @@ class StorageVariable(Component):
         # Fixed heat loss
         def _heat_loss_ct(b, t):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
-                   self.UAtb * (self.temp_ret + self.temp_sup - self.model.Te[t])
-        # TODO implement varying outdoor temperature
+                   self.UAtb * (self.temp_ret + self.temp_sup - 2*self.model.Te[t])
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
 
@@ -961,19 +980,26 @@ class StorageVariable(Component):
         # In/out
         self.block.mass_flow = Var(self.model.TIME, bounds=mflo_bounds)
         self.block.heat_flow = Var(self.model.TIME, bounds=heat_bounds)
-        if self.temperature_driven:
-            self.block.supply_temperature = Var(self.model.TIME)
 
         # Internal
-        self.block.heat_stor = Var(self.model.TIME)
+        self.block.heat_stor = Var(self.model.X_TIME)
 
         max_energy = self.volume * self.cp * 1000 * self.temp_diff
+        print 'max energy', max_energy
 
         if (self.params['heat_stor'].ub > max_energy) or (self.params['heat_stor'].ub is None):
             self.params['heat_stor'].change_upper_bound(max_energy)
+
         self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
         self.logger.debug('Tau:      {}s'.format(str(self.tau)))
         self.logger.debug('Loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
+
+        #############################################################################################
+        # Mass flow and heat flow link
+        def _heat_bal(b, t):
+            return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
+
+        self.block.heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
 
         #############################################################################################
         # Equality constraints
@@ -981,14 +1007,20 @@ class StorageVariable(Component):
         self.block.heat_loss = Var(self.model.TIME)
 
         def _eq_heat_loss(b, t):
-            return b.heat_loss[t] == (1 - exp(-self.time_step / self.tau)) * b.heat_stor[t] / self.time_step + \
-                                     b.heat_loss_ct[t]
+            # return b.heat_loss[t] == (1 - exp(-self.time_step / self.tau)) * b.heat_stor[t] / self.time_step + \
+            #                          b.heat_loss_ct[t]
+            return b.heat_loss[t] == (b.heat_stor[t] - b.heat_stor[t + 1]) / self.time_step + b.heat_flow[t]
 
         self.block.eq_heat_loss = Constraint(self.model.TIME, rule=_eq_heat_loss)
 
+        self.block.eq_heat_loss.pprint()
+
         # State equation
         def _state_eq(b, t):
-            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])
+            # return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])
+            return b.heat_stor[t + 1] == b.heat_stor[t] * exp(-self.time_step / self.tau) + \
+                                         + self.tau * (1-exp(-self.time_step/self.tau)) * \
+                                         (b.heat_flow[t] - b.heat_loss_ct[t])
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1005,11 +1037,6 @@ class StorageVariable(Component):
 
         self.add_all_state_bounds()
 
-        #############################################################################################
-        # Mass flow and heat flow link
-        def _heat_bal(b, t):
-            return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
-
-        self.block.heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
-
         self.logger.info('Optimization model Storage {} compiled'.format(self.name))
+
+        self.block.pprint()

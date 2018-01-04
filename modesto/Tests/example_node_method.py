@@ -26,7 +26,6 @@ logger = logging.getLogger('Main.py')
 n_steps = 20
 time_step = 150
 
-
 ###########################
 # Set up Graph of network #
 ###########################

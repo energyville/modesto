@@ -45,10 +45,10 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 6
+    n_steps = 60
     time_steps = 3600
 
-    optmodel = Modesto(n_steps * time_steps, time_steps, 'ExtensivePipe', G)
+    optmodel = Modesto(n_steps * time_steps, time_steps, 'SimplePipe', G)
 
     ##################################
     # Fill in the parameters         #
@@ -57,7 +57,7 @@ def construct_model():
     heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
     t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
     t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
-    c_f = pd.DataFrame([34] * int(n_steps/2) + [100] * int(n_steps/2), index=range(n_steps))
+    c_f = pd.DataFrame([10] * int(n_steps/2) + [100] * int(n_steps/2), index=range(n_steps))
 
     optmodel.opt_settings(allow_flow_reversal=False)
 
@@ -76,7 +76,7 @@ def construct_model():
                           }
 
     ws_building_params = zw_building_params.copy()
-    ws_building_params['mult'] = 20
+    ws_building_params['mult'] = 1000
 
     optmodel.change_params(zw_building_params, node='zwartbergNE', comp='buildingD')
     optmodel.change_params(ws_building_params, node='waterscheiGarden', comp='buildingD')
@@ -97,28 +97,28 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
-        'volume': 10,
+        'volume': 1,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': -10
+        'heat_stor': 0
     }
 
     optmodel.change_params(dict=stor_design, node='waterscheiGarden', comp='storage')
 
     optmodel.change_init_type('heat_stor', 'fixedVal', node='waterscheiGarden', comp='storage')
-    optmodel.change_state_bounds('heat_stor', lb=0, slack=True, node='waterscheiGarden', comp='storage')
+    optmodel.change_state_bounds('heat_stor', lb=0, slack=False, node='waterscheiGarden', comp='storage')
 
     # Production parameters
 
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
-                   'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
+                   'CO2': 178,  # based on HHV of CH4 (kg/MWh CH4)
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 10e6,
+                   'Qmax': 5e6,
                    'ramp_cost': 0.01,
-                   'ramp': 10e6/3600}
+                   'ramp': 5e6/3600}
 
     optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
@@ -146,6 +146,7 @@ if __name__ == '__main__':
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
     optmodel.model.OBJ_CO2.pprint()
+    # optmodel.model.pprint()
 
     optmodel.solve(tee=True, mipgap=0.01)
 
@@ -166,8 +167,9 @@ if __name__ == '__main__':
     print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden', comp='storage')
     print 'Mass flow', optmodel.get_result('mass_flow', node='waterscheiGarden', comp='storage')
     print 'Energy', optmodel.get_result('heat_stor', node='waterscheiGarden', comp='storage')
-    print 'Upper slack', optmodel.get_result('heat_stor_uslack', node='waterscheiGarden', comp='storage')
-    print 'Lower slack', optmodel.get_result('heat_stor_lslack', node='waterscheiGarden', comp='storage')
+    print 'Heat loss', optmodel.get_result('heat_loss', node='waterscheiGarden', comp='storage')
+    # print 'Upper slack', optmodel.get_result('heat_stor_uslack', node='waterscheiGarden', comp='storage')
+    # print 'Lower slack', optmodel.get_result('heat_stor_lslack', node='waterscheiGarden', comp='storage')
 
     # -- Efficiency calculation --
 
@@ -178,6 +180,7 @@ if __name__ == '__main__':
     zwartberg_hf = optmodel.get_result('heat_flow', node='zwartbergNE', comp='buildingD')
 
     storage_soc = optmodel.get_result('heat_stor', node='waterscheiGarden', comp='storage')
+    storage_hl = sum(optmodel.get_result('heat_loss', node='waterscheiGarden', comp='storage'))
 
     # Sum of heat flows
     prod_e = sum(prod_hf)
@@ -187,7 +190,8 @@ if __name__ == '__main__':
 
     # Efficiency
     print '\nNetwork'
-    print 'Efficiency', (storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+    print 'Efficiency', (waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+    print 'Storage Losses', (storage_hl) / prod_e * 100, '%'
 
     # Diameters
     # print '\nDiameters'
@@ -208,8 +212,10 @@ if __name__ == '__main__':
 
     # Objectives
     print '\nObjective function'
+    print 'Slack: ', optmodel.model.Slack.value
     print 'Energy:', optmodel.get_objective('energy')
     print 'Cost:  ', optmodel.get_objective('cost')
+    print 'CO2:   ', optmodel.get_objective('co2')
     print 'Active:', optmodel.get_objective()
 
     fig, ax = plt.subplots()

@@ -164,11 +164,10 @@ class Modesto:
         self.model.Slack = Var()
 
         def def_slack(model):
-            return model.Slack == 0.001*sum(comp.obj_slack() for comp in self.iter_components())
+            return model.Slack == sum(comp.obj_slack() for comp in self.iter_components())
 
         self.model.def_slack = Constraint(rule=def_slack)
 
-        self.model.Slack.pprint()
         self.model.def_slack.pprint()
 
         def obj_energy(model):
@@ -202,7 +201,6 @@ class Modesto:
             self.model.OBJ_TEMP = Objective(rule=obj_temp, sense=minimize)
 
             self.objectives['temp'] = self.model.OBJ_TEMP
-
 
     def compile(self):
         """
@@ -463,8 +461,8 @@ class Modesto:
 
         if isinstance(opt_obj, IndexedVar):
             if index is None:
-                for i in obj:
-                    result.append(value(obj[i]))
+                for i in opt_obj:
+                    result.append(value(opt_obj[i]))
 
             else:
                 for i in self.model.TIME:
