@@ -19,7 +19,8 @@ import pandas as pd
 
 
 class Modesto:
-    def __init__(self, horizon, time_step, pipe_model, graph):
+    def __init__(self, horizon, time_step, pipe_model, graph,
+                 start_time='20140101'):
         """
         This class allows setting up optimization problems for district energy systems
 
@@ -28,16 +29,20 @@ class Modesto:
         :param objective: String describing the objective of the optimization problem
         :param pipe_model: String describing the type of model to be used for the pipes
         :param graph: networkx object, describing the structure of the network
+        :param start_time: Start time of this modesto instance. Either a
+        pandas Timestamp object or a string of format 'yyyymmdd'. Default
+        '20140101'.
         """
 
         self.model = ConcreteModel()
 
         self.horizon = horizon
         self.time_step = time_step
-        assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
+        assert (
+                       horizon % time_step) == 0, "The horizon should be a multiple of the time step."
         self.n_steps = int(horizon / time_step)
 
-        self.state_time = range(self.n_steps+1)
+        self.state_time = range(self.n_steps + 1)
         self.time = self.state_time[:-1]
 
         self.pipe_model = pipe_model
@@ -63,6 +68,14 @@ class Modesto:
         self.act_objective = None
 
         self.results = None
+
+        if isinstance(start_time, str):
+            self.start_time = pd.Timestamp(start_time)
+        elif isinstance(start_time, pd.Timestamp):
+            self.start_time = start_time
+        else:
+            raise IOError("start_time specifier not recognized. Should be "
+                          "either string of format 'yyyymmdd' or pd.Timestamp.")
 
     def change_graph(self):
         # TODO write this
@@ -110,11 +123,12 @@ class Modesto:
         for node in self.graph.nodes:
             # Create the node
             assert node not in self.nodes, "Node %s already exists" % node.name
-            self.nodes[node] = (Node(node,
-                                     self.graph.nodes[node],
-                                     self.horizon,
-                                     self.time_step,
-                                     self.temperature_driven))
+            self.nodes[node] = (Node(name=node,
+                                     node=self.graph.nodes[node],
+                                     horizon=self.horizon,
+                                     time_step=self.time_step,
+                                     start_time=self.start_time,
+                                     temperature_driven=self.temperature_driven))
 
             # Add the new components
             self.components[node] = self.nodes[node].get_components()
@@ -136,8 +150,10 @@ class Modesto:
             end_node = self.nodes[edge_tuple[1]]
             name = edge['name']
 
-            assert name not in self.edges, "An edge with name %s already exists" % edge['name']
-            assert name not in self.components[None], "A pipe with name %s already exists" % edge['name']
+            assert name not in self.edges, "An edge with name %s already exists" % \
+                                           edge['name']
+            assert name not in self.components[
+                None], "A pipe with name %s already exists" % edge['name']
 
             # Create the modesto.Edge object
             self.edges[name] = Edge(name=name,
@@ -193,7 +209,6 @@ class Modesto:
 
             self.objectives['temp'] = self.model.OBJ_TEMP
 
-
     def compile(self):
         """
         Compile the optimization problem
@@ -211,7 +226,8 @@ class Modesto:
 
         # General parameters
         self.model.TIME = Set(initialize=self.time, ordered=True)
-        self.model.X_TIME = Set(initialize=self.state_time, ordered=True)  # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
+        self.model.X_TIME = Set(initialize=self.state_time,
+                                ordered=True)  # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
         self.model.lines = Set(initialize=['supply', 'return'])
 
         def _ambient_temp(b, t):
@@ -245,8 +261,9 @@ class Modesto:
 
         for name, param in self.params.items():
             if not param.check():
-                raise ValueError('No value has been given for the general parameter {}. \n{}'.
-                                 format(name, param.get_description()))
+                raise ValueError(
+                    'No value has been given for the general parameter {}. \n{}'.
+                    format(name, param.get_description()))
 
         for node, comp_list in self.components.items():
             for comp, comp_obj in comp_list.items():
@@ -260,7 +277,8 @@ class Modesto:
         :return:
         """
         if objtype not in self.objectives:
-            raise ValueError('Choose an objective type from {}'.format(self.objectives.keys()))
+            raise ValueError('Choose an objective type from {}'.format(
+                self.objectives.keys()))
 
         for obj in self.objectives.values():
             obj.deactivate()
@@ -304,7 +322,7 @@ class Modesto:
             print self.results
 
         if (self.results.solver.status == SolverStatus.ok) and (
-                    self.results.solver.termination_condition == TerminationCondition.optimal):
+                self.results.solver.termination_condition == TerminationCondition.optimal):
             status = 0
         elif self.results.solver.termination_condition == TerminationCondition.infeasible:
             status = 1
@@ -315,7 +333,8 @@ class Modesto:
 
         return status
 
-    def opt_settings(self, objective=None, horizon=None, time_step=None, pipe_model=None, allow_flow_reversal=None):
+    def opt_settings(self, objective=None, horizon=None, time_step=None,
+                     pipe_model=None, allow_flow_reversal=None):
         """
         Change the setting of the optimization problem
 
@@ -376,7 +395,8 @@ class Modesto:
             for param, val in dict.items():
                 self.change_param(node, comp, param, val)
 
-    def change_state_bounds(self, state, new_ub, new_lb, slack, comp=None, node=None):
+    def change_state_bounds(self, state, new_ub, new_lb, slack, comp=None,
+                            node=None):
         """
         Change the interval of possible values of a certain state, and
         indicate whether it is a slack variable or not
@@ -416,7 +436,8 @@ class Modesto:
         """
 
         if name not in self.components[node]:
-            raise KeyError('There is no component named {} at node {}'.format(name, node))
+            raise KeyError(
+                'There is no component named {} at node {}'.format(name, node))
         return self.components[node][name]
 
     def get_result(self, name, node=None, comp=None, index=None):
@@ -436,14 +457,18 @@ class Modesto:
         elif node is not None:
             obj = self.nodes[node]
         else:
-            raise Exception('%node: {}, comp:{} are not a valid component or node names'.format(node,comp))
+            raise Exception(
+                '%node: {}, comp:{} are not a valid component or node names'.format(
+                    node, comp))
 
         opt_obj = obj.block.find_component(name)
 
         result = []
 
         if opt_obj is None:
-            raise Exception('{} is not a valid parameter or variable of {}'.format(name, comp))
+            raise Exception(
+                '{} is not a valid parameter or variable of {}'.format(name,
+                                                                       comp))
 
         if isinstance(opt_obj, IndexedVar):
             if index is None:
@@ -462,8 +487,9 @@ class Modesto:
             return result
 
         else:
-            self.logger.warning('{}.{} was a different type of variable/parameter than what has been implemented: '
-                                '{}'.format(comp, name, type(obj)))
+            self.logger.warning(
+                '{}.{} was a different type of variable/parameter than what has been implemented: '
+                '{}'.format(comp, name, type(obj)))
             return None
 
     def get_objective(self, objtype=None):
@@ -502,7 +528,8 @@ class Modesto:
             for comp, comp_obj in comps.items():
                 descriptions[comp] = {}
                 for name in comp_obj.get_params():
-                    descriptions[comp][name] = comp_obj.get_param_description(name)
+                    descriptions[comp][name] = comp_obj.get_param_description(
+                        name)
 
         self._print_params(descriptions)
 
@@ -522,7 +549,8 @@ class Modesto:
                 descriptions[comp][name] = comp_obj.get_param_description(name)
         for name in args:
             if name not in comp_obj.params:
-                raise IndexError('%s is not a valid parameter of %s' % (name, comp))
+                raise IndexError(
+                    '%s is not a valid parameter of %s' % (name, comp))
             descriptions[comp][name] = comp_obj.get_param_description(name)
 
         self._print_params(descriptions)
@@ -538,7 +566,8 @@ class Modesto:
         if name not in self.params:
             raise IndexError('%s is not a valid general parameter ' % name)
 
-        self._print_params({'general': {name: self.params[name].get_description()}})
+        self._print_params(
+            {'general': {name: self.params[name].get_description()}})
 
     @staticmethod
     def _print_params(descriptions):
@@ -578,7 +607,8 @@ class Modesto:
             # Collect known mass flow rates at nodes
             for node in nodes:
                 for comp, comp_obj in self.nodes[node].get_components().items():
-                    result[node][comp].append(comp_obj.get_mflo(t, compiled=False))
+                    result[node][comp].append(
+                        comp_obj.get_mflo(t, compiled=False))
                 mf_node = self.nodes[node].get_mflo(t)
                 mf_nodes[node].append(mf_node)
                 vector.append(mf_node)
@@ -588,7 +618,9 @@ class Modesto:
             for i, edge in enumerate(edges):
                 result[None][edge].append(sol[i])
 
-            mf_nodes[left_out_node].append(sum(result[None][edge][-1] * row[0, i] for i, edge in enumerate(edges)))
+            mf_nodes[left_out_node].append(sum(
+                result[None][edge][-1] * row[0, i] for i, edge in
+                enumerate(edges)))
 
             for comp in self.nodes[left_out_node].get_components():
                 result[left_out_node][comp].append(mf_nodes[left_out_node][-1])
@@ -605,7 +637,8 @@ class Modesto:
             mf_df = pd.DataFrame.from_dict(mf[node])
 
             for comp, comp_obj in comp_list.items():
-                self.change_param(node=node, comp=comp, param='mass_flow', val=mf_df.loc[:, [comp]])
+                self.change_param(node=node, comp=comp, param='mass_flow',
+                                  val=mf_df.loc[:, [comp]])
 
     def get_nodes(self):
         """
@@ -638,7 +671,8 @@ class Modesto:
         """
 
         if pipe not in self.components[None]:
-            raise KeyError('{} is not recognized as an existing pipe'.format(pipe))
+            raise KeyError(
+                '{} is not recognized as an existing pipe'.format(pipe))
 
         return self.components[None][pipe].get_diameter()
 
@@ -651,13 +685,15 @@ class Modesto:
         """
 
         if pipe not in self.components[None]:
-            raise KeyError('{} is not recognized as an existing pipe'.format(pipe))
+            raise KeyError(
+                '{} is not recognized as an existing pipe'.format(pipe))
 
         return self.components[None][pipe].get_length()
 
 
 class Node(object):
-    def __init__(self, name, node, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, node, horizon, time_step,
+                 start_time, temperature_driven=False):
         """
         Class that represents a geographical network location,
         associated with a number of components and connected to other nodes through edges
@@ -667,9 +703,11 @@ class Node(object):
         :param node: Networkx Node object
         :param horizon: Horizon of the problem
         :param time_step: Time step between two points of the problem
+        :param pd.Timestamp start_time: start time of optimization
         """
         self.horizon = horizon
         self.time_step = time_step
+        self.start_time = start_time
 
         self.logger = logging.getLogger('modesto.Node')
         self.logger.info('Initializing Node {}'.format(name))
@@ -688,7 +726,8 @@ class Node(object):
         self.build()
 
     def __get_data(self, name):
-        assert name in self.node, "%s is not stored in the networkx node object for %s" % (name, self.name)
+        assert name in self.node, "%s is not stored in the networkx node object for %s" % (
+        name, self.name)
         return self.node[name]
 
     def get_loc(self):
@@ -715,7 +754,8 @@ class Node(object):
         """
 
         assert name not in self.components, \
-            'A component named \'{}\' already exists for node \'{}\''.format(name, self.name)
+            'A component named \'{}\' already exists for node \'{}\''.format(
+                name, self.name)
 
         def str_to_class(str):
             return reduce(getattr, str.split("."), sys.modules[__name__])
@@ -726,11 +766,14 @@ class Node(object):
             cls = None
 
         if cls:
-            obj = cls(name, horizon=self.horizon,
+            obj = cls(name=name, horizon=self.horizon,
                       time_step=self.time_step,
+                      start_time=self.start_time,
                       temperature_driven=self.temperature_driven)
         else:
-            raise ValueError("%s is not a valid class name! (component is %s, in node %s)" % (ctype, name, self.name))
+            raise ValueError(
+                "%s is not a valid class name! (component is %s, in node %s)" % (
+                ctype, name, self.name))
 
         self.logger.info('Component {} added to {}'.format(name, self.name))
 
@@ -804,27 +847,38 @@ class Node(object):
             def _temp_bal_incoming(b, t, l):
                 # Zero mass flow rate:
                 if sum(c[comp].get_mflo(t) for comp in c) + \
-                     sum(p[pipe].get_mflo(self.name, t) for pipe in incoming_pipes[l]) == 0:
+                        sum(p[pipe].get_mflo(self.name, t) for pipe in
+                            incoming_pipes[l]) == 0:
                     # mixed temperature is average of all joined pipes, actual value should not matter,
                     # because packages in pipes of this time step will have zero size and components do not take over
                     # mixed temperature in case there is no mass flow
-                    return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t, l) for comp in c) +
-                        sum(p[pipe].get_temperature(self.name, t, l) for pipe in p))/(len(p)+len(c))
+                    return b.mix_temp[t, l] == (
+                            sum(c[comp].get_temperature(t, l) for comp in c) +
+                            sum(p[pipe].get_temperature(self.name, t, l) for
+                                pipe in p)) / (len(p) + len(c))
 
                 else:  # mass flow rate through the node
-                    return (sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) +
-                           sum(p[pipe].get_mflo(self.name, t) for pipe in incoming_pipes[l])) * b.mix_temp[t, l] == \
-                           sum(c[comp].get_mflo(t) * c[comp].get_temperature(t, l) for comp in incoming_comps[l]) + \
-                           sum(p[pipe].get_mflo(self.name, t) * p[pipe].get_temperature(self.name, t, l)
+                    return (sum(
+                        c[comp].get_mflo(t) for comp in incoming_comps[l]) +
+                            sum(p[pipe].get_mflo(self.name, t) for pipe in
+                                incoming_pipes[l])) * b.mix_temp[t, l] == \
+                           sum(c[comp].get_mflo(t) * c[comp].get_temperature(t,
+                                                                             l)
+                               for comp in incoming_comps[l]) + \
+                           sum(p[pipe].get_mflo(self.name, t) * p[
+                               pipe].get_temperature(self.name, t, l)
                                for pipe in incoming_pipes[l])
 
-            self.block.def_mixed_temp = Constraint(self.model.TIME, self.model.lines, rule=_temp_bal_incoming)
+            self.block.def_mixed_temp = Constraint(self.model.TIME,
+                                                   self.model.lines,
+                                                   rule=_temp_bal_incoming)
 
             def _temp_bal_outgoing(b, t, l, comp):
                 if t == 0:
                     return Constraint.Skip
                 if comp in outgoing_pipes[l]:
-                    return p[comp].get_temperature(self.name, t, l) == b.mix_temp[t, l]
+                    return p[comp].get_temperature(self.name, t, l) == \
+                           b.mix_temp[t, l]
                 elif comp in outgoing_comps[l]:
                     return c[comp].get_temperature(t, l) == b.mix_temp[t, l]
                 else:
@@ -842,18 +896,22 @@ class Node(object):
         else:
 
             def _heat_bal(b, t):
-                return 0 == sum(self.components[i].get_heat(t) for i in self.components) \
-                            + sum(
+                return 0 == sum(
+                    self.components[i].get_heat(t) for i in self.components) \
+                       + sum(
                     pipe.get_heat(self.name, t) for pipe in p.values())
 
-            self.block.ineq_heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
+            self.block.ineq_heat_bal = Constraint(self.model.TIME,
+                                                  rule=_heat_bal)
 
             def _mass_bal(b, t):
-                return 0 == sum(self.components[i].get_mflo(t) for i in self.components) \
-                            + sum(
+                return 0 == sum(
+                    self.components[i].get_mflo(t) for i in self.components) \
+                       + sum(
                     pipe.get_mflo(self.name, t) for pipe in p.values())
 
-            self.block.ineq_mass_bal = Constraint(self.model.TIME, rule=_mass_bal)
+            self.block.ineq_mass_bal = Constraint(self.model.TIME,
+                                                  rule=_mass_bal)
 
     def _make_block(self, model):
         """
@@ -891,7 +949,8 @@ class Node(object):
 
 class Edge(object):
     def __init__(self, name, edge, start_node, end_node, horizon,
-                 time_step, pipe_model, allow_flow_reversal, temperature_driven):
+                 time_step, start_time, pipe_model, allow_flow_reversal,
+                 temperature_driven):
         """
         Connection object between two nodes in a graph
 
@@ -901,6 +960,7 @@ class Edge(object):
         :param stop_node: modesto.Node object
         :param horizon: Horizon of the problem
         :param time_step: Time step between two points of the problem
+        :param pd.Timestamp start_time: Start time of optimization
         :param pipe_model: Type of pipe model to be used
         """
 
@@ -912,6 +972,7 @@ class Edge(object):
 
         self.horizon = horizon
         self.time_step = time_step
+        self.start_time = start_time
 
         self.start_node = start_node
         self.end_node = end_node
@@ -920,7 +981,8 @@ class Edge(object):
         self.temperature_driven = temperature_driven
 
         self.pipe_model = pipe_model
-        self.pipe = self.build(pipe_model, allow_flow_reversal)  # TODO Better structure possible?
+        self.pipe = self.build(pipe_model,
+                               allow_flow_reversal)  # TODO Better structure possible?
 
     def build(self, pipe_model, allow_flow_reversal):
         """
@@ -942,16 +1004,22 @@ class Edge(object):
             cls = None
 
         if cls:
-            obj = cls(self.name, self.horizon, self.time_step, self.start_node.name,
-                      self.end_node.name, self.length, allow_flow_reversal=allow_flow_reversal,
+            obj = cls(name=self.name, horizon=self.horizon,
+                      time_step=self.time_step,
+                      start_time=self.start_time,
+                      start_node=self.start_node.name,
+                      end_node=self.end_node.name, length=self.length,
+                      allow_flow_reversal=allow_flow_reversal,
                       temperature_driven=self.temperature_driven)
         else:
             obj = None
 
         if obj is None:
-            raise ValueError("%s is not a valid class name! (pipe %s)" % (pipe_model, self.name))
+            raise ValueError("%s is not a valid class name! (pipe %s)" % (
+            pipe_model, self.name))
 
-        self.logger.info('Pipe model {} added to {}'.format(pipe_model, self.name))
+        self.logger.info(
+            'Pipe model {} added to {}'.format(pipe_model, self.name))
 
         return obj
 
@@ -964,5 +1032,6 @@ class Edge(object):
         sumsq = 0
 
         for i in ['x', 'y', 'z']:
-            sumsq += (self.start_node.get_loc()[i] - self.end_node.get_loc()[i]) ** 2
+            sumsq += (self.start_node.get_loc()[i] - self.end_node.get_loc()[
+                i]) ** 2
         return sqrt(sumsq)
