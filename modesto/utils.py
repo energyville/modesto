@@ -5,9 +5,10 @@ Utility functions needed for modesto
 
 import os.path
 import pandas as pd
+from pandas.tseries.frequencies import to_offset
 
 
-def read_file(path, name, timestamp=True):
+def read_file(path, name, timestamp):
     """
     Read a text file and return it as a dataframe
 
@@ -40,14 +41,13 @@ def read_time_data(path, name):
     :return: A dataframe
     """
 
-    df = read_file(path, name)
+    df = read_file(path, name, timestamp=True)
 
     df = df.astype('float')
 
     return df
 
-
-def resample(old_data, new_sample_time, old_sample_time=None, method=None):
+def resample(df, new_sample_time, old_sample_time=None, method=None):
     """
     Resamples data
     :param old_data: A data frame, containing the time data
@@ -58,17 +58,17 @@ def resample(old_data, new_sample_time, old_sample_time=None, method=None):
     """
 
     if old_sample_time is None:
-        old_sample_time = (old_data.index[1] - old_data.index[0]).seconds
+        old_sample_time = pd.to_timedelta(to_offset(pd.infer_freq(df.index))).total_seconds()
 
     if (new_sample_time == old_sample_time) or (new_sample_time is None):
-        return old_data
+        return df
     else:
-        if new_sample_time < old_sample_time:
-            return old_data.resample(str(new_sample_time) + 'S').pad()
+        if method == 'pad' or new_sample_time < old_sample_time:
+            return df.resample(str(new_sample_time) + 'S').pad()
         elif method == 'sum':
-            return old_data.resample(str(new_sample_time) + 'S').sum()
+            return df.resample(str(new_sample_time) + 'S').sum()
         else:
-            return old_data.resample(str(new_sample_time) + 'S').mean()
+            return df.resample(str(new_sample_time) + 'S').mean()
 
 
 def read_period_data(path, name, time_step, horizon, start_time, method=None):
@@ -85,7 +85,7 @@ def read_period_data(path, name, time_step, horizon, start_time, method=None):
     """
 
     df = read_time_data(path, name)
-    df = resample(old_data=df, new_sample_time=time_step, method=method)
+    df = resample(df=df, new_sample_time=time_step, method=method)
 
     end_time = start_time + pd.Timedelta(seconds=horizon)
 
