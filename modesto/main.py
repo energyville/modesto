@@ -40,7 +40,7 @@ class Modesto:
         self.time_step = time_step
         assert (
                        horizon % time_step) == 0, "The horizon should be a multiple of the time step."
-        self.n_steps = int(horizon / time_step)
+        self.n_steps = int(horizon // time_step)
 
         self.results = None
 
@@ -76,7 +76,6 @@ class Modesto:
 
         self.objectives = {}
         self.act_objective = None
-
 
     def change_graph(self):
         # TODO write this
@@ -266,7 +265,7 @@ class Modesto:
             if not param.check():
                 raise ValueError(
                     'No value has been given for the general parameter {}. \n{}'.
-                    format(name, param.get_description()))
+                        format(name, param.get_description()))
 
         for node, comp_list in self.components.items():
             for comp, comp_obj in comp_list.items():
@@ -730,7 +729,7 @@ class Node(object):
 
     def __get_data(self, name):
         assert name in self.node, "%s is not stored in the networkx node object for %s" % (
-        name, self.name)
+            name, self.name)
         return self.node[name]
 
     def get_loc(self):
@@ -775,7 +774,7 @@ class Node(object):
         else:
             raise ValueError(
                 "%s is not a valid class name! (component is %s, in node %s)" % (
-                ctype, name, self.name))
+                    ctype, name, self.name))
 
         self.logger.info('Component {} added to {}'.format(name, self.name))
 
@@ -1017,7 +1016,7 @@ class Edge(object):
 
         if obj is None:
             raise ValueError("%s is not a valid class name! (pipe %s)" % (
-            pipe_model, self.name))
+                pipe_model, self.name))
 
         self.logger.info(
             'Pipe model {} added to {}'.format(pipe_model, self.name))

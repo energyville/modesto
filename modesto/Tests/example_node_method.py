@@ -75,7 +75,7 @@ def construct_model():
     heat_profile = heat_profile_step
 
     # Ambient temperature
-    t_amb = ut.read_period_data(path='..\Data\Weather',
+    t_amb = ut.read_period_data(path='../Data/Weather',
                                 name='extT.txt',
                                 time_step=time_step,
                                 horizon=n_steps*time_step,
@@ -90,7 +90,7 @@ def construct_model():
     mass_flow_history = pd.DataFrame([10] * 20, index=range(20))
 
     # Fuel costs
-    c_f = ut.read_period_data(path='..\Data\Weather',
+    c_f = ut.read_period_data(path='../Data/Weather',
                                 name='extT.txt',
                                 time_step=time_step,
                                 horizon=n_steps*time_step,
