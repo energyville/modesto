@@ -5,7 +5,7 @@ setup(
     version='0.1',
     packages=['modesto'],
     package_dir={'modesto': 'modesto'},
-    package_data={'modesto': ['Data/PipeCatalog/*.txt', 'Data/RenewableProduction/*.txt', 'Data/Weather/*.txt']},
+    package_data={'modesto': ['Data/*']},
     url='',
     license='',
     author='Annelies Vandermeulen and Bram van der Heijde',
