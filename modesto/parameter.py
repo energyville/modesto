@@ -2,7 +2,7 @@ from __future__ import division
 
 import pandas as pd
 import logging
-
+import modesto.utils as ut
 
 class Parameter(object):
 
@@ -161,18 +161,20 @@ class StateParameter(Parameter):
 
 class DataFrameParameter(Parameter):
 
-    def __init__(self, name, description, unit, val=None):
+    def __init__(self, name, description, unit, time_step=None, val=None):
         """
         Class that describes a parameter with a value consisting of a dataframe
 
         :param name: Name of the parameter (str)
         :param description: Description of the parameter (str)
         :param unit: Unit of the parameter (e.g. K, W, m...) (str)
+        :param time_step: Sampling time of the optimization problem
         :param val: Value of the parameter, if not given, it becomes None
         """
         if isinstance(val, pd.DataFrame):
             raise TypeError('The value of this parameter (user/weather data)should be a pandas DataFrame')
 
+        self.time_step = time_step
         Parameter.__init__(self, name, description, unit, val)
 
     def get_value(self, time=None):
@@ -189,7 +191,7 @@ class DataFrameParameter(Parameter):
             print 'Warning: {} does not have a value yet'.format(self.name)
             return None
         else:
-            if time not in self.value.index:
+            if time >= len(self.value.index):
                 raise IndexError('{} is not a valid index for the {} parameter'.format(time, self.name))
             return self.value.iloc[time][0]
 
@@ -205,6 +207,9 @@ class DataFrameParameter(Parameter):
 
         assert isinstance(new_val, pd.DataFrame), \
             'The new value of {} should be a pandas DataFrame'.format(self.name)
+
+        if self.time_step is not None:
+            new_val = ut.resample(new_val, new_sample_time=self.time_step)
 
         self.value = new_val
 

@@ -80,8 +80,6 @@ def construct_model():
                                 time_step=time_step,
                                 horizon=n_steps*time_step,
                                 start_time=start_time)
-    print t_amb
-    t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
 
     # Ground temperature
     t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
