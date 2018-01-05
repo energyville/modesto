@@ -161,7 +161,7 @@ class StateParameter(Parameter):
 
 class DataFrameParameter(Parameter):
 
-    def __init__(self, name, description, unit, time_step=None, val=None):
+    def __init__(self, name, description, unit, time_step, val=None):
         """
         Class that describes a parameter with a value consisting of a dataframe
 
@@ -174,6 +174,7 @@ class DataFrameParameter(Parameter):
         if isinstance(val, pd.DataFrame):
             raise TypeError('The value of this parameter (user/weather data)should be a pandas DataFrame')
 
+        self.time_data = False  # Does the dataframe have a timeData index?
         self.time_step = time_step
         Parameter.__init__(self, name, description, unit, val)
 
@@ -208,7 +209,12 @@ class DataFrameParameter(Parameter):
         assert isinstance(new_val, pd.DataFrame), \
             'The new value of {} should be a pandas DataFrame'.format(self.name)
 
-        if self.time_step is not None:
+        if isinstance(new_val.index, pd.DatetimeIndex):
+            self.time_data = True
+        else:
+            self.time_data = False
+
+        if self.time_data:
             new_val = ut.resample(new_val, new_sample_time=self.time_step)
 
         self.value = new_val
@@ -216,28 +222,30 @@ class DataFrameParameter(Parameter):
 
 class UserDataParameter(DataFrameParameter):
 
-    def __init__(self, name, description, unit, val=None):
+    def __init__(self, name, description, unit, time_step, val=None):
         """
         Class that describes a user data parameter
 
         :param name: Name of the parameter (str)
         :param description: Description of the parameter (str)
         :param unit: Unit of the parameter (e.g. K, W, m...) (str)
+        :param time_step: Sampling time of the optimization problem
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        DataFrameParameter.__init__(self, name, description, unit, val)
+        DataFrameParameter.__init__(self, name, description, unit, time_step, val)
 
 
 class WeatherDataParameter(DataFrameParameter):
-    def __init__(self, name, description, unit, val=None):
+    def __init__(self, name, description, unit, time_step, val=None):
         """
         Class that describes a weather data parameter
 
         :param name: Name of the parameter (str)
         :param description: Description of the parameter (str)
         :param unit: Unit of the parameter (e.g. K, W, m...) (str)
+        :param time_step: Sampling time of the optimization problem
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        DataFrameParameter.__init__(self, name, description, unit, val)
+        DataFrameParameter.__init__(self, name, description, unit, time_step, val)

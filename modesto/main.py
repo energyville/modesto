@@ -82,16 +82,17 @@ class Modesto:
         # TODO write this
         pass
 
-    @staticmethod
-    def create_params():
+    def create_params(self):
 
         params = {
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
-                                       'K'),
+                                       'K',
+                                       time_step=self.time_step),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
-                                       'K')
+                                       'K',
+                                       time_step=self.time_step)
         }
 
         return params
