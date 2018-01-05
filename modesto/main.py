@@ -474,8 +474,8 @@ class Modesto:
 
         if isinstance(opt_obj, IndexedVar):
             if index is None:
-                for i in obj:
-                    result.append(value(obj[i]))
+                for i in opt_obj:
+                    result.append(value(opt_obj[i]))
 
             else:
                 for i in self.model.TIME:
