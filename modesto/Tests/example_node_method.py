@@ -13,6 +13,7 @@ import pyomo.environ
 from pyomo.core.base import value
 
 from modesto.main import Modesto
+import modesto.utils as ut
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -25,6 +26,7 @@ logger = logging.getLogger('Main.py')
 
 n_steps = 288*2
 time_step = 150
+start_time = pd.Timestamp('20140101')
 
 
 ###########################
@@ -51,7 +53,7 @@ def construct_model():
 
     nx.draw(G, with_labels=True)
 
-    optmodel = Modesto(n_steps * time_step, time_step, 'NodeMethod', G)
+    optmodel = Modesto(n_steps * time_step, time_step, 'NodeMethod', G, start_time=start_time)
 
     ##################################
     # Set up data                    #
@@ -73,6 +75,12 @@ def construct_model():
     heat_profile = heat_profile_sine
 
     # Ambient temperature
+    t_amb = ut.read_period_data(path='..\Data\Weather',
+                                name='extT.txt',
+                                time_step=time_step,
+                                horizon=n_steps*time_step,
+                                start_time=start_time)
+    print t_amb
     t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
 
     # Ground temperature
