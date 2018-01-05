@@ -42,6 +42,16 @@ class Modesto:
                        horizon % time_step) == 0, "The horizon should be a multiple of the time step."
         self.n_steps = int(horizon / time_step)
 
+        self.results = None
+
+        if isinstance(start_time, str):
+            self.start_time = pd.Timestamp(start_time)
+        elif isinstance(start_time, pd.Timestamp):
+            self.start_time = start_time
+        else:
+            raise IOError("start_time specifier not recognized. Should be "
+                          "either string of format 'yyyymmdd' or pd.Timestamp.")
+
         self.state_time = range(self.n_steps + 1)
         self.time = self.state_time[:-1]
 
@@ -67,15 +77,6 @@ class Modesto:
         self.objectives = {}
         self.act_objective = None
 
-        self.results = None
-
-        if isinstance(start_time, str):
-            self.start_time = pd.Timestamp(start_time)
-        elif isinstance(start_time, pd.Timestamp):
-            self.start_time = start_time
-        else:
-            raise IOError("start_time specifier not recognized. Should be "
-                          "either string of format 'yyyymmdd' or pd.Timestamp.")
 
     def change_graph(self):
         # TODO write this
@@ -164,7 +165,8 @@ class Modesto:
                                     time_step=self.time_step,
                                     pipe_model=self.pipe_model,
                                     allow_flow_reversal=self.allow_flow_reversal,
-                                    temperature_driven=self.temperature_driven)
+                                    temperature_driven=self.temperature_driven,
+                                    start_time=self.start_time)
 
             start_node.add_pipe(self.edges[name].pipe)
             end_node.add_pipe(self.edges[name].pipe)
@@ -768,7 +770,6 @@ class Node(object):
         if cls:
             obj = cls(name=name, horizon=self.horizon,
                       time_step=self.time_step,
-                      start_time=self.start_time,
                       temperature_driven=self.temperature_driven)
         else:
             raise ValueError(
@@ -1006,7 +1007,6 @@ class Edge(object):
         if cls:
             obj = cls(name=self.name, horizon=self.horizon,
                       time_step=self.time_step,
-                      start_time=self.start_time,
                       start_node=self.start_node.name,
                       end_node=self.end_node.name, length=self.length,
                       allow_flow_reversal=allow_flow_reversal,

@@ -42,10 +42,10 @@ def read_time_data(path, name):
     """
 
     df = read_file(path, name, timestamp=True)
-
     df = df.astype('float')
 
     return df
+
 
 def resample(df, new_sample_time, old_sample_time=None, method=None):
     """
