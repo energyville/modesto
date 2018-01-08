@@ -158,6 +158,7 @@ class StateParameter(Parameter):
         return Parameter.get_description(self) + '\nInitType: {} \nUpper bound: {} \nLower bound: {} \nSlack: {}'\
             .format(self.init_type, self.ub, self.lb, self.slack)
 
+#TODO maybe we should distinguish between DataFrameParameter (can be a table) and SeriesParameter (only single columns allowed)
 
 class DataFrameParameter(Parameter):
 
@@ -171,8 +172,8 @@ class DataFrameParameter(Parameter):
         :param time_step: Sampling time of the optimization problem
         :param val: Value of the parameter, if not given, it becomes None
         """
-        if isinstance(val, pd.Series):
-            raise TypeError('The value of this parameter (user/weather data)should be a pandas DataFrame')
+        if isinstance(val, pd.DataFrame):
+            raise TypeError('The value of this parameter (user/weather data)should be a pandas Series')
 
         self.time_data = False  # Does the dataframe have a timeData index?
         self.time_step = time_step
@@ -207,7 +208,7 @@ class DataFrameParameter(Parameter):
         """
 
         assert isinstance(new_val, pd.DataFrame), \
-            'The new value of {} should be a pandas DataFrame'.format(self.name)
+            'The new value of {} should be a pandas Series'.format(self.name)
 
         if isinstance(new_val.index, pd.DatetimeIndex):
             self.time_data = True
