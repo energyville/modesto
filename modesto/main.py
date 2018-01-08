@@ -271,6 +271,8 @@ class Modesto:
             for comp, comp_obj in comp_list.items():
                 comp_obj.check_data()
 
+        return True
+
     def set_objective(self, objtype):
         """
         Set optimization objective.
