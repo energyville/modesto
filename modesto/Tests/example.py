@@ -4,10 +4,8 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-import modesto.utils as ut
-from pyomo.core.base import value
-import pyomo.environ
 
+import modesto.utils as ut
 from modesto.main import Modesto
 
 logging.basicConfig(level=logging.DEBUG,
@@ -46,9 +44,9 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 5
+    n_steps = 24 * 5
     time_step = 3600
-    start_time = '20140501'
+    start_time = pd.Timestamp('20140501')
 
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
                        pipe_model='ExtensivePipe', graph=G,
@@ -59,7 +57,8 @@ def construct_model():
     ##################################
 
     heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
-    t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
+    t_amb = ut.read_period_data('../Data/Weather', name='extT.txt', time_step=time_step, horizon=n_steps * time_step,
+                                start_time=start_time)
     t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
 
     optmodel.opt_settings(allow_flow_reversal=False)
@@ -74,7 +73,7 @@ def construct_model():
     # building parameters
 
     zw_building_params = {'delta_T': 20,
-                          'mult': 2000,
+                          'mult': 50,
                           'heat_profile': heat_profile,
                           }
 
@@ -99,7 +98,7 @@ def construct_model():
     # Storage parameters
 
     stor_design = {
-    # Thi and Tlo need to be compatible with delta_T of previous
+        # Thi and Tlo need to be compatible with delta_T of previous
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
@@ -212,7 +211,7 @@ if __name__ == '__main__':
     # Efficiency
     print '\nNetwork'
     print 'Efficiency', (
-                                storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
 
     # Diameters
     # print '\nDiameters'
@@ -270,7 +269,7 @@ if __name__ == '__main__':
     ax3 = fig3.add_subplot(111)
     ax3.plot(waterschei_hf, label='Waterschei')
     ax3.plot(zwartberg_hf, label="Zwartberg")
-    ax3.plot(storage_hf, label='Storage')
+    ax3.plot(storage_hf, linestyle='--', label='Storage')
     ax3.axhline(y=0, linewidth=1.5, color='k', linestyle='--')
     ax3.legend()
     ax3.set_ylabel('Heat Flow [W]')

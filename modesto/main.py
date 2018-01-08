@@ -1035,3 +1035,5 @@ class Edge(object):
             sumsq += (self.start_node.get_loc()[i] - self.end_node.get_loc()[
                 i]) ** 2
         return sqrt(sumsq)
+
+
