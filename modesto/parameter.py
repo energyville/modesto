@@ -171,7 +171,7 @@ class DataFrameParameter(Parameter):
         :param time_step: Sampling time of the optimization problem
         :param val: Value of the parameter, if not given, it becomes None
         """
-        if isinstance(val, pd.DataFrame):
+        if isinstance(val, pd.Series):
             raise TypeError('The value of this parameter (user/weather data)should be a pandas DataFrame')
 
         self.time_data = False  # Does the dataframe have a timeData index?
