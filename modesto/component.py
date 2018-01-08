@@ -2,15 +2,13 @@ from __future__ import division
 
 import logging
 from math import pi, log, exp
-import pandas as pd
+
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
-import numpy as np
 
 from parameter import StateParameter, DesignParameter, UserDataParameter
 
 
 class Component(object):
-
     def __init__(self, name=None, horizon=None, time_step=None, params=None, direction=None, temperature_driven=False):
         """
         Base class for components
@@ -146,8 +144,8 @@ class Component(object):
         # TODO Find something better!
         if not compiled:
             try:
-                return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v()\
-                         / self.cp / self.params['delta_T'].v()
+                return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v() \
+                       / self.cp / self.params['delta_T'].v()
             except:
                 try:
                     return self.direction * self.params['heat_profile'].v() \
@@ -229,7 +227,7 @@ class Component(object):
         """
 
         if name not in self.params:
-                raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
+            raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
         else:
             return self.params[name].get_description()
 
@@ -317,11 +315,11 @@ class FixedProfile(Component):
                                                           'K',
                                                           'fixedVal')
             params['temperature_max'] = DesignParameter('temperature_max',
-                                                          'Maximun allowed water temperature at the component',
-                                                          'K')
+                                                        'Maximun allowed water temperature at the component',
+                                                        'K')
             params['temperature_min'] = DesignParameter('temperature_min',
-                                                          'Minimum allowed temperature at the component',
-                                                          'K')
+                                                        'Minimum allowed temperature at the component',
+                                                        'K')
 
         return params
 
@@ -360,10 +358,10 @@ class FixedProfile(Component):
                 if t == 0:
                     return Constraint.Skip
                 elif b.mass_flow[t] == 0:
-                    return  b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
+                    return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
                 else:
                     return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
-                           b.heat_flow[t]/b.mass_flow[t]/self.cp
+                           b.heat_flow[t] / b.mass_flow[t] / self.cp
 
             def _init_temperatures(b, l):
                 return b.temperatures[0, l] == self.params['temperature_' + l].v()
@@ -374,33 +372,33 @@ class FixedProfile(Component):
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
 
-    # def fill_opt(self):
-    #     """
-    #     Add the parameters to the model
-    #
-    #     :return:
-    #     """
-    #
-    #     param_list = ""
-    #
-    #     assert set(self.needed_design_param) >= set(self.design_param.keys()), \
-    #         "Design parameters for %s are missing: %s" \
-    #         % (self.name, str(list(set(self.design_param.keys()) - set(self.needed_design_param))))
-    #
-    #     assert set(self.needed_user_data) >= set(self.user_data.keys()), \
-    #         "User data for %s are missing: %s" \
-    #         % (self.name, str(list(set(self.user_data.keys()) - set(self.needed_user_data))))
-    #
-    #     for d_param in self.needed_design_param:
-    #         param_list += "param %s := \n%s\n;\n" % (self.name + "_" + d_param, self.design_param[d_param])
-    #
-    #     for u_param in self.needed_user_data:
-    #         param_list += "param %s := \n" % (self.name + "_" + u_param)
-    #         for i in range(self.n_steps):
-    #             param_list += str(i + 1) + ' ' + str(self.user_data[u_param].loc[i][0]) + "\n"
-    #         param_list += ';\n'
-    #
-    #     return param_list
+        # def fill_opt(self):
+        #     """
+        #     Add the parameters to the model
+        #
+        #     :return:
+        #     """
+        #
+        #     param_list = ""
+        #
+        #     assert set(self.needed_design_param) >= set(self.design_param.keys()), \
+        #         "Design parameters for %s are missing: %s" \
+        #         % (self.name, str(list(set(self.design_param.keys()) - set(self.needed_design_param))))
+        #
+        #     assert set(self.needed_user_data) >= set(self.user_data.keys()), \
+        #         "User data for %s are missing: %s" \
+        #         % (self.name, str(list(set(self.user_data.keys()) - set(self.needed_user_data))))
+        #
+        #     for d_param in self.needed_design_param:
+        #         param_list += "param %s := \n%s\n;\n" % (self.name + "_" + d_param, self.design_param[d_param])
+        #
+        #     for u_param in self.needed_user_data:
+        #         param_list += "param %s := \n" % (self.name + "_" + u_param)
+        #         for i in range(self.n_steps):
+        #             param_list += str(i + 1) + ' ' + str(self.user_data[u_param].loc[i][0]) + "\n"
+        #         param_list += ';\n'
+        #
+        #     return param_list
 
 
 class VariableProfile(Component):
@@ -590,25 +588,25 @@ class ProducerVariable(Component):
             if t == 0:
                 return Constraint.Skip
             else:
-                return b.heat_flow[t] - b.heat_flow[t-1] <= self.params['ramp'].v()*self.time_step
+                return b.heat_flow[t] - b.heat_flow[t - 1] <= self.params['ramp'].v() * self.time_step
 
         def _decl_downward_ramp(b, t):
             if t == 0:
                 return Constraint.Skip
             else:
-                return b.heat_flow[t-1] - b.heat_flow[t] <= self.params['ramp'].v() * self.time_step
+                return b.heat_flow[t - 1] - b.heat_flow[t] <= self.params['ramp'].v() * self.time_step
 
         def _decl_upward_ramp_cost(b, t):
             if t == 0:
                 return b.ramping_cost[t] == 0
             else:
-                return b.ramping_cost[t] >= (b.heat_flow[t] - b.heat_flow[t-1])*self.params['ramp_cost'].v()
+                return b.ramping_cost[t] >= (b.heat_flow[t] - b.heat_flow[t - 1]) * self.params['ramp_cost'].v()
 
         def _decl_downward_ramp_cost(b, t):
             if t == 0:
                 return Constraint.Skip
             else:
-                return b.ramping_cost[t] >= (b.heat_flow[t-1] - b.heat_flow[t])*self.params['ramp_cost'].v()
+                return b.ramping_cost[t] >= (b.heat_flow[t - 1] - b.heat_flow[t]) * self.params['ramp_cost'].v()
 
         self.block.decl_upward_ramp = Constraint(self.model.TIME, rule=_decl_upward_ramp)
         self.block.decl_downward_ramp = Constraint(self.model.TIME, rule=_decl_downward_ramp)
@@ -621,7 +619,8 @@ class ProducerVariable(Component):
                                           self.model.lines)
 
             def _limit_temperatures(b, t):
-                return self.params['temperature_min'].v() <= b.temperatures[t, 'supply'] <= self.params['temperature_max'].v()
+                return self.params['temperature_min'].v() <= b.temperatures[t, 'supply'] <= self.params[
+                    'temperature_max'].v()
 
             self.block.limit_teperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
 
@@ -631,14 +630,15 @@ class ProducerVariable(Component):
                 elif b.mass_flow[t] == 0:
                     return Constraint.Skip
                 else:
-                    return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
+                    return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t] / b.mass_flow[
+                        t] / self.cp
 
             def _init_temperature(b, l):
                 return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
             def _decl_temp_mf0(b, t):
                 if (not t == 0) and b.mass_flow[t] == 0:
-                    return b.temperatures[t, 'supply'] == b.temperatures[t-1, 'supply']
+                    return b.temperatures[t, 'supply'] == b.temperatures[t - 1, 'supply']
                 else:
                     return Constraint.Skip
 
@@ -673,7 +673,7 @@ class ProducerVariable(Component):
         """
         cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
-        return sum(cost[t] / eta * self.get_heat(t) for t in range(self.n_steps)) #
+        return sum(cost.v(t) / eta * self.get_heat(t) for t in range(self.n_steps))  #
 
     def obj_cost_ramp(self):
         """
@@ -684,7 +684,7 @@ class ProducerVariable(Component):
         """
         cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
-        return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t) for t in range(self.n_steps)) #
+        return sum(self.get_ramp_cost(t) + cost.v(t) / eta * self.get_heat(t) for t in range(self.n_steps))  #
 
     def obj_co2(self):
         """
@@ -774,7 +774,7 @@ class StorageVariable(Component):
                                    'K'),
             'Tlo': DesignParameter('Tlo',
                                    'Low temperature in tank',
-                                   'K',),
+                                   'K', ),
             'mflo_max': DesignParameter('mflo_max',
                                         'Maximal mass flow rate to and from storage vessel',
                                         'kg/s'),
@@ -845,6 +845,7 @@ class StorageVariable(Component):
         def _heat_loss_ct(b, t):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
                    self.UAtb * (self.temp_ret + self.temp_sup - self.model.Te[t])
+
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
