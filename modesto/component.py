@@ -17,6 +17,7 @@ class Component(object):
         Base class for components
 
         :param name: Name of the component
+        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param params: Required parameters to set up the model (dict)
@@ -275,8 +276,8 @@ class FixedProfile(Component):
         Class for a component with a fixed heating profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
@@ -417,8 +418,8 @@ class VariableProfile(Component):
         Class for components with a variable heating profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param direction: Standard heat and mass flow direction for positive flows. 1 for producer components, -1 for consumer components
         """
@@ -448,8 +449,8 @@ class BuildingFixed(FixedProfile):
         Class for building models with a fixed heating profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(BuildingFixed, self).__init__(name=name,
@@ -469,8 +470,8 @@ class BuildingVariable(Component):
         Class for a building with a variable heating profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(BuildingVariable, self).__init__(name=name,
@@ -487,8 +488,8 @@ class ProducerFixed(FixedProfile):
         Class that describes a fixed producer profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(ProducerFixed, self).__init__(name=name,
@@ -505,8 +506,8 @@ class ProducerVariable(Component):
         Class that describes a variable producer
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
 
@@ -730,8 +731,7 @@ class ProducerVariable(Component):
 class SolarThermalCollector(Component):
     def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
         """
-        Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the
-        optimisation infeasible.
+        Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
 
         :param name: Name of the solar panel
         :param start_time: Start time of optimization. pd.Timestamp.
@@ -803,8 +803,8 @@ class StorageFixed(FixedProfile):
         Class that describes a fixed storage
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(StorageFixed, self).__init__(name=name,
@@ -821,8 +821,8 @@ class StorageVariable(Component):
         Class that describes a variable storage
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
 
