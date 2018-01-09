@@ -737,18 +737,54 @@ class SolarThermalCollector(Component):
         self.logger = logging.getLogger('modesto.components.SolThermCol')
         self.logger.info('Initializing SolarThermalCollector {}'.format(name))
 
-        self.max_prod = ut.
+        filepath = resource_filename('modesto', 'Data/RenewableProduction')
 
-        def create_params(self):
-            params = {
-                'area': DesignParameter('area', 'Surface area of panels', 'm2')
-            }
-            return params
+        self.max_prod = ut.read_period_data(path=filepath, name='SolarThermal.txt', time_step=time_step,
+                                            horizon=horizon, start_time=start_time)["(0L, 40L)"]
+        # TODO Allow multiple orientations (the L-Tuple)
 
+    def create_params(self):
+        params = {
+            'area': DesignParameter('area', 'Surface area of panels', 'm2'),
+            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K')
+        }
+        return params
+
+    def compile(self, topmodel, parent):
+        """
+        Compile this component's equations
+
+        :param self:
+        :param topmodel:
+        :param parent:
+        :return:
+        """
+
+        self.check_data()
+
+        self.model = topmodel
+        self.make_block(parent)
+
+        self.block.heat_flow_max = Param(self.model.TIME, initialize=self.max_prod.values)
+        self.block.heat_flow = Var(self.model.TIME)
+        self.block.heat_flow_curt = Var(self.model.TIME)
+
+        self.block.mass_flow = Var(self.model.TIME)
+
+        # Equations
+
+        def _heat_bal(m, t):
+            return m.heat_flow[t] + m.heat_flow_curt[t] == self.params['area'].v() * m.heat_flow_max[t]
+
+        def _ener_bal(m, t):
+            return m.mass_flow[t] == m.heat_flow[t] / self.cp / self.params['delta_T'].v()
+
+        self.block.eq_heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
+        self.block.eq_ener_bal = Constraint(self.model.TIME, rule=_ener_bal)
 
 
 class StorageFixed(FixedProfile):
-    def __init__(self, name, horizon, time_step, temperature_driven):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven):
         """
         Class that describes a fixed storage
 
