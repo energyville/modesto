@@ -314,7 +314,7 @@ class Modesto:
         :return:
         """
 
-        if tee:
+        if verbose:
             self.model.pprint()
 
         opt = SolverFactory("gurobi")
@@ -770,7 +770,7 @@ class Node(object):
             cls = None
 
         if cls:
-            obj = cls(name=name, horizon=self.horizon,
+            obj = cls(name=name, start_time=self.start_time, horizon=self.horizon,
                       time_step=self.time_step,
                       temperature_driven=self.temperature_driven)
         else:
