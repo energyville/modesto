@@ -240,17 +240,22 @@ class Modesto:
         if not an error is raised
 
         """
+        missing_params = collections.defaultdict(dict)
+
         if self.temperature_driven:
             self.add_mf()
 
         for name, param in self.params.items():
             if not param.check():
-                raise ValueError('No value has been given for the general parameter {}. \n{}'.
-                                 format(name, param.get_description()))
+                missing_params['general'][name] = param.get_description()
 
         for node, comp_list in self.components.items():
             for comp, comp_obj in comp_list.items():
-                comp_obj.check_data()
+                missing_params[comp] = comp_obj.check_data()
+
+        if missing_params:
+            raise Exception('Following parameters are missing:\n{}'
+                            .format(self._print_params(missing_params, disp=False)))
 
     def set_objective(self, objtype):
         """
@@ -541,11 +546,25 @@ class Modesto:
         self._print_params({'general': {name: self.params[name].get_description()}})
 
     @staticmethod
-    def _print_params(descriptions):
+    def _print_params(descriptions, disp=True):
+        """
+        Print parameters
+
+        :param descriptions: Dictionary containing parameters to be printed: descriptions[component name][param name]
+        :param disp: if True, descriptions are printed, if False string of descriptions is returned
+        :return:
+        """
+        string = ''
         for comp in descriptions:
-            print '--- ', comp, ' ---\n'
+            if descriptions[comp]:
+                string += '\n--- ' + comp + ' ---\n\n'
             for param, des in descriptions[comp].items():
-                print '-', param, '\n', des, '\n'
+                string += '-' + param + '\n' + des + '\n\n'
+
+        if disp:
+            print string
+        else:
+            return string
 
     def calculate_mf(self):
         """
