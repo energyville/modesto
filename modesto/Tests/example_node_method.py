@@ -13,6 +13,7 @@ import pyomo.environ
 from pyomo.core.base import value
 
 from modesto.main import Modesto
+import modesto.utils as ut
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -25,6 +26,7 @@ logger = logging.getLogger('Main.py')
 
 n_steps = 288*2
 time_step = 150
+start_time = pd.Timestamp('20140101')
 
 
 ###########################
@@ -51,7 +53,7 @@ def construct_model():
 
     nx.draw(G, with_labels=True)
 
-    optmodel = Modesto(n_steps * time_step, time_step, 'NodeMethod', G)
+    optmodel = Modesto(n_steps * time_step, time_step, 'NodeMethod', G, start_time=start_time)
 
     ##################################
     # Set up data                    #
@@ -70,10 +72,14 @@ def construct_model():
     heat_profile_linear = pd.DataFrame(linear, index=range(n_steps))
     heat_profile_sine = pd.DataFrame(sine[0:n_steps], index=range(n_steps))
 
-    heat_profile = heat_profile_sine
+    heat_profile = heat_profile_step
 
     # Ambient temperature
-    t_amb = pd.DataFrame([20 + 273.15] * n_steps, index=range(n_steps))
+    t_amb = ut.read_period_data(path='../Data/Weather',
+                                name='extT.txt',
+                                time_step=time_step,
+                                horizon=n_steps*time_step,
+                                start_time=start_time)
 
     # Ground temperature
     t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
@@ -82,6 +88,14 @@ def construct_model():
     temp_history_return = pd.DataFrame([return_temp] * 20, index=range(20))
     temp_history_supply = pd.DataFrame([supply_temp] * 20, index=range(20))
     mass_flow_history = pd.DataFrame([10] * 20, index=range(20))
+
+    # Fuel costs
+    c_f = ut.read_period_data(path='../Data/Weather',
+                                name='extT.txt',
+                                time_step=time_step,
+                                horizon=n_steps*time_step,
+                                start_time=start_time)
+    # c_f = [0.034] * int(n_steps/2) + [0.034] * int(n_steps/2) # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
 
     ###########################
     # Set parameters          #
@@ -134,8 +148,7 @@ def construct_model():
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'fuel_cost': [0.034] * int(n_steps/2) + [0.034] * int(n_steps/2),
-                   # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
+                   'fuel_cost': c_f,
                    'Qmax': 2e6,
                    'temperature_supply': supply_temp,
                    'temperature_return': return_temp,

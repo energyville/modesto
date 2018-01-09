@@ -300,13 +300,15 @@ class FixedProfile(Component):
                                     '-'),
             'heat_profile': UserDataParameter('heat_profile',
                                               'Heat use in one (average) building',
-                                              'W'),
+                                              'W',
+                                              self.time_step),
         }
 
         if self.temperature_driven:
             params['mass_flow'] = UserDataParameter('mass_flow',
                                                     'Mass flow through one (average) building substation',
-                                                    'kg/s')
+                                                    'kg/s',
+                                                    self.time_step)
             params['temperature_supply'] = StateParameter('temperature_supply',
                                                           'Initial supply temperature at the component',
                                                           'K',
@@ -521,9 +523,10 @@ class ProducerVariable(Component):
             'CO2': DesignParameter('CO2',
                                    'amount of CO2 released when using primary energy source',
                                    'kg/kWh'),
-            'fuel_cost': DesignParameter('fuel_cost',
-                                         'cost of fuel/electricity to generate heat',
-                                         'euro/kWh'),
+            'fuel_cost': UserDataParameter('fuel_cost',
+                                           'cost of fuel/electricity to generate heat',
+                                           'euro/kWh',
+                                           time_step=self.time_step),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
@@ -538,7 +541,8 @@ class ProducerVariable(Component):
         if self.temperature_driven:
             params['mass_flow'] = UserDataParameter('mass_flow',
                                                     'Flow through the production unit substation',
-                                                    'kg/s')
+                                                    'kg/s',
+                                                    self.time_step)
             params['temperature_max'] = DesignParameter('temperature_max',
                                                         'Maximum allowed water temperature',
                                                         'K')
@@ -672,7 +676,7 @@ class ProducerVariable(Component):
 
         :return:
         """
-        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
+        cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         return sum(cost.v(t) / eta * self.get_heat(t) for t in range(self.n_steps))  #
 
@@ -683,7 +687,7 @@ class ProducerVariable(Component):
 
         :return:
         """
-        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
+        cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         return sum(self.get_ramp_cost(t) + cost.v(t) / eta * self.get_heat(t) for t in range(self.n_steps))  #
 
