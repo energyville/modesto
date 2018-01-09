@@ -1,21 +1,22 @@
 from __future__ import division
 
+import collections
 import sys
 from math import sqrt
 
+import networkx as nx
+import pandas as pd
 # noinspection PyUnresolvedReferences
 import pyomo.environ
-from component import *
-from pipe import *
-from parameter import *
 from pyomo.core.base import ConcreteModel, Objective, minimize, value
 from pyomo.core.base.param import IndexedParam
 from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
-import networkx as nx
-import collections
-import pandas as pd
+
+from component import *
+from parameter import *
+from pipe import *
 
 
 class Modesto:
@@ -39,7 +40,7 @@ class Modesto:
         self.horizon = horizon
         self.time_step = time_step
         assert (
-                       horizon % time_step) == 0, "The horizon should be a multiple of the time step."
+                   horizon % time_step) == 0, "The horizon should be a multiple of the time step."
         self.n_steps = int(horizon // time_step)
 
         self.results = None
@@ -326,7 +327,7 @@ class Modesto:
             print self.results
 
         if (self.results.solver.status == SolverStatus.ok) and (
-                self.results.solver.termination_condition == TerminationCondition.optimal):
+                    self.results.solver.termination_condition == TerminationCondition.optimal):
             status = 0
         elif self.results.solver.termination_condition == TerminationCondition.infeasible:
             status = 1
@@ -450,7 +451,7 @@ class Modesto:
 
         :param comp: Name of the component to which the variable belongs
         :param name: Name of the needed variable/parameter
-        :return: A list containing all values of the variable/parameter over the time horizon
+        :return: A pandas DataFrame containing all values of the variable/parameter over the time horizon
         """
 
         if self.results is None:
@@ -467,6 +468,11 @@ class Modesto:
 
         opt_obj = obj.block.find_component(name)
 
+        resname = ''
+        for i in [node, comp, name]:
+            if i is not None:
+                '.'.join([resname, i])
+
         result = []
 
         if opt_obj is None:
@@ -478,15 +484,26 @@ class Modesto:
             if index is None:
                 for i in opt_obj:
                     result.append(value(opt_obj[i]))
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                                             periods=len(result))
+
+                result = pd.Series(data=result, index=timeindex, name=resname)
 
             else:
                 for i in self.model.TIME:
                     result.append(opt_obj[(i, index)].value)
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                                             periods=len(result))
+                result = pd.Series(data=result, index=timeindex, name=resname+'_'+str(index))
 
             return result
 
         elif isinstance(opt_obj, IndexedParam):
             result = opt_obj.values()
+
+            timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                                         periods=len(result))
+            result = pd.Series(data=result, index=timeindex, name=resname)
 
             return result
 
@@ -629,7 +646,7 @@ class Modesto:
             for comp in self.nodes[left_out_node].get_components():
                 result[left_out_node][comp].append(mf_nodes[left_out_node][-1])
 
-            # TODO Only one component at producer node possible at the moment
+                # TODO Only one component at producer node possible at the moment
 
         return result
 
@@ -856,9 +873,9 @@ class Node(object):
                     # because packages in pipes of this time step will have zero size and components do not take over
                     # mixed temperature in case there is no mass flow
                     return b.mix_temp[t, l] == (
-                            sum(c[comp].get_temperature(t, l) for comp in c) +
-                            sum(p[pipe].get_temperature(self.name, t, l) for
-                                pipe in p)) / (len(p) + len(c))
+                                                   sum(c[comp].get_temperature(t, l) for comp in c) +
+                                                   sum(p[pipe].get_temperature(self.name, t, l) for
+                                                       pipe in p)) / (len(p) + len(c))
 
                 else:  # mass flow rate through the node
                     return (sum(
@@ -901,7 +918,7 @@ class Node(object):
             def _heat_bal(b, t):
                 return 0 == sum(
                     self.components[i].get_heat(t) for i in self.components) \
-                       + sum(
+                            + sum(
                     pipe.get_heat(self.name, t) for pipe in p.values())
 
             self.block.ineq_heat_bal = Constraint(self.model.TIME,
@@ -910,7 +927,7 @@ class Node(object):
             def _mass_bal(b, t):
                 return 0 == sum(
                     self.components[i].get_mflo(t) for i in self.components) \
-                       + sum(
+                            + sum(
                     pipe.get_mflo(self.name, t) for pipe in p.values())
 
             self.block.ineq_mass_bal = Constraint(self.model.TIME,
@@ -1037,5 +1054,3 @@ class Edge(object):
             sumsq += (self.start_node.get_loc()[i] - self.end_node.get_loc()[
                 i]) ** 2
         return sqrt(sumsq)
-
-
