@@ -5,7 +5,8 @@ from math import pi, log, exp
 
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
 
-from parameter import StateParameter, DesignParameter, UserDataParameter
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
+import modesto.utils as ut
 
 
 class Component(object):
@@ -710,6 +711,36 @@ class ProducerVariable(Component):
         # return sum((70+273.15 - self.get_temperature(t, 'supply'))**2 for t in range(self.n_steps))
 
         return sum(self.get_temperature(t, 'supply') for t in self.model.TIME)
+
+
+class SolarThermalCollector(Component):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+        """
+        Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the
+        optimisation infeasible.
+
+        :param name: Name of the solar panel
+        :param start_time: Start time of optimization. pd.Timestamp.
+        :param horizon: Optimization horizon in seconds
+        :param time_step: Time step in seconds
+        :param temperature_driven:
+        """
+        super(SolarThermalCollector, self).__init__(name=name, horizon=horizon, time_step=time_step, direction=1,
+                                                    temperature_driven=temperature_driven)
+
+        self.params = self.create_params()
+
+        self.logger = logging.getLogger('modesto.components.SolThermCol')
+        self.logger.info('Initializing SolarThermalCollector {}'.format(name))
+
+        self.max_prod = ut.
+
+        def create_params(self):
+            params = {
+                'area': DesignParameter('area', 'Surface area of panels', 'm2')
+            }
+            return params
+
 
 
 class StorageFixed(FixedProfile):
