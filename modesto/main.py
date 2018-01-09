@@ -161,17 +161,24 @@ class Modesto:
         :return:
         """
 
+        self.model.Slack = Var()
+
+        def _decl_slack(model):
+            return model.Slack == 10**6*sum(comp.obj_slack() for comp in self.iter_components())
+
+        self.model.decl_slack = Constraint(rule=_decl_slack)
+
         def obj_energy(model):
-            return sum(comp.obj_energy() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_energy() for comp in self.iter_components())
 
         def obj_cost(model):
-            return sum(comp.obj_cost() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_cost() for comp in self.iter_components())
 
         def obj_cost_ramp(model):
-            return sum(comp.obj_cost_ramp() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_cost_ramp() for comp in self.iter_components())
 
         def obj_co2(model):
-            return sum(comp.obj_co2() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_co2() for comp in self.iter_components())
 
         self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
         self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
@@ -182,7 +189,7 @@ class Modesto:
             'energy': self.model.OBJ_ENERGY,
             'cost': self.model.OBJ_COST,
             'cost_ramp': self.model.OBJ_COST_RAMP,
-            'co2': self.model.OBJ_CO2
+            'co2': self.model.OBJ_CO2,
         }
 
         if self.temperature_driven:
@@ -447,8 +454,8 @@ class Modesto:
 
         if isinstance(opt_obj, IndexedVar):
             if index is None:
-                for i in obj:
-                    result.append(value(obj[i]))
+                for i in opt_obj:
+                    result.append(value(opt_obj[i]))
 
             else:
                 for i in self.model.TIME:

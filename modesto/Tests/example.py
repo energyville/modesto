@@ -45,10 +45,10 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 5
+    n_steps = 40
     time_steps = 3600
 
-    optmodel = Modesto(n_steps * time_steps, time_steps, 'ExtensivePipe', G)
+    optmodel = Modesto(n_steps * time_steps, time_steps, 'SimplePipe', G)
 
     ##################################
     # Fill in the parameters         #
@@ -96,24 +96,29 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
-        'volume': 10,
+        'volume': 1,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': 0
+        'heat_stor': -1000
     }
 
     optmodel.change_params(dict=stor_design, node='waterscheiGarden', comp='storage')
 
     optmodel.change_init_type('heat_stor', 'fixedVal', node='waterscheiGarden', comp='storage')
-    optmodel.change_state_bounds('heat_stor', 50, 0, False, node='waterscheiGarden', comp='storage')
+    optmodel.change_state_bounds('heat_stor',
+                                 new_ub=10**12,
+                                 new_lb=0,
+                                 slack=True,
+                                 node='waterscheiGarden',
+                                 comp='storage')
 
     # Production parameters
 
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'fuel_cost': [0.034] * n_steps,
+                   'fuel_cost': [0.034] * int(n_steps/2) + [100] * int(n_steps/2) ,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 10e6,
                    'ramp_cost': 0.01,
@@ -125,11 +130,11 @@ def construct_model():
     # Print parameters               #
     ##################################
 
-    optmodel.print_all_params()
-    optmodel.print_general_param('Te')
-    optmodel.print_comp_param('ThorPark', 'plant')
-    optmodel.print_comp_param('waterscheiGarden', 'storage')
-    optmodel.print_comp_param('waterscheiGarden', 'storage', 'kIns', 'volume')
+    # optmodel.print_all_params()
+    # optmodel.print_general_param('Te')
+    # optmodel.print_comp_param('ThorPark', 'plant')
+    # optmodel.print_comp_param('waterscheiGarden', 'storage')
+    # optmodel.print_comp_param('waterscheiGarden', 'storage', 'kIns', 'volume')
 
     return optmodel
 
@@ -140,7 +145,7 @@ def construct_model():
 if __name__ == '__main__':
     optmodel = construct_model()
     optmodel.compile()
-    optmodel.set_objective('energy')
+    optmodel.set_objective('cost')
 
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
@@ -205,6 +210,7 @@ if __name__ == '__main__':
 
     # Objectives
     print '\nObjective function'
+    print 'Slack: ', optmodel.model.Slack.value
     print 'Energy:', optmodel.get_objective('energy')
     print 'Cost:  ', optmodel.get_objective('cost')
     print 'Active:', optmodel.get_objective()
