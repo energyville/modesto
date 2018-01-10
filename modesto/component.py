@@ -2,20 +2,22 @@ from __future__ import division
 
 import logging
 from math import pi, log, exp
-import pandas as pd
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
-import numpy as np
 
-from parameter import StateParameter, DesignParameter, UserDataParameter
+from pkg_resources import resource_filename
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
+
+import modesto.utils as ut
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
 
 
 class Component(object):
-
-    def __init__(self, name=None, horizon=None, time_step=None, params=None, direction=None, temperature_driven=False):
+    def __init__(self, name=None, start_time=None, horizon=None, time_step=None, params=None, direction=None,
+                 temperature_driven=False):
         """
         Base class for components
 
         :param name: Name of the component
+        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param params: Required parameters to set up the model (dict)
@@ -25,6 +27,7 @@ class Component(object):
         self.logger.info('Initializing Component {}'.format(name))
 
         self.name = name
+        self.start_time = start_time
         assert horizon % time_step == 0, "The horizon of the optimization problem should be multiple of the time step."
         self.horizon = horizon
         self.time_step = time_step
@@ -146,8 +149,8 @@ class Component(object):
         # TODO Find something better!
         if not compiled:
             try:
-                return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v()\
-                         / self.cp / self.params['delta_T'].v()
+                return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v() \
+                       / self.cp / self.params['delta_T'].v()
             except:
                 try:
                     return self.direction * self.params['heat_profile'].v() \
@@ -229,7 +232,7 @@ class Component(object):
         """
 
         if name not in self.params:
-                raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
+            raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
         else:
             return self.params[name].get_description()
 
@@ -267,17 +270,19 @@ class Component(object):
 
 
 class FixedProfile(Component):
-    def __init__(self, name=None, horizon=None, time_step=None, direction=None, temperature_driven=False):
+    def __init__(self, name=None, start_time=None, horizon=None, time_step=None, direction=None,
+                 temperature_driven=False):
         """
         Class for a component with a fixed heating profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
         super(FixedProfile, self).__init__(name=name,
+                                           start_time=start_time,
                                            horizon=horizon,
                                            time_step=time_step,
                                            direction=direction,
@@ -319,11 +324,11 @@ class FixedProfile(Component):
                                                           'K',
                                                           'fixedVal')
             params['temperature_max'] = DesignParameter('temperature_max',
-                                                          'Maximun allowed water temperature at the component',
-                                                          'K')
+                                                        'Maximun allowed water temperature at the component',
+                                                        'K')
             params['temperature_min'] = DesignParameter('temperature_min',
-                                                          'Minimum allowed temperature at the component',
-                                                          'K')
+                                                        'Minimum allowed temperature at the component',
+                                                        'K')
 
         return params
 
@@ -362,10 +367,10 @@ class FixedProfile(Component):
                 if t == 0:
                     return Constraint.Skip
                 elif b.mass_flow[t] == 0:
-                    return  b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
+                    return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
                 else:
                     return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
-                           b.heat_flow[t]/b.mass_flow[t]/self.cp
+                           b.heat_flow[t] / b.mass_flow[t] / self.cp
 
             def _init_temperatures(b, l):
                 return b.temperatures[0, l] == self.params['temperature_' + l].v()
@@ -376,49 +381,50 @@ class FixedProfile(Component):
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
 
-    # def fill_opt(self):
-    #     """
-    #     Add the parameters to the model
-    #
-    #     :return:
-    #     """
-    #
-    #     param_list = ""
-    #
-    #     assert set(self.needed_design_param) >= set(self.design_param.keys()), \
-    #         "Design parameters for %s are missing: %s" \
-    #         % (self.name, str(list(set(self.design_param.keys()) - set(self.needed_design_param))))
-    #
-    #     assert set(self.needed_user_data) >= set(self.user_data.keys()), \
-    #         "User data for %s are missing: %s" \
-    #         % (self.name, str(list(set(self.user_data.keys()) - set(self.needed_user_data))))
-    #
-    #     for d_param in self.needed_design_param:
-    #         param_list += "param %s := \n%s\n;\n" % (self.name + "_" + d_param, self.design_param[d_param])
-    #
-    #     for u_param in self.needed_user_data:
-    #         param_list += "param %s := \n" % (self.name + "_" + u_param)
-    #         for i in range(self.n_steps):
-    #             param_list += str(i + 1) + ' ' + str(self.user_data[u_param].loc[i][0]) + "\n"
-    #         param_list += ';\n'
-    #
-    #     return param_list
+        # def fill_opt(self):
+        #     """
+        #     Add the parameters to the model
+        #
+        #     :return:
+        #     """
+        #
+        #     param_list = ""
+        #
+        #     assert set(self.needed_design_param) >= set(self.design_param.keys()), \
+        #         "Design parameters for %s are missing: %s" \
+        #         % (self.name, str(list(set(self.design_param.keys()) - set(self.needed_design_param))))
+        #
+        #     assert set(self.needed_user_data) >= set(self.user_data.keys()), \
+        #         "User data for %s are missing: %s" \
+        #         % (self.name, str(list(set(self.user_data.keys()) - set(self.needed_user_data))))
+        #
+        #     for d_param in self.needed_design_param:
+        #         param_list += "param %s := \n%s\n;\n" % (self.name + "_" + d_param, self.design_param[d_param])
+        #
+        #     for u_param in self.needed_user_data:
+        #         param_list += "param %s := \n" % (self.name + "_" + u_param)
+        #         for i in range(self.n_steps):
+        #             param_list += str(i + 1) + ' ' + str(self.user_data[u_param].loc[i][0]) + "\n"
+        #         param_list += ';\n'
+        #
+        #     return param_list
 
 
 class VariableProfile(Component):
     # TODO Assuming that variable profile means State-Space model
 
-    def __init__(self, name, horizon, time_step, direction, temperature_driven=False):
+    def __init__(self, name, start_time, horizon, time_step, direction, temperature_driven=False):
         """
         Class for components with a variable heating profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param direction: Standard heat and mass flow direction for positive flows. 1 for producer components, -1 for consumer components
         """
         super(VariableProfile, self).__init__(name=name,
+                                              start_time=start_time,
                                               horizon=horizon,
                                               time_step=time_step,
                                               direction=direction,
@@ -438,16 +444,17 @@ class VariableProfile(Component):
 
 
 class BuildingFixed(FixedProfile):
-    def __init__(self, name, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
         """
         Class for building models with a fixed heating profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(BuildingFixed, self).__init__(name=name,
+                                            start_time=start_time,
                                             horizon=horizon,
                                             time_step=time_step,
                                             direction=-1,
@@ -458,16 +465,17 @@ class BuildingVariable(Component):
     # TODO How to implement DHW tank? Separate model from Building or together?
     # TODO Model DHW user without tank? -> set V_tank = 0
 
-    def __init__(self, name, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
         """
         Class for a building with a variable heating profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(BuildingVariable, self).__init__(name=name,
+                                               start_time=start_time,
                                                horizon=horizon,
                                                time_step=time_step,
                                                direction=-1,
@@ -475,16 +483,17 @@ class BuildingVariable(Component):
 
 
 class ProducerFixed(FixedProfile):
-    def __init__(self, name, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
         """
         Class that describes a fixed producer profile
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(ProducerFixed, self).__init__(name=name,
+                                            start_time=start_time,
                                             horizon=horizon,
                                             time_step=time_step,
                                             direction=1,
@@ -492,17 +501,18 @@ class ProducerFixed(FixedProfile):
 
 
 class ProducerVariable(Component):
-    def __init__(self, name, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
         """
         Class that describes a variable producer
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
 
         super(ProducerVariable, self).__init__(name=name,
+                                               start_time=start_time,
                                                horizon=horizon,
                                                time_step=time_step,
                                                direction=1,
@@ -594,25 +604,25 @@ class ProducerVariable(Component):
             if t == 0:
                 return Constraint.Skip
             else:
-                return b.heat_flow[t] - b.heat_flow[t-1] <= self.params['ramp'].v()*self.time_step
+                return b.heat_flow[t] - b.heat_flow[t - 1] <= self.params['ramp'].v() * self.time_step
 
         def _decl_downward_ramp(b, t):
             if t == 0:
                 return Constraint.Skip
             else:
-                return b.heat_flow[t-1] - b.heat_flow[t] <= self.params['ramp'].v() * self.time_step
+                return b.heat_flow[t - 1] - b.heat_flow[t] <= self.params['ramp'].v() * self.time_step
 
         def _decl_upward_ramp_cost(b, t):
             if t == 0:
                 return b.ramping_cost[t] == 0
             else:
-                return b.ramping_cost[t] >= (b.heat_flow[t] - b.heat_flow[t-1])*self.params['ramp_cost'].v()
+                return b.ramping_cost[t] >= (b.heat_flow[t] - b.heat_flow[t - 1]) * self.params['ramp_cost'].v()
 
         def _decl_downward_ramp_cost(b, t):
             if t == 0:
                 return Constraint.Skip
             else:
-                return b.ramping_cost[t] >= (b.heat_flow[t-1] - b.heat_flow[t])*self.params['ramp_cost'].v()
+                return b.ramping_cost[t] >= (b.heat_flow[t - 1] - b.heat_flow[t]) * self.params['ramp_cost'].v()
 
         self.block.decl_upward_ramp = Constraint(self.model.TIME, rule=_decl_upward_ramp)
         self.block.decl_downward_ramp = Constraint(self.model.TIME, rule=_decl_downward_ramp)
@@ -625,7 +635,8 @@ class ProducerVariable(Component):
                                           self.model.lines)
 
             def _limit_temperatures(b, t):
-                return self.params['temperature_min'].v() <= b.temperatures[t, 'supply'] <= self.params['temperature_max'].v()
+                return self.params['temperature_min'].v() <= b.temperatures[t, 'supply'] <= self.params[
+                    'temperature_max'].v()
 
             self.block.limit_teperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
 
@@ -635,14 +646,15 @@ class ProducerVariable(Component):
                 elif b.mass_flow[t] == 0:
                     return Constraint.Skip
                 else:
-                    return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t]/b.mass_flow[t]/self.cp
+                    return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t] / b.mass_flow[
+                        t] / self.cp
 
             def _init_temperature(b, l):
                 return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
             def _decl_temp_mf0(b, t):
                 if (not t == 0) and b.mass_flow[t] == 0:
-                    return b.temperatures[t, 'supply'] == b.temperatures[t-1, 'supply']
+                    return b.temperatures[t, 'supply'] == b.temperatures[t - 1, 'supply']
                 else:
                     return Constraint.Skip
 
@@ -677,7 +689,7 @@ class ProducerVariable(Component):
         """
         cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
-        return sum(cost.v(t) / eta * self.get_heat(t) for t in range(self.n_steps)) #
+        return sum(cost.v(t) / eta * self.get_heat(t) for t in range(self.n_steps))  #
 
     def obj_cost_ramp(self):
         """
@@ -688,7 +700,7 @@ class ProducerVariable(Component):
         """
         cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
-        return sum(self.get_ramp_cost(t) + cost.v(t) / eta * self.get_heat(t) for t in range(self.n_steps)) #
+        return sum(self.get_ramp_cost(t) + cost.v(t) / eta * self.get_heat(t) for t in range(self.n_steps))  #
 
     def obj_co2(self):
         """
@@ -716,17 +728,87 @@ class ProducerVariable(Component):
         return sum(self.get_temperature(t, 'supply') for t in self.model.TIME)
 
 
+class SolarThermalCollector(Component):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+        """
+        Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
+
+        :param name: Name of the solar panel
+        :param start_time: Start time of optimization. pd.Timestamp.
+        :param horizon: Optimization horizon in seconds
+        :param time_step: Time step in seconds
+        :param temperature_driven:
+        """
+        super(SolarThermalCollector, self).__init__(name=name, start_time=start_time, horizon=horizon,
+                                                    time_step=time_step, direction=1,
+                                                    temperature_driven=temperature_driven)
+
+        self.params = self.create_params()
+
+        self.logger = logging.getLogger('modesto.components.SolThermCol')
+        self.logger.info('Initializing SolarThermalCollector {}'.format(name))
+
+        filepath = resource_filename('modesto', 'Data/RenewableProduction')
+
+        self.max_prod = ut.read_period_data(path=filepath, name='SolarThermal.txt', time_step=time_step,
+                                            horizon=horizon, start_time=start_time)["(0L, 40L)"]
+        # TODO Allow multiple orientations (the L-Tuple)
+
+    def create_params(self):
+        params = {
+            'area': DesignParameter('area', 'Surface area of panels', 'm2'),
+            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K')
+        }
+        return params
+
+    def compile(self, topmodel, parent):
+        """
+        Compile this component's equations
+
+        :param self:
+        :param topmodel:
+        :param parent:
+        :return:
+        """
+
+        self.check_data()
+
+        self.model = topmodel
+        self.make_block(parent)
+
+        def _heat_flow_max(m, t):
+            return self.max_prod.values[t]
+
+        self.block.heat_flow_max = Param(self.model.TIME, rule=_heat_flow_max)
+        self.block.heat_flow = Var(self.model.TIME)
+        self.block.heat_flow_curt = Var(self.model.TIME, within=NonNegativeReals)
+
+        self.block.mass_flow = Var(self.model.TIME)
+
+        # Equations
+
+        def _heat_bal(m, t):
+            return m.heat_flow[t] + m.heat_flow_curt[t] == self.params['area'].v() * m.heat_flow_max[t]
+
+        def _ener_bal(m, t):
+            return m.mass_flow[t] == m.heat_flow[t] / self.cp / self.params['delta_T'].v()
+
+        self.block.eq_heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
+        self.block.eq_ener_bal = Constraint(self.model.TIME, rule=_ener_bal)
+
+
 class StorageFixed(FixedProfile):
-    def __init__(self, name, horizon, time_step, temperature_driven):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven):
         """
         Class that describes a fixed storage
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(StorageFixed, self).__init__(name=name,
+                                           start_time=start_time,
                                            horizon=horizon,
                                            time_step=time_step,
                                            direction=-1,
@@ -734,27 +816,28 @@ class StorageFixed(FixedProfile):
 
 
 class StorageVariable(Component):
-    def __init__(self, name, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
         """
         Class that describes a variable storage
 
         :param name: Name of the building
-        :param horizon: Horizon of the optimization problem,
-        in seconds
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
 
         super(StorageVariable, self).__init__(name=name,
+                                              start_time=start_time,
                                               horizon=horizon,
                                               time_step=time_step,
                                               direction=-1,
                                               temperature_driven=temperature_driven)
 
         self.params = self.create_params()
+        self.max_en = 0
 
         # TODO choose between stored heat or state of charge as state (which one is easier for initialization?)
 
-        self.cyclic = False
         self.max_mflo = None
         self.volume = None
         self.dIns = None
@@ -778,7 +861,7 @@ class StorageVariable(Component):
                                    'K'),
             'Tlo': DesignParameter('Tlo',
                                    'Low temperature in tank',
-                                   'K',),
+                                   'K', ),
             'mflo_max': DesignParameter('mflo_max',
                                         'Maximal mass flow rate to and from storage vessel',
                                         'kg/s'),
@@ -823,6 +906,8 @@ class StorageVariable(Component):
 
         heat_stor_init = self.params['heat_stor']
 
+        self.max_en = self.volume * self.cp * self.temp_diff * self.rho
+
         # Geometrical calculations
         w = (4 * self.volume / self.ar / pi) ** (1 / 3)  # Width of tank
         h = self.ar * w  # Height of tank
@@ -849,6 +934,7 @@ class StorageVariable(Component):
         def _heat_loss_ct(b, t):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
                    self.UAtb * (self.temp_ret + self.temp_sup - self.model.Te[t])
+
         # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
@@ -874,8 +960,9 @@ class StorageVariable(Component):
         # Internal
         self.block.heat_stor = Var(self.model.X_TIME, bounds=(
             0, self.volume * self.cp * 1000 * self.temp_diff))
+        self.block.soc = Var(self.model.TIME)
         self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
-        self.logger.debug('Tau:      {}s'.format(str(self.tau)))
+        self.logger.debug('Tau:      {}d'.format(str(self.tau / 3600 / 365)))
         self.logger.debug('Loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
 
         #############################################################################################
@@ -895,13 +982,13 @@ class StorageVariable(Component):
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
+        # SoC equation
+        def _soq_eq(b, t):
+            return b.soc[t] == b.heat_stor[t] / self.max_en * 100
+
         self.block.state_eq = Constraint(self.model.TIME, rule=_state_eq)
+        self.block.soc_eq = Constraint(self.model.TIME, rule=_soq_eq)
 
-        if self.cyclic:
-            def _eq_cyclic(b):
-                return b.heat_stor[0] == b.heat_stor[self.model.TIME[-1]]
-
-            self.block.eq_cyclic = Constraint(rule=_eq_cyclic)
         #############################################################################################
         # Initial state
 
@@ -910,7 +997,7 @@ class StorageVariable(Component):
             pass
         elif heat_stor_init.init_type == 'cyclic':
             def _eq_cyclic(b):
-                return b.heat_stor[0] == b.heat_stor[self.model.TIME[-1]]
+                return b.heat_stor[0] == b.heat_stor[self.model.X_TIME[-1]]
 
             self.block.eq_cyclic = Constraint(rule=_eq_cyclic)
         else:

@@ -30,9 +30,8 @@ class Modesto:
         :param objective: String describing the objective of the optimization problem
         :param pipe_model: String describing the type of model to be used for the pipes
         :param graph: networkx object, describing the structure of the network
-        :param start_time: Start time of this modesto instance. Either a
-        pandas Timestamp object or a string of format 'yyyymmdd'. Default
-        '20140101'.
+        :param start_time: Start time of this modesto instance. Either a pandas Timestamp object or a string of format
+            'yyyymmdd'. Default '20140101'.
         """
 
         self.model = ConcreteModel()
@@ -315,7 +314,7 @@ class Modesto:
         :return:
         """
 
-        if tee:
+        if verbose:
             self.model.pprint()
 
         opt = SolverFactory("gurobi")
@@ -389,8 +388,7 @@ class Modesto:
         Change multiple parameters of a component at once
 
         :param comp: Name of the component
-        :param dict: Dictionary, with keys being names of the parameters,
-        values the corresponding new values of the parameters
+        :param dict: Dictionary, with keys being names of the parameters, values the corresponding new values of the parameters
         """
 
         if comp is None:
@@ -787,7 +785,7 @@ class Node(object):
             cls = None
 
         if cls:
-            obj = cls(name=name, horizon=self.horizon,
+            obj = cls(name=name, start_time=self.start_time, horizon=self.horizon,
                       time_step=self.time_step,
                       temperature_driven=self.temperature_driven)
         else:
