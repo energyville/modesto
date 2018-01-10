@@ -14,6 +14,7 @@ from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 
+from component import *
 from parameter import *
 from pipe import *
 
@@ -448,7 +449,7 @@ class Modesto:
 
         :param comp: Name of the component to which the variable belongs
         :param name: Name of the needed variable/parameter
-        :return: A list containing all values of the variable/parameter over the time horizon
+        :return: A pandas DataFrame containing all values of the variable/parameter over the time horizon
         """
 
         if self.results is None:
@@ -465,6 +466,11 @@ class Modesto:
 
         opt_obj = obj.block.find_component(name)
 
+        resname = ''
+        for i in [node, comp, name]:
+            if i is not None:
+                '.'.join([resname, i])
+
         result = []
 
         if opt_obj is None:
@@ -476,15 +482,26 @@ class Modesto:
             if index is None:
                 for i in opt_obj:
                     result.append(value(opt_obj[i]))
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                                             periods=len(result))
+
+                result = pd.Series(data=result, index=timeindex, name=resname)
 
             else:
                 for i in self.model.TIME:
                     result.append(opt_obj[(i, index)].value)
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                                             periods=len(result))
+                result = pd.Series(data=result, index=timeindex, name=resname+'_'+str(index))
 
             return result
 
         elif isinstance(opt_obj, IndexedParam):
             result = opt_obj.values()
+
+            timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                                         periods=len(result))
+            result = pd.Series(data=result, index=timeindex, name=resname)
 
             return result
 

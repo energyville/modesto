@@ -44,7 +44,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 24 * 5
+    n_steps = 15
     time_step = 3600
     start_time = pd.Timestamp('20140501')
 
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     optmodel.model.OBJ_COST.pprint()
     optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.01)
+    optmodel.solve(tee=True, mipgap=0.2)
 
     ##################################
     # Collect result                 #
@@ -238,31 +238,28 @@ if __name__ == '__main__':
     print 'Cost:  ', optmodel.get_objective('cost')
     print 'Active:', optmodel.get_objective()
 
-    fig, ax = plt.subplots()
+    fig = plt.figure()
 
-    ax.hold(True)
-    l1, = ax.plot(prod_hf)
-    l3, = ax.plot([x + y + z for x, y, z in
-                   zip(waterschei_hf, storage_hf, zwartberg_hf, )])  # , )])  #
+    ax = fig.add_subplot(111)
+
+    ax.plot(prod_hf, label='Producer')
+    ax.plot(waterschei_hf + storage_hf + zwartberg_hf, label='Users and storage')  # , )])  #
     ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
 
     ax.set_title('Heat flows [W]')
 
-    fig.legend((l1, l3),
-               ('Producer',
-                'Users and storage'),
-               'lower center', ncol=3)
+    ax.legend(loc='lower center', ncol=3)
     fig.tight_layout()
 
     fig2 = plt.figure()
 
     ax2 = fig2.add_subplot(111)
     ax2.plot(storage_soc, label='Stored heat')
-    ax2.plot(np.asarray(storage_hf) * 3600, label="Charged heat")
+    ax2.plot(storage_hf * 3600, label="Charged heat")
     ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax2.legend()
     fig2.suptitle('Storage')
-    fig2.tight_layout()
+    #ax2.tight_layout()
 
     fig3 = plt.figure()
 
@@ -273,6 +270,6 @@ if __name__ == '__main__':
     ax3.axhline(y=0, linewidth=1.5, color='k', linestyle='--')
     ax3.legend()
     ax3.set_ylabel('Heat Flow [W]')
-    fig3.tight_layout()
+    #ax3.tight_layout()
 
     plt.show()

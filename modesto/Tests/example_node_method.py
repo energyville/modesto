@@ -183,7 +183,7 @@ def compare_ramping_costs():
     heat = {}
 
     for rc in ramp_cost:
-        optmodel.change_param(node='ThorPark', comp='plat', name='ramp_cost', val=rc)
+        optmodel.change_param(node='ThorPark', comp='plant', param='ramp_cost', val=rc)
         optmodel.compile()
         optmodel.set_objective('cost_ramp')
 
@@ -210,7 +210,7 @@ def compare_ramping_costs():
 
 if __name__ == '__main__':
     optmodel = construct_model()
-    # compare_ramping_costs()
+    #compare_ramping_costs()
 
     optmodel.opt_settings(allow_flow_reversal=False)
     optmodel.compile()
@@ -272,40 +272,39 @@ if __name__ == '__main__':
 
     time = [i*time_step/3600 for i in range(n_steps)]
 
-    font = {'size': 15}
-    plt.rc('font', **font)
+    #font = {'size': 15}
+    #plt.rc('font', **font)
 
     fig, ax = plt.subplots()
-    ax.hold(True)
-    l1, = ax.plot(time, prod_hf, label='Injection', linewidth=2)
-    l3, = ax.plot(time, [x+y for x,y in zip(waterschei_hf, zwartberg_hf,)], label='Extraction', linewidth=2)  # , )])  #
+    ax.plot(prod_hf, label='Injection', linewidth=2)
+    ax.plot(waterschei_hf+zwartberg_hf, label='Extraction', linewidth=2)  # , )])  #
     ax.set_title('Heat flow [W]')
     ax.set_xlabel('Time [h]')
-    plt.xticks(range(0, 25, 4))
+    #plt.xticks(range(0, 25, 4))
     ax.legend()
-    fig.tight_layout()
+    #fig.tight_layout()
 
-    fig2 = plt.figure()
-    ax2 = fig2.add_subplot(111)
-    ax2.plot(time, np.asarray(prod_t_sup) - 273.15, color='r', label='Thor park supply', linewidth=2)
-    ax2.plot(time, np.asarray(prod_t_ret) - 273.15, color='r', linestyle='--', label="Thor park return", linewidth=2)
-    ax2.plot(time, np.asarray(ws_t_sup) - 273.15, color='b', label='Waterschei supply', linewidth=2)
-    ax2.plot(time, np.asarray(ws_t_ret) - 273.15, color='b', linestyle='--', label="Waterschei return", linewidth=2)
-    ax2.plot(time, np.asarray(zw_t_sup) - 273.15, color='g', label='Zwartberg supply', linewidth=2)
-    ax2.plot(time, np.asarray(zw_t_ret) - 273.15, color='g', linestyle='--', label="Zwartberg return", linewidth=2)
-    plt.xticks(range(0, 25, 4))
+    fig2, ax2 = plt.subplots()
+    ax2.plot(prod_t_sup - 273.15, color='r', label='Thor park supply', linewidth=2)
+    ax2.plot(prod_t_ret - 273.15, color='r', linestyle='--', label="Thor park return", linewidth=2)
+    ax2.plot(ws_t_sup - 273.15, color='b', label='Waterschei supply', linewidth=2)
+    ax2.plot(ws_t_ret - 273.15, color='b', linestyle='--', label="Waterschei return", linewidth=2)
+    ax2.plot(zw_t_sup - 273.15, color='g', label='Zwartberg supply', linewidth=2)
+    ax2.plot(zw_t_ret - 273.15, color='g', linestyle='--', label="Zwartberg return", linewidth=2)
     ax2.legend()
     fig2.suptitle('Temperatures [degrees C]')
-    ax2.set_xlabel('Time [h]')
-    fig2.tight_layout()
+    ax2.set_xlabel('Time')
 
-    fig3 = plt.figure()
-    ax3 = fig3.add_subplot(111)
+    #fig2.tight_layout()
+
+    fig3, ax3 = plt.subplots()
     ax3.plot(waterschei_hf, label='Waterschei')
     ax3.plot(zwartberg_hf, label="Zwartberg")
-    ax3.axhline(y=0, linewidth=2, color='k', linestyle='--')
+    #ax3.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax3.legend()
     ax3.set_ylabel('Heat Flow [W]')
-    fig3.tight_layout()
+    #fig3.tight_layout()
+
+    plt.tight_layout()
 
     plt.show()
