@@ -187,7 +187,7 @@ class Component(object):
 
     def make_slack(self, slack_name):
         self.slack_list.append(slack_name)
-        self.block.add_component(slack_name, Var(self.model.X_TIME, within=NonNegativeReals))
+        self.block.add_component(slack_name, Var(self.model.TIME, within=NonNegativeReals))
         return self.block.find_component(slack_name)
 
     def constrain_value(self, variable, bound, ub=True, slack_variable=None):
@@ -256,7 +256,7 @@ class Component(object):
         slack = 0
 
         for slack_name in self.slack_list:
-            slack += sum(self.get_slack(slack_name, t) for t in self.model.X_TIME)
+            slack += sum(self.get_slack(slack_name, t) for t in self.model.TIME)
 
         return slack
 
@@ -401,30 +401,33 @@ class FixedProfile(Component):
             def _init_temperatures(b, l):
                 return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
-            def _upper_boundary_temperature(b, t, l):
-                # if self.params['temperature_max'].get_slack():
-                #     slack = self.make_slack('temperature_max_' + l + '_ub')
-                # else:
-                slack = None
-                ub = self.params['temperature_max'].v()
+            if True: #self.params['temperature_max'].get_slack():
+                uslack = self.make_slack('temperature_max_uslack')
+                lslack = self.make_slack('temperature_max_l_slack')
+            else:
+                uslack = [None] * len(self.model.TIME)
+                lslack = [None] * len(self.model.TIME)
 
-                return self.constrain_value(b.temperatures[t, l], ub, ub=True, slack_variable=slack)
+            ub = self.params['temperature_max'].v()
+            lb = self.params['temperature_min'].v()
 
-            def _lower_boundary_temperature(b, t, l):
-                # if self.params['temperature_max'].get_slack():
-                #     slack = self.make_slack('temperature_max_' + l + '_ub')
-                # else:
-                slack = None
-                lb = self.params['temperature_max'].v()
+            def _max_temp(b, t):
+                return self.constrain_value(b.temperatures[t, 'supply'],
+                                            ub,
+                                            ub=True,
+                                            slack_variable=uslack[t])
 
-                return self.constrain_value(b.temperatures[t, l], lb, ub=False, slack_variable=slack)
+            def _min_temp(b, t):
+                return self.constrain_value(b.temperatures[t, 'supply'],
+                                            lb,
+                                            ub=False,
+                                            slack_variable=lslack[t])
 
-            self.block.decl_temperatures = Constraint(self.model.X_TIME, rule=_decl_temperatures)
+            self.block.max_temp = Constraint(self.model.TIME, rule=_max_temp)
+            self.block.min_temp = Constraint(self.model.TIME, rule=_min_temp)
+
+            self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
             self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
-            self.block.max_temperature = Constraint(self.model.X_TIME, rule=_upper_boundary_temperature)
-            self.block.min_temperature = Constraint(self.model.X_TIME, rule=_lower_boundary_temperature)
-
-            self.block.pprint()
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -717,7 +720,7 @@ class ProducerVariable(Component):
         eta = self.params['efficiency'].v()
         pef = self.params['PEF'].v()
 
-        return sum(pef / eta * (self.get_heat(t)) * self.time_step / 3600 for t in range(self.n_steps))
+        return sum(pef / eta * (self.get_heat(t)) * self.time_step / 3600 / 1000 for t in range(self.n_steps))
 
     def obj_cost(self):
         """
@@ -728,7 +731,7 @@ class ProducerVariable(Component):
         """
         cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
-        return sum(cost[t] / eta * self.get_heat(t) / 3600 for t in range(self.n_steps))
+        return sum(cost[t] / eta * self.get_heat(t) / 3600 * self.time_step / 1000 for t in range(self.n_steps))
 
     def obj_cost_ramp(self):
         """
@@ -739,7 +742,8 @@ class ProducerVariable(Component):
         """
         cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
-        return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t) for t in range(self.n_steps)) #
+        return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t)
+                   / 3600 * self.time_step / 1000  for t in range(self.n_steps)) #
 
     def obj_co2(self):
         """
@@ -752,7 +756,7 @@ class ProducerVariable(Component):
         eta = self.params['efficiency'].v()
         pef = self.params['PEF'].v()
         co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
-        return sum(co2 / eta * self.get_heat(t) * self.time_step / 3600 for t in range(self.n_steps))
+        return sum(co2 / eta * self.get_heat(t) * self.time_step / 3600 / 1000 for t in range(self.n_steps))
 
     def obj_temp(self):
         """
@@ -961,31 +965,29 @@ class StorageVariable(Component):
             uslack = self.make_slack('heat_stor_u_slack')
             lslack = self.make_slack('heat_stor_l_slack')
         else:
-            uslack = None
-            lslack = None
+            uslack = [None]*len(self.model.X_TIME)
+            lslack = [None]*len(self.model.X_TIME)
 
-        ub = self.params['heat_stor'].get_upper_boundary()
-        lb = self.params['heat_stor'].get_lower_boundary()
-        max = self.volume * self.cp * 1000 * self.temp_diff
+        ub = self.params['heat_stor'].get_upper_boundary()/1000/3600
+        lb = self.params['heat_stor'].get_lower_boundary()/1000/3600
+        max = self.volume * self.cp * 1000 * self.temp_diff/1000/3600
         if ub > max:
             self.params['heat_stor'].change_upper_bound(max)
 
         def _max_heat_stor(b, t):
-            return self.constrain_value(b.heat_stor[t],
+            return self.constrain_value(b.heat_stor[t]/1000/3600,
                                         self.params['heat_stor'].get_upper_boundary(),
                                         ub=True,
                                         slack_variable=uslack[t])
 
         def _min_heat_stor(b, t):
-            return self.constrain_value(b.heat_stor[t],
+            return self.constrain_value(b.heat_stor[t]/1000/3600,
                                         self.params['heat_stor'].get_lower_boundary(),
                                         ub=False,
                                         slack_variable=lslack[t])
 
         self.block.max_heat_stor = Constraint(self.model.X_TIME, rule=_max_heat_stor)
         self.block.min_heat_stor = Constraint(self.model.X_TIME, rule=_min_heat_stor)
-
-        self.block.pprint()
 
         #############################################################################################
         # Initial state
