@@ -35,15 +35,15 @@ def construct_model():
     G = nx.DiGraph()
 
     G.add_node('ThorPark', x=4000, y=4000, z=0,
-               comps={'thorPark': 'ProducerVariable'})
+               comps={'plant': 'ProducerVariable'})
     G.add_node('p1', x=2600, y=5000, z=0,
                comps={})
     G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
-               comps={'waterscheiGarden.buildingD': 'BuildingFixed',
+               comps={'buildingD': 'BuildingFixed',
                       }
                )
     G.add_node('zwartbergNE', x=2000, y=5500, z=0,
-               comps={'zwartbergNE.buildingD': 'BuildingFixed'})
+               comps={'buildingD': 'BuildingFixed'})
 
     G.add_edge('ThorPark', 'p1', name='bbThor')
     G.add_edge('p1', 'waterscheiGarden', name='spWaterschei')
@@ -107,8 +107,8 @@ def construct_model():
     WS_building_params = ZW_building_params.copy()
     WS_building_params['mult'] = 1000
 
-    optmodel.change_params(ZW_building_params, 'zwartbergNE.buildingD')
-    optmodel.change_params(WS_building_params, 'waterscheiGarden.buildingD')
+    optmodel.change_params(ZW_building_params, node='zwartbergNE', comp='buildingD')
+    optmodel.change_params(WS_building_params, node='waterscheiGarden', comp='buildingD')
 
     # pipe parameters
 
@@ -125,9 +125,9 @@ def construct_model():
     spZwartbergNE_params = bbThor_params.copy()
     spZwartbergNE_params['pipe_type'] = 150
 
-    optmodel.change_params(spWaterschei_params, 'spWaterschei')
-    optmodel.change_params(spZwartbergNE_params, 'spZwartbergNE')
-    optmodel.change_params(bbThor_params, 'bbThor')
+    optmodel.change_params(spWaterschei_params, comp='spWaterschei')
+    optmodel.change_params(spZwartbergNE_params, comp='spZwartbergNE')
+    optmodel.change_params(bbThor_params, comp='bbThor')
 
     # production parameters
 
@@ -144,7 +144,7 @@ def construct_model():
                    'ramp': 1e6/3600,
                    'ramp_cost': 0.01}
 
-    optmodel.change_params(prod_design, 'thorPark')
+    optmodel.change_params(prod_design, node='ThorPark', comp='plant')
 
     ##################################
     # Print parameters               #
@@ -170,14 +170,14 @@ def compare_ramping_costs():
     heat = {}
 
     for rc in ramp_cost:
-        optmodel.change_param('thorPark', 'ramp_cost', rc)
+        optmodel.change_param(node='ThorPark', comp='plat', name='ramp_cost', val=rc)
         optmodel.compile()
         optmodel.set_objective('cost_ramp')
 
         optmodel.solve(tee=False)
 
         cost.append(optmodel.get_objective('cost'))
-        heat[rc] = optmodel.get_result('thorPark', 'heat_flow')
+        heat[rc] = optmodel.get_result(node='ThorPark', comp='plant', name='heat_flow')
 
     fig1 = plt.figure()
     ax1 = fig1.add_subplot(111)
@@ -210,25 +210,25 @@ if __name__ == '__main__':
     ##################################
 
     # Heat flows
-    prod_hf = optmodel.get_result('thorPark', 'heat_flow')
-    waterschei_hf = optmodel.get_result('waterscheiGarden.buildingD', 'heat_flow')
-    zwartberg_hf = optmodel.get_result('zwartbergNE.buildingD', 'heat_flow')
+    prod_hf = optmodel.get_result(node='ThorPark', comp='plant', name='heat_flow')
+    waterschei_hf = optmodel.get_result(node='waterscheiGarden', comp='buildingD', name='heat_flow')
+    zwartberg_hf = optmodel.get_result(node='zwartbergNE', comp='buildingD', name='heat_flow')
     prod_e = sum(prod_hf)*time_step
     waterschei_e = sum(waterschei_hf)*time_step
     zwartberg_e = sum(zwartberg_hf)*time_step
 
     # Temperatures in the network
-    prod_t_sup = optmodel.get_result('thorPark', 'temperatures', 'supply')
-    prod_t_ret = optmodel.get_result('thorPark', 'temperatures', 'return')
-    ws_t_sup = optmodel.get_result('waterscheiGarden.buildingD', 'temperatures', 'supply')
-    ws_t_ret = optmodel.get_result('waterscheiGarden.buildingD', 'temperatures', 'return')
-    zw_t_sup = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'supply')
-    zw_t_ret = optmodel.get_result('zwartbergNE.buildingD', 'temperatures', 'return')
+    prod_t_sup = optmodel.get_result(node='ThorPark', comp='plant', name='temperatures', index='supply')
+    prod_t_ret = optmodel.get_result(node='ThorPark', comp='plant', name='temperatures', index='return')
+    ws_t_sup = optmodel.get_result(node='waterscheiGarden', comp='buildingD', name='temperatures', index='supply')
+    ws_t_ret = optmodel.get_result(node='waterscheiGarden', comp='buildingD', name='temperatures', index='return')
+    zw_t_sup = optmodel.get_result(node='zwartbergNE', comp='buildingD', name='temperatures', index='supply')
+    zw_t_ret = optmodel.get_result(node='zwartbergNE', comp='buildingD', name='temperatures', index='return')
 
     # Mass flows through the network
-    mf = {'bbThor': optmodel.get_result('bbThor', 'mass_flow'),
-          'spWaterschei': optmodel.get_result('spWaterschei', 'mass_flow'),
-          'spZwartbergNE': optmodel.get_result('spZwartbergNE', 'mass_flow')}
+    mf = {'bbThor': optmodel.get_result(comp='bbThor', name='mass_flow'),
+          'spWaterschei': optmodel.get_result(comp='spWaterschei', name='mass_flow'),
+          'spZwartbergNE': optmodel.get_result(comp='spZwartbergNE', name='mass_flow')}
 
     # Determine ratio between distance travelled and pipe length, important for good behaviour model
     maximum = 0
