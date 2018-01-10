@@ -480,19 +480,23 @@ class NodeMethod(Pipe):
 
         params['mass_flow'] = UserDataParameter('mass_flow',
                                                 'Predicted mass flows through the pipe (positive if rom start to stop node)',
-                                                'kg/s')
+                                                'kg/s',
+                                                time_step=self.time_step)
 
         params['mass_flow_history'] = UserDataParameter('mass_flow_history',
                                                         'Historic mass flows through the pipe (positive if rom start to stop node)',
-                                                        'kg/s')
+                                                        'kg/s',
+                                                        time_step=self.time_step)
 
         params['temperature_history_supply'] = UserDataParameter('temperature_history_supply',
                                                                  'Historic incoming temperatures for the supply line, first value is the most recent value',
-                                                                 'K')
+                                                                 'K',
+                                                                time_step=self.time_step)
 
         params['temperature_history_return'] = UserDataParameter('temperature_history_return',
                                                                  'Historic incoming temperatures for the return line, first value is the most recent value',
-                                                                 'K')
+                                                                 'K',
+                                                                 time_step=self.time_step)
 
         params['wall_temperature_supply'] = StateParameter('wall_temperature_supply',
                                                            'Initial temperature of supply pipe wall',
@@ -754,11 +758,14 @@ class NodeMethod(Pipe):
         # Eq. 3.4.24
 
         def _tk(b, t):
-            delta_time = self.time_step * ((b.R[t] - Z) * b.n[t]
-                                           + sum(b.mf_history[self.n_steps - 1 - t + i] * self.time_step * i for i in range(b.n[t] + 1, b.m[t]))
-                                           + (b.mass_flow[t] * self.time_step - b.S[t] + Z) * b.m[t]) \
-                    / b.mass_flow[t] / self.time_step
-            return delta_time
+            if b.mass_flow[t] == 0:
+                return Constraint.Skip
+            else:
+                delta_time = self.time_step * ((b.R[t] - Z) * b.n[t]
+                                               + sum(b.mf_history[self.n_steps - 1 - t + i] * self.time_step * i for i in range(b.n[t] + 1, b.m[t]))
+                                               + (b.mass_flow[t] * self.time_step - b.S[t] + Z) * b.m[t]) \
+                        / b.mass_flow[t] / self.time_step
+                return delta_time
 
         self.block.tk = Param(self.model.TIME, rule=_tk)
 
