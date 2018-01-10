@@ -750,8 +750,8 @@ class SolarThermalCollector(Component):
 
         filepath = resource_filename('modesto', 'Data/RenewableProduction')
 
-        self.max_prod = ut.read_period_data(path=filepath, name='SolarThermal.txt', time_step=time_step,
-                                            horizon=horizon, start_time=start_time)["(0L, 40L)"]
+        self.max_prod = ut.read_period_data(path=filepath, name='SolarThermalNew.txt', time_step=time_step,
+                                            horizon=horizon, start_time=start_time)["30_40"]
         # TODO Allow multiple orientations (the L-Tuple)
 
     def create_params(self):
@@ -780,7 +780,7 @@ class SolarThermalCollector(Component):
             return self.max_prod.values[t]
 
         self.block.heat_flow_max = Param(self.model.TIME, rule=_heat_flow_max)
-        self.block.heat_flow = Var(self.model.TIME)
+        self.block.heat_flow = Var(self.model.TIME, within=NonNegativeReals)
         self.block.heat_flow_curt = Var(self.model.TIME, within=NonNegativeReals)
 
         self.block.mass_flow = Var(self.model.TIME)
