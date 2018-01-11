@@ -44,7 +44,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 24*3
+    n_steps = 24*7
     time_step = 3600
     start_time = pd.Timestamp('20140604')
 
@@ -102,7 +102,7 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
-        'volume': 1000,
+        'volume': 2e4,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
@@ -129,9 +129,9 @@ def construct_model():
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 10e12,
+                   'Qmax': 1.5e7,
                    'ramp_cost': 0.01,
-                   'ramp': 10e12 / 3600}
+                   'ramp': 1e6 / 3600}
 
     optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
