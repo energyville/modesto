@@ -52,7 +52,7 @@ class Pipe(Component):
 
     @staticmethod
     def get_pipe_catalog():
-        df = pd.read_csv(os.path.join(CATALOG_PATH, 'IsoPlusDoubleStandard.txt'), sep=' ',
+        df = pd.read_csv(os.path.join(CATALOG_PATH, 'IsoPlusDoubleStandard.csv'), sep=';',
                          index_col='DN')
         return df
 

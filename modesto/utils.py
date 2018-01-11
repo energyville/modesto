@@ -8,7 +8,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
 
-def read_file(path, name, timestamp, sep=' '):
+def read_file(path, name, timestamp):
     """
     Read a text file and return it as a dataframe
 
@@ -23,13 +23,13 @@ def read_file(path, name, timestamp, sep=' '):
     if not os.path.isfile(fname):
         raise IOError(fname + ' does not exist')
 
-    data = pd.read_csv(fname, sep=sep, header=0, parse_dates=timestamp,
+    data = pd.read_csv(fname, sep=';', header=0, parse_dates=timestamp,
                        index_col=0)
 
     return data
 
 
-def read_time_data(path, name, sep=' '):
+def read_time_data(path, name):
     """
     Read a file that contains time data,
     first column should contain strings representing time in following format:
@@ -41,7 +41,7 @@ def read_time_data(path, name, sep=' '):
     :return: A dataframe
     """
 
-    df = read_file(path, name, timestamp=True, sep=sep)
+    df = read_file(path, name, timestamp=True)
     df = df.astype('float')
 
     return df
@@ -84,7 +84,7 @@ def read_period_data(path, name, time_step, horizon, start_time, method=None, se
     :return: DataFrame
     """
 
-    df = read_time_data(path, name, sep=sep)
+    df = read_time_data(path, name)
     df = resample(df=df, new_sample_time=time_step, method=method)
 
     end_time = start_time + pd.Timedelta(seconds=horizon)
