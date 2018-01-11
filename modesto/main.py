@@ -88,11 +88,15 @@ class Modesto:
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
                                        'K',
-                                       time_step=self.time_step),
+                                       time_step=self.time_step,
+                                       horizon=self.horizon,
+                                       start_time=self.start_time),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
                                        'K',
-                                       time_step=self.time_step)
+                                       time_step=self.time_step,
+                                       horizon=self.horizon,
+                                       start_time=self.start_time)
         }
 
         return params

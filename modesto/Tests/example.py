@@ -46,7 +46,7 @@ def construct_model():
 
     n_steps = 15
     time_step = 3600
-    start_time = pd.Timestamp('20140501')
+    start_time = pd.Timestamp('20140602')
 
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
                        pipe_model='ExtensivePipe', graph=G,
@@ -56,10 +56,9 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
-    t_amb = ut.read_period_data('../Data/Weather', name='extT.csv', time_step=time_step, horizon=n_steps * time_step,
-                                start_time=start_time)
-    t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
+    heat_profile = ut.read_time_data('../Data/HeatDemand/Initialized', name='HeatDemandFiltered.csv')
+    t_amb = ut.read_time_data('../Data/Weather', name='extT.csv')['Te']
+    t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
     optmodel.opt_settings(allow_flow_reversal=False)
 
@@ -73,12 +72,13 @@ def construct_model():
     # building parameters
 
     zw_building_params = {'delta_T': 20,
-                          'mult': 50,
-                          'heat_profile': heat_profile,
+                          'mult': 1,
+                          'heat_profile': heat_profile['ZwartbergNEast'],
                           }
 
     ws_building_params = zw_building_params.copy()
-    ws_building_params['mult'] = 20
+    ws_building_params['mult'] = 1
+    ws_building_params['heat_profile'] = heat_profile['WaterscheiGarden']
 
     optmodel.change_params(zw_building_params, node='zwartbergNE',
                            comp='buildingD')
@@ -121,20 +121,17 @@ def construct_model():
 
     # Production parameters
 
-    c_f = ut.read_period_data(path='../Data/Weather',
-                              name='extT.csv',
-                              time_step=time_step,
-                              horizon=n_steps * time_step,
-                              start_time=start_time)
+    c_f = ut.read_time_data(path='../Data/ElectricityPrices',
+                              name='DAM_electricity_prices-2014_BE.csv')['price_BE']
 
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 10e6,
+                   'Qmax': 10e12,
                    'ramp_cost': 0.01,
-                   'ramp': 10e6 / 3600}
+                   'ramp': 10e12 / 3600}
 
     optmodel.change_params(prod_design, 'ThorPark', 'plant')
 

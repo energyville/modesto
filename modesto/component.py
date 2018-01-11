@@ -209,9 +209,9 @@ class Component(object):
             f = -1
 
         if slack_variable is None:
-            return f*variable <= f*bound
+            return f * variable <= f * bound
         else:
-            return f*variable <= f*bound + slack_variable
+            return f * variable <= f * bound + slack_variable
 
     def change_param(self, param, new_data):
         """
@@ -348,14 +348,19 @@ class FixedProfile(Component):
             'heat_profile': UserDataParameter('heat_profile',
                                               'Heat use in one (average) building',
                                               'W',
-                                              self.time_step),
+                                              time_step=self.time_step,
+                                              horizon=self.horizon,
+                                              start_time=self.start_time),
         }
 
         if self.temperature_driven:
             params['mass_flow'] = UserDataParameter('mass_flow',
                                                     'Mass flow through one (average) building substation',
                                                     'kg/s',
-                                                    self.time_step)
+                                                    time_step=self.time_step,
+                                                    horizon=self.horizon,
+                                                    start_time=self.start_time
+                                                    )
             params['temperature_supply'] = StateParameter('temperature_supply',
                                                           'Initial supply temperature at the component',
                                                           'K',
@@ -598,7 +603,9 @@ class ProducerVariable(Component):
             'fuel_cost': UserDataParameter('fuel_cost',
                                            'cost of fuel/electricity to generate heat',
                                            'euro/kWh',
-                                           time_step=self.time_step),
+                                           time_step=self.time_step,
+                                           horizon=self.horizon,
+                                           start_time=self.start_time),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
@@ -614,7 +621,9 @@ class ProducerVariable(Component):
             params['mass_flow'] = UserDataParameter('mass_flow',
                                                     'Flow through the production unit substation',
                                                     'kg/s',
-                                                    self.time_step)
+                                                    self.time_step,
+                                                    horizon=self.horizon,
+                                                    start_time=self.start_time)
             params['temperature_max'] = DesignParameter('temperature_max',
                                                         'Maximum allowed water temperature',
                                                         'K')
@@ -762,7 +771,7 @@ class ProducerVariable(Component):
         cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t)
-                   / 3600 * self.time_step / 1000  for t in range(self.n_steps))
+                   / 3600 * self.time_step / 1000 for t in range(self.n_steps))
 
     def obj_co2(self):
         """
@@ -1020,8 +1029,8 @@ class StorageVariable(Component):
             self.block.supply_temperature = Var(self.model.TIME)
 
         # Internal
-        self.block.heat_stor = Var(self.model.X_TIME) #, bounds=(
-            # 0, self.volume * self.cp * 1000 * self.temp_diff))
+        self.block.heat_stor = Var(self.model.X_TIME)  # , bounds=(
+        # 0, self.volume * self.cp * 1000 * self.temp_diff))
         self.block.soc = Var(self.model.TIME)
         self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
         self.logger.debug('Tau:      {}d'.format(str(self.tau / 3600 / 365)))
@@ -1058,23 +1067,23 @@ class StorageVariable(Component):
             uslack = self.make_slack('heat_stor_u_slack', self.model.X_TIME)
             lslack = self.make_slack('heat_stor_l_slack', self.model.X_TIME)
         else:
-            uslack = [None]*len(self.model.X_TIME)
-            lslack = [None]*len(self.model.X_TIME)
+            uslack = [None] * len(self.model.X_TIME)
+            lslack = [None] * len(self.model.X_TIME)
 
-        ub = self.params['heat_stor'].get_upper_boundary()/1000/3600
-        lb = self.params['heat_stor'].get_lower_boundary()/1000/3600
-        max = self.volume * self.cp * 1000 * self.temp_diff/1000/3600
+        ub = self.params['heat_stor'].get_upper_boundary() / 1000 / 3600
+        lb = self.params['heat_stor'].get_lower_boundary() / 1000 / 3600
+        max = self.volume * self.cp * 1000 * self.temp_diff / 1000 / 3600
         if ub > max:
             self.params['heat_stor'].change_upper_bound(max)
 
         def _max_heat_stor(b, t):
-            return self.constrain_value(b.heat_stor[t]/1000/3600,
+            return self.constrain_value(b.heat_stor[t] / 1000 / 3600,
                                         self.params['heat_stor'].get_upper_boundary(),
                                         ub=True,
                                         slack_variable=uslack[t])
 
         def _min_heat_stor(b, t):
-            return self.constrain_value(b.heat_stor[t]/1000/3600,
+            return self.constrain_value(b.heat_stor[t] / 1000 / 3600,
                                         self.params['heat_stor'].get_lower_boundary(),
                                         ub=False,
                                         slack_variable=lslack[t])

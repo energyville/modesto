@@ -90,3 +90,17 @@ def read_period_data(path, name, time_step, horizon, start_time, method=None, se
     end_time = start_time + pd.Timedelta(seconds=horizon)
 
     return df[start_time:end_time]
+
+def select_period_data(df, horizon, time_step, start_time):
+    """
+    Select only relevant time span from existing dataframe
+
+    :param df: Input data frame
+    :param time_step: time step in seconds
+    :param horizon: horizon in seconds
+    :param start_time: start time as pd.Timestamp
+    :return: df
+    """
+    end_time = start_time + pd.Timedelta(seconds=horizon)
+
+    return df[start_time:end_time]
