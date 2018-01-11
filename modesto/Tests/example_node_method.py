@@ -24,8 +24,8 @@ logger = logging.getLogger('Main.py')
 # Set up the optimization problem #
 ###################################
 
-n_steps = 288*2
-time_step = 150
+n_steps = 288
+time_step = 300
 start_time = pd.Timestamp('20140101')
 
 
@@ -72,7 +72,7 @@ def construct_model():
     heat_profile_linear = pd.DataFrame(linear, index=range(n_steps))
     heat_profile_sine = pd.DataFrame(sine[0:n_steps], index=range(n_steps))
 
-    heat_profile = heat_profile_step
+    heat_profile = heat_profile_sine
 
     # Ambient temperature
     t_amb = ut.read_period_data(path='../Data/Weather',
@@ -90,11 +90,22 @@ def construct_model():
     mass_flow_history = pd.DataFrame([10] * 20, index=range(20))
 
     # Fuel costs
-    c_f = ut.read_period_data(path='../Data/Weather',
-                                name='extT.txt',
+    c_f = ut.read_period_data(path='../Data/ElectricityPrices',
+                                name='DAM_electricity_prices-2014_BE.csv',
                                 time_step=time_step,
                                 horizon=n_steps*time_step,
-                                start_time=start_time)
+                                start_time=start_time,
+                                sep=';')
+    # Converting to euro per kWh
+    c_f['price_BE'] = c_f['price_BE']/1000
+
+    fig4, ax4 = plt.subplots()
+    ax4.plot(c_f, label='Electricity day-ahead market')
+    # ax3.axhline(y=0, linewidth=2, color='k', linestyle='--')
+    ax4.legend()
+    ax4.set_ylabel('Electricity price [euro/kWh]')
+    # fig3.tight_layout()
+
     # c_f = [0.034] * int(n_steps/2) + [0.034] * int(n_steps/2) # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
 
     ###########################
@@ -145,7 +156,7 @@ def construct_model():
 
     # production parameters
 
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'efficiency': 3.5,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
@@ -165,7 +176,7 @@ def construct_model():
 
     # optmodel.print_all_params()
     # optmodel.print_general_param('Te')
-    # optmodel.print_comp_param('thorPark')
+    optmodel.print_comp_param(node='ThorPark', comp='plant')
     # optmodel.print_comp_param('waterscheiGarden.storage')
     # optmodel.print_comp_param('waterscheiGarden.storage', 'kIns', 'volume')
 
@@ -178,7 +189,7 @@ def construct_model():
 
 def compare_ramping_costs():
 
-    ramp_cost = [0.25/10**6, 0.001, 0.01, 0.1, 1]
+    ramp_cost = [0.25/10**6, 0.001/1000, 0.01/1000, 0.1/1000, 1/1000]
     cost = []
     heat = {}
 
@@ -210,11 +221,11 @@ def compare_ramping_costs():
 
 if __name__ == '__main__':
     optmodel = construct_model()
-    #compare_ramping_costs()
+    # compare_ramping_costs()
 
     optmodel.opt_settings(allow_flow_reversal=False)
     optmodel.compile()
-    optmodel.set_objective('cost_ramp')
+    optmodel.set_objective('cost')
 
     optmodel.solve(tee=False, mipgap=0.01)
 

@@ -230,15 +230,18 @@ class Component(object):
         """
         Check if all data required to build the optimization problem is available
 
-        :return:
+        :return missing_params: dict containing all missing parameters and their descriptions
+        :return flag: True if there are missing params, False if not
         """
         missing_params = {}
+        flag = False
 
         for name, param in self.params.items():
             if not param.check():
                 missing_params[name] = self.get_param_description(name)
+                flag = True
 
-        return missing_params
+        return missing_params, flag
 
     def get_param_description(self, name):
         """
@@ -748,7 +751,7 @@ class ProducerVariable(Component):
 
         :return:
         """
-        cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
+        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         return sum(cost[t] / eta * self.get_heat(t) / 3600 * self.time_step / 1000 for t in range(self.n_steps))
 
@@ -759,7 +762,7 @@ class ProducerVariable(Component):
 
         :return:
         """
-        cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
+        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t)
                    / 3600 * self.time_step / 1000  for t in range(self.n_steps))
