@@ -264,7 +264,7 @@ class Modesto:
         if self.temperature_driven:
             self.add_mf()
 
-        missing_params[None]['general'] = {}
+        missing_params[None]['general'] = {} 
         for name, param in self.params.items():
             if not param.check():
                 missing_params[None]['general'][name] = param.get_description()
@@ -574,9 +574,8 @@ class Modesto:
                 descriptions[node][comp][name] = comp_obj.get_param_description(name)
         for name in args:
             if name not in comp_obj.params:
-                raise IndexError(
-                    '%s is not a valid parameter of %s' % (name, comp))
-            descriptions[comp][name] = comp_obj.get_param_description(name)
+                raise IndexError('%s is not a valid parameter of %s' % (name, comp))
+            descriptions[node][comp][name] = comp_obj.get_param_description(name)
 
         self._print_params(descriptions)
 
