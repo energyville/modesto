@@ -353,7 +353,8 @@ class FixedProfile(Component):
             params['temperature_supply'] = StateParameter('temperature_supply',
                                                           'Initial supply temperature at the component',
                                                           'K',
-                                                          'fixedVal')
+                                                          'fixedVal',
+                                                          slack=True)
             params['temperature_return'] = StateParameter('temperature_return',
                                                           'Initial return temperature at the component',
                                                           'K',
@@ -408,12 +409,8 @@ class FixedProfile(Component):
             def _init_temperatures(b, l):
                 return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
-            if True: #self.params['temperature_max'].get_slack():
-                uslack = self.make_slack('temperature_max_uslack')
-                lslack = self.make_slack('temperature_max_l_slack')
-            else:
-                uslack = [None] * len(self.model.TIME)
-                lslack = [None] * len(self.model.TIME)
+            uslack = self.make_slack('temperature_max_uslack')
+            lslack = self.make_slack('temperature_max_l_slack')
 
             ub = self.params['temperature_max'].v()
             lb = self.params['temperature_min'].v()
@@ -745,7 +742,7 @@ class ProducerVariable(Component):
 
         :return:
         """
-        cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
+        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         return sum(cost[t] / eta * self.get_heat(t) / 3600 * self.time_step / 1000 for t in range(self.n_steps))
 
@@ -756,7 +753,7 @@ class ProducerVariable(Component):
 
         :return:
         """
-        cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
+        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t)
                    / 3600 * self.time_step / 1000  for t in range(self.n_steps))
