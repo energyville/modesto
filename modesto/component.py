@@ -210,10 +210,13 @@ class Component(object):
 
         :return:
         """
+        missing_params = {}
+
         for name, param in self.params.items():
             if not param.check():
-                raise Exception('{} of {} does not have a value yet. Please, add one before optimizing.\n{}'. \
-                                format(name, self.name, param.get_description()))
+                missing_params[name] = self.get_param_description(name)
+
+        return missing_params
 
     def obj_energy(self):
         """

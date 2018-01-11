@@ -258,18 +258,24 @@ class Modesto:
         if not an error is raised
 
         """
+
+        missing_params = collections.defaultdict(dict)
+
         if self.temperature_driven:
             self.add_mf()
 
+        missing_params[None]['general'] = {} 
         for name, param in self.params.items():
             if not param.check():
-                raise ValueError(
-                    'No value has been given for the general parameter {}. \n{}'.
-                        format(name, param.get_description()))
+                missing_params[None]['general'][name] = param.get_description()
 
         for node, comp_list in self.components.items():
             for comp, comp_obj in comp_list.items():
-                comp_obj.check_data()
+                missing_params[node][comp] = comp_obj.check_data()
+
+        if missing_params:
+            raise Exception('Following parameters are missing:\n{}'
+                            .format(self._print_params(missing_params, disp=False)))
 
         return True
 
@@ -539,38 +545,37 @@ class Modesto:
 
         :return:
         """
-        descriptions = {'general': {}}
+        descriptions = {None: {'general': {}}}
         for name, param in self.params.items():
-            descriptions['general'][name] = param.get_description()
+            descriptions[None]['general'][name] = param.get_description()
 
         for node, comps in self.components.items():
+            descriptions[node] = {}
             for comp, comp_obj in comps.items():
-                descriptions[comp] = {}
+                descriptions[node][comp] = {}
                 for name in comp_obj.get_params():
-                    descriptions[comp][name] = comp_obj.get_param_description(
-                        name)
-
+                    descriptions[node][comp][name] = comp_obj.get_param_description(name)
         self._print_params(descriptions)
 
     def print_comp_param(self, node=None, comp=None, *args):
         """
         Print parameters of a component
 
+        :param node: Name of the node, if None, the pipes are considered
         :param comp: Name of the component
         :param args: Names of the parameters, if None are given, all will be printed
         :return:
         """
-        descriptions = {comp: {}}
+        descriptions = {node: {comp: {}}}
 
         comp_obj = self.get_component(comp, node)
         if not args:
             for name in comp_obj.get_params():
-                descriptions[comp][name] = comp_obj.get_param_description(name)
+                descriptions[node][comp][name] = comp_obj.get_param_description(name)
         for name in args:
             if name not in comp_obj.params:
-                raise IndexError(
-                    '%s is not a valid parameter of %s' % (name, comp))
-            descriptions[comp][name] = comp_obj.get_param_description(name)
+                raise IndexError('%s is not a valid parameter of %s' % (name, comp))
+            descriptions[node][comp][name] = comp_obj.get_param_description(name)
 
         self._print_params(descriptions)
 
@@ -585,15 +590,34 @@ class Modesto:
         if name not in self.params:
             raise IndexError('%s is not a valid general parameter ' % name)
 
-        self._print_params(
-            {'general': {name: self.params[name].get_description()}})
+        self._print_params({None: {'general': {name: self.params[name].get_description()}}})
 
     @staticmethod
-    def _print_params(descriptions):
-        for comp in descriptions:
-            print '--- ', comp, ' ---\n'
-            for param, des in descriptions[comp].items():
-                print '-', param, '\n', des, '\n'
+    def _print_params(descriptions, disp=True):
+        """
+        Print parameters
+
+        :param descriptions: Dictionary containing parameters to be printed
+        Format: descriptions[node][component name][param name]
+        :param disp: if True, descriptions are printed, if False string of descriptions is returned
+        :return:
+        """
+        string = ''
+        for node in descriptions:
+            if node is None:
+                node_str = ''
+            else:
+                node_str = node + '.'
+            for comp in descriptions[node]:
+                if descriptions[node][comp]:
+                    string += '\n--- ' + node_str + comp + ' ---\n\n'
+                    for param, des in descriptions[node][comp].items():
+                        string += '-' + param + '\n' + des + '\n\n'
+
+        if disp:
+            print string
+        else:
+            return string
 
     def calculate_mf(self):
         """
