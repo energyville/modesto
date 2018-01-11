@@ -44,9 +44,9 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 15
+    n_steps = 24*3
     time_step = 3600
-    start_time = pd.Timestamp('20140602')
+    start_time = pd.Timestamp('20140604')
 
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
                        pipe_model='ExtensivePipe', graph=G,
@@ -60,7 +60,7 @@ def construct_model():
     t_amb = ut.read_time_data('../Data/Weather', name='extT.csv')['Te']
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
-    optmodel.opt_settings(allow_flow_reversal=False)
+    optmodel.opt_settings(allow_flow_reversal=True)
 
     # general parameters
 
@@ -85,11 +85,11 @@ def construct_model():
     optmodel.change_params(ws_building_params, node='waterscheiGarden',
                            comp='buildingD')
 
-    bbThor_params = {'pipe_type': 150}
+    bbThor_params = {'pipe_type': 500}
     spWaterschei_params = bbThor_params.copy()
-    spWaterschei_params['pipe_type'] = 200
+    spWaterschei_params['pipe_type'] = 500
     spZwartbergNE_params = bbThor_params.copy()
-    spZwartbergNE_params['pipe_type'] = 125
+    spZwartbergNE_params['pipe_type'] = 500
 
     optmodel.change_params(bbThor_params, comp='bbThor')
     optmodel.change_params(spWaterschei_params, comp='spWaterschei')
@@ -102,7 +102,7 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
-        'volume': 1,
+        'volume': 1000,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,

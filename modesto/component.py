@@ -708,7 +708,7 @@ class ProducerVariable(Component):
                 return self.params['temperature_min'].v() <= b.temperatures[t, 'supply'] <= self.params[
                     'temperature_max'].v()
 
-            self.block.limit_teperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
+            self.block.limit_temperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
 
             def _decl_temperatures(b, t):
                 if t == 0:

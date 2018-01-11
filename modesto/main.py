@@ -432,6 +432,7 @@ class Modesto:
         :param slack: Boolean indicating whether a slack should be added (True) or not (False)
         """
         # TODO Adapt method so you can change only one of the settings?
+        # TODO Put None as default parameter value and detect if other value is supplied
         comp_obj = self.get_component(comp, node)
 
         comp_obj.params[state].change_upper_bound(new_ub)
