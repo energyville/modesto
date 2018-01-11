@@ -188,9 +188,9 @@ class Component(object):
         self.logger.info(
             'Optimization block for Component {} initialized'.format(self.name))
 
-    def make_slack(self, slack_name):
+    def make_slack(self, slack_name, time_axis):
         self.slack_list.append(slack_name)
-        self.block.add_component(slack_name, Var(self.model.TIME, within=NonNegativeReals))
+        self.block.add_component(slack_name, Var(time_axis, within=NonNegativeReals))
         return self.block.find_component(slack_name)
 
     def constrain_value(self, variable, bound, ub=True, slack_variable=None):
@@ -415,8 +415,8 @@ class FixedProfile(Component):
             def _init_temperatures(b, l):
                 return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
-            uslack = self.make_slack('temperature_max_uslack')
-            lslack = self.make_slack('temperature_max_l_slack')
+            uslack = self.make_slack('temperature_max_uslack', self.model.TIME)
+            lslack = self.make_slack('temperature_max_l_slack', self.model.TIME)
 
             ub = self.params['temperature_max'].v()
             lb = self.params['temperature_min'].v()
@@ -1055,8 +1055,8 @@ class StorageVariable(Component):
         # Inequality constraints
 
         if self.params['heat_stor'].get_slack():
-            uslack = self.make_slack('heat_stor_u_slack')
-            lslack = self.make_slack('heat_stor_l_slack')
+            uslack = self.make_slack('heat_stor_u_slack', self.model.X_TIME)
+            lslack = self.make_slack('heat_stor_l_slack', self.model.X_TIME)
         else:
             uslack = [None]*len(self.model.X_TIME)
             lslack = [None]*len(self.model.X_TIME)

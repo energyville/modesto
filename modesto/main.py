@@ -1,4 +1,4 @@
-‘from __future__ import division
+from __future__ import division
 
 import collections
 import sys
