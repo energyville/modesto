@@ -106,7 +106,7 @@ def construct_model():
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': -1000
+        'heat_stor': 0
     }
 
     optmodel.change_params(dict=stor_design, node='waterscheiGarden',
@@ -115,7 +115,7 @@ def construct_model():
     optmodel.change_state_bounds('heat_stor',
                                  new_ub=10**12,
                                  new_lb=0,
-                                 slack=True,
+                                 slack=False,
                                  node='waterscheiGarden',
                                  comp='storage')
 
