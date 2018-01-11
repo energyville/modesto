@@ -359,7 +359,8 @@ class FixedProfile(Component):
             params['temperature_supply'] = StateParameter('temperature_supply',
                                                           'Initial supply temperature at the component',
                                                           'K',
-                                                          'fixedVal')
+                                                          'fixedVal',
+                                                          slack=True)
             params['temperature_return'] = StateParameter('temperature_return',
                                                           'Initial return temperature at the component',
                                                           'K',
@@ -414,12 +415,8 @@ class FixedProfile(Component):
             def _init_temperatures(b, l):
                 return b.temperatures[0, l] == self.params['temperature_' + l].v()
 
-            if True: #self.params['temperature_max'].get_slack():
-                uslack = self.make_slack('temperature_max_uslack')
-                lslack = self.make_slack('temperature_max_l_slack')
-            else:
-                uslack = [None] * len(self.model.TIME)
-                lslack = [None] * len(self.model.TIME)
+            uslack = self.make_slack('temperature_max_uslack')
+            lslack = self.make_slack('temperature_max_l_slack')
 
             ub = self.params['temperature_max'].v()
             lb = self.params['temperature_min'].v()
