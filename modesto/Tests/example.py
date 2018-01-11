@@ -57,7 +57,7 @@ def construct_model():
     ##################################
 
     heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
-    t_amb = ut.read_period_data('../Data/Weather', name='extT.txt', time_step=time_step, horizon=n_steps * time_step,
+    t_amb = ut.read_period_data('../Data/Weather', name='extT.csv', time_step=time_step, horizon=n_steps * time_step,
                                 start_time=start_time)
     t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
 
@@ -122,7 +122,7 @@ def construct_model():
     # Production parameters
 
     c_f = ut.read_period_data(path='../Data/Weather',
-                              name='extT.txt',
+                              name='extT.csv',
                               time_step=time_step,
                               horizon=n_steps * time_step,
                               start_time=start_time)

@@ -1,4 +1,4 @@
-‘from __future__ import division
+from __future__ import division
 
 import collections
 import sys
@@ -14,6 +14,7 @@ from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 
+# noinspection PyUnresolvedReferences
 from component import *
 from parameter import *
 from pipe import *
@@ -182,7 +183,7 @@ class Modesto:
         self.model.Slack = Var()
 
         def _decl_slack(model):
-            return model.Slack == 10**6*sum(comp.obj_slack() for comp in self.iter_components())
+            return model.Slack == 10 ** 6 * sum(comp.obj_slack() for comp in self.iter_components())
 
         self.model.decl_slack = Constraint(rule=_decl_slack)
 
@@ -509,7 +510,7 @@ class Modesto:
                     result.append(opt_obj[(i, index)].value)
                 timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
                                              periods=len(result))
-                result = pd.Series(data=result, index=timeindex, name=resname+'_'+str(index))
+                result = pd.Series(data=result, index=timeindex, name=resname + '_' + str(index))
 
             return result
 
