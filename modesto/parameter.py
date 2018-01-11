@@ -154,6 +154,28 @@ class StateParameter(Parameter):
         """
         self.slack = new_slack
 
+    def get_slack(self):
+        """
+
+        :return: True of slack is necessary, False if slack is not necessary
+        """
+
+        return self.slack
+
+    def get_upper_boundary(self):
+        """
+
+        :return: Get upper boundary of a state
+        """
+        return self.ub
+
+    def get_lower_boundary(self):
+        """
+
+        :return: Get lower boundary of a state
+        """
+        return self.lb
+
     def get_description(self):
         return Parameter.get_description(self) + '\nInitType: {} \nUpper bound: {} \nLower bound: {} \nSlack: {}'\
             .format(self.init_type, self.ub, self.lb, self.slack)

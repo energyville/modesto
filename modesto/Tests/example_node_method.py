@@ -72,7 +72,7 @@ def construct_model():
     heat_profile_linear = pd.DataFrame(linear, index=range(n_steps))
     heat_profile_sine = pd.DataFrame(sine[0:n_steps], index=range(n_steps))
 
-    heat_profile = heat_profile_step
+    heat_profile = heat_profile_sine
 
     # Ambient temperature
     t_amb = ut.read_period_data(path='../Data/Weather',
@@ -90,12 +90,8 @@ def construct_model():
     mass_flow_history = pd.DataFrame([10] * 20, index=range(20))
 
     # Fuel costs
-    c_f = ut.read_period_data(path='../Data/Weather',
-                                name='extT.txt',
-                                time_step=time_step,
-                                horizon=n_steps*time_step,
-                                start_time=start_time)
-    # c_f = [0.034] * int(n_steps/2) + [0.034] * int(n_steps/2) # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
+    c_f = pd.DataFrame([0.034] * int(n_steps/2) + [0.068] * int(n_steps/2))
+    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
 
     ###########################
     # Set parameters          #
@@ -214,7 +210,7 @@ if __name__ == '__main__':
 
     optmodel.opt_settings(allow_flow_reversal=False)
     optmodel.compile()
-    optmodel.set_objective('cost_ramp')
+    optmodel.set_objective('cost')
 
     optmodel.solve(tee=False, mipgap=0.01)
 
