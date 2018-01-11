@@ -1,4 +1,4 @@
-from __future__ import division
+‘from __future__ import division
 
 import collections
 import sys
@@ -267,20 +267,23 @@ class Modesto:
         """
 
         missing_params = collections.defaultdict(dict)
+        flag = False
 
         if self.temperature_driven:
             self.add_mf()
 
-        missing_params[None]['general'] = {} 
+        missing_params[None]['general'] = {}
         for name, param in self.params.items():
             if not param.check():
+                print param
                 missing_params[None]['general'][name] = param.get_description()
+                flag = True
 
         for node, comp_list in self.components.items():
             for comp, comp_obj in comp_list.items():
-                missing_params[node][comp] = comp_obj.check_data()
+                missing_params[node][comp], flag = comp_obj.check_data()
 
-        if missing_params:
+        if flag:
             raise Exception('Following parameters are missing:\n{}'
                             .format(self._print_params(missing_params, disp=False)))
 

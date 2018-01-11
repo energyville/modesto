@@ -230,15 +230,18 @@ class Component(object):
         """
         Check if all data required to build the optimization problem is available
 
-        :return:
+        :return missing_params: dict containing all missing parameters and their descriptions
+        :return flag: True if there are missing params, False if not
         """
         missing_params = {}
+        flag = False
 
         for name, param in self.params.items():
             if not param.check():
                 missing_params[name] = self.get_param_description(name)
+                flag = True
 
-        return missing_params
+        return missing_params, flag
 
     def get_param_description(self, name):
         """
