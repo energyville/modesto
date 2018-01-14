@@ -212,15 +212,21 @@ class TimeSeriesParameter(Parameter):
         """
 
         if time is None:
-            return ut.select_period_data(self.value, time_step=self.time_step, horizon=self.horizon,
-                                         start_time=self.start_time).values
+            if self.time_data: # Data has a pd.DatetimeIndex
+                return ut.select_period_data(self.value, time_step=self.time_step, horizon=self.horizon,
+                                             start_time=self.start_time).values
+            else:  # Data has a numbered index
+                return self.value.values
+
         elif self.value is None:
             print 'Warning: {} does not have a value yet'.format(self.name)
             return None
         else:
-            # TODO check if this will still work
-            timeindex = self.start_time + pd.Timedelta(seconds=time * self.time_step)
-            return self.value[timeindex]
+            if self.time_data:
+                timeindex = self.start_time + pd.Timedelta(seconds=time * self.time_step)
+                return self.value[timeindex]
+            else:
+                return self.value[time]
 
     def v(self, time=None):
         return self.get_value(time)

@@ -698,7 +698,7 @@ class Modesto:
 
             for comp, comp_obj in comp_list.items():
                 self.change_param(node=node, comp=comp, param='mass_flow',
-                                  val=mf_df.loc[:, [comp]])
+                                  val=mf_df[comp])
 
     def get_nodes(self):
         """
