@@ -1,7 +1,5 @@
 from __future__ import division
 
-import warnings
-
 import os
 import pandas as pd
 from pkg_resources import resource_filename
@@ -52,7 +50,7 @@ class Pipe(Component):
 
     @staticmethod
     def get_pipe_catalog():
-        df = pd.read_csv(os.path.join(CATALOG_PATH, 'IsoPlusDoubleStandard.txt'), sep=' ',
+        df = pd.read_csv(os.path.join(CATALOG_PATH, 'IsoPlusDoubleStandard.csv'), sep=';',
                          index_col='DN')
         return df
 
@@ -62,7 +60,6 @@ class Pipe(Component):
                                          'Type of pipe (IsoPlus Double Standard)',
                                          'DN')
         }
-
 
         return params
 
@@ -298,7 +295,7 @@ class ExtensivePipe(Pipe):
         self.block.heat_flow_in = Var(self.model.TIME, bounds=mflo_lb)
         self.block.heat_flow_out = Var(self.model.TIME, bounds=mflo_lb)
         self.block.mass_flow_dn = Var(self.model.TIME, self.block.DN_ind,
-                                   bounds=mflo_lb)
+                                      bounds=mflo_lb)
         self.block.mass_flow = Var(self.model.TIME, bounds=mflo_lb)
         self.block.heat_loss = Var(self.model.TIME, self.block.DN_ind)
         self.block.heat_loss_tot = Var(self.model.TIME)
@@ -438,7 +435,6 @@ class ExtensivePipe(Pipe):
 
 
 class NodeMethod(Pipe):
-
     def __init__(self, name, horizon, time_step, start_node,
                  end_node, length, allow_flow_reversal=False, temperature_driven=False, direction=1):
         """
@@ -480,19 +476,31 @@ class NodeMethod(Pipe):
 
         params['mass_flow'] = UserDataParameter('mass_flow',
                                                 'Predicted mass flows through the pipe (positive if rom start to stop node)',
-                                                'kg/s')
+                                                'kg/s',
+                                                time_step=self.time_step,
+                                                horizon=self.horizon,
+                                                start_time=self.start_time)
 
         params['mass_flow_history'] = UserDataParameter('mass_flow_history',
                                                         'Historic mass flows through the pipe (positive if rom start to stop node)',
-                                                        'kg/s')
+                                                        'kg/s',
+                                                        time_step=self.time_step,
+                                                        horizon=self.horizon,
+                                                        start_time=self.start_time)
 
         params['temperature_history_supply'] = UserDataParameter('temperature_history_supply',
                                                                  'Historic incoming temperatures for the supply line, first value is the most recent value',
-                                                                 'K')
+                                                                 'K',
+                                                                 time_step=self.time_step,
+                                                                 horizon=self.horizon,
+                                                                 start_time=self.start_time)
 
         params['temperature_history_return'] = UserDataParameter('temperature_history_return',
                                                                  'Historic incoming temperatures for the return line, first value is the most recent value',
-                                                                 'K')
+                                                                 'K',
+                                                                 time_step=self.time_step,
+                                                                 horizon=self.horizon,
+                                                                 start_time=self.start_time)
 
         params['wall_temperature_supply'] = StateParameter('wall_temperature_supply',
                                                            'Initial temperature of supply pipe wall',
@@ -505,14 +513,14 @@ class NodeMethod(Pipe):
                                                            'fixedVal')
 
         params['temperature_out_supply'] = StateParameter('temperature_out_supply',
-                                                           'Initial temperature of outgoing supply water',
-                                                           'K',
-                                                           'fixedVal')
+                                                          'Initial temperature of outgoing supply water',
+                                                          'K',
+                                                          'fixedVal')
 
         params['temperature_out_return'] = StateParameter('temperature_out_return',
-                                                           'Initial temperature of outgoing return water',
-                                                           'K',
-                                                           'fixedVal')
+                                                          'Initial temperature of outgoing return water',
+                                                          'K',
+                                                          'fixedVal')
 
         return params
 
@@ -551,12 +559,13 @@ class NodeMethod(Pipe):
 
         self.block.all_time = Set(initialize=range(self.history_length + self.n_steps), ordered=True)
 
-        pipe_wall_rho = 7.85*10**3  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html kg/m^3
+        pipe_wall_rho = 7.85 * 10 ** 3  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html kg/m^3
         pipe_wall_c = 461  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html J/kg/K
-        pipe_wall_volume = np.pi*(self.Do[dn]**2-self.Di[dn]**2)/4*self.length
+        pipe_wall_volume = np.pi * (self.Do[dn] ** 2 - self.Di[dn] ** 2) / 4 * self.length
         C = pipe_wall_volume * pipe_wall_c * pipe_wall_rho
-        surface = np.pi*self.Di[dn]**2/4  # cross sectional area of the pipe
-        Z = surface*self.rho*self.length  # water mass in the pipe
+        surface = np.pi * self.Di[dn] ** 2 / 4  # cross sectional area of the pipe
+        Z = surface * self.rho * self.length  # water mass in the pipe
+
         # TODO Move capacity?
 
         def _decl_mf(b, t):
@@ -578,7 +587,7 @@ class NodeMethod(Pipe):
             if t < self.n_steps:
                 return self.block.mass_flow[self.n_steps - t - 1]
             else:
-                return self.params['mass_flow_history'].v(t-self.n_steps)
+                return self.params['mass_flow_history'].v(t - self.n_steps)
 
         self.block.mf_history = Param(self.block.all_time, rule=_decl_mf_history)
 
@@ -588,14 +597,15 @@ class NodeMethod(Pipe):
             if t < self.n_steps:
                 return b.temperatures[t, l] == b.temperature_in[self.n_steps - t - 1, l]
             else:
-                return b.temperatures[t, l] == self.params['temperature_history_' + l].v(t-self.n_steps)
+                return b.temperatures[t, l] == self.params['temperature_history_' + l].v(t - self.n_steps)
 
         self.block.def_temp_history = Constraint(self.block.all_time, self.model.lines, rule=_decl_temp_history)
 
         # Initialize incoming temperature ##############################################################################
 
         def _decl_init_temp_in(b, l):
-            return b.temperature_in[0, l] == self.params['temperature_history_' + l].v(0)  # TODO better initialization??
+            return b.temperature_in[0, l] == self.params['temperature_history_' + l].v(
+                0)  # TODO better initialization??
 
         self.block.decl_init_temp_in = Constraint(self.model.lines, rule=_decl_init_temp_in)
 
@@ -605,7 +615,7 @@ class NodeMethod(Pipe):
         def _decl_n(b, t):
             sum_m = 0
             for i in range(len(self.block.all_time) - (self.n_steps - 1 - t)):
-                sum_m += b.mf_history[self.n_steps - 1 - t + i]*self.time_step
+                sum_m += b.mf_history[self.n_steps - 1 - t + i] * self.time_step
                 if sum_m > Z:
                     return i
             self.logger.warning('A proper value for n could not be calculated')
@@ -618,7 +628,7 @@ class NodeMethod(Pipe):
         # Eq 3.4.3
         def _decl_r(b, t):
             return sum(self.block.mf_history[i] for i in
-                       range(self.n_steps - 1 - t, self.n_steps - 1 - t + b.n[t] + 1))*self.time_step
+                       range(self.n_steps - 1 - t, self.n_steps - 1 - t + b.n[t] + 1)) * self.time_step
 
         self.block.R = Param(self.model.TIME, rule=_decl_r)
 
@@ -630,7 +640,7 @@ class NodeMethod(Pipe):
             sum_m = 0
             for i in range(len(self.block.all_time) - (self.n_steps - 1 - t)):
                 sum_m += b.mf_history[self.n_steps - 1 - t + i] * self.time_step
-                if sum_m > Z + self.block.mass_flow[t]*self.time_step:
+                if sum_m > Z + self.block.mass_flow[t] * self.time_step:
                     return i
             self.logger.warning('A proper value for m could not be calculated')
             return i
@@ -669,9 +679,9 @@ class NodeMethod(Pipe):
                 return Constraint.Skip
             else:
                 return b.temperature_out_nhc[t, l] == ((b.R[t] - Z) * b.temperatures[self.n_steps - 1 - t + b.n[t], l]
-                                                       + b.Y[t, l] + (b.mass_flow[t]*self.time_step-b.S[t]+Z) *
+                                                       + b.Y[t, l] + (b.mass_flow[t] * self.time_step - b.S[t] + Z) *
                                                        b.temperatures[self.n_steps - 1 - t + b.m[t], l]) \
-                                                       / b.mass_flow[t] / self.time_step
+                                                      / b.mass_flow[t] / self.time_step
 
         self.block.def_temp_out_nhc = Constraint(self.model.TIME, self.model.lines, rule=_def_temp_out_nhc)
 
@@ -680,7 +690,7 @@ class NodeMethod(Pipe):
         # Eq. 3.4.20
 
         def _k(b):
-            return 1/self.Rs[dn]
+            return 1 / self.Rs[dn]
 
         self.block.K = Param(rule=_k)
 
@@ -696,17 +706,18 @@ class NodeMethod(Pipe):
             else:
                 return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * b.mass_flow[t]
                                                        * self.cp * self.time_step
-                                                       + C * b.wall_temp[t-1, l]) / \
-                                                       (C + b.mass_flow[t] * self.cp * self.time_step)
+                                                       + C * b.wall_temp[t - 1, l]) / \
+                                                      (C + b.mass_flow[t] * self.cp * self.time_step)
 
         def _temp_wall(b, t, l):
             if b.mass_flow[t] == 0:
                 if t == 0:
                     return Constraint.Skip
                 else:
-                    return b.wall_temp[t, l] == self.model.Tg[t] + (b.wall_temp[t-1, l] - self.model.Tg[t]) * \
-                                                np.exp(-b.K * self.time_step /
-                                                       (surface * self.rho * self.cp + C/self.length))
+                    return b.wall_temp[t, l] == self.model.Tg[t] + (b.wall_temp[t - 1, l] - self.model.Tg[t]) * \
+                                                                   np.exp(-b.K * self.time_step /
+                                                                          (
+                                                                              surface * self.rho * self.cp + C / self.length))
             else:
                 return b.wall_temp[t, l] == b.temperature_out_nhl[t, l]
 
@@ -754,11 +765,15 @@ class NodeMethod(Pipe):
         # Eq. 3.4.24
 
         def _tk(b, t):
-            delta_time = self.time_step * ((b.R[t] - Z) * b.n[t]
-                                           + sum(b.mf_history[self.n_steps - 1 - t + i] * self.time_step * i for i in range(b.n[t] + 1, b.m[t]))
-                                           + (b.mass_flow[t] * self.time_step - b.S[t] + Z) * b.m[t]) \
-                    / b.mass_flow[t] / self.time_step
-            return delta_time
+            if b.mass_flow[t] == 0:
+                return Constraint.Skip
+            else:
+                delta_time = self.time_step * ((b.R[t] - Z) * b.n[t]
+                                               + sum(
+                    b.mf_history[self.n_steps - 1 - t + i] * self.time_step * i for i in range(b.n[t] + 1, b.m[t]))
+                                               + (b.mass_flow[t] * self.time_step - b.S[t] + Z) * b.m[t]) \
+                             / b.mass_flow[t] / self.time_step
+                return delta_time
 
         self.block.tk = Param(self.model.TIME, rule=_tk)
 
@@ -770,14 +785,14 @@ class NodeMethod(Pipe):
                     return b.temperature_out[t, l] == self.params['temperature_out_' + l].v()
                 else:
                     return b.temperature_out[t, l] == (b.temperature_out[t - 1, l] - self.model.Tg[t]) * \
-                        np.exp(-b.K*self.time_step /
-                               (surface * self.rho * self.cp + C/self.length)) \
-                        + self.model.Tg[t]
+                                                      np.exp(-b.K * self.time_step /
+                                                             (surface * self.rho * self.cp + C / self.length)) \
+                                                      + self.model.Tg[t]
             else:
                 return b.temperature_out[t, l] == self.model.Tg[t] + \
                                                   (b.temperature_out_nhl[t, l] - self.model.Tg[t]) * \
-                                                        np.exp(-(b.K * b.tk[t]) /
-                                                               (surface * self.rho * self.cp))
+                                                  np.exp(-(b.K * b.tk[t]) /
+                                                         (surface * self.rho * self.cp))
 
         self.block.def_temp_out = Constraint(self.model.TIME, self.model.lines, rule=_temp_out)
 
