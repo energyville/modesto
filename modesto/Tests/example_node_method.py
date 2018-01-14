@@ -52,7 +52,7 @@ def construct_model():
 
     nx.draw(G, with_labels=True)
 
-    optmodel = Modesto(n_steps * time_step, time_step, 'NodeMethod', G, start_time=start_time)
+    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step, pipe_model='NodeMethod', graph=G, start_time=start_time)
 
     ##################################
     # Set up data                    #
@@ -69,7 +69,7 @@ def construct_model():
         [i / int(86400 / time_step) * 2 * np.pi - np.pi / 2 for i in range(int(5 * 86400 / time_step))])
 
     # TODO fix sine profiles
-    time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step)+'S', periods=n_steps)
+    time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
 
     heat_profile_step = pd.Series(step, index=time_index)
     heat_profile_linear = pd.Series(linear, index=time_index)
@@ -79,7 +79,7 @@ def construct_model():
 
     # Ambient temperature
     t_amb = ut.read_time_data(path='../Data/Weather',
-                                name='extT.csv')
+                              name='extT.csv')
 
     # Ground temperature
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
@@ -91,12 +91,14 @@ def construct_model():
 
     # Fuel costs
     c_f = ut.read_time_data(path='../Data/ElectricityPrices',
-                              name='DAM_electricity_prices-2014_BE.csv')
+                            name='DAM_electricity_prices-2014_BE.csv')
     # Converting to euro per kWh
     c_f = c_f['price_BE'] / 1000
 
     fig4, ax4 = plt.subplots()
-    ax4.plot(c_f, label='Electricity day-ahead market')
+    plotcf = ut.select_period_data(c_f, start_time=start_time, time_step=time_step, horizon=n_steps * time_step)
+    ax4.plot(plotcf,
+             label='Electricity day-ahead market')
     # ax3.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax4.legend()
     ax4.set_ylabel('Electricity price [euro/kWh]')
