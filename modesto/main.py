@@ -467,16 +467,18 @@ class Modesto:
                 'There is no component named {} at node {}'.format(name, node))
         return self.components[node][name]
 
-    def get_result(self, name, node=None, comp=None, index=None):
+    def get_result(self, name, node=None, comp=None, index=None, check_results=True):
         """
         Returns the numerical values of a certain parameter or time-dependent variable after optimization
 
         :param comp: Name of the component to which the variable belongs
         :param name: Name of the needed variable/parameter
+        :param check_results: Check if model is solved. Default True. If Modesto is part of a larger optimization,
+            change to false in order to be able to use this function.
         :return: A pandas DataFrame containing all values of the variable/parameter over the time horizon
         """
 
-        if self.results is None:
+        if self.results is None and check_results:
             raise Exception('The optimization problem has not been solved yet.')
 
         if comp is not None:
