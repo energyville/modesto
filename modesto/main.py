@@ -749,6 +749,34 @@ class Modesto:
 
         return self.components[None][pipe].get_length()
 
+    def get_heat_stor_init(self):
+        """
+        Return dictionary of initial storage states
+
+        :return:
+        """
+        out = {}
+
+        for node in self.get_nodes():
+            for comp_name, comp_obj in self.nodes[node].get_heat_stor_init():
+                out['.'.join(node, comp_name)] = comp_obj
+
+        return out
+
+    def get_heat_stor_final(self):
+        """
+        Return dictionary of initial storage states
+
+        :return:
+        """
+        out = {}
+
+        for node in self.get_nodes():
+            for comp_name, comp_obj in self.nodes[node].get_heat_stor_final():
+                out['.'.join(node, comp_name)] = comp_obj
+
+        return out
+
 
 class Node(object):
     def __init__(self, name, node, horizon, time_step,
@@ -1015,6 +1043,32 @@ class Node(object):
             m_flo += comp.get_mflo(t, compiled=False)
 
         return m_flo
+
+    def get_heat_stor_init(self, ):
+        """
+        Generate dict with initial heat storage state variable for all storage components in this node.
+
+        :return:
+        """
+        out = {}
+
+        for comp_name, comp_obj in self.get_components(filter_type=co.StorageVariable):
+            out[comp_name] = comp_obj.get_heat_stor_init()
+
+        return out
+
+    def get_heat_stor_init(self, ):
+        """
+        Generate dict with final heat storage state variable for all storage components in this node.
+
+        :return:
+        """
+        out = {}
+
+        for comp_name, comp_obj in self.get_components(filter_type=co.StorageVariable):
+            out[comp_name] = comp_obj.get_heat_stor_final()
+
+        return out
 
 
 class Edge(object):
