@@ -1044,7 +1044,7 @@ class StorageVariable(Component):
         # Internal
         self.block.heat_stor = Var(self.model.X_TIME)  # , bounds=(
         # 0, self.volume * self.cp * 1000 * self.temp_diff))
-        self.block.soc = Var(self.model.TIME)
+        self.block.soc = Var(self.model.X_TIME)
         self.logger.debug('Max heat:          {}kWh'.format(str(self.volume * self.cp * 1000 * self.temp_diff / 1000 / 3600)))
         self.logger.debug('Tau:               {}d'.format(str(self.tau / 3600 / 24 / 365)))
         self.logger.debug('variable loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
