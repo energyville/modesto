@@ -1,23 +1,22 @@
 from __future__ import division
 
 import collections
-import sys
 from math import sqrt
 
+import component as co
 import networkx as nx
+import numpy as np
 import pandas as pd
+import pipe as pip
 # noinspection PyUnresolvedReferences
 import pyomo.environ
-from pyomo.core.base import ConcreteModel, Objective, minimize, value
+# noinspection PyUnresolvedReferences
+from parameter import *
+from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var
 from pyomo.core.base.param import IndexedParam
 from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
-
-# noinspection PyUnresolvedReferences
-from component import *
-from parameter import *
-from pipe import *
 
 
 class Modesto:
@@ -796,13 +795,29 @@ class Node(object):
         z = self.__get_data('z')
         return {'x': x, 'y': y, 'z': z}
 
-    def get_components(self):
+    def get_components(self, filter_type=None):
         """
         Collects the components and their type belonging to this node
 
+        :param filter_type: string or class name of components to be returned
         :return: A dict, with keys the names of the components, values the Component objects
         """
-        return self.components
+
+        if filter_type is None:
+            out = self.components
+        elif isinstance(filter_type, str):
+            out = {}
+            cls = co.str_to_comp(filter_type)
+            for comp in self.get_components():
+                if isinstance(self.components[comp], cls):
+                    out[comp] = self.components[comp]
+        else:
+            out = {}
+            for comp in self.get_components():
+                if isinstance(self.components[comp], filter_type):
+                    out[comp] = self.components[comp]
+
+        return out
 
     def add_comp(self, name, ctype):
         """
@@ -813,15 +828,11 @@ class Node(object):
         :return:
         """
 
-        assert name not in self.components, \
-            'A component named \'{}\' already exists for node \'{}\''.format(
-                name, self.name)
-
-        def str_to_class(str):
-            return reduce(getattr, str.split("."), sys.modules[__name__])
+        assert name not in self.components, 'A component named \'{}\' already exists for node \'{}\''.format(
+            name, self.name)
 
         try:
-            cls = str_to_class(ctype)
+            cls = co.str_to_comp(ctype)
         except AttributeError:
             cls = None
 
@@ -840,7 +851,7 @@ class Node(object):
 
     def add_pipe(self, pipe):
 
-        if not isinstance(pipe, Pipe):
+        if not isinstance(pipe, pip.Pipe):
             raise TypeError('Input \'edge\' should be an Pipe object')
 
         self.pipes[pipe.name] = pipe
@@ -1054,11 +1065,8 @@ class Edge(object):
 
         self.pipe_model = pipe_model
 
-        def str_to_class(str):
-            return reduce(getattr, str.split("."), sys.modules[__name__])
-
         try:
-            cls = str_to_class(pipe_model)
+            cls = pip.str_to_pipe(pipe_model)
         except AttributeError:
             cls = None
 

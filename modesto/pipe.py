@@ -1,5 +1,6 @@
 from __future__ import division
 
+import sys
 import os
 import pandas as pd
 from pkg_resources import resource_filename
@@ -12,6 +13,16 @@ import warnings
 import numpy as np
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
+
+
+def str_to_pipe(string):
+    """
+    Convert string name to pipe class type.
+
+    :param string: Pipe class name
+    :return:
+    """
+    return reduce(getattr, string.split("."), sys.modules[__name__])
 
 
 class Pipe(Component):

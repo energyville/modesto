@@ -2,12 +2,22 @@ from __future__ import division
 
 import logging
 from math import pi, log, exp
-
+import sys
 from pkg_resources import resource_filename
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
 
 import modesto.utils as ut
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
+
+
+def str_to_comp(string):
+    """
+    Convert string to class initializer
+
+    :param string: name of class to be initialized
+    :return:
+    """
+    return reduce(getattr, string.split("."), sys.modules[__name__])
 
 
 class Component(object):
