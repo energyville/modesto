@@ -538,12 +538,13 @@ class Modesto:
                 '{}'.format(comp, name, type(obj)))
             return None
 
-    def get_objective(self, objtype=None):
+    def get_objective(self, objtype=None, get_value=True):
         """
         Return value of objective function. With no argument supplied, the active objective is returned. Otherwise, the
         objective specified in the argument is returned.
 
         :param objtype: Name of the objective to be returned. Default None: returns the active objective.
+        :param value: True if value of objective should be returned. If false, the objective object instance is returned.
         :return:
         """
         if objtype is None:
@@ -558,7 +559,10 @@ class Modesto:
                 self.objectives.keys())
             obj = self.objectives[objtype]
 
-        return value(obj)
+        if get_value:
+            return value(obj)
+        else:
+            return obj
 
     def print_all_params(self):
         """
