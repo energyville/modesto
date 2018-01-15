@@ -757,9 +757,9 @@ class Modesto:
         """
         out = {}
 
-        for node in self.get_nodes():
-            for comp_name, comp_obj in self.nodes[node].get_heat_stor_init():
-                out['.'.join(node, comp_name)] = comp_obj
+        for node_name, node_obj in self.nodes.iteritems():
+            for comp_name, comp_obj in node_obj.get_heat_stor_init().iteritems():
+                out['.'.join([node_name, comp_name])] = comp_obj
 
         return out
 
@@ -771,9 +771,9 @@ class Modesto:
         """
         out = {}
 
-        for node in self.get_nodes():
-            for comp_name, comp_obj in self.nodes[node].get_heat_stor_final():
-                out['.'.join(node, comp_name)] = comp_obj
+        for node_name, node_obj in self.nodes.iteritems():
+            for comp_name, comp_obj in node_obj.get_heat_stor_final().iteritems():
+                out['.'.join([node_name, comp_name])] = comp_obj
 
         return out
 
@@ -1044,7 +1044,7 @@ class Node(object):
 
         return m_flo
 
-    def get_heat_stor_init(self, ):
+    def get_heat_stor_init(self):
         """
         Generate dict with initial heat storage state variable for all storage components in this node.
 
@@ -1052,12 +1052,12 @@ class Node(object):
         """
         out = {}
 
-        for comp_name, comp_obj in self.get_components(filter_type=co.StorageVariable):
+        for comp_name, comp_obj in self.get_components(filter_type=co.StorageVariable).iteritems():
             out[comp_name] = comp_obj.get_heat_stor_init()
 
         return out
 
-    def get_heat_stor_init(self, ):
+    def get_heat_stor_final(self):
         """
         Generate dict with final heat storage state variable for all storage components in this node.
 
@@ -1065,7 +1065,7 @@ class Node(object):
         """
         out = {}
 
-        for comp_name, comp_obj in self.get_components(filter_type=co.StorageVariable):
+        for comp_name, comp_obj in self.get_components(filter_type=co.StorageVariable).iteritems():
             out[comp_name] = comp_obj.get_heat_stor_final()
 
         return out
