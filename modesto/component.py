@@ -1141,7 +1141,7 @@ class StorageVariable(Component):
 
         :return:
         """
-        return self.block.heat_stor[0]
+        return self.block.heat_stor[self.model.X_TIME[0]]
 
     def get_heat_stor_final(self):
         """
@@ -1149,4 +1149,4 @@ class StorageVariable(Component):
 
         :return:
         """
-        return self.block.heat_stor[-1]
+        return self.block.heat_stor[self.model.X_TIME[-1]]
