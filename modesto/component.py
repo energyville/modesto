@@ -1,13 +1,13 @@
 from __future__ import division
 
 import logging
-from math import pi, log, exp
 import sys
-from pkg_resources import resource_filename
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
+from math import pi, log, exp
 
 import modesto.utils as ut
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
+from pkg_resources import resource_filename
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
 
 
 def str_to_comp(string):
@@ -212,6 +212,8 @@ class Component(object):
         :param slack_variable: The variable that describes the slack
         :return:
         """
+
+        # TODO make two-sided constraints (with possible double slack?) possible
 
         if ub is True:
             f = 1
@@ -831,7 +833,7 @@ class SolarThermalCollector(Component):
 
         filepath = resource_filename('modesto', 'Data/RenewableProduction')
 
-        self.max_prod = ut.read_period_data(path=filepath, name='SolarThermalNew.txt', time_step=time_step,
+        self.max_prod = ut.read_period_data(path=filepath, name='SolarThermalNew.csv', time_step=time_step,
                                             horizon=horizon, start_time=start_time)["30_40"]
         # TODO Allow multiple orientations (the L-Tuple)
 
@@ -958,10 +960,11 @@ class StorageVariable(Component):
             'kIns': DesignParameter('kIns',
                                     'Thermal conductivity of insulation material',
                                     'W/(m.K)'),
-            'heat_stor': StateParameter('heat_stor',
-                                        'Heat stored in the thermal storage unit',
-                                        'J',
-                                        'fixedVal')
+            'heat_stor': StateParameter(name='heat_stor',
+                                        description='Heat stored in the thermal storage unit',
+                                        unit='kWh',
+                                        init_type='fixedVal',
+                                        slack=False)
         }
 
         return params
@@ -987,7 +990,7 @@ class StorageVariable(Component):
 
         heat_stor_init = self.params['heat_stor']
 
-        self.max_en = self.volume * self.cp * self.temp_diff * self.rho
+        self.max_en = self.volume * self.cp * self.temp_diff * self.rho / 1000 / 3600
 
         # Geometrical calculations
         w = (4 * self.volume / self.ar / pi) ** (1 / 3)  # Width of tank
@@ -1042,9 +1045,9 @@ class StorageVariable(Component):
         self.block.heat_stor = Var(self.model.X_TIME)  # , bounds=(
         # 0, self.volume * self.cp * 1000 * self.temp_diff))
         self.block.soc = Var(self.model.TIME)
-        self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
-        self.logger.debug('Tau:      {}d'.format(str(self.tau / 3600 / 365)))
-        self.logger.debug('Loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
+        self.logger.debug('Max heat:          {}kWh'.format(str(self.volume * self.cp * 1000 * self.temp_diff / 1000 / 3600)))
+        self.logger.debug('Tau:               {}d'.format(str(self.tau / 3600 / 24 / 365)))
+        self.logger.debug('variable loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
 
         #############################################################################################
         # Equality constraints
@@ -1052,14 +1055,13 @@ class StorageVariable(Component):
         self.block.heat_loss = Var(self.model.TIME)
 
         def _eq_heat_loss(b, t):
-            return b.heat_loss[t] == (1 - exp(-self.time_step / self.tau)) * b.heat_stor[t] / self.time_step + \
-                                     b.heat_loss_ct[t]
+            return b.heat_loss[t] == (1 - exp(-self.time_step / self.tau)) * b.heat_stor[t] * 1000 * 3600 / self.time_step + b.heat_loss_ct[t]
 
         self.block.eq_heat_loss = Constraint(self.model.TIME, rule=_eq_heat_loss)
 
         # State equation
-        def _state_eq(b, t):
-            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])
+        def _state_eq(b, t):   # in kWh
+            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step/3600 * (b.heat_flow[t] - b.heat_loss[t])/1000
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1080,20 +1082,24 @@ class StorageVariable(Component):
             uslack = [None] * len(self.model.X_TIME)
             lslack = [None] * len(self.model.X_TIME)
 
-        ub = self.params['heat_stor'].get_upper_boundary() / 1000 / 3600
-        lb = self.params['heat_stor'].get_lower_boundary() / 1000 / 3600
-        max = self.volume * self.cp * 1000 * self.temp_diff / 1000 / 3600
-        if ub > max:
-            self.params['heat_stor'].change_upper_bound(max)
+        if self.params['heat_stor'].get_upper_boundary() is not None:
+            ub = self.params['heat_stor'].get_upper_boundary()
+            if ub > self.max_en:
+                self.params['heat_stor'].change_upper_bound(self.max_en)
+        else:
+            self.params['heat_stor'].change_upper_bound(self.max_en)
+
+        if self.params['heat_stor'].get_lower_boundary() is None:
+            self.params['heat_stor'].change_lower_bound(0)
 
         def _max_heat_stor(b, t):
-            return self.constrain_value(b.heat_stor[t] / 1000 / 3600,
+            return self.constrain_value(b.heat_stor[t],
                                         self.params['heat_stor'].get_upper_boundary(),
                                         ub=True,
                                         slack_variable=uslack[t])
 
         def _min_heat_stor(b, t):
-            return self.constrain_value(b.heat_stor[t] / 1000 / 3600,
+            return self.constrain_value(b.heat_stor[t],
                                         self.params['heat_stor'].get_lower_boundary(),
                                         ub=False,
                                         slack_variable=lslack[t])
