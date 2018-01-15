@@ -251,13 +251,14 @@ if __name__ == '__main__':
     ax.legend(loc='lower center', ncol=3)
     fig.tight_layout()
 
-    fig2 = plt.figure()
+    fig2, ax2 = plt.subplots()
 
-    ax2 = fig2.add_subplot(111)
-    ax2.plot(storage_soc, label='Stored heat')
-    ax2.plot(storage_hf * 3600, label="Charged heat")
-    ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
+    ax2.plot(storage_soc, label='Stored heat [kWh]')
+    ax2b = ax2.twinx()
+    ax2b.plot(storage_hf, color='g', linestyle='--', label="Charged heat")
     ax2.legend()
+    ax2b.legend()
+    ax2b.set_ylabel('(dis)charged heat [W]')
     fig2.suptitle('Storage')
     #ax2.tight_layout()
 
