@@ -214,6 +214,9 @@ class Modesto:
             'co2': self.model.OBJ_CO2,
         }
 
+        for objective in self.objectives.values():
+            objective.deactivate()
+
         if self.temperature_driven:
             def obj_temp(model):
                 return sum(comp.obj_temp() for comp in self.iter_components())
