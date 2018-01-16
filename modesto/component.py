@@ -831,16 +831,16 @@ class SolarThermalCollector(Component):
         self.logger = logging.getLogger('modesto.components.SolThermCol')
         self.logger.info('Initializing SolarThermalCollector {}'.format(name))
 
-        filepath = resource_filename('modesto', 'Data/RenewableProduction')
-
-        self.max_prod = ut.read_period_data(path=filepath, name='SolarThermalNew.csv', time_step=time_step,
-                                            horizon=horizon, start_time=start_time)["30_40"]
-        # TODO Allow multiple orientations (the L-Tuple)
-
     def create_params(self):
         params = {
             'area': DesignParameter('area', 'Surface area of panels', 'm2'),
-            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K')
+            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K'),
+            'heat_profile': UserDataParameter(name='heat_profile',
+                                              description='Maximum heat generation per unit area of the solar panel',
+                                              unit='W/m2',
+                                              time_step=self.time_step,
+                                              horizon=self.horizon,
+                                              start_time=self.start_time)
         }
         return params
 
@@ -859,8 +859,10 @@ class SolarThermalCollector(Component):
         self.model = topmodel
         self.make_block(parent)
 
+        heat_profile = self.params['heat_profile'].v()
+
         def _heat_flow_max(m, t):
-            return self.max_prod.values[t]
+            return heat_profile[t]
 
         self.block.heat_flow_max = Param(self.model.TIME, rule=_heat_flow_max)
         self.block.heat_flow = Var(self.model.TIME, within=NonNegativeReals)
@@ -1070,7 +1072,7 @@ class StorageVariable(Component):
             return b.soc[t] == b.heat_stor[t] / self.max_en * 100
 
         self.block.state_eq = Constraint(self.model.TIME, rule=_state_eq)
-        self.block.soc_eq = Constraint(self.model.TIME, rule=_soq_eq)
+        self.block.soc_eq = Constraint(self.model.X_TIME, rule=_soq_eq)
 
         #############################################################################################
         # Inequality constraints

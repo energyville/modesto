@@ -195,7 +195,7 @@ class TimeSeriesParameter(Parameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
         if isinstance(val, pd.Series):
-            raise TypeError('The value of this parameter (user/weather data)should be a pandas Seriess')
+            raise TypeError('The value of this parameter (user/weather data)should be a pandas Series')
 
         self.time_data = False  # Does the dataframe have a timeData index?
         self.time_step = time_step
