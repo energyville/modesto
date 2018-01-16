@@ -23,7 +23,11 @@ logging.basicConfig(level=logging.DEBUG,
 
 from collections import OrderedDict
 
-selection = OrderedDict([(40, 10.0), (102, 12.0), (231, 17.0), (314, 11.0), (364, 2.0)])
+# Select 7 weeks
+selection = OrderedDict([(28, 4.0), (40, 10.0), (99, 11.0), (196, 9.0), (219, 7.0), (291, 2.0), (319, 9.0)])
+
+# Select 5 weeks
+# selection = OrderedDict([(40, 10.0), (102, 12.0), (231, 17.0), (314, 11.0), (364, 2.0)])
 
 # ## Set up optimization
 
@@ -53,8 +57,13 @@ netGraph.add_node('Node', x=0, y=0, z=0, comps={
 # In[5]:
 
 storVol = 75000
-solArea = 2 * (18300 + 15000)
-backupPow = 1.3 * 3.85e6  # +10% of actual peak boiler power
+Thi = 80
+Tlo = 40
+solArea = (18300 + 15000)
+backupPow = 1.1 * 3.85e6  # +10% of actual peak boiler power
+
+max_en = 1000 * storVol * (Thi - Tlo) * 4180
+min_en = 0
 
 # #### External data
 
@@ -134,8 +143,8 @@ for start_day, duration in selection.iteritems():
                            node='Node', comp='demand')
 
     optmodel.change_params({  # Thi and Tlo need to be compatible with delta_T of previous
-        'Thi': 80 + 273.15,
-        'Tlo': 40 + 273.15,
+        'Thi': Thi + 273.15,
+        'Tlo': Tlo + 273.15,
         'mflo_max': 11000000,
         'volume': storVol,
         'ar': 0.18,
@@ -178,28 +187,45 @@ selected_days = selection.keys()
 for i, next_day in enumerate(selected_days):
     current = selected_days[i - 1]
 
-    next_init = optimizers[next_day].get_heat_stor_init()
+    reps = selection[current]
 
-    current_init = optimizers[current].get_heat_stor_init()
-    current_final = optimizers[current].get_heat_stor_final()
+    next_heat = optimizers[next_day].get_heat_stor()
+    current_heat = optimizers[current].get_heat_stor()
 
-    for component_id in next_init:
+    X_TIME = optimizers[current].model.X_TIME
+    TIME = optimizers[current].model.TIME
+    for component_id in next_heat:
+        # Link begin and end of representative periods
         def _link_stor(m):
-            return next_init[component_id] == current_init[component_id] + selection[current] * (
-                current_final[component_id] - current_init[component_id])
+            return next_heat[component_id][0] == current_heat[component_id][0] + reps * (
+                current_heat[component_id][X_TIME[-1]] - current_heat[component_id][0])
 
 
-        topmodel.add_component(name='_'.join([component_id, str(current)]), val=Constraint(rule=_link_stor))
-        print 'Constraint added for storage {} in representative week starting on day {}'.format(component_id, current)
+        topmodel.add_component(name='_'.join([component_id, str(current), 'eq']), val=Constraint(rule=_link_stor))
+        print 'State equation added for storage {} in representative week starting on day {}'.format(component_id,
+                                                                                                     current)
+
+
+        # Limit intermediate states
+        def _constr_rep(m, t):
+            return (min_en, current_heat[component_id][t] + reps * (
+                current_heat[component_id][X_TIME[-1]] - current_heat[component_id][0]), max_en)
+
+
+        topmodel.add_component(name='_'.join([component_id, str(current), 'ineq']),
+                               val=Constraint(TIME, rule=_constr_rep))
+
+        print 'Energy constraints added for storage {} in representative week starting on day {}'.format(component_id,
+                                                                                                         current)
 
 
 # In[ ]:
 
 def _top_objective(m):
-    return sum(repetitions * optimizers[startday].get_objective(
-        objtype='energy', get_value=False) for startday, repetitions in selection.iteritems())
+    return 365/364*sum(repetitions * optimizers[start_day].get_objective(
+        objtype='energy', get_value=False) for start_day, repetitions in selection.iteritems())
 
-
+# Factor 365/364 to make up for missing day
 # set get_value to False to return object instead of value of the objective function
 topmodel.obj = Objective(rule=_top_objective, sense=minimize)
 
@@ -213,6 +239,8 @@ print 'Writing time:', str(end - begin)
 
 begin = time.time()
 opt = SolverFactory("gurobi")
+
+opt.options["NumericFocus"] = 1
 # opt.options["Threads"] = threads
 # opt.options["MIPGap"] = mipgap
 results = opt.solve(topmodel, tee=True)
@@ -286,7 +314,7 @@ plt.gcf().autofmt_xdate()
 
 # In[ ]:
 
-#optimizers[9].get_result('heat_stor', node='Node', comp='storage', check_results=False)
+# optimizers[9].get_result('heat_stor', node='Node', comp='storage', check_results=False)
 
 
 # In[ ]:
