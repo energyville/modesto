@@ -767,7 +767,7 @@ class Modesto:
         out = {}
 
         for node_name, node_obj in self.nodes.iteritems():
-            for comp_name, comp_obj in node_obj.get_heat_stor.iteritems():
+            for comp_name, comp_obj in node_obj.get_heat_stor().iteritems():
                 out['.'.join([node_name, comp_name])] = comp_obj
 
         return out
