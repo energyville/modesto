@@ -1137,18 +1137,11 @@ class StorageVariable(Component):
 
         self.logger.info('Optimization model Storage {} compiled'.format(self.name))
 
-    def get_heat_stor_init(self):
+    def get_heat_stor(self):
         """
         Return initial heat storage state value
 
         :return:
         """
-        return self.block.heat_stor[0]
+        return self.block.heat_stor
 
-    def get_heat_stor_final(self):
-        """
-        Return final heat storage state value
-
-        :return:
-        """
-        return self.block.heat_stor[self.model.X_TIME[-1]]
