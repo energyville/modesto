@@ -4,10 +4,9 @@ import logging
 import sys
 from math import pi, log, exp
 
-import modesto.utils as ut
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
-from pkg_resources import resource_filename
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
+
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
 
 
 def str_to_comp(string):
@@ -987,6 +986,8 @@ class StorageVariable(Component):
         self.ar = self.params['ar'].v()
 
         self.temp_diff = self.params['Thi'].v() - self.params['Tlo'].v()
+        assert (self.temp_diff > 0), 'Temperature difference should be positive.'
+
         self.temp_sup = self.params['Thi'].v()
         self.temp_ret = self.params['Tlo'].v()
 
@@ -1017,6 +1018,7 @@ class StorageVariable(Component):
         # Parameters
 
         # Fixed heat loss
+
         def _heat_loss_ct(b, t):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
                    self.UAtb * (self.temp_ret + self.temp_sup - self.model.Te[t])
@@ -1047,9 +1049,10 @@ class StorageVariable(Component):
         self.block.heat_stor = Var(self.model.X_TIME)  # , bounds=(
         # 0, self.volume * self.cp * 1000 * self.temp_diff))
         self.block.soc = Var(self.model.X_TIME)
-        self.logger.debug('Max heat:          {}kWh'.format(str(self.volume * self.cp * 1000 * self.temp_diff / 1000 / 3600)))
-        self.logger.debug('Tau:               {}d'.format(str(self.tau / 3600 / 24 / 365)))
-        self.logger.debug('variable loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
+        self.logger.debug(
+            'Max heat:          {} kWh'.format(str(self.volume * self.cp * 1000 * self.temp_diff / 1000 / 3600)))
+        self.logger.debug('Tau:               {} d'.format(str(self.tau / 3600 / 24 / 365)))
+        self.logger.debug('variable loss  :   {} %'.format(str(exp(-self.time_step / self.tau))))
 
         #############################################################################################
         # Equality constraints
@@ -1057,13 +1060,15 @@ class StorageVariable(Component):
         self.block.heat_loss = Var(self.model.TIME)
 
         def _eq_heat_loss(b, t):
-            return b.heat_loss[t] == (1 - exp(-self.time_step / self.tau)) * b.heat_stor[t] * 1000 * 3600 / self.time_step + b.heat_loss_ct[t]
+            return b.heat_loss[t] == (1 - exp(-self.time_step / self.tau)) * b.heat_stor[
+                t] * 1000 * 3600 / self.time_step + b.heat_loss_ct[t]
 
         self.block.eq_heat_loss = Constraint(self.model.TIME, rule=_eq_heat_loss)
 
         # State equation
-        def _state_eq(b, t):   # in kWh
-            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step/3600 * (b.heat_flow[t] - b.heat_loss[t])/1000
+        def _state_eq(b, t):  # in kWh
+            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step / 3600 * (
+                b.heat_flow[t] - b.heat_loss[t]) / 1000
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1144,4 +1149,3 @@ class StorageVariable(Component):
         :return:
         """
         return self.block.heat_stor
-
