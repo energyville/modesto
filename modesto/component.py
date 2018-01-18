@@ -4,9 +4,8 @@ import logging
 import sys
 from math import pi, log, exp
 
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
-
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value
 
 
 def str_to_comp(string):
@@ -970,12 +969,10 @@ class StorageVariable(Component):
 
         return params
 
-    def compile(self, topmodel, parent):
+    def calculate_static_parameters(self):
         """
-        Compile this model
+        Calculate static parameters and assign them to this object for later use in equations.
 
-        :param topmodel: top optimization model with TIME and Te variable
-        :param parent: block above this level
         :return:
         """
         self.max_mflo = self.params['mflo_max'].v()
@@ -990,8 +987,6 @@ class StorageVariable(Component):
 
         self.temp_sup = self.params['Thi'].v()
         self.temp_ret = self.params['Tlo'].v()
-
-        heat_stor_init = self.params['heat_stor']
 
         self.max_en = self.volume * self.cp * self.temp_diff * self.rho / 1000 / 3600
 
@@ -1008,22 +1003,23 @@ class StorageVariable(Component):
         # Time constant
         self.tau = self.volume * 1000 * self.cp / self.UAw
 
+    def initial_compilation(self):
+        """
+        Common part of compilation for al inheriting classes
+
+        :return:
+        """
         ############################################################################################
         # Initialize block
 
         self.model = topmodel
         self.make_block(parent)
 
-        ############################################################################################
-        # Parameters
-
         # Fixed heat loss
 
         def _heat_loss_ct(b, t):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
                    self.UAtb * (self.temp_ret + self.temp_sup - self.model.Te[t])
-
-        # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
 
@@ -1044,6 +1040,17 @@ class StorageVariable(Component):
         self.block.heat_flow = Var(self.model.TIME, bounds=heat_bounds)
         if self.temperature_driven:
             self.block.supply_temperature = Var(self.model.TIME)
+
+    def compile(self, topmodel, parent):
+        """
+        Compile this model
+
+        :param topmodel: top optimization model with TIME and Te variable
+        :param parent: block above this level
+        :return:
+        """
+        self.calculate_static_parameters()
+        self.initial_compilation()
 
         # Internal
         self.block.heat_stor = Var(self.model.X_TIME)  # , bounds=(
@@ -1125,9 +1132,9 @@ class StorageVariable(Component):
                 return b.heat_stor[0] == b.heat_stor[self.model.X_TIME[-1]]
 
             self.block.eq_cyclic = Constraint(rule=_eq_cyclic)
-        else:
+        else:  # Fixed initial
             def _init_eq(b):
-                return b.heat_stor[0] == heat_stor_init.v()
+                return b.heat_stor[0] == self.params['heat_stor'].v()
 
             self.block.init_eq = Constraint(rule=_init_eq)
 
@@ -1149,3 +1156,141 @@ class StorageVariable(Component):
         :return:
         """
         return self.block.heat_stor
+
+
+class StorageCondensed(StorageVariable):
+    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+        """
+        Variable storage model. In this model, the state equation are condensed into one single equation. Only the initial
+            and final state remain as a parameter. This component is also compatible with a representative period
+            presentation, in which the control actions are repeated for a given number of iterations, while the storage
+            state can change.
+        The heat losses are taken into account exactly in this model.
+
+        :param name: name of the component
+        :param start_time: start time of optimization horizon
+        :param horizon: horizon of optimization problem in seconds. The horizon should be that of a single representative
+            period.
+        :param time_step: time step of optimization problem in seconds.
+        :param temperature_driven: Parameter that defines if component is temperature driven. This component can only be
+            used in non-temperature-driven optimizations.
+        """
+        StorageVariable.__init__(self, name=name, start_time=start_time, horizon=horizon, time_step=time_step,
+                                 temperature_driven=temperature_driven)
+
+        self.N = len(self.model.TIME)  # Number of flow time steps
+        self.R = None  # Number of repetitions
+        self.params['reps'] = DesignParameter(name='reps',
+                                              description='Number of times the representative period should be repeated. Default 1.',
+                                              unit='-', val=1)
+
+        self.heat_loss_coeff = None
+
+    def compile(self, topmodel, parent):
+        """
+        Compile this unit. Equations calculate the final state after the specified number of repetitions.
+
+        :param topmodel: Top level model
+        :param parent: Block above current optimization block
+        :return:
+        """
+        self.calculate_static_parameters()
+        self.initial_compilation()
+
+        self.heat_loss_coeff = exp(self.time_step / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
+
+        self.block.heat_stor_init = Var(domain=NonNegativeReals)
+        self.block.heat_stor_final = Var(domain=NonNegativeReals)
+
+        self.R = self.params['reps']  # Number of repetitions in total
+
+        R = self.R
+        N = self.N  # For brevity of equations
+        zH = self.heat_loss_coeff
+
+        def _state_eq(b):
+            return b.heat_stor_final == zH ** (N * R) * b.heat_stor_init + sum(
+                (b.heat_flow[i] - b.heat_loss_ct[i]) * zH ** (N - i - 1) for i in range(N)
+            ) * sum(
+                zH ** (j * R) for j in range(R)
+            )
+
+        self.block.state_eq = Constraint(rule=_state_eq)
+
+        if self.params['heat_stor'].get_upper_boundary() is not None:
+            ub = self.params['heat_stor'].get_upper_boundary()
+            if ub > self.max_en:
+                self.params['heat_stor'].change_upper_bound(self.max_en)
+        else:
+            self.params['heat_stor'].change_upper_bound(self.max_en)
+
+        if self.params['heat_stor'].get_lower_boundary() is None:
+            self.params['heat_stor'].change_lower_bound(0)
+
+        def _limit_initial_repetition(b, t):
+            return (self.params['heat_stor'].get_lower_boundary(), self._xrn(r=0, n=t),
+                    self.params['heat_stor'].get_upper_boundary())
+
+        def _limit_final_repetition(b, t):
+            return (self.params['heat_stor'].get_lower_boundary(), self._xrn(r=R - 1, n=t),
+                    self.params['heat_stor'].get_upper_boundary())
+
+        self.block.limit_init = Constraint(self.model.TIME, rule=_limit_initial_repetition)
+
+        if R > 1:
+            self.block.limit_final = Constraint(self.model.TIME, rule=_limit_final_repetition)
+
+        self.logger.info('Optimization model StorageCondensed {} compiled'.format(self.name))
+
+    def get_heat_stor(self, repetition=None, time=None, evaluate=False):
+        """
+        Calculate stored heat during repetition r and time step n. These parameters are zero-based, so the first time
+        step of the first repetition has identifiers r=0 and n=0. If no parameters are specified, the state trajecto
+
+        :param repetition: Number of repetition current time step is in. First representative period is 0.
+        :param time: number of time step during current repetition.
+        :param evaluate: True if value should be calculated; False if variable objects are needed.
+        :return: single float if repetition and time are given, list of floats if not
+        """
+
+        R = self.R
+        N = self.N
+        zH = self.heat_loss_coeff
+
+        if repetition is None and time is None:
+            out = []
+            for r in range(R):
+                for n in range(N):
+                    if evaluate:
+                        out.append(value(self._xrn(r, n)))
+                    else:
+                        out.append(self._xrn(r, n))
+            return out
+        else:
+            if evaluate:
+                out = value(self._xrn(repetition, time))
+            else:
+                out = self._xrn(repetition, time)
+            return out
+
+    def _xrn(self, r, n):
+        """
+        Formula to calculate storage state with repetition r and time step n
+
+        :param r: repetition number (zero-based)
+        :param n: time step number (zero-based)
+        :return:
+        """
+        zH = self.heat_loss_coeff
+        N = self.N
+        R = self.R
+
+        return zH ** (r * N + n) * self.block.heat_stor_init + sum(zH ** (i * R + n) for i in range(r)) * sum(
+            zH ** (N - j - 1) * (self.block.heat_flow[j] - self.block.heat_loss_ct[j]) for j in range(N)) + sum(
+            zH ** (n - i - 1) * (self.block.heat_flow[i] - self.block.heat_loss_ct[i]) for i in range(n))
+
+    def get_heat_stor_init(self):
+        return self.block.heat_stor_init
+
+    def get_heat_stor_final(self):
+        return self.block.heat_stor_final
