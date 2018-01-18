@@ -4,8 +4,10 @@ import logging
 import sys
 from math import pi, log, exp
 
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
+import numpy as np
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value
+
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
 
 
 def str_to_comp(string):
@@ -1003,7 +1005,7 @@ class StorageVariable(Component):
         # Time constant
         self.tau = self.volume * 1000 * self.cp / self.UAw
 
-    def initial_compilation(self):
+    def initial_compilation(self, topmodel, parent):
         """
         Common part of compilation for al inheriting classes
 
@@ -1050,7 +1052,7 @@ class StorageVariable(Component):
         :return:
         """
         self.calculate_static_parameters()
-        self.initial_compilation()
+        self.initial_compilation(topmodel, parent)
 
         # Internal
         self.block.heat_stor = Var(self.model.X_TIME)  # , bounds=(
@@ -1125,6 +1127,8 @@ class StorageVariable(Component):
         # Initial state
 
         # TODO Move this to a separate general method for initializing states
+
+        heat_stor_init = self.params['heat_stor'].init_type
         if heat_stor_init.init_type == 'free':
             pass
         elif heat_stor_init.init_type == 'cyclic':
@@ -1178,7 +1182,7 @@ class StorageCondensed(StorageVariable):
         StorageVariable.__init__(self, name=name, start_time=start_time, horizon=horizon, time_step=time_step,
                                  temperature_driven=temperature_driven)
 
-        self.N = len(self.model.TIME)  # Number of flow time steps
+        self.N = None  # Number of flow time steps
         self.R = None  # Number of repetitions
         self.params['reps'] = DesignParameter(name='reps',
                                               description='Number of times the representative period should be repeated. Default 1.',
@@ -1195,14 +1199,15 @@ class StorageCondensed(StorageVariable):
         :return:
         """
         self.calculate_static_parameters()
-        self.initial_compilation()
+        self.initial_compilation(topmodel, parent)
 
         self.heat_loss_coeff = exp(self.time_step / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
 
         self.block.heat_stor_init = Var(domain=NonNegativeReals)
         self.block.heat_stor_final = Var(domain=NonNegativeReals)
 
-        self.R = self.params['reps']  # Number of repetitions in total
+        self.N = len(self.model.TIME)
+        self.R = self.params['reps'].v()  # Number of repetitions in total
 
         R = self.R
         N = self.N  # For brevity of equations
@@ -1240,6 +1245,15 @@ class StorageCondensed(StorageVariable):
         if R > 1:
             self.block.limit_final = Constraint(self.model.TIME, rule=_limit_final_repetition)
 
+        init_type = self.params['heat_stor'].init_type
+        if init_type == 'free':
+            pass
+        elif init_type == 'cyclic':
+            self.block.eq_cyclic = Constraint(expr=self.block.heat_stor_init == self.block.heat_stor_final)
+
+        else:
+            self.block.init_eq = Constraint(expr=self.block.heat_stor_init == self.params['heat_stor'].v())
+
         self.logger.info('Optimization model StorageCondensed {} compiled'.format(self.name))
 
     def get_heat_stor(self, repetition=None, time=None, evaluate=False):
@@ -1253,14 +1267,10 @@ class StorageCondensed(StorageVariable):
         :return: single float if repetition and time are given, list of floats if not
         """
 
-        R = self.R
-        N = self.N
-        zH = self.heat_loss_coeff
-
         if repetition is None and time is None:
             out = []
-            for r in range(R):
-                for n in range(N):
+            for r in range(self.R):
+                for n in range(self.N):
                     if evaluate:
                         out.append(value(self._xrn(r, n)))
                     else:
@@ -1286,11 +1296,24 @@ class StorageCondensed(StorageVariable):
         R = self.R
 
         return zH ** (r * N + n) * self.block.heat_stor_init + sum(zH ** (i * R + n) for i in range(r)) * sum(
-            zH ** (N - j - 1) * (self.block.heat_flow[j] - self.block.heat_loss_ct[j]) for j in range(N)) + sum(
-            zH ** (n - i - 1) * (self.block.heat_flow[i] - self.block.heat_loss_ct[i]) for i in range(n))
+            zH ** (N - j - 1) * (
+            self.block.heat_flow[j] * self.time_step - self.block.heat_loss_ct[j] * self.time_step) / 3.6e6 for j in
+            range(N)) + sum(
+            zH ** (n - i - 1) * (
+            self.block.heat_flow[i] * self.time_step - self.block.heat_loss_ct[i] * self.time_step) / 3.6e6 for i in
+            range(n))
 
     def get_heat_stor_init(self):
         return self.block.heat_stor_init
 
     def get_heat_stor_final(self):
         return self.block.heat_stor_final
+
+    def get_soc(self):
+        """
+        Return state of charge list
+
+        :return:
+        """
+        return np.asarray(self.get_heat_stor(evaluate=True)) / (
+            self.params['heat_stor'].get_upper_boundary() - self.params['heat_stor'].get_lower_boundary())

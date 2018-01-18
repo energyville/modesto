@@ -772,6 +772,21 @@ class Modesto:
 
         return out
 
+    def get_node_components(self, filter_type=None):
+        """
+        Return dictionary of all node components in this Modesto model. With filter_type, select only components of a certain type.
+
+        :param filter_type: filter_type: string or class name of components to be returned
+        :return:
+        """
+
+        out = {}
+        for node_name, node_obj in self.nodes.iteritems():
+            for comp_name, comp_obj in node_obj.get_components(filter_type=filter_type).iteritems():
+                out['.'.join([node_name, comp_name])] = comp_obj
+
+        return out
+
 
 class Node(object):
     def __init__(self, name, node, horizon, time_step,

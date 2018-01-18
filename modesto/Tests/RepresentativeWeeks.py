@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.DEBUG,
 from collections import OrderedDict
 
 # Select 7 weeks
-selection = OrderedDict([(28, 4.0), (40, 10.0), (99, 11.0), (196, 9.0), (219, 7.0), (291, 2.0), (319, 9.0)])
+selection = OrderedDict([(40, 10.0), (102, 12.0), (231, 17.0), (314, 11.0), (364, 2.0)])
 
 # Select 5 weeks
 # selection = OrderedDict([(40, 10.0), (102, 12.0), (231, 17.0), (314, 11.0), (364, 2.0)])
@@ -47,7 +47,7 @@ import networkx as nx
 netGraph = nx.DiGraph()
 netGraph.add_node('Node', x=0, y=0, z=0, comps={
     'backup': 'ProducerVariable',
-    'storage': 'StorageVariable',
+    'storage': 'StorageCondensed',
     'solar': 'SolarThermalCollector',
     'demand': 'BuildingFixed'
 })
@@ -60,7 +60,7 @@ storVol = 75000
 Thi = 80
 Tlo = 40
 solArea = (18300 + 15000)
-backupPow = 1.1 * 3.85e6  # +10% of actual peak boiler power
+backupPow = 2 * 3.85e6  # +10% of actual peak boiler power
 
 max_en = 1000 * storVol * (Thi - Tlo) * 4180
 min_en = 0
@@ -150,7 +150,8 @@ for start_day, duration in selection.iteritems():
         'ar': 0.18,
         'dIns': 0.15,
         'kIns': 0.024,
-        'heat_stor': 0
+        'heat_stor': 0,
+        'reps': int(duration)
     }, node='Node', comp='storage')
     optmodel.change_init_type('heat_stor', 'free', node='Node', comp='storage')
 
@@ -187,18 +188,13 @@ selected_days = selection.keys()
 for i, next_day in enumerate(selected_days):
     current = selected_days[i - 1]
 
-    reps = selection[current]
+    next_heat = optimizers[next_day].get_node_components(filter_type='StorageCondensed')
+    current_heat = optimizers[current].get_node_components(filter_type='StorageCondensed')
 
-    next_heat = optimizers[next_day].get_heat_stor()
-    current_heat = optimizers[current].get_heat_stor()
-
-    X_TIME = optimizers[current].model.X_TIME
-    TIME = optimizers[current].model.TIME
     for component_id in next_heat:
         # Link begin and end of representative periods
         def _link_stor(m):
-            return next_heat[component_id][0] == current_heat[component_id][0] + reps * (
-                current_heat[component_id][X_TIME[-1]] - current_heat[component_id][0])
+            return next_heat[component_id].get_heat_stor_init() == current_heat[component_id].get_heat_stor_final()
 
 
         topmodel.add_component(name='_'.join([component_id, str(current), 'eq']), val=Constraint(rule=_link_stor))
@@ -206,24 +202,12 @@ for i, next_day in enumerate(selected_days):
                                                                                                      current)
 
 
-        # Limit intermediate states
-        def _constr_rep(m, t):
-            return (min_en, current_heat[component_id][t] + reps * (
-                current_heat[component_id][X_TIME[-1]] - current_heat[component_id][0]), max_en)
-
-
-        topmodel.add_component(name='_'.join([component_id, str(current), 'ineq']),
-                               val=Constraint(TIME, rule=_constr_rep))
-
-        print 'Energy constraints added for storage {} in representative week starting on day {}'.format(component_id,
-                                                                                                         current)
-
-
 # In[ ]:
 
 def _top_objective(m):
-    return 365/364*sum(repetitions * optimizers[start_day].get_objective(
+    return 365 / 364 * sum(repetitions * optimizers[start_day].get_objective(
         objtype='energy', get_value=False) for start_day, repetitions in selection.iteritems())
+
 
 # Factor 365/364 to make up for missing day
 # set get_value to False to return object instead of value of the objective function
@@ -276,7 +260,7 @@ import matplotlib.pyplot as plt
 
 fig, ax = plt.subplots()
 for startday, reps in selection.iteritems():
-    res = optimizers[startday].get_result('soc', node='Node', comp='storage', check_results=False)
+    res = optimizers[startday].get_result('heat_flow', node='Node', comp='storage', check_results=False)
     ax.plot(res, label='S {} R {}'.format(startday, reps))
 
 ax.legend()
@@ -296,17 +280,12 @@ colors = [cmap(i) for i in np.linspace(0, 1, len(selection))]
 coli = 0
 
 for startday, reps in selection.iteritems():
-    res = optimizers[startday].get_result('soc', node='Node', comp='storage', check_results=False).values
-
-    index = pd.DatetimeIndex(start=nextdate, freq='1H', periods=duration_repr * 24 + 1)
+    res = optimizers[startday].get_component(name='storage', node='Node').get_soc()
+    print res
+    print len(res)
+    index = pd.DatetimeIndex(start=nextdate, freq='1H', periods=reps * duration_repr * 24)
     ax.plot(index, res, color=colors[coli], label=str(startday))
-    for i in range(1, int(reps)):
-        res += res[-1] - res[0]
-        nextdate = nextdate + pd.Timedelta(days=7)
-        # print nextdate
-        index = pd.DatetimeIndex(start=nextdate, freq='1H', periods=duration_repr * 24 + 1)
-        ax.plot(index, res, linestyle=':', color=colors[coli])
-    nextdate = nextdate + pd.Timedelta(days=7)
+    nextdate = nextdate + pd.Timedelta(days=duration_repr*reps)
     coli += 1
 
 ax.legend()
