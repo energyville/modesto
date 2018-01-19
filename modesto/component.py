@@ -4,8 +4,7 @@ import logging
 import sys
 from math import pi, log, exp
 
-import numpy as np
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value, Set
 
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
 
@@ -1021,7 +1020,7 @@ class StorageVariable(Component):
 
         def _heat_loss_ct(b, t):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
-                   self.UAtb * (self.temp_ret + self.temp_sup - self.model.Te[t])
+                   self.UAtb * (self.temp_ret + self.temp_sup - 2 * self.model.Te[t])
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
 
@@ -1082,11 +1081,11 @@ class StorageVariable(Component):
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
         # SoC equation
-        def _soq_eq(b, t):
+        def _soc_eq(b, t):
             return b.soc[t] == b.heat_stor[t] / self.max_en * 100
 
         self.block.state_eq = Constraint(self.model.TIME, rule=_state_eq)
-        self.block.soc_eq = Constraint(self.model.X_TIME, rule=_soq_eq)
+        self.block.soc_eq = Constraint(self.model.X_TIME, rule=_soc_eq)
 
         #############################################################################################
         # Inequality constraints
@@ -1129,9 +1128,9 @@ class StorageVariable(Component):
         # TODO Move this to a separate general method for initializing states
 
         heat_stor_init = self.params['heat_stor'].init_type
-        if heat_stor_init.init_type == 'free':
+        if heat_stor_init == 'free':
             pass
-        elif heat_stor_init.init_type == 'cyclic':
+        elif heat_stor_init == 'cyclic':
             def _eq_cyclic(b):
                 return b.heat_stor[0] == b.heat_stor[self.model.X_TIME[-1]]
 
@@ -1201,26 +1200,42 @@ class StorageCondensed(StorageVariable):
         self.calculate_static_parameters()
         self.initial_compilation(topmodel, parent)
 
-        self.heat_loss_coeff = exp(self.time_step / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
-
+        self.heat_loss_coeff = exp(-self.time_step / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
+        print 'zeta H is:', str(self.heat_loss_coeff)
         self.block.heat_stor_init = Var(domain=NonNegativeReals)
         self.block.heat_stor_final = Var(domain=NonNegativeReals)
 
         self.N = len(self.model.TIME)
         self.R = self.params['reps'].v()  # Number of repetitions in total
 
+        self.block.reps = Set(initialize=range(self.R))
+
+        self.block.heat_stor = Var(self.model.X_TIME, self.block.reps)
+        self.block.soc = Var(self.model.X_TIME, self.block.reps, domain=NonNegativeReals)
+
         R = self.R
         N = self.N  # For brevity of equations
         zH = self.heat_loss_coeff
 
-        def _state_eq(b):
-            return b.heat_stor_final == zH ** (N * R) * b.heat_stor_init + sum(
-                (b.heat_flow[i] - b.heat_loss_ct[i]) * zH ** (N - i - 1) for i in range(N)
-            ) * sum(
-                zH ** (j * R) for j in range(R)
-            )
+        def _state_eq(b, t, r):
+            tlast = self.model.X_TIME[-1]
+            if r == 0 and t == 0:
+                return b.heat_stor[0, 0] == b.heat_stor_init
+            elif t == 0:
+                return b.heat_stor[t, r] == b.heat_stor[tlast, r - 1]
+            else:
+                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (b.heat_flow[t - 1] - b.heat_loss_ct[
+                    t - 1]) * self.time_step / 3600 / 1000
 
-        self.block.state_eq = Constraint(rule=_state_eq)
+        self.block.state_eq = Constraint(self.model.X_TIME, self.block.reps, rule=_state_eq)
+        self.block.final_eq = Constraint(
+            expr=self.block.heat_stor[self.model.X_TIME[-1], R - 1] == self.block.heat_stor_final)
+
+        # SoC equation
+        def _soc_eq(b, t, r):
+            return b.soc[t, r] == b.heat_stor[t, r] / self.max_en * 100
+
+        self.block.soc_eq = Constraint(self.model.X_TIME, self.block.reps, rule=_soc_eq)
 
         if self.params['heat_stor'].get_upper_boundary() is not None:
             ub = self.params['heat_stor'].get_upper_boundary()
@@ -1233,14 +1248,14 @@ class StorageCondensed(StorageVariable):
             self.params['heat_stor'].change_lower_bound(0)
 
         def _limit_initial_repetition(b, t):
-            return (self.params['heat_stor'].get_lower_boundary(), self._xrn(r=0, n=t),
+            return (self.params['heat_stor'].get_lower_boundary(), b.heat_stor[t, 0],
                     self.params['heat_stor'].get_upper_boundary())
 
         def _limit_final_repetition(b, t):
-            return (self.params['heat_stor'].get_lower_boundary(), self._xrn(r=R - 1, n=t),
+            return (self.params['heat_stor'].get_lower_boundary(), b.heat_stor[t, R-1],
                     self.params['heat_stor'].get_upper_boundary())
 
-        self.block.limit_init = Constraint(self.model.TIME, rule=_limit_initial_repetition)
+        self.block.limit_init = Constraint(self.model.X_TIME, rule=_limit_initial_repetition)
 
         if R > 1:
             self.block.limit_final = Constraint(self.model.TIME, rule=_limit_final_repetition)
@@ -1254,34 +1269,31 @@ class StorageCondensed(StorageVariable):
         else:
             self.block.init_eq = Constraint(expr=self.block.heat_stor_init == self.params['heat_stor'].v())
 
+        ## Mass flow and heat flow link
+        def _heat_bal(b, t):
+            return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
+
+        self.block.heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
+
         self.logger.info('Optimization model StorageCondensed {} compiled'.format(self.name))
 
-    def get_heat_stor(self, repetition=None, time=None, evaluate=False):
+    def get_heat_stor(self, repetition=None, time=None):
         """
         Calculate stored heat during repetition r and time step n. These parameters are zero-based, so the first time
-        step of the first repetition has identifiers r=0 and n=0. If no parameters are specified, the state trajecto
+        step of the first repetition has identifiers r=0 and n=0. If no parameters are specified, the state trajectory
+        is calculated.
 
         :param repetition: Number of repetition current time step is in. First representative period is 0.
         :param time: number of time step during current repetition.
-        :param evaluate: True if value should be calculated; False if variable objects are needed.
         :return: single float if repetition and time are given, list of floats if not
         """
+        out = []
+        for r in self.block.reps:
+            for n in self.model.X_TIME:
+                if n > 0 or r == 0:
+                    out.append(value(self.block.heat_stor[n, r]))
 
-        if repetition is None and time is None:
-            out = []
-            for r in range(self.R):
-                for n in range(self.N):
-                    if evaluate:
-                        out.append(value(self._xrn(r, n)))
-                    else:
-                        out.append(self._xrn(r, n))
-            return out
-        else:
-            if evaluate:
-                out = value(self._xrn(repetition, time))
-            else:
-                out = self._xrn(repetition, time)
-            return out
+        return out
 
     def _xrn(self, r, n):
         """
@@ -1297,10 +1309,10 @@ class StorageCondensed(StorageVariable):
 
         return zH ** (r * N + n) * self.block.heat_stor_init + sum(zH ** (i * R + n) for i in range(r)) * sum(
             zH ** (N - j - 1) * (
-            self.block.heat_flow[j] * self.time_step - self.block.heat_loss_ct[j] * self.time_step) / 3.6e6 for j in
+                self.block.heat_flow[j] * self.time_step - self.block.heat_loss_ct[j] * self.time_step) / 3.6e6 for j in
             range(N)) + sum(
             zH ** (n - i - 1) * (
-            self.block.heat_flow[i] * self.time_step - self.block.heat_loss_ct[i] * self.time_step) / 3.6e6 for i in
+                self.block.heat_flow[i] * self.time_step - self.block.heat_loss_ct[i] * self.time_step) / 3.6e6 for i in
             range(n))
 
     def get_heat_stor_init(self):
@@ -1315,5 +1327,10 @@ class StorageCondensed(StorageVariable):
 
         :return:
         """
-        return np.asarray(self.get_heat_stor(evaluate=True)) / (
-            self.params['heat_stor'].get_upper_boundary() - self.params['heat_stor'].get_lower_boundary())
+        out = []
+        for r in self.block.reps:
+            for n in self.model.X_TIME:
+                if n > 0 or r == 0:
+                    out.append(value(self.block.soc[n, r]))
+
+        return out

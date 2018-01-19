@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.DEBUG,
 from collections import OrderedDict
 
 # Select 7 weeks
-selection = OrderedDict([(40, 10.0), (102, 12.0), (231, 17.0), (314, 11.0), (364, 2.0)])
+selection =OrderedDict([(19, 3.0), (34, 6.0), (43, 4.0), (99, 12.0), (166, 9.0), (265, 8.0), (316, 10.0)])
 
 # Select 5 weeks
 # selection = OrderedDict([(40, 10.0), (102, 12.0), (231, 17.0), (314, 11.0), (364, 2.0)])
@@ -60,7 +60,7 @@ storVol = 75000
 Thi = 80
 Tlo = 40
 solArea = (18300 + 15000)
-backupPow = 2 * 3.85e6  # +10% of actual peak boiler power
+backupPow = 1.3 * 3.85e6  # +10% of actual peak boiler power
 
 max_en = 1000 * storVol * (Thi - Tlo) * 4180
 min_en = 0
@@ -227,7 +227,7 @@ opt = SolverFactory("gurobi")
 opt.options["NumericFocus"] = 1
 # opt.options["Threads"] = threads
 # opt.options["MIPGap"] = mipgap
-results = opt.solve(topmodel, tee=True)
+results = opt.solve(topmodel, tee=True, warmstart=True)
 
 end = time.time()
 
@@ -258,17 +258,38 @@ import matplotlib.pyplot as plt
 
 # In[ ]:
 
-fig, ax = plt.subplots()
+import numpy as np
+
+cmap = plt.get_cmap('gnuplot')
+colors = [cmap(i) for i in np.linspace(0, 1, len(selection))]
+
+coli = 0
+
+fig, (ax1, ax2, ax3) = plt.subplots(3,1, sharex=True)
 for startday, reps in selection.iteritems():
     res = optimizers[startday].get_result('heat_flow', node='Node', comp='storage', check_results=False)
-    ax.plot(res, label='S {} R {}'.format(startday, reps))
+    ax1.plot(res, color=colors[coli], label='S {} R {}'.format(startday, reps))
+    ax1.plot(optimizers[startday].get_result('heat_flow', node='Node', comp='solar', check_results=False), color=colors[coli], linestyle=':')
+    ax1.plot(optimizers[startday].get_result('heat_flow', node='Node', comp='demand', check_results=False), color=colors[coli], linestyle='-.')
+    ax1.plot(optimizers[startday].get_result('heat_flow', node='Node', comp='backup', check_results=False), color=colors[coli], linestyle='--')
 
-ax.legend()
+    print 'start_day:', str(startday)
+    res = optimizers[startday].get_component(name='storage', node='Node').get_heat_stor(repetition=0)
+    start= pd.Timestamp('20140101') + pd.Timedelta(days=startday)
+    print start
+    index = pd.DatetimeIndex(start=start, freq='1H', periods=len(res))
+    ax2.plot(index, res, color=colors[coli], label='S {} R {}'.format(startday, reps))
+
+    ax3.plot(optimizers[startday].get_result('heat_loss_ct', node='Node', comp='storage', check_results=False))
+    ax3b = ax3.twinx()
+    ax3b.plot(-t_amb['Te'], linestyle=':')
+    coli+=1
+
 fig.tight_layout()
 
 # In[ ]:
 
-import numpy as np
+
 
 fig, ax = plt.subplots()
 startdate = pd.Timestamp('20140101')
@@ -281,9 +302,7 @@ coli = 0
 
 for startday, reps in selection.iteritems():
     res = optimizers[startday].get_component(name='storage', node='Node').get_soc()
-    print res
-    print len(res)
-    index = pd.DatetimeIndex(start=nextdate, freq='1H', periods=reps * duration_repr * 24)
+    index = pd.DatetimeIndex(start=nextdate, freq='1H', periods=len(res))
     ax.plot(index, res, color=colors[coli], label=str(startday))
     nextdate = nextdate + pd.Timedelta(days=duration_repr*reps)
     coli += 1
