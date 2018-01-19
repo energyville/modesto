@@ -13,5 +13,5 @@ setup(
     author='Annelies Vandermeulen and Bram van der Heijde',
     author_email='',
     description='Multi-Objective District Energy Systems Toolbox for Optimization',
-    install_requires=['pyomo', 'pandas', 'networkx>=2.0']
+    install_requires=['pyomo', 'pandas', 'networkx>=2.0', 'matplotlib', 'numpy', 'scipy']
 )
