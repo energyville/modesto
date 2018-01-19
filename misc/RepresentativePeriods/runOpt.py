@@ -2,6 +2,7 @@
 """
 Description
 """
+import logging
 from collections import OrderedDict
 
 from pypet import Environment, cartesian_product
@@ -9,6 +10,9 @@ from pypet import Environment, cartesian_product
 import RepresentativeWeeks
 import SolarPanelSingleNode
 
+logging.basicConfig(level=logging.WARNING,
+                    format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
+                    datefmt='%m-%d %H:%M')
 
 def opt_both(traj):
     duration_repr = 7

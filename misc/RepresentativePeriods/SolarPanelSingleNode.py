@@ -1,242 +1,242 @@
-
 # coding: utf-8
 
 # In[1]:
 
-import modesto.main
-import pandas as pd
-import networkx as nx
-import modesto.utils as ut
 import logging
-import matplotlib.pyplot as plt
-
 import time
 
+import matplotlib.pyplot as plt
+import networkx as nx
+import pandas as pd
+from pkg_resources import resource_filename
+
+import modesto.main
+import modesto.utils as ut
+
+DATAPATH = resource_filename('modesto', 'Data')
 
 
-# In[2]:
+def fullyear(storVol, solArea, backupPow):
+    # In[2]:
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
-                    datefmt='%m-%d %H:%M')
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
+                        datefmt='%m-%d %H:%M')
 
+    # ## Time parameters
+    # Full year optimization
 
-# ## Time parameters
-# Full year optimization
+    # In[3]:
 
-# In[3]:
+    n_steps = 365 * 24
+    time_step = 3600
+    horizon = n_steps * time_step
+    start_date = pd.Timestamp('20140101')
 
-n_steps = 365*24
-time_step = 3600
-horizon = n_steps*time_step
-start_date = pd.Timestamp('20140101')
+    # ## Design parameters
+    # Storage size, solar thermal panel size,...
 
-
-# ## Design parameters
-# Storage size, solar thermal panel size,...
-
-# In[4]:
-
-storVol = 75000
-solArea = (18300+ 15000)
-backupPow = 1.3* 3.85e6  # +10% of actual peak boiler power
+    # In[4]
 
 
-# ## Network layout
-# No network, single node.
+    # ## Network layout
+    # No network, single node.
 
-# In[5]:
+    # In[5]:
 
-netGraph = nx.DiGraph()
-netGraph.add_node('Node', x=0, y=0, z=0, comps={
-    'backup': 'ProducerVariable',
-    'storage': 'StorageVariable',
-    'solar': 'SolarThermalCollector',
-    'demand': 'BuildingFixed'
-})
+    netGraph = nx.DiGraph()
+    netGraph.add_node('Node', x=0, y=0, z=0, comps={
+        'backup': 'ProducerVariable',
+        'storage': 'StorageVariable',
+        'solar': 'SolarThermalCollector',
+        'demand': 'BuildingFixed'
+    })
 
-begin = time.time()
+    begin = time.time()
+
+    # ## Modesto optimizer instance
+
+    # In[6]:
+
+    optmodel = modesto.main.Modesto(horizon=horizon, time_step=time_step, start_time=start_date, graph=netGraph,
+                                    pipe_model='SimplePipe')
+
+    # ## Read demand and production profiles
+
+    # In[7]:
+
+    dem = ut.read_time_data(path=DATAPATH,
+                            name='HeatDemand/Initialized/HeatDemandFiltered.csv')
+
+    # In[8]:
+
+    dem.mean() / 1e6 * 8760
+
+    # In[9]:
+
+    dem = dem['TermienWest']
+
+    # In[10]:
+
+    sol = ut.read_time_data(path=DATAPATH, name='RenewableProduction/SolarThermalNew.csv', expand_year=True)["0_40"]
+
+    # ## Add parameters to ``modesto``
+
+    # In[11]:
+
+    t_amb = ut.read_time_data(DATAPATH, name='Weather/extT.csv')
+    t_g = pd.Series([12 + 273.15] * n_steps, index=range(n_steps))
+
+    # In[12]:
+
+    general_params = {'Te': t_amb['Te'],
+                      'Tg': t_g}
+
+    optmodel.change_params(general_params)
+
+    # In[13]:
+
+    optmodel.change_params({'delta_T': 40,
+                            'mult': 1,
+                            'heat_profile': dem
+                            }, node='Node', comp='demand')
+
+    # In[14]:
+
+    optmodel.change_params({  # Thi and Tlo need to be compatible with delta_T of previous
+        'Thi': 80 + 273.15,
+        'Tlo': 40 + 273.15,
+        'mflo_max': 11000000,
+        'volume': storVol,
+        'ar': 0.18,
+        'dIns': 0.15,
+        'kIns': 0.024,
+        'heat_stor': 0
+    }, node='Node', comp='storage')
+    optmodel.change_init_type('heat_stor', 'cyclic', node='Node', comp='storage')
+
+    # In[15]:
+
+    c_f = pd.Series(20, index=t_amb.index)
+    prod_design = {'efficiency': 0.95,
+                   'PEF': 1,
+                   'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
+                   'fuel_cost': c_f,
+                   # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
+                   'Qmax': backupPow,
+                   'ramp_cost': 0.00,
+                   'ramp': 10e8 / 3600}
+
+    optmodel.change_params(prod_design, node='Node', comp='backup')
+
+    # In[16]:
+
+    optmodel.change_params({'area': solArea, 'delta_T': 40, 'heat_profile': sol}, node='Node', comp='solar')
+
+    # In[17]:
+
+    optmodel.check_data()
+
+    # In[18]:
+
+    optmodel.compile()
+
+    # In[ ]:
+
+    optmodel.set_objective('energy')
+    end = time.time()
+
+    print 'Writing time:', str(end - begin)
+
+    # In[ ]:
+
+    return optmodel
 
 
-# ## Modesto optimizer instance
-
-# In[6]:
-
-optmodel = modesto.main.Modesto(horizon=horizon, time_step=time_step, start_time=start_date, graph=netGraph,
-                                pipe_model='SimplePipe')
+def get_energy(optmodel):
+    return optmodel.get_objective('energy', get_value=True)
 
 
-# ## Read demand and production profiles
+def solve_fullyear(model):
+    begin = time.time()
+    status = model.solve(tee=True, mipgap=0.1)
+    end = time.time()
 
-# In[7]:
-
-dem = ut.read_time_data(path='../Data/HeatDemand/Initialized', 
-                          name='HeatDemandFiltered.csv')
-
-
-# In[8]:
-
-dem.mean()/1e6*8760
-
-
-# In[9]:
-
-dem = dem['TermienWest']
-
-
-# In[10]:
-
-sol = ut.read_time_data(path='../Data/RenewableProduction', name='SolarThermalNew.csv', expand_year=True)["0_40"]
-
-
-# ## Add parameters to ``modesto``
-
-# In[11]:
-
-t_amb = ut.read_time_data('../Data/Weather', name='extT.csv')
-t_g = pd.Series([12 + 273.15] * n_steps, index=range(n_steps))
-
-
-# In[12]:
-
-general_params = {'Te': t_amb['Te'],
-                  'Tg': t_g}
-
-optmodel.change_params(general_params)
-
-
-# In[13]:
-
-optmodel.change_params({'delta_T': 40,
-                        'mult': 1,
-                        'heat_profile': dem
-                       }, node='Node', comp='demand')
-
-
-# In[14]:
-
-optmodel.change_params({# Thi and Tlo need to be compatible with delta_T of previous
-                        'Thi': 80 + 273.15,
-                        'Tlo': 40 + 273.15,
-                        'mflo_max': 11000000,
-                        'volume': storVol,
-                        'ar': 0.18,
-                        'dIns': 0.15,
-                        'kIns': 0.024,
-                        'heat_stor': 0
-                       }, node='Node', comp='storage')
-optmodel.change_init_type('heat_stor', 'cyclic', node='Node', comp='storage')
-
-
-# In[15]:
-
-c_f = pd.Series(20, index=t_amb.index)
-prod_design = {'efficiency': 0.95,
-               'PEF': 1,
-               'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-               'fuel_cost': c_f,
-               # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-               'Qmax': backupPow,
-               'ramp_cost': 0.00,
-               'ramp': 10e8 / 3600}
-
-optmodel.change_params(prod_design, node='Node', comp='backup')
-
-
-# In[16]:
-
-optmodel.change_params({'area': solArea, 'delta_T':40, 'heat_profile': sol}, node='Node', comp='solar')
-
-
-# In[17]:
-
-optmodel.check_data()
-
-
-# In[18]:
-
-optmodel.compile()
+    print 'Solving time:', str(end - begin)
+    return status
 
 
 # In[ ]:
 
-optmodel.set_objective('energy')
-end = time.time()
+if __name__ == '__main__':
+    storVol = 75000
+    solArea = (18300 + 15000)
+    backupPow = 1.3 * 3.85e6  # +10% of actual peak boiler power
 
-print 'Writing time:', str(end-begin)
+    opt = fullyear(storVol, solArea, backupPow)
 
+    status = solve_fullyear(opt)
 
-# In[ ]:
+    if status != 0:
+        print 'Model is unfeasible.'
+        exit()
 
-begin = time.time()
-optmodel.solve(tee=True, mipgap=0.1)
-end = time.time()
+    # Plotting
 
-print 'Solving time:', str(end-begin)
+    fig, axs = plt.subplots(4, 1, sharex=True)
 
+    optmodel = opt
 
-# In[ ]:
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='storage'), label='storage_HF')
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='backup')
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), linestyle='-.', label='solar')
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), label='Heat demand')
+    axs[0].legend()
 
-fig, axs = plt.subplots(4,1, sharex=True)
+    axs[1].plot(optmodel.get_result('heat_stor', node='Node', comp='storage'), label='stor_E')
+    axs[1].legend()
 
-axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='storage'), label='storage_HF')
-axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='backup')
-axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='solar'),linestyle='-.', label='solar')
-axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), label='Heat demand')
-axs[0].legend()
+    axs[2].plot(optmodel.get_result('soc', node='Node', comp='storage'), label='SoC')
+    axs[2].legend()
 
-axs[1].plot(optmodel.get_result('heat_stor', node='Node', comp='storage'), label='stor_E')
-axs[1].legend()
+    axs[3].plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar'), label='Curt Heat')
+    axs[3].legend()
 
-axs[2].plot(optmodel.get_result('soc', node='Node', comp='storage'), label='SoC')
-axs[2].legend()
+    for ax in axs:
+        ax.grid(alpha=0.3, linestyle=':')
 
-axs[3].plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar'), label='Curt Heat')
-axs[3].legend()
+    fig.tight_layout()
 
-for ax in axs:
-    ax.grid(alpha=0.3, linestyle=':')
+    # In[ ]:
 
-fig.tight_layout()
+    fig, axs = plt.subplots(1, 1)
 
+    axs.plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar'), label='Curt Heat')
 
-# In[ ]:
+    # In[ ]:
 
-fig, axs = plt.subplots(1,1)
+    fig, axs = plt.subplots(1, 1)
 
-axs.plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar'), label='Curt Heat')
+    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), label='Solar Heat production')
+    axs.legend()
 
+    # In[ ]:
 
-# In[ ]:
+    fig, axs = plt.subplots(1, 1)
 
-fig, axs = plt.subplots(1,1)
+    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='Backup Heat production')
+    axs.legend()
 
-axs.plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), label='Solar Heat production')
-axs.legend()
+    # In[ ]:
 
+    fig, axs = plt.subplots()
 
-# In[ ]:
+    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='storage'), label='storage_HF')
+    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='backup')
+    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), linestyle='-.', label='solar')
+    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), label='Heat demand')
+    axs.legend()
 
-fig, axs = plt.subplots(1,1)
+    fig.tight_layout()
 
-axs.plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='Backup Heat production')
-axs.legend()
-
-
-# In[ ]:
-
-fig, axs = plt.subplots()
-
-axs.plot(optmodel.get_result('heat_flow', node='Node', comp='storage'), label='storage_HF')
-axs.plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='backup')
-axs.plot(optmodel.get_result('heat_flow', node='Node', comp='solar'),linestyle='-.', label='solar')
-axs.plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), label='Heat demand')
-axs.legend()
-
-fig.tight_layout()
-
-
-# In[ ]:
-
-
-
+    plt.plot()
