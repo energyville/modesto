@@ -14,14 +14,14 @@ import modesto.main
 import modesto.utils as ut
 
 DATAPATH = resource_filename('modesto', 'Data')
-
+# logging.basicConfig(level=logging.WARNING,
+#                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
+#                     datefmt='%m-%d %H:%M')
 
 def fullyear(storVol, solArea, backupPow):
     # In[2]:
 
-    logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
-                        datefmt='%m-%d %H:%M')
+
 
     # ## Time parameters
     # Full year optimization

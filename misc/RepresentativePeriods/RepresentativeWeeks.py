@@ -18,9 +18,9 @@ from pyomo.opt import SolverFactory, SolverStatus, TerminationCondition
 import modesto.utils as ut
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
-                    datefmt='%m-%d %H:%M')
+# logging.basicConfig(level=logging.INFO,
+#                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
+#                     datefmt='%m-%d %H:%M')
 
 DATAPATH = resource_filename('modesto', 'Data')
 
