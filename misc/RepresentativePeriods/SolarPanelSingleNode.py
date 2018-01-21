@@ -178,7 +178,7 @@ if __name__ == '__main__':
     status = solve_fullyear(opt)
 
     if status != 0:
-        print 'Model is unfeasible.'
+        print 'Model is infeasible.'
         exit()
 
     # Plotting
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     for ax in axs:
         ax.grid(alpha=0.3, linestyle=':')
 
-    fig.tight_layout()
+    #fig.tight_layout()
 
     # In[ ]:
 
@@ -237,6 +237,6 @@ if __name__ == '__main__':
     axs.plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), label='Heat demand')
     axs.legend()
 
-    fig.tight_layout()
+    #fig.tight_layout()
 
-    plt.plot()
+    plt.show()

@@ -18,9 +18,9 @@ from pyomo.opt import SolverFactory, SolverStatus, TerminationCondition
 import modesto.utils as ut
 from modesto.main import Modesto
 
-# logging.basicConfig(level=logging.INFO,
-#                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
-#                     datefmt='%m-%d %H:%M')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
+                    datefmt='%m-%d %H:%M')
 
 DATAPATH = resource_filename('modesto', 'Data')
 
@@ -46,7 +46,8 @@ from collections import OrderedDict
 
 # In[3]:
 
-def representative(duration_repr, selection, storVol=75000, solArea=(18300 + 15000), backupPow=1.3 * 3.85e6):
+def representative(duration_repr, selection, storVol=75000,
+                   solArea=2*(18300 + 15000), backupPow=1.5 * 3.85e6):
     unit_sec = 3600 * 24  # Seconds per unit time of duration (seconds per day)
 
     # ### Network set-up
@@ -254,9 +255,15 @@ def solve_repr(model):
 
 # In[ ]:
 if __name__ == '__main__':
-    selection = OrderedDict([(19, 3.0), (34, 6.0), (43, 4.0), (99, 12.0), (166, 9.0), (265, 8.0), (316, 10.0)])
-    duration_repr = 7
+    selection = OrderedDict([(13, 4.0), (19, 11.0), (76, 17.0), (156, 4.0), (214, 8.0), (223, 17.0), (227, 3.0), (270, 11.0), (324, 7.0), (341, 9.0)])
+
+    #selection = OrderedDict([(10, 2.0), (48, 12.0), (74, 2.0), (100, 10.0),
+    # (180, 5.0), (188, 7.0), (224, 5.0), (326, 9.0)])
+
+    duration_repr = 4
     model, optimizers = representative(duration_repr=duration_repr, selection=selection)
+
+    solve_repr(model)
 
     # ## Post-processing
 
