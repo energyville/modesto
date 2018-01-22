@@ -38,9 +38,9 @@ no_corr = {6: OrderedDict(
     5: OrderedDict(
         [(2, 7.0), (108, 11.0), (163, 17.0), (275, 11.0), (352, 6.0)])
 }
-for num in with_corr:
+for num in no_corr:
     df = pd.DataFrame(columns=['A', 'V', 'P', 'E_repr', 'E_full'])
-    selection = with_corr[num]
+    selection = no_corr[num]
     duration_repr = 7
 
     for V in [50000, 75000, 100000, 125000]:
@@ -78,7 +78,7 @@ for num in with_corr:
                 df = df.append({'A': A, 'V': V, 'P': P, 'E_repr': energy_repr,
                                 'E_full': energy_full}, ignore_index=True)
 
-    df.to_csv('result' + str(num) + 'w_corr.txt', sep=' ')
+    df.to_csv('result' + str(num) + 'w_no_corr.txt', sep=' ')
     print df
 
 
