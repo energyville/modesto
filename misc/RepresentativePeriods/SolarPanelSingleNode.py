@@ -2,7 +2,6 @@
 
 # In[1]:
 
-import logging
 import time
 
 import matplotlib.pyplot as plt
@@ -14,6 +13,8 @@ import modesto.main
 import modesto.utils as ut
 
 DATAPATH = resource_filename('modesto', 'Data')
+
+
 # logging.basicConfig(level=logging.WARNING,
 #                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
 #                     datefmt='%m-%d %H:%M')
@@ -153,8 +154,20 @@ def fullyear(storVol, solArea, backupPow):
     return optmodel
 
 
-def get_energy(optmodel):
+def get_backup_energy(optmodel):
     return optmodel.get_objective('energy', get_value=True)
+
+
+def get_curt_energy(optmodel):
+    return optmodel.get_result('heat_flow_curt', node='Node', comp='solar').sum() / 1000
+
+
+def get_sol_energy(optmodel):
+    return optmodel.get_result('heat_flow', node='Node', comp='solar').sum() / 1000
+
+
+def get_stor_loss(optmodel):
+    return optmodel.get_result('heat_flow', node='Node', comp='storage').sum() / 1000
 
 
 def solve_fullyear(model):
@@ -166,12 +179,49 @@ def solve_fullyear(model):
     return status
 
 
+def plot_single_node(optmodel):
+    fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw=dict(height_ratios=[2, 1, 1]))
+
+    # axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='storage'), label='storage_HF')
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), 'g', linestyle='-.', label='solar')
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), 'r', label='Heat demand')
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), 'b', label='backup')
+    axs[0].legend()
+
+    axs[0].set_ylabel('Heat flow [W]')
+
+    axs[0].set_title('Full year')
+
+    # axs[1].plot(optmodel.get_result('heat_stor', node='Node', comp='storage'), label='stor_E')
+    # axs[1].legend()
+
+    axs[1].plot(optmodel.get_result('soc', node='Node', comp='storage'), label='SoC')
+    axs[1].legend()
+
+    axs[1].set_ylabel('SoC [%]')
+
+    axs[2].plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar').cumsum() / 1e6)
+
+    axs[2].set_ylabel('Curtailed solar heat [MWh]')
+    axs[2].set_xlabel('Time')
+
+    # axs[3].plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar'), label='Curt Heat')
+    # axs[3].legend()
+
+    for ax in axs:
+        ax.grid(alpha=0.3, linestyle=':')
+
+    plt.gcf().autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
 # In[ ]:
 
 if __name__ == '__main__':
-    storVol = 75000
-    solArea = (18300 + 15000)
-    backupPow = 1.3 * 3.85e6  # +10% of actual peak boiler power
+    storVol = 50000
+    solArea = 60000
+    backupPow = 4.6e6  # +10% of actual peak boiler power
 
     opt = fullyear(storVol, solArea, backupPow)
 
@@ -183,60 +233,43 @@ if __name__ == '__main__':
 
     # Plotting
 
-    fig, axs = plt.subplots(4, 1, sharex=True)
-
-    optmodel = opt
-
-    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='storage'), label='storage_HF')
-    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='backup')
-    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), linestyle='-.', label='solar')
-    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), label='Heat demand')
-    axs[0].legend()
-
-    axs[1].plot(optmodel.get_result('heat_stor', node='Node', comp='storage'), label='stor_E')
-    axs[1].legend()
-
-    axs[2].plot(optmodel.get_result('soc', node='Node', comp='storage'), label='SoC')
-    axs[2].legend()
-
-    axs[3].plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar'), label='Curt Heat')
-    axs[3].legend()
-
-    for ax in axs:
-        ax.grid(alpha=0.3, linestyle=':')
-
-    #fig.tight_layout()
-
-    # In[ ]:
-
-    fig, axs = plt.subplots(1, 1)
-
-    axs.plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar'), label='Curt Heat')
-
-    # In[ ]:
-
-    fig, axs = plt.subplots(1, 1)
-
-    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), label='Solar Heat production')
-    axs.legend()
-
-    # In[ ]:
-
-    fig, axs = plt.subplots(1, 1)
-
-    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='Backup Heat production')
-    axs.legend()
-
-    # In[ ]:
-
-    fig, axs = plt.subplots()
-
-    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='storage'), label='storage_HF')
-    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='backup')
-    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), linestyle='-.', label='solar')
-    axs.plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), label='Heat demand')
-    axs.legend()
-
-    #fig.tight_layout()
+    # fig, axs = plt.subplots(4, 1, sharex=True)
+    fig = plot_single_node(opt)
 
     plt.show()
+
+    # fig.tight_layout()
+
+    # In[ ]:
+
+    # fig, axs = plt.subplots(1, 1)
+    #
+    # axs.plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar'), label='Curt Heat')
+    #
+    # # In[ ]:
+    #
+    # fig, axs = plt.subplots(1, 1)
+    #
+    # axs.plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), label='Solar Heat production')
+    # axs.legend()
+    #
+    # # In[ ]:
+    #
+    # fig, axs = plt.subplots(1, 1)
+    #
+    # axs.plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='Backup Heat production')
+    # axs.legend()
+    #
+    # # In[ ]:
+    #
+    # fig, axs = plt.subplots()
+
+    # axs.plot(optmodel.get_result('heat_flow', node='Node', comp='storage'), label='storage_HF')
+    # axs.plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), label='backup')
+    # axs.plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), linestyle='-.', label='solar')
+    # axs.plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), label='Heat demand')
+    # axs.legend()
+    #
+    # #fig.tight_layout()
+    #
+    # plt.show()

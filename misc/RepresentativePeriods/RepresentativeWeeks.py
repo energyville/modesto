@@ -47,7 +47,7 @@ from collections import OrderedDict
 # In[3]:
 
 def representative(duration_repr, selection, storVol=75000,
-                   solArea=2*(18300 + 15000), backupPow=1.5 * 3.85e6):
+                   solArea=2 * (18300 + 15000), backupPow=1.5 * 3.85e6):
     unit_sec = 3600 * 24  # Seconds per unit time of duration (seconds per day)
 
     # ### Network set-up
@@ -223,8 +223,23 @@ def representative(duration_repr, selection, storVol=75000,
     return topmodel, optimizers
 
 
-def get_energy(model):
+def get_backup_energy(model):
     return value(model.obj)
+
+
+def get_curt_energy(optimizers):
+    return sum(optmodel.get_result('heat_flow_curt', node='Node', comp='solar', check_results=False).sum()
+               for optmodel in optimizers.values()) / 1000
+
+
+def get_sol_energy(optimizers):
+    return sum(
+        optmodel.get_result('heat_flow', node='Node', comp='solar').sum() for optmodel in optimizers.values()) / 1000
+
+
+def get_stor_loss(optimizers):
+    return sum(
+        optmodel.get_result('heat_flow', node='Node', comp='storage').sum() for optmodel in optimizers.values()) / 1000
 
 
 def solve_repr(model):
@@ -253,11 +268,78 @@ def solve_repr(model):
         return 1
 
 
+def construct_heat_flow(name, node, comp, optimizer, reps, start_date):
+    import numpy as np
+    data = optimizer.get_result(name, node=node, comp=comp, check_results=False)
+    vals = np.tile(data.values, int(reps))
+    if start_date is None:
+        start_date = data.index[0]
+    date_index = pd.DatetimeIndex(start=start_date, periods=len(data) * reps, freq=data.index.freq)
+
+    return pd.Series(data=vals, index=date_index, name=name)
+
+
+def plot_representative(opt, sel, duration_repr=7):
+    import matplotlib.pyplot as plt
+    fig_out, axs = plt.subplots(3, 1, sharex=True, gridspec_kw=dict(height_ratios=[2, 1, 1]))
+    start_d = pd.Timestamp('20140101')
+    next_d = start_d
+
+    prev_curt = 0
+
+    for startD, num_reps in sel.iteritems():
+        # Heat flows
+        axs[0].plot(
+            construct_heat_flow(name='heat_flow', comp='solar', node='Node', optimizer=opt[startD], reps=num_reps,
+                                start_date=next_d),
+            color='g')
+        axs[0].plot(
+            construct_heat_flow(name='heat_flow', comp='backup', node='Node', optimizer=opt[startD], reps=num_reps,
+                                start_date=next_d),
+            color='b')
+        axs[0].plot(
+            construct_heat_flow(name='heat_flow', comp='demand', node='Node', optimizer=opt[startD], reps=num_reps,
+                                start_date=next_d),
+            color='r')
+
+        # Storage state
+        results = opt[startD].get_component(name='storage', node='Node').get_soc()
+        date_ind = pd.DatetimeIndex(start=next_d, freq='1H', periods=len(results))
+        axs[1].plot(date_ind, results, color='r', label=str(startD))
+
+        # Heat curtailment
+        heat_curt = prev_curt + construct_heat_flow(optimizer=opt[startD], name='heat_flow_curt', node='Node',
+                                                    comp='solar', reps=num_reps, start_date=next_d).cumsum() / 1e6
+        axs[2].plot(heat_curt, color='r')
+
+        prev_curt = float(heat_curt.iloc[-1])
+        next_d = next_d + pd.Timedelta(days=duration_repr * num_reps)
+
+    axs[0].legend(['Solar', 'Backup', 'Demand'])
+    axs[0].set_title('Representative')
+
+    axs[0].set_ylabel('Heat flow [W]')
+    axs[1].set_ylabel('State of charge [%]')
+
+    axs[2].set_xlabel('Time')
+    axs[2].set_ylabel('Curtailed solar heat [MWh]')
+
+    for ax in axs:
+        ax.grid(alpha=0.3, linestyle=':')
+    plt.gcf().autofmt_xdate()
+
+    fig.tight_layout()
+
+    return fig_out
+
+
 # In[ ]:
 if __name__ == '__main__':
-    selection = OrderedDict([(13, 4.0), (19, 11.0), (76, 17.0), (156, 4.0), (214, 8.0), (223, 17.0), (227, 3.0), (270, 11.0), (324, 7.0), (341, 9.0)])
+    selection = OrderedDict(
+        [(13, 4.0), (19, 11.0), (76, 17.0), (156, 4.0), (214, 8.0), (223, 17.0), (227, 3.0), (270, 11.0), (324, 7.0),
+         (341, 9.0)])
 
-    #selection = OrderedDict([(10, 2.0), (48, 12.0), (74, 2.0), (100, 10.0),
+    # selection = OrderedDict([(10, 2.0), (48, 12.0), (74, 2.0), (100, 10.0),
     # (180, 5.0), (188, 7.0), (224, 5.0), (326, 9.0)])
 
     duration_repr = 4
