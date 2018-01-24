@@ -40,23 +40,33 @@ no_corr = {6: OrderedDict(
     5: OrderedDict(
         [(2, 7.0), (108, 11.0), (163, 17.0), (275, 11.0), (352, 6.0)])
 }
-for corr in ['corr', 'nocorr']:
+
+corr_no_seasons = { # No season duration; no seasons appeared not to be a good solution at all.
+    4: OrderedDict([(7, 4.0), (16, 7.0), (70, 17.0), (246, 24.0)]),
+    5: OrderedDict([(45, 14.0), (56, 9.0), (133, 9.0), (141, 15.0), (270, 5.0)]),
+    6: OrderedDict([(0, 7.0), (7, 4.0), (83, 9.0), (119, 11.0), (244, 15.0), (298, 6.0)]),
+    10: OrderedDict([(10, 2.0), (47, 8.0), (55, 5.0), (62, 2.0), (133, 6.0), (143, 11.0), (232, 5.0), (270, 7.0), (301, 3.0), (336, 3.0)])
+}
+
+for corr in ['corrnoseasons']:#['corr', 'nocorr']:
     if corr == 'corr':
         sels = with_corr
     elif corr == 'nocorr':
         sels = no_corr
+    elif corr == 'corrnoseasons':
+        sels = corr_no_seasons
     else:
         sels = None
 
     duration_repr = 7
 
-    for num in sels:
+    for num in sels: #sels:
         df = pd.DataFrame(
             columns=['A', 'V', 'P', 'E_backup_full', 'E_backup_repr',
                      'E_loss_stor_full', 'E_loss_stor_repr',
                      'E_curt_full',
                      'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr'])
-        selection = no_corr[num]
+        selection = sels[num]
 
         for V in [50000, 75000, 100000, 125000]:
             for A in [20000, 40000, 60000, 80000]:
@@ -145,10 +155,11 @@ for corr in ['corr', 'nocorr']:
                                     'E_sol_repr': energy_sol_repr,
                                     't_repr': calc_repr},
                                    ignore_index=True)
-        path = os.path.join('results', corr)
-        if not os.path.isdir(path):
-            os.mkdirs(path)
-        df.to_csv(os.path.join(path, 'result{}w.txt'.format(num)), sep=' ')
+                    path = os.path.join('results', corr)
+                    if not os.path.isdir(path):
+                        os.makedirs(path)
+                    df.to_csv(os.path.join(path, 'result{}w.txt'.format(num)), sep=' ')
+
         print df
 
         # df.to_csv('result6w.txt', sep=' ')

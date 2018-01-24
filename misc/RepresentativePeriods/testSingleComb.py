@@ -36,6 +36,10 @@ with_corr = {
         [(34, 6.0), (45, 8.0), (109, 5.0), (132, 7.0), (164, 8.0), (189, 7.0),
          (279, 5.0), (316, 6.0)])
 }
+
+corr_no_seasons = {
+
+}
 no_corr = {6: OrderedDict(
     [(49, 13.0), (132, 11.0), (164, 11.0), (190, 6.0), (301, 2.0), (339, 9.0)]),
     4: OrderedDict([(45, 14.0), (118, 12.0), (243, 15.0), (309, 11.0)]),
@@ -54,6 +58,8 @@ if corr == 'nocorr':
     selection = no_corr[num]
 elif corr == 'corr':
     selection = with_corr[num]
+elif corr== 'corrnoseasons':
+    selection = corr_no_seasons[num]
 duration_repr = 7
 
 # Solve representative weeks
