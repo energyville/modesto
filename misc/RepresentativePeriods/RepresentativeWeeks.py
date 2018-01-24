@@ -12,7 +12,8 @@ import time
 
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import ConcreteModel, Objective, Constraint, minimize, value
+from pyomo.core.base import ConcreteModel, Objective, Constraint, minimize, \
+    value
 from pyomo.opt import SolverFactory, SolverStatus, TerminationCondition
 
 import modesto.utils as ut
@@ -83,7 +84,6 @@ def representative(duration_repr, selection, storVol=75000,
 
     # In[7]:
 
-
     # In[8]:
 
     dem = ut.read_time_data(path=DATAPATH,
@@ -107,16 +107,15 @@ def representative(duration_repr, selection, storVol=75000,
     # ut.read_period_data(path='../Data/Weather',
     #                    name='extT.txt')
 
-
     # In[11]:
 
-    sol = ut.read_time_data(path=DATAPATH, name='RenewableProduction/SolarThermalNew.csv', expand=True)["0_40"]
+    sol = ut.read_time_data(path=DATAPATH,
+                            name='RenewableProduction/SolarThermalNew.csv',
+                            expand=True)["0_40"]
 
     # ### Optimization code
 
     # In[12]:
-
-
 
     # In[13]:
 
@@ -131,9 +130,11 @@ def representative(duration_repr, selection, storVol=75000,
     epoch = pd.Timestamp('20140101')
     for start_day, duration in selection.iteritems():
         start_time = epoch + pd.Timedelta(days=start_day)
-        optmodel = Modesto(horizon=duration_repr * unit_sec, time_step=3600, start_time=start_time,
+        optmodel = Modesto(horizon=duration_repr * unit_sec, time_step=3600,
+                           start_time=start_time,
                            graph=netGraph, pipe_model='SimplePipe')
-        topmodel.add_component(name='repr_' + str(start_day), val=optmodel.model)
+        topmodel.add_component(name='repr_' + str(start_day),
+                               val=optmodel.model)
 
         #####################
         # Assign parameters #
@@ -146,18 +147,20 @@ def representative(duration_repr, selection, storVol=75000,
                                 'heat_profile': dem},
                                node='Node', comp='demand')
 
-        optmodel.change_params({  # Thi and Tlo need to be compatible with delta_T of previous
-            'Thi': Thi + 273.15,
-            'Tlo': Tlo + 273.15,
-            'mflo_max': 11000000,
-            'volume': storVol,
-            'ar': 0.18,
-            'dIns': 0.15,
-            'kIns': 0.024,
-            'heat_stor': 0,
-            'reps': int(duration)
-        }, node='Node', comp='storage')
-        optmodel.change_init_type('heat_stor', 'free', node='Node', comp='storage')
+        optmodel.change_params(
+            {  # Thi and Tlo need to be compatible with delta_T of previous
+                'Thi': Thi + 273.15,
+                'Tlo': Tlo + 273.15,
+                'mflo_max': 11000000,
+                'volume': storVol,
+                'ar': 0.18,
+                'dIns': 0.15,
+                'kIns': 0.024,
+                'heat_stor': 0,
+                'reps': int(duration)
+            }, node='Node', comp='storage')
+        optmodel.change_init_type('heat_stor', 'free', node='Node',
+                                  comp='storage')
 
         prod_design = {'efficiency': 0.95,
                        'PEF': 1,
@@ -170,7 +173,9 @@ def representative(duration_repr, selection, storVol=75000,
 
         optmodel.change_params(prod_design, node='Node', comp='backup')
 
-        optmodel.change_params({'area': solArea, 'delta_T': 40, 'heat_profile': sol}, node='Node', comp='solar')
+        optmodel.change_params(
+            {'area': solArea, 'delta_T': 40, 'heat_profile': sol}, node='Node',
+            comp='solar')
 
         ####################
         # Compile problems #
@@ -192,23 +197,31 @@ def representative(duration_repr, selection, storVol=75000,
     for i, next_day in enumerate(selected_days):
         current = selected_days[i - 1]
 
-        next_heat = optimizers[next_day].get_node_components(filter_type='StorageCondensed')
-        current_heat = optimizers[current].get_node_components(filter_type='StorageCondensed')
+        next_heat = optimizers[next_day].get_node_components(
+            filter_type='StorageCondensed')
+        current_heat = optimizers[current].get_node_components(
+            filter_type='StorageCondensed')
 
         for component_id in next_heat:
             # Link begin and end of representative periods
             def _link_stor(m):
-                return next_heat[component_id].get_heat_stor_init() == current_heat[component_id].get_heat_stor_final()
+                return next_heat[component_id].get_heat_stor_init() == \
+                       current_heat[component_id].get_heat_stor_final()
 
-            topmodel.add_component(name='_'.join([component_id, str(current), 'eq']), val=Constraint(rule=_link_stor))
-            print 'State equation added for storage {} in representative week starting on day {}'.format(component_id,
-                                                                                                         current)
+            topmodel.add_component(
+                name='_'.join([component_id, str(current), 'eq']),
+                val=Constraint(rule=_link_stor))
+            print 'State equation added for storage {} in representative week starting on day {}'.format(
+                component_id,
+                current)
 
     # In[ ]:
 
     def _top_objective(m):
-        return 365 / 364 * sum(repetitions * optimizers[start_day].get_objective(
-            objtype='energy', get_value=False) for start_day, repetitions in selection.iteritems())
+        return 365 / 364 * sum(
+            repetitions * optimizers[start_day].get_objective(
+                objtype='energy', get_value=False) for start_day, repetitions in
+            selection.iteritems())
 
     # Factor 365/364 to make up for missing day
     # set get_value to False to return object instead of value of the objective function
@@ -227,19 +240,27 @@ def get_backup_energy(model):
     return value(model.obj)
 
 
-def get_curt_energy(optimizers):
-    return sum(optmodel.get_result('heat_flow_curt', node='Node', comp='solar', check_results=False).sum()
-               for optmodel in optimizers.values()) / 1000
+def get_curt_energy(optimizers, sel):
+    return sum(sel[startday]*optmodel.get_result('heat_flow_curt', node='Node',
+                                     comp='solar',
+                                   check_results=False).sum()
+               for startday, optmodel in optimizers.iteritems()) / 1000
 
 
-def get_sol_energy(optimizers):
-    return sum(
-        optmodel.get_result('heat_flow', node='Node', comp='solar').sum() for optmodel in optimizers.values()) / 1000
+def get_sol_energy(optimizers, sel):
+    return sum(sel[startday]*
+        optmodel.get_result('heat_flow', node='Node', comp='solar',
+                            check_results=False).sum() for startday, optmodel in
+        optimizers.iteritems(
+
+        )) / 1000
 
 
-def get_stor_loss(optimizers):
-    return sum(
-        optmodel.get_result('heat_flow', node='Node', comp='storage').sum() for optmodel in optimizers.values()) / 1000
+def get_stor_loss(optimizers, sel):
+    return sum(sel[startday]*
+        optmodel.get_result('heat_flow', node='Node', comp='storage',
+                            check_results=False).sum() for startday, optmodel in
+        optimizers.iteritems()) / 1000
 
 
 def solve_repr(model):
@@ -258,7 +279,7 @@ def solve_repr(model):
     # In[ ]:
 
     if (results.solver.status == SolverStatus.ok) and (
-                results.solver.termination_condition == TerminationCondition.optimal):
+            results.solver.termination_condition == TerminationCondition.optimal):
         return 0
     elif results.solver.termination_condition == TerminationCondition.infeasible:
         print 'Model is infeasible'
@@ -274,14 +295,16 @@ def construct_heat_flow(name, node, comp, optimizer, reps, start_date):
     vals = np.tile(data.values, int(reps))
     if start_date is None:
         start_date = data.index[0]
-    date_index = pd.DatetimeIndex(start=start_date, periods=len(data) * reps, freq=data.index.freq)
+    date_index = pd.DatetimeIndex(start=start_date, periods=len(data) * reps,
+                                  freq=data.index.freq)
 
     return pd.Series(data=vals, index=date_index, name=name)
 
 
 def plot_representative(opt, sel, duration_repr=7):
     import matplotlib.pyplot as plt
-    fig_out, axs = plt.subplots(3, 1, sharex=True, gridspec_kw=dict(height_ratios=[2, 1, 1]))
+    fig_out, axs = plt.subplots(3, 1, sharex=True,
+                                gridspec_kw=dict(height_ratios=[2, 1, 1]))
     start_d = pd.Timestamp('20140101')
     next_d = start_d
 
@@ -290,26 +313,34 @@ def plot_representative(opt, sel, duration_repr=7):
     for startD, num_reps in sel.iteritems():
         # Heat flows
         axs[0].plot(
-            construct_heat_flow(name='heat_flow', comp='solar', node='Node', optimizer=opt[startD], reps=num_reps,
+            construct_heat_flow(name='heat_flow', comp='solar', node='Node',
+                                optimizer=opt[startD], reps=num_reps,
                                 start_date=next_d),
             color='g')
         axs[0].plot(
-            construct_heat_flow(name='heat_flow', comp='backup', node='Node', optimizer=opt[startD], reps=num_reps,
+            construct_heat_flow(name='heat_flow', comp='backup', node='Node',
+                                optimizer=opt[startD], reps=num_reps,
                                 start_date=next_d),
             color='b')
         axs[0].plot(
-            construct_heat_flow(name='heat_flow', comp='demand', node='Node', optimizer=opt[startD], reps=num_reps,
+            construct_heat_flow(name='heat_flow', comp='demand', node='Node',
+                                optimizer=opt[startD], reps=num_reps,
                                 start_date=next_d),
             color='r')
 
         # Storage state
-        results = opt[startD].get_component(name='storage', node='Node').get_soc()
-        date_ind = pd.DatetimeIndex(start=next_d, freq='1H', periods=len(results))
+        results = opt[startD].get_component(name='storage',
+                                            node='Node').get_soc()
+        date_ind = pd.DatetimeIndex(start=next_d, freq='1H',
+                                    periods=len(results))
         axs[1].plot(date_ind, results, color='r', label=str(startD))
 
         # Heat curtailment
-        heat_curt = prev_curt + construct_heat_flow(optimizer=opt[startD], name='heat_flow_curt', node='Node',
-                                                    comp='solar', reps=num_reps, start_date=next_d).cumsum() / 1e6
+        heat_curt = prev_curt + construct_heat_flow(optimizer=opt[startD],
+                                                    name='heat_flow_curt',
+                                                    node='Node',
+                                                    comp='solar', reps=num_reps,
+                                                    start_date=next_d).cumsum() / 1e6
         axs[2].plot(heat_curt, color='r')
 
         prev_curt = float(heat_curt.iloc[-1])
@@ -318,17 +349,21 @@ def plot_representative(opt, sel, duration_repr=7):
     axs[0].legend(['Solar', 'Backup', 'Demand'])
     axs[0].set_title('Representative')
 
-    axs[0].set_ylabel('Heat flow [W]')
-    axs[1].set_ylabel('State of charge [%]')
+    axs[0].set_ylabel('Heat [W]')
+    axs[1].set_ylabel('SoC [%]')
 
     axs[2].set_xlabel('Time')
-    axs[2].set_ylabel('Curtailed solar heat [MWh]')
+    axs[2].set_ylabel('Curt [MWh]')
 
     for ax in axs:
         ax.grid(alpha=0.3, linestyle=':')
     plt.gcf().autofmt_xdate()
 
-    fig.tight_layout()
+    fig_out.tight_layout()
+    fig_out.figsize=(8,6)
+    fig_out.dpi = 100
+    fig_out.subplots_adjust(wspace=0.1, hspace=0.1)
+
 
     return fig_out
 
@@ -336,14 +371,16 @@ def plot_representative(opt, sel, duration_repr=7):
 # In[ ]:
 if __name__ == '__main__':
     selection = OrderedDict(
-        [(13, 4.0), (19, 11.0), (76, 17.0), (156, 4.0), (214, 8.0), (223, 17.0), (227, 3.0), (270, 11.0), (324, 7.0),
+        [(13, 4.0), (19, 11.0), (76, 17.0), (156, 4.0), (214, 8.0), (223, 17.0),
+         (227, 3.0), (270, 11.0), (324, 7.0),
          (341, 9.0)])
 
     # selection = OrderedDict([(10, 2.0), (48, 12.0), (74, 2.0), (100, 10.0),
     # (180, 5.0), (188, 7.0), (224, 5.0), (326, 9.0)])
 
     duration_repr = 4
-    model, optimizers = representative(duration_repr=duration_repr, selection=selection)
+    model, optimizers = representative(duration_repr=duration_repr,
+                                       selection=selection)
 
     solve_repr(model)
 
@@ -364,23 +401,37 @@ if __name__ == '__main__':
 
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
     for startday, reps in selection.iteritems():
-        res = optimizers[startday].get_result('heat_flow', node='Node', comp='storage', check_results=False)
-        ax1.plot(res, color=colors[coli], label='S {} R {}'.format(startday, reps))
-        ax1.plot(optimizers[startday].get_result('heat_flow', node='Node', comp='solar', check_results=False),
+        res = optimizers[startday].get_result('heat_flow', node='Node',
+                                              comp='storage',
+                                              check_results=False)
+        ax1.plot(res, color=colors[coli],
+                 label='S {} R {}'.format(startday, reps))
+        ax1.plot(optimizers[startday].get_result('heat_flow', node='Node',
+                                                 comp='solar',
+                                                 check_results=False),
                  color=colors[coli], linestyle=':')
-        ax1.plot(optimizers[startday].get_result('heat_flow', node='Node', comp='demand', check_results=False),
+        ax1.plot(optimizers[startday].get_result('heat_flow', node='Node',
+                                                 comp='demand',
+                                                 check_results=False),
                  color=colors[coli], linestyle='-.')
-        ax1.plot(optimizers[startday].get_result('heat_flow', node='Node', comp='backup', check_results=False),
+        ax1.plot(optimizers[startday].get_result('heat_flow', node='Node',
+                                                 comp='backup',
+                                                 check_results=False),
                  color=colors[coli], linestyle='--')
 
         print 'start_day:', str(startday)
-        res = optimizers[startday].get_component(name='storage', node='Node').get_heat_stor(repetition=0)
+        res = optimizers[startday].get_component(name='storage',
+                                                 node='Node').get_heat_stor(
+            repetition=0)
         start = pd.Timestamp('20140101') + pd.Timedelta(days=startday)
         print start
         index = pd.DatetimeIndex(start=start, freq='1H', periods=len(res))
-        ax2.plot(index, res, color=colors[coli], label='S {} R {}'.format(startday, reps))
+        ax2.plot(index, res, color=colors[coli],
+                 label='S {} R {}'.format(startday, reps))
 
-        ax3.plot(optimizers[startday].get_result('heat_loss_ct', node='Node', comp='storage', check_results=False))
+        ax3.plot(optimizers[startday].get_result('heat_loss_ct', node='Node',
+                                                 comp='storage',
+                                                 check_results=False))
         ax3b = ax3.twinx()
         ax3b.plot(-t_amb['Te'], linestyle=':')
         coli += 1
@@ -398,7 +449,8 @@ if __name__ == '__main__':
     coli = 0
 
     for startday, reps in selection.iteritems():
-        res = optimizers[startday].get_component(name='storage', node='Node').get_soc()
+        res = optimizers[startday].get_component(name='storage',
+                                                 node='Node').get_soc()
         index = pd.DatetimeIndex(start=nextdate, freq='1H', periods=len(res))
         ax.plot(index, res, color=colors[coli], label=str(startday))
         nextdate = nextdate + pd.Timedelta(days=duration_repr * reps)
@@ -410,7 +462,6 @@ if __name__ == '__main__':
     # In[ ]:
 
     # optimizers[9].get_result('heat_stor', node='Node', comp='storage', check_results=False)
-
 
     # In[ ]:
 

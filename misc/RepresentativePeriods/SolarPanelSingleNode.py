@@ -11,6 +11,7 @@ from pkg_resources import resource_filename
 
 import modesto.main
 import modesto.utils as ut
+import os
 
 DATAPATH = resource_filename('modesto', 'Data')
 
@@ -21,8 +22,6 @@ DATAPATH = resource_filename('modesto', 'Data')
 
 def fullyear(storVol, solArea, backupPow):
     # In[2]:
-
-
 
     # ## Time parameters
     # Full year optimization
@@ -38,7 +37,6 @@ def fullyear(storVol, solArea, backupPow):
     # Storage size, solar thermal panel size,...
 
     # In[4]
-
 
     # ## Network layout
     # No network, single node.
@@ -59,7 +57,8 @@ def fullyear(storVol, solArea, backupPow):
 
     # In[6]:
 
-    optmodel = modesto.main.Modesto(horizon=horizon, time_step=time_step, start_time=start_date, graph=netGraph,
+    optmodel = modesto.main.Modesto(horizon=horizon, time_step=time_step,
+                                    start_time=start_date, graph=netGraph,
                                     pipe_model='SimplePipe')
 
     # ## Read demand and production profiles
@@ -79,7 +78,9 @@ def fullyear(storVol, solArea, backupPow):
 
     # In[10]:
 
-    sol = ut.read_time_data(path=DATAPATH, name='RenewableProduction/SolarThermalNew.csv', expand_year=True)["0_40"]
+    sol = ut.read_time_data(path=DATAPATH,
+                            name='RenewableProduction/SolarThermalNew.csv',
+                            expand_year=True)["0_40"]
 
     # ## Add parameters to ``modesto``
 
@@ -104,17 +105,19 @@ def fullyear(storVol, solArea, backupPow):
 
     # In[14]:
 
-    optmodel.change_params({  # Thi and Tlo need to be compatible with delta_T of previous
-        'Thi': 80 + 273.15,
-        'Tlo': 40 + 273.15,
-        'mflo_max': 11000000,
-        'volume': storVol,
-        'ar': 0.18,
-        'dIns': 0.15,
-        'kIns': 0.024,
-        'heat_stor': 0
-    }, node='Node', comp='storage')
-    optmodel.change_init_type('heat_stor', 'cyclic', node='Node', comp='storage')
+    optmodel.change_params(
+        {  # Thi and Tlo need to be compatible with delta_T of previous
+            'Thi': 80 + 273.15,
+            'Tlo': 40 + 273.15,
+            'mflo_max': 11000000,
+            'volume': storVol,
+            'ar': 0.18,
+            'dIns': 0.15,
+            'kIns': 0.024,
+            'heat_stor': 0
+        }, node='Node', comp='storage')
+    optmodel.change_init_type('heat_stor', 'cyclic', node='Node',
+                              comp='storage')
 
     # In[15]:
 
@@ -132,7 +135,9 @@ def fullyear(storVol, solArea, backupPow):
 
     # In[16]:
 
-    optmodel.change_params({'area': solArea, 'delta_T': 40, 'heat_profile': sol}, node='Node', comp='solar')
+    optmodel.change_params(
+        {'area': solArea, 'delta_T': 40, 'heat_profile': sol}, node='Node',
+        comp='solar')
 
     # In[17]:
 
@@ -159,15 +164,18 @@ def get_backup_energy(optmodel):
 
 
 def get_curt_energy(optmodel):
-    return optmodel.get_result('heat_flow_curt', node='Node', comp='solar').sum() / 1000
+    return optmodel.get_result('heat_flow_curt', node='Node',
+                               comp='solar').sum() / 1000
 
 
 def get_sol_energy(optmodel):
-    return optmodel.get_result('heat_flow', node='Node', comp='solar').sum() / 1000
+    return optmodel.get_result('heat_flow', node='Node',
+                               comp='solar').sum() / 1000
 
 
 def get_stor_loss(optmodel):
-    return optmodel.get_result('heat_flow', node='Node', comp='storage').sum() / 1000
+    return optmodel.get_result('heat_flow', node='Node',
+                               comp='storage').sum() / 1000
 
 
 def solve_fullyear(model):
@@ -180,29 +188,35 @@ def solve_fullyear(model):
 
 
 def plot_single_node(optmodel):
-    fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw=dict(height_ratios=[2, 1, 1]))
+    fig, axs = plt.subplots(3, 1, sharex=True,
+                            gridspec_kw=dict(height_ratios=[2, 1, 1]))
 
     # axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='storage'), label='storage_HF')
-    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='solar'), 'g', linestyle='-.', label='solar')
-    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='demand'), 'r', label='Heat demand')
-    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='backup'), 'b', label='backup')
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='solar'),
+                'g', linestyle='-.', label='solar')
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='demand'),
+                'r', label='Heat demand')
+    axs[0].plot(optmodel.get_result('heat_flow', node='Node', comp='backup'),
+                'b', label='backup')
     axs[0].legend()
 
-    axs[0].set_ylabel('Heat flow [W]')
+    axs[0].set_ylabel('Heat [W]')
 
     axs[0].set_title('Full year')
 
     # axs[1].plot(optmodel.get_result('heat_stor', node='Node', comp='storage'), label='stor_E')
     # axs[1].legend()
 
-    axs[1].plot(optmodel.get_result('soc', node='Node', comp='storage'), label='SoC')
+    axs[1].plot(optmodel.get_result('soc', node='Node', comp='storage'),
+                label='SoC')
     axs[1].legend()
 
     axs[1].set_ylabel('SoC [%]')
 
-    axs[2].plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar').cumsum() / 1e6)
+    axs[2].plot(optmodel.get_result('heat_flow_curt', node='Node',
+                                    comp='solar').cumsum() / 1e6)
 
-    axs[2].set_ylabel('Curtailed solar heat [MWh]')
+    axs[2].set_ylabel('Curt [MWh]')
     axs[2].set_xlabel('Time')
 
     # axs[3].plot(optmodel.get_result('heat_flow_curt', node='Node', comp='solar'), label='Curt Heat')
@@ -213,6 +227,9 @@ def plot_single_node(optmodel):
 
     plt.gcf().autofmt_xdate()
     fig.tight_layout()
+    fig.figsize = (8, 6)
+    fig.dpi = 100
+    fig.subplots_adjust(wspace=0.1, hspace=0.1)
     return fig
 
 
