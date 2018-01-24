@@ -5,7 +5,8 @@ Description
 from collections import OrderedDict
 
 import pandas as pd
-
+import time
+import os
 import RepresentativeWeeks
 from misc.RepresentativePeriods import SolarPanelSingleNode
 
@@ -41,27 +42,32 @@ no_corr = {6: OrderedDict(
 }
 for corr in ['corr', 'nocorr']:
     if corr == 'corr':
-        sels=with_corr
+        sels = with_corr
     elif corr == 'nocorr':
-        sels=no_corr:
+        sels = no_corr
+    else:
+        sels = None
+
+    duration_repr = 7
+
     for num in sels:
         df = pd.DataFrame(
-            columns=['A', 'V', 'P', 'E_backup_full', 'E_backup_repr', 'E_loss_stor_full', 'E_loss_stor_repr',
+            columns=['A', 'V', 'P', 'E_backup_full', 'E_backup_repr',
+                     'E_loss_stor_full', 'E_loss_stor_repr',
                      'E_curt_full',
-                     'E_curt_repr', 'E_sol_full', 'E_sol_repr'])
+                     'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr'])
         selection = no_corr[num]
-        duration_repr = 7
 
-        for V in [50000]:  # , 75000, 100000, 125000]:
-            for A in [20000]:  # , 40000, 60000, 80000]:
-                for P in [3.6e6, 3.85e6]:  # , 4.1e6, 4.35e6, 4.6e6]:
-
+        for V in [50000, 75000, 100000, 125000]:
+            for A in [20000, 40000, 60000, 80000]:
+                for P in [3.6e6, 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
                     print 'A:', str(A)
                     print 'V:', str(V)
                     print 'P:', str(P)
                     print '========================='
                     print ''
                     # Solve representative weeks
+                    begin = time.time()
                     repr_model, optimizers = RepresentativeWeeks.representative(
                         duration_repr=duration_repr,
                         selection=selection, solArea=A, storVol=V,
@@ -77,47 +83,72 @@ for corr in ['corr', 'nocorr']:
                     energy_stor_loss_full = None
                     energy_backup_full = None
 
-                    if RepresentativeWeeks.solve_repr(repr_model) == 0:
-                        energy_backup_repr = RepresentativeWeeks.get_backup_energy(repr_model)
-                        energy_stor_loss_repr = RepresentativeWeeks.get_stor_loss(optimizers)
-                        energy_curt_repr = RepresentativeWeeks.get_curt_energy(optimizers)
-                        energy_sol_repr = RepresentativeWeeks.get_sol_energy()
-                        fig1 = RepresentativeWeeks.plot_representative(optimizers, selection)
-                        if not os.path.isdir(os.path.join('comparison', corr)):
-                            os.mkdir(os.path.join('comparison', corr))
-                        fig1.savefig(os.path.join('comparison', corr, '{}w_{}A_{}V_{}P_repr.png'.format(num, A, V, P)),
-                                     dpi=300)
+                    status = RepresentativeWeeks.solve_repr(repr_model)
+                    end = time.time()
+                    calc_repr = end - begin
 
-                    # energy_full = dffull['E_full'][
-                    #     (dffull['A'] == A) & (dffull['P'] == P) & (
-                    #             dffull['V'] == V)].values[0]
+                    if status == 0:
+                        energy_backup_repr = RepresentativeWeeks.get_backup_energy(
+                            repr_model)
+                        energy_stor_loss_repr = RepresentativeWeeks.get_stor_loss(
+                            optimizers, selection)
+                        energy_curt_repr = RepresentativeWeeks.get_curt_energy(
+                            optimizers, selection)
+                        energy_sol_repr = RepresentativeWeeks.get_sol_energy(
+                            optimizers, selection)
+                        fig1 = RepresentativeWeeks.plot_representative(
+                            optimizers, selection)
+                        if not os.path.isdir(
+                                os.path.join('comparison', corr)):
+                            os.makedirs(os.path.join('comparison', corr))
+                        fig1.savefig(os.path.join('comparison', corr,
+                                                  '{}w_{}A_{}V_{}P_repr.png'.format(
+                                                      num, A, V, P)),
+                                     dpi=100, figsize=(8, 6))
 
-                    full_model = SolarPanelSingleNode.fullyear(storVol=V, solArea=A,
-                                                               backupPow=P)
+                    result_full = dffull[
+                        (dffull['A'] == A) & (dffull['P'] == P) & (
+                                dffull['V'] == V)]
 
-                    if SolarPanelSingleNode.solve_fullyear(full_model) == 0:
-                        energy_backup_full = SolarPanelSingleNode.get_backup_energy(repr_model)
-                        energy_stor_loss_full = SolarPanelSingleNode.get_stor_loss(optimizers)
-                        energy_curt_full = SolarPanelSingleNode.get_curt_energy(optimizers)
-                        energy_sol_full = SolarPanelSingleNode.get_sol_energy()
-                        fig2 = SolarPanelSingleNode.plot_single_node(full_model)
-                        fig2.savefig(os.path.join('comparison', corr, '{}w_{}A_{}V_{}P_full.png'.format(num, A, V, P)),
-                                     dpi=300)
+                    # full_model = SolarPanelSingleNode.fullyear(storVol=V,
+                    #                                            solArea=A,
+                    #                                            backupPow=P)
+
+                    # if SolarPanelSingleNode.solve_fullyear(full_model) == 0:
+                    #     energy_backup_full = SolarPanelSingleNode.get_backup_energy(
+                    #         full_model)
+                    #     energy_stor_loss_full = SolarPanelSingleNode.get_stor_loss(
+                    #         full_model)
+                    #     energy_curt_full = SolarPanelSingleNode.get_curt_energy(
+                    #         full_model)
+                    #     energy_sol_full = \
+                    #         SolarPanelSingleNode.get_sol_energy(full_model)
+                    #     fig2 = SolarPanelSingleNode.plot_single_node(
+                    #         full_model)
+                    #     fig2.savefig(os.path.join('comparison', corr,
+                    #                               '{}w_{}A_{}V_{}P_full.png'.format(
+                    #                                   num, A, V, P)),
+                    #                  dpi=100, figsize=(8, 6))
 
                     df = df.append({'A': A, 'V': V, 'P': P,
-                                    'E_backup_full': energy_backup_full,
+                                    'E_backup_full': float(
+                                        result_full['E_backup_full']),
                                     'E_backup_repr': energy_backup_repr,
-                                    'E_loss_stor_full': energy_stor_loss_full,
+                                    'E_loss_stor_full': float(
+                                        result_full['E_loss_stor_full']),
                                     'E_loss_stor_repr': energy_stor_loss_repr,
-                                    'E_curt_full': energy_curt_full,
+                                    'E_curt_full': float(
+                                        result_full['E_curt_full']),
                                     'E_curt_repr': energy_curt_repr,
-                                    'E_sol_full': energy_sol_full,
-                                    'E_sol_repr': energy_sol_repr}, ignore_index=True)
+                                    'E_sol_full': float(
+                                        result_full['E_sol_full']),
+                                    'E_sol_repr': energy_sol_repr,
+                                    't_repr': calc_repr},
+                                   ignore_index=True)
         path = os.path.join('results', corr)
         if not os.path.isdir(path):
-            os.mkdir(path)
+            os.mkdirs(path)
         df.to_csv(os.path.join(path, 'result{}w.txt'.format(num)), sep=' ')
         print df
 
-
-# df.to_csv('result6w.txt', sep=' ')
+        # df.to_csv('result6w.txt', sep=' ')
