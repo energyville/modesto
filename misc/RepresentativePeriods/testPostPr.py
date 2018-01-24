@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-for path in ['corr', 'nocorr']:
+for path in ['corr']:
     filepath=os.path.join('results', path)
     for filename in os.listdir(filepath):
         print ''
@@ -16,36 +16,31 @@ for path in ['corr', 'nocorr']:
 
         # There are no occurences where the representative periods lead to a feasible solution and the full year representation does not
         print 'Cases where repr is feasible and full unfeasible:', str(
-            len(data[(~data['E_repr'].isnull() & data['E_full'].isnull())]))
+            len(data[(~data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())]))
 
         # There are two cases where the representative periods lead to an infeasible solution and the full year is feasible
 
         print 'Cases where repr is infeasible and full feasible:', str(len(
-            data[(data['E_repr'].isnull() & ~data['E_full'].isnull())]))
+            data[(data['E_backup_repr'].isnull() & ~data['E_backup_full'].isnull())]))
 
         # Cases where both are infeasible
 
-        print 'Both infeasible solutions:', str(len(data[(data['E_repr'].isnull() & data['E_full'].isnull())]))
+        print 'Both infeasible solutions:', str(len(data[(data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())]))
         # data[(data['E_repr'].isnull() & data['E_full'].isnull())]
 
         data = data.dropna()
-        data = data.rename(columns={'E_repr': 'Representative', 'E_full': 'Full year'})
+        #data = data.rename(columns={'E_repr': 'Representative', 'E_full': 'Full year'})
 
-        data_split = pd.melt(data, id_vars=['A', 'P', 'V'], value_vars=['Representative', 'Full year'],
-                             var_name='Optimization', value_name='Energy')
-
-        # sns.pairplot(data_split, hue='Optimization')
-
-        # sns.lmplot('Full year', 'Representative', data, )
-
-        # sns.lmplot(x='V', y='Energy', data=data_split, col='A', hue='Optimization')
+        resultname = 'curt'
+        fullname = 'E_{}_full'.format(resultname)
+        reprname = 'E_{}_repr'.format(resultname)
 
 
         fig = plt.figure()
 
         sns.set_context("paper")
 
-        g = sns.lmplot(x='Full year', y='Representative', data=data, fit_reg=False, hue='V', col='A', col_wrap=2, size=4,
+        g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='V', col='A', col_wrap=2, size=3,
                        markers=['s', 'o', '^', '+'], sharex=False, sharey=False, legend=False)
         acc = 0.025
 
@@ -67,6 +62,6 @@ for path in ['corr', 'nocorr']:
 
         g.axes[-1].legend(loc='lower right', title='Volume')
 
-        if not os.path.isdir('img'):
-            os.mkdir('img')
-        plt.savefig(os.path.join('img', path, os.path.splitext(filename)[0]+'.png'), dpi=600)
+        if not os.path.isdir(os.path.join('img', path, resultname)):
+            os.makedirs(os.path.join('img', path, resultname))
+        plt.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0]+'.png'), dpi=600)
