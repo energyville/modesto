@@ -218,7 +218,7 @@ def representative(duration_repr, selection, storVol=75000,
     # In[ ]:
 
     def _top_objective(m):
-        return 365 / 364 * sum(
+        return 365 / (duration_repr*(365//duration_repr)) * sum(
             repetitions * optimizers[start_day].get_objective(
                 objtype='energy', get_value=False) for start_day, repetitions in
             selection.iteritems())
@@ -257,6 +257,7 @@ def get_sol_energy(optimizers, sel):
 
 
 def get_stor_loss(optimizers, sel):
+    # TODO make better calculation for this
     return sum(sel[startday]*
         optmodel.get_result('heat_flow', node='Node', comp='storage',
                             check_results=False).sum() for startday, optmodel in

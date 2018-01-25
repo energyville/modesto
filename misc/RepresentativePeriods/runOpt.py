@@ -6,9 +6,8 @@ import os
 import time
 from collections import OrderedDict
 
-import pandas as pd
-
 import RepresentativeWeeks
+import pandas as pd
 
 dffull = pd.read_csv('refresult.txt', sep=' ')
 # logging.basicConfig(level=logging.WARNING,
@@ -52,19 +51,41 @@ corr_season_durations = {  # With season duration; no seasons appeared not to be
          (336, 3.0)])
 }
 
-for corr in ['corr']:  # ['corr', 'nocorr']:
+threeday_sels = {
+    6: OrderedDict([(116, 43.0), (121, 11.0), (181, 26.0), (236, 18.0), (337, 18.0), (358, 5.0)]),
+    8: OrderedDict([(45, 8.0), (52, 25.0), (63, 15.0), (97, 20.0), (171, 6.0), (209, 12.0), (270, 23.0), (355, 12.0)]),
+    10: OrderedDict(
+        [(11, 4.0), (41, 4.0), (45, 4.0), (84, 21.0), (105, 17.0), (141, 22.0), (147, 7.0), (239, 12.0), (336, 11.0),
+         (352, 19.0)]),
+    12: OrderedDict(
+        [(31, 10.0), (45, 7.0), (112, 11.0), (153, 14.0), (170, 7.0), (191, 4.0), (210, 14.0), (270, 21.0), (299, 8.0),
+         (337, 9.0), (359, 5.0), (363, 11.0)]),
+    13: OrderedDict(
+        [(12, 2.0), (16, 10.0), (39, 11.0), (66, 1.0), (86, 12.0), (109, 15.0), (131, 3.0), (208, 3.0), (235, 15.0),
+         (247, 15.0), (259, 16.0), (263, 7.0), (318, 11.0)]),
+    14: OrderedDict(
+        [(15, 3.0), (23, 10.0), (38, 8.0), (77, 13.0), (99, 7.0), (120, 5.0), (134, 8.0), (145, 12.0), (176, 7.0),
+         (208, 6.0), (233, 8.0), (276, 14.0), (321, 4.0), (328, 16.0)])
+}
+
+for corr in ['3d']:  # ['corr', 'nocorr']:
     if corr == 'corr':
         sels = with_corr
+        duration_repr = 7
+
     elif corr == 'nocorr':
         sels = no_corr
+        duration_repr = 7
+
     elif corr == 'corrnoseasons':
         sels = corr_season_durations
+        duration_repr = 7
+
     else:
-        sels = None
+        sels = threeday_sels
+        duration_repr = 3
 
-    duration_repr = 7
-
-    for num in sels:  # sels:
+    for num in [13]:  # sels:
         df = pd.DataFrame(
             columns=['A', 'V', 'P', 'E_backup_full', 'E_backup_repr',
                      'E_loss_stor_full', 'E_loss_stor_repr',
@@ -111,14 +132,15 @@ for corr in ['corr']:  # ['corr', 'nocorr']:
                         energy_sol_repr = RepresentativeWeeks.get_sol_energy(
                             optimizers, selection)
                         fig1 = RepresentativeWeeks.plot_representative(
-                            optimizers, selection)
+                            optimizers, selection, duration_repr=duration_repr)
                         if not os.path.isdir(
                                 os.path.join('comparison', corr)):
                             os.makedirs(os.path.join('comparison', corr))
                         fig1.savefig(os.path.join('comparison', corr,
-                                                  '{}w_{}A_{}V_{}P_repr.png'.format(
+                                                  '{}p_{}A_{}V_{}P_repr.png'.format(
                                                       num, A, V, P)),
                                      dpi=100, figsize=(8, 6))
+                        fig1.close()
 
                     result_full = dffull[
                         (dffull['A'] == A) & (dffull['P'] == P) & (
@@ -162,7 +184,7 @@ for corr in ['corr']:  # ['corr', 'nocorr']:
                     path = os.path.join('results', corr)
                     if not os.path.isdir(path):
                         os.makedirs(path)
-                    df.to_csv(os.path.join(path, 'result{}w.txt'.format(num)), sep=' ')
+                    df.to_csv(os.path.join(path, 'result{}p.txt'.format(num)), sep=' ')
 
         print df
 
