@@ -9,6 +9,7 @@ from collections import OrderedDict
 import RepresentativeWeeks
 import pandas as pd
 
+import matplotlib.pyplot as plt
 dffull = pd.read_csv('refresult.txt', sep=' ')
 # logging.basicConfig(level=logging.WARNING,
 #                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -68,7 +69,7 @@ threeday_sels = {
          (208, 6.0), (233, 8.0), (276, 14.0), (321, 4.0), (328, 16.0)])
 }
 
-for corr in ['3d']:  # ['corr', 'nocorr']:
+for corr in ['3d', 'corr']:  # ['corr', 'nocorr']:
     if corr == 'corr':
         sels = with_corr
         duration_repr = 7
@@ -85,7 +86,7 @@ for corr in ['3d']:  # ['corr', 'nocorr']:
         sels = threeday_sels
         duration_repr = 3
 
-    for num in [13]:  # sels:
+    for num in sels:  # sels:
         df = pd.DataFrame(
             columns=['A', 'V', 'P', 'E_backup_full', 'E_backup_repr',
                      'E_loss_stor_full', 'E_loss_stor_repr',
@@ -124,7 +125,7 @@ for corr in ['3d']:  # ['corr', 'nocorr']:
 
                     if status == 0:
                         energy_backup_repr = RepresentativeWeeks.get_backup_energy(
-                            repr_model)
+                            optimizers, selection)
                         energy_stor_loss_repr = RepresentativeWeeks.get_stor_loss(
                             optimizers, selection)
                         energy_curt_repr = RepresentativeWeeks.get_curt_energy(
@@ -140,7 +141,7 @@ for corr in ['3d']:  # ['corr', 'nocorr']:
                                                   '{}p_{}A_{}V_{}P_repr.png'.format(
                                                       num, A, V, P)),
                                      dpi=100, figsize=(8, 6))
-                        fig1.close()
+                        plt.close()
 
                     result_full = dffull[
                         (dffull['A'] == A) & (dffull['P'] == P) & (

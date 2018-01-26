@@ -5,13 +5,11 @@
 import time
 
 import matplotlib.pyplot as plt
+import modesto.main
+import modesto.utils as ut
 import networkx as nx
 import pandas as pd
 from pkg_resources import resource_filename
-
-import modesto.main
-import modesto.utils as ut
-import os
 
 DATAPATH = resource_filename('modesto', 'Data')
 
@@ -79,8 +77,8 @@ def fullyear(storVol, solArea, backupPow):
     # In[10]:
 
     sol = ut.read_time_data(path=DATAPATH,
-                            name='RenewableProduction/SolarThermalNew.csv',
-                            expand_year=True)["0_40"]
+                            name='RenewableProduction/SolarThermal.csv',
+                            expand_year=True)["(0L, 40L)"]
 
     # ## Add parameters to ``modesto``
 
@@ -160,7 +158,7 @@ def fullyear(storVol, solArea, backupPow):
 
 
 def get_backup_energy(optmodel):
-    return optmodel.get_objective('energy', get_value=True)
+    return optmodel.get_result('heat_flow', node='Node', comp='backup').sum() / 1000
 
 
 def get_curt_energy(optmodel):
@@ -177,6 +175,9 @@ def get_stor_loss(optmodel):
     return optmodel.get_result('heat_flow', node='Node',
                                comp='storage').sum() / 1000
 
+def get_demand_energy(optmodel):
+    return optmodel.get_result('heat_flow', node='Node',
+                               comp='demand').sum() / 1000
 
 def solve_fullyear(model):
     begin = time.time()

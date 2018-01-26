@@ -110,8 +110,8 @@ def representative(duration_repr, selection, storVol=75000,
     # In[11]:
 
     sol = ut.read_time_data(path=DATAPATH,
-                            name='RenewableProduction/SolarThermalNew.csv',
-                            expand=True)["0_40"]
+                            name='RenewableProduction/SolarThermal.csv',
+                            expand=True)["(0L, 40L)"]
 
     # ### Optimization code
 
@@ -236,8 +236,11 @@ def representative(duration_repr, selection, storVol=75000,
     return topmodel, optimizers
 
 
-def get_backup_energy(model):
-    return value(model.obj)
+def get_backup_energy(optimizers, sel):
+    return sum(sel[startday]*optmodel.get_result('heat_flow', node='Node',
+                                     comp='backup',
+                                   check_results=False).sum()
+               for startday, optmodel in optimizers.iteritems()) / 1000
 
 
 def get_curt_energy(optimizers, sel):
@@ -262,6 +265,14 @@ def get_stor_loss(optimizers, sel):
         optmodel.get_result('heat_flow', node='Node', comp='storage',
                             check_results=False).sum() for startday, optmodel in
         optimizers.iteritems()) / 1000
+
+def get_demand_energy(optimizers, sel):
+    return sum(sel[startday]*
+        optmodel.get_result('heat_flow', node='Node', comp='demand',
+                            check_results=False).sum() for startday, optmodel in
+        optimizers.iteritems(
+
+        )) / 1000
 
 
 def solve_repr(model):

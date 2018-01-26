@@ -1,0 +1,41 @@
+=====================================================================
+result10p.txt
+Cases computed: 80
+Cases where repr is feasible and full unfeasible: 1
+Cases where repr is infeasible and full feasible: 0
+Both infeasible solutions: 7
+
+=====================================================================
+result12p.txt
+Cases computed: 80
+Cases where repr is feasible and full unfeasible: 1
+Cases where repr is infeasible and full feasible: 0
+Both infeasible solutions: 7
+
+=====================================================================
+result13p.txt
+Cases computed: 80
+Cases where repr is feasible and full unfeasible: 0
+Cases where repr is infeasible and full feasible: 4
+Both infeasible solutions: 8
+
+=====================================================================
+result14p.txt
+Cases computed: 80
+Cases where repr is feasible and full unfeasible: 0
+Cases where repr is infeasible and full feasible: 5
+Both infeasible solutions: 8
+
+=====================================================================
+result6p.txt
+Cases computed: 80
+Cases where repr is feasible and full unfeasible: 0
+Cases where repr is infeasible and full feasible: 3
+Both infeasible solutions: 8
+
+=====================================================================
+result8p.txt
+Cases computed: 80
+Cases where repr is feasible and full unfeasible: 1
+Cases where repr is infeasible and full feasible: 1
+Both infeasible solutions: 7

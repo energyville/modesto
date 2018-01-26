@@ -4,64 +4,75 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-for path in ['corr']:
-    filepath=os.path.join('results', path)
+
+for path in ['corr', '3d']:
+    filepath = os.path.join('results', path)
     for filename in os.listdir(filepath):
-        print ''
-        print '====================================================================='
-        print filename
+        if not filename == 'summary.txt':
 
-        data = pd.read_csv(os.path.join(filepath, filename), sep=' ', index_col=0)
-        print 'Cases computed:', str(len(data))
+            print ''
+            print '====================================================================='
+            print filename
 
-        # There are no occurences where the representative periods lead to a feasible solution and the full year representation does not
-        print 'Cases where repr is feasible and full unfeasible:', str(
-            len(data[(~data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())]))
+            data = pd.read_csv(os.path.join(filepath, filename), sep=' ', index_col=0)
+            print 'Cases computed:', str(len(data))
 
-        # There are two cases where the representative periods lead to an infeasible solution and the full year is feasible
+            # There are no occurences where the representative periods lead to a feasible solution and the full year representation does not
+            print 'Cases where repr is feasible and full unfeasible:', str(
+                len(data[(~data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())]))
 
-        print 'Cases where repr is infeasible and full feasible:', str(len(
-            data[(data['E_backup_repr'].isnull() & ~data['E_backup_full'].isnull())]))
+            # There are two cases where the representative periods lead to an infeasible solution and the full year is feasible
 
-        # Cases where both are infeasible
+            print 'Cases where repr is infeasible and full feasible:', str(len(
+                data[(data['E_backup_repr'].isnull() & ~data['E_backup_full'].isnull())]))
 
-        print 'Both infeasible solutions:', str(len(data[(data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())]))
-        # data[(data['E_repr'].isnull() & data['E_full'].isnull())]
+            # Cases where both are infeasible
 
-        data = data.dropna()
-        #data = data.rename(columns={'E_repr': 'Representative', 'E_full': 'Full year'})
+            print 'Both infeasible solutions:', str(
+                len(data[(data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())]))
+            # data[(data['E_repr'].isnull() & data['E_full'].isnull())]
 
-        resultname = 'curt'
-        fullname = 'E_{}_full'.format(resultname)
-        reprname = 'E_{}_repr'.format(resultname)
+            data = data.dropna()
 
+            data[list('APV')] = data[list('APV')].astype(int)
+            # data = data.rename(columns={'E_repr': 'Representative', 'E_full': 'Full year'})
 
-        fig = plt.figure()
+            resultname = 'backup'
+            fullname = 'E_{}_full'.format(resultname)
+            reprname = 'E_{}_repr'.format(resultname)
 
-        sns.set_context("paper")
+            fig = plt.figure()
 
-        g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='V', col='A', col_wrap=2, size=3,
-                       markers=['s', 'o', '^', '+'], sharex=False, sharey=False, legend=False)
-        acc = 0.025
+            sns.set_context("paper")
 
-        for axnum, ax in enumerate(g.axes):
-            limmin = np.min([ax.get_xlim(), ax.get_ylim()])
-            limmax = np.max([ax.get_xlim(), ax.get_ylim()])
+            g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='V', col='A', col_wrap=2, size=3,
+                           sharex=False,
+                           sharey=False, legend=False, markers=['s', 'o', '^', '+'],
+                           hue_order=[50000, 75000, 100000, 125000])
+            acc = 0.025
 
-            ax.set_xlim(limmin, limmax)
-            ax.set_ylim(limmin, limmax)
+            for axnum, ax in enumerate(g.axes):
+                limmin = np.min([ax.get_xlim(), ax.get_ylim()])
+                limmax = np.max([ax.get_xlim(), ax.get_ylim()])
 
-            ax.set_xlabel('Full year [kWh]')
-            ax.set_ylabel('Representative [kWh]')
+                ax.set_xlim(limmin, limmax)
+                ax.set_ylim(limmin, limmax)
 
-            # now plot both limits against eachother
-            g.axes[axnum].plot([limmin, limmax], [limmin, limmax], 'w-', linewidth=2, alpha=0.75, zorder=0)
-            g.axes[axnum].fill_between([limmin, limmax], [(1 - acc) * limmin, (1 - acc) * limmax],
-                                       [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.05, color='b',
-                                       label='$\pm$' + str(100 * acc) + '%')
+                ax.set_xlabel('Full year {} AEU [kWh]'.format(resultname))
+                ax.set_ylabel('Representative {} AEU [kWh]'.format(resultname))
 
-        g.axes[-1].legend(loc='lower right', title='Volume')
+                #
+                # now plot both limits against eachother
+                g.axes[axnum].plot([limmin, limmax], [limmin, limmax], 'w-', linewidth=2, alpha=0.75, zorder=0)
+                z = g.axes[axnum].fill_between([limmin, limmax], [(1 - acc) * limmin, (1 - acc) * limmax],
+                                               [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.05, color='b',
+                                               label='$\pm$' + str(100 * acc) + '%')
 
-        if not os.path.isdir(os.path.join('img', path, resultname)):
-            os.makedirs(os.path.join('img', path, resultname))
-        plt.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0]+'.png'), dpi=600)
+            g.add_legend(title='Volume', bbox_to_anchor=(1.15, 0.5))
+
+            g.axes[-1].legend([z], ['$\pm$' + str(acc) + '%'], loc='lower right')
+
+            if not os.path.isdir(os.path.join('img', path, resultname)):
+                os.makedirs(os.path.join('img', path, resultname))
+            g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.png'), dpi=600)
+            plt.close()
