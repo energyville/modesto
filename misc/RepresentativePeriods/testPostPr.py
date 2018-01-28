@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-for path in ['corr', '3d']:
+for path in ['corrnoseasons', 'corr', '3d']:
     filepath = os.path.join('results', path)
     for filename in os.listdir(filepath):
         if not filename == 'summary.txt':
@@ -37,7 +37,7 @@ for path in ['corr', '3d']:
             data[list('APV')] = data[list('APV')].astype(int)
             # data = data.rename(columns={'E_repr': 'Representative', 'E_full': 'Full year'})
 
-            resultname = 'backup'
+            resultname = 'sol'
             fullname = 'E_{}_full'.format(resultname)
             reprname = 'E_{}_repr'.format(resultname)
 

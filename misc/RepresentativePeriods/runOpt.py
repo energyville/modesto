@@ -69,7 +69,7 @@ threeday_sels = {
          (208, 6.0), (233, 8.0), (276, 14.0), (321, 4.0), (328, 16.0)])
 }
 
-for corr in ['3d', 'corr']:  # ['corr', 'nocorr']:
+for corr in ['corrnoseasons']:  # ['corr', 'nocorr']:
     if corr == 'corr':
         sels = with_corr
         duration_repr = 7
