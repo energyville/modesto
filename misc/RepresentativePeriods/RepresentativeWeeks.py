@@ -12,8 +12,7 @@ import time
 
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import ConcreteModel, Objective, Constraint, minimize, \
-    value
+from pyomo.core.base import ConcreteModel, Objective, Constraint, minimize
 from pyomo.opt import SolverFactory, SolverStatus, TerminationCondition
 
 import modesto.utils as ut
@@ -218,7 +217,7 @@ def representative(duration_repr, selection, storVol=75000,
     # In[ ]:
 
     def _top_objective(m):
-        return 365 / (duration_repr*(365//duration_repr)) * sum(
+        return 365 / (duration_repr * (365 // duration_repr)) * sum(
             repetitions * optimizers[start_day].get_objective(
                 objtype='energy', get_value=False) for start_day, repetitions in
             selection.iteritems())
@@ -237,42 +236,43 @@ def representative(duration_repr, selection, storVol=75000,
 
 
 def get_backup_energy(optimizers, sel):
-    return sum(sel[startday]*optmodel.get_result('heat_flow', node='Node',
-                                     comp='backup',
-                                   check_results=False).sum()
+    return sum(sel[startday] * optmodel.get_result('heat_flow', node='Node',
+                                                   comp='backup',
+                                                   check_results=False).sum()
                for startday, optmodel in optimizers.iteritems()) / 1000
 
 
 def get_curt_energy(optimizers, sel):
-    return sum(sel[startday]*optmodel.get_result('heat_flow_curt', node='Node',
-                                     comp='solar',
-                                   check_results=False).sum()
+    return sum(sel[startday] * optmodel.get_result('heat_flow_curt', node='Node',
+                                                   comp='solar',
+                                                   check_results=False).sum()
                for startday, optmodel in optimizers.iteritems()) / 1000
 
 
 def get_sol_energy(optimizers, sel):
-    return sum(sel[startday]*
-        optmodel.get_result('heat_flow', node='Node', comp='solar',
-                            check_results=False).sum() for startday, optmodel in
-        optimizers.iteritems(
+    return sum(sel[startday] *
+               optmodel.get_result('heat_flow', node='Node', comp='solar',
+                                   check_results=False).sum() for startday, optmodel in
+               optimizers.iteritems(
 
-        )) / 1000
+               )) / 1000
 
 
 def get_stor_loss(optimizers, sel):
     # TODO make better calculation for this
-    return sum(sel[startday]*
-        optmodel.get_result('heat_flow', node='Node', comp='storage',
-                            check_results=False).sum() for startday, optmodel in
-        optimizers.iteritems()) / 1000
+    return sum(sel[startday] *
+               optmodel.get_result('heat_flow', node='Node', comp='storage',
+                                   check_results=False).sum() for startday, optmodel in
+               optimizers.iteritems()) / 1000
+
 
 def get_demand_energy(optimizers, sel):
-    return sum(sel[startday]*
-        optmodel.get_result('heat_flow', node='Node', comp='demand',
-                            check_results=False).sum() for startday, optmodel in
-        optimizers.iteritems(
+    return sum(sel[startday] *
+               optmodel.get_result('heat_flow', node='Node', comp='demand',
+                                   check_results=False).sum() for startday, optmodel in
+               optimizers.iteritems(
 
-        )) / 1000
+               )) / 1000
 
 
 def solve_repr(model):
@@ -291,7 +291,7 @@ def solve_repr(model):
     # In[ ]:
 
     if (results.solver.status == SolverStatus.ok) and (
-            results.solver.termination_condition == TerminationCondition.optimal):
+                results.solver.termination_condition == TerminationCondition.optimal):
         return 0
     elif results.solver.termination_condition == TerminationCondition.infeasible:
         print 'Model is infeasible'
@@ -372,13 +372,11 @@ def plot_representative(opt, sel, duration_repr=7):
     plt.gcf().autofmt_xdate()
 
     fig_out.tight_layout()
-    fig_out.figsize=(8,6)
+    fig_out.figsize = (8, 6)
     fig_out.dpi = 100
     fig_out.subplots_adjust(wspace=0.1, hspace=0.1)
 
-
     return fig_out
-
 
 # In[ ]:
 if __name__ == '__main__':
