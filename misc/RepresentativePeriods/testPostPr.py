@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-for path in ['corrnoseasons', 'corr', '3d']:
+for path in ['longrunnoduration']:
     filepath = os.path.join('results', path)
     for filename in os.listdir(filepath):
         if not filename == 'summary.txt':
@@ -35,9 +35,9 @@ for path in ['corrnoseasons', 'corr', '3d']:
             data = data.dropna()
 
             data[list('APV')] = data[list('APV')].astype(int)
-            # data = data.rename(columns={'E_repr': 'Representative', 'E_full': 'Full year'})
+            data = data.rename(columns={'A': 'Solar coll. area', 'V': 'Storage volume'})
 
-            resultname = 'sol'
+            resultname = 'backup'
             fullname = 'E_{}_full'.format(resultname)
             reprname = 'E_{}_repr'.format(resultname)
 
@@ -45,7 +45,7 @@ for path in ['corrnoseasons', 'corr', '3d']:
 
             sns.set_context("paper")
 
-            g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='V', col='A', col_wrap=2, size=3,
+            g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='Storage volume', col='Solar coll. area', col_wrap=2, size=3,
                            sharex=False,
                            sharey=False, legend=False, markers=['s', 'o', '^', '+'],
                            hue_order=[50000, 75000, 100000, 125000])
@@ -68,7 +68,7 @@ for path in ['corrnoseasons', 'corr', '3d']:
                                                [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.05, color='b',
                                                label='$\pm$' + str(100 * acc) + '%')
 
-            g.add_legend(title='Volume', bbox_to_anchor=(1.15, 0.5))
+            g.add_legend(title='Storage volume', bbox_to_anchor=(1.15, 0.5))
 
             g.axes[-1].legend([z], ['$\pm$' + str(acc) + '%'], loc='lower right')
 
