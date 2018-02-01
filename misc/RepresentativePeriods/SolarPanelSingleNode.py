@@ -77,8 +77,8 @@ def fullyear(storVol, solArea, backupPow):
     # In[10]:
 
     sol = ut.read_time_data(path=DATAPATH,
-                            name='RenewableProduction/SolarThermal.csv',
-                            expand_year=True)["(0L, 40L)"]
+                            name='RenewableProduction/NewSolarThermal40-80-wl.csv',
+                            expand_year=True)["0_40"]
 
     # ## Add parameters to ``modesto``
 

@@ -110,8 +110,8 @@ def representative(duration_repr, selection, storVol=75000,
     # In[11]:
 
     sol = ut.read_time_data(path=DATAPATH,
-                            name='RenewableProduction/SolarThermal.csv',
-                            expand=True)["(0L, 40L)"]
+                            name='RenewableProduction/NewSolarThermal40-80-wl.csv',
+                            expand=True)["0_40"]
 
     # ### Optimization code
 
