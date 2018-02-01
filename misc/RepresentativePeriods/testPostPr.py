@@ -65,7 +65,7 @@ for path in ['longrunnoduration']:
                 # now plot both limits against eachother
                 g.axes[axnum].plot([limmin, limmax], [limmin, limmax], 'w-', linewidth=2, alpha=0.75, zorder=0)
                 z = g.axes[axnum].fill_between([limmin, limmax], [(1 - acc) * limmin, (1 - acc) * limmax],
-                                               [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.05, color='b',
+                                               [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.15, color='b',
                                                label='$\pm$' + str(100 * acc) + '%')
 
             g.add_legend(title='Storage volume', bbox_to_anchor=(1.15, 0.5))
