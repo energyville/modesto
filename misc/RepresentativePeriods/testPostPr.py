@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-for path in ['longrunnoduration']:
+for path in ['3dnewsol', '7dnewsol']:
     filepath = os.path.join('results', path)
     for filename in os.listdir(filepath):
         if not filename == 'summary.txt':
@@ -37,7 +37,7 @@ for path in ['longrunnoduration']:
             data[list('APV')] = data[list('APV')].astype(int)
             data = data.rename(columns={'A': 'Solar coll. area', 'V': 'Storage volume'})
 
-            resultname = 'backup'
+            resultname = 'sol'
             fullname = 'E_{}_full'.format(resultname)
             reprname = 'E_{}_repr'.format(resultname)
 
