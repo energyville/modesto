@@ -1,23 +1,22 @@
 from __future__ import division
 
 import collections
-import sys
 from math import sqrt
 
+import component as co
 import networkx as nx
+import numpy as np
 import pandas as pd
+import pipe as pip
 # noinspection PyUnresolvedReferences
 import pyomo.environ
-from pyomo.core.base import ConcreteModel, Objective, minimize, value
+# noinspection PyUnresolvedReferences
+from parameter import *
+from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var
 from pyomo.core.base.param import IndexedParam
 from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
-
-# noinspection PyUnresolvedReferences
-from component import *
-from parameter import *
-from pipe import *
 
 
 class Modesto:
@@ -88,11 +87,15 @@ class Modesto:
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
                                        'K',
-                                       time_step=self.time_step),
+                                       time_step=self.time_step,
+                                       horizon=self.horizon,
+                                       start_time=self.start_time),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
                                        'K',
-                                       time_step=self.time_step)
+                                       time_step=self.time_step,
+                                       horizon=self.horizon,
+                                       start_time=self.start_time)
         }
 
         return params
@@ -210,6 +213,9 @@ class Modesto:
             'cost_ramp': self.model.OBJ_COST_RAMP,
             'co2': self.model.OBJ_CO2,
         }
+
+        for objective in self.objectives.values():
+            objective.deactivate()
 
         if self.temperature_driven:
             def obj_temp(model):
@@ -428,6 +434,7 @@ class Modesto:
         :param slack: Boolean indicating whether a slack should be added (True) or not (False)
         """
         # TODO Adapt method so you can change only one of the settings?
+        # TODO Put None as default parameter value and detect if other value is supplied
         comp_obj = self.get_component(comp, node)
 
         comp_obj.params[state].change_upper_bound(new_ub)
@@ -460,16 +467,18 @@ class Modesto:
                 'There is no component named {} at node {}'.format(name, node))
         return self.components[node][name]
 
-    def get_result(self, name, node=None, comp=None, index=None):
+    def get_result(self, name, node=None, comp=None, index=None, check_results=True):
         """
         Returns the numerical values of a certain parameter or time-dependent variable after optimization
 
         :param comp: Name of the component to which the variable belongs
         :param name: Name of the needed variable/parameter
+        :param check_results: Check if model is solved. Default True. If Modesto is part of a larger optimization,
+            change to false in order to be able to use this function.
         :return: A pandas DataFrame containing all values of the variable/parameter over the time horizon
         """
 
-        if self.results is None:
+        if self.results is None and check_results:
             raise Exception('The optimization problem has not been solved yet.')
 
         if comp is not None:
@@ -529,12 +538,13 @@ class Modesto:
                 '{}'.format(comp, name, type(obj)))
             return None
 
-    def get_objective(self, objtype=None):
+    def get_objective(self, objtype=None, get_value=True):
         """
         Return value of objective function. With no argument supplied, the active objective is returned. Otherwise, the
         objective specified in the argument is returned.
 
         :param objtype: Name of the objective to be returned. Default None: returns the active objective.
+        :param value: True if value of objective should be returned. If false, the objective object instance is returned.
         :return:
         """
         if objtype is None:
@@ -549,7 +559,10 @@ class Modesto:
                 self.objectives.keys())
             obj = self.objectives[objtype]
 
-        return value(obj)
+        if get_value:
+            return value(obj)
+        else:
+            return obj
 
     def print_all_params(self):
         """
@@ -693,7 +706,7 @@ class Modesto:
 
             for comp, comp_obj in comp_list.items():
                 self.change_param(node=node, comp=comp, param='mass_flow',
-                                  val=mf_df.loc[:, [comp]])
+                                  val=mf_df[comp])
 
     def get_nodes(self):
         """
@@ -745,6 +758,34 @@ class Modesto:
 
         return self.components[None][pipe].get_length()
 
+    def get_heat_stor_init(self):
+        """
+        Return dictionary of initial storage states
+
+        :return:
+        """
+        out = {}
+
+        for node_name, node_obj in self.nodes.iteritems():
+            for comp_name, comp_obj in node_obj.get_heat_stor_init().iteritems():
+                out['.'.join([node_name, comp_name])] = comp_obj
+
+        return out
+
+    def get_heat_stor_final(self):
+        """
+        Return dictionary of initial storage states
+
+        :return:
+        """
+        out = {}
+
+        for node_name, node_obj in self.nodes.iteritems():
+            for comp_name, comp_obj in node_obj.get_heat_stor_final().iteritems():
+                out['.'.join([node_name, comp_name])] = comp_obj
+
+        return out
+
 
 class Node(object):
     def __init__(self, name, node, horizon, time_step,
@@ -791,13 +832,29 @@ class Node(object):
         z = self.__get_data('z')
         return {'x': x, 'y': y, 'z': z}
 
-    def get_components(self):
+    def get_components(self, filter_type=None):
         """
         Collects the components and their type belonging to this node
 
+        :param filter_type: string or class name of components to be returned
         :return: A dict, with keys the names of the components, values the Component objects
         """
-        return self.components
+
+        if filter_type is None:
+            out = self.components
+        elif isinstance(filter_type, str):
+            out = {}
+            cls = co.str_to_comp(filter_type)
+            for comp in self.get_components():
+                if isinstance(self.components[comp], cls):
+                    out[comp] = self.components[comp]
+        else:
+            out = {}
+            for comp in self.get_components():
+                if isinstance(self.components[comp], filter_type):
+                    out[comp] = self.components[comp]
+
+        return out
 
     def add_comp(self, name, ctype):
         """
@@ -808,15 +865,11 @@ class Node(object):
         :return:
         """
 
-        assert name not in self.components, \
-            'A component named \'{}\' already exists for node \'{}\''.format(
-                name, self.name)
-
-        def str_to_class(str):
-            return reduce(getattr, str.split("."), sys.modules[__name__])
+        assert name not in self.components, 'A component named \'{}\' already exists for node \'{}\''.format(
+            name, self.name)
 
         try:
-            cls = str_to_class(ctype)
+            cls = co.str_to_comp(ctype)
         except AttributeError:
             cls = None
 
@@ -835,7 +888,7 @@ class Node(object):
 
     def add_pipe(self, pipe):
 
-        if not isinstance(pipe, Pipe):
+        if not isinstance(pipe, pip.Pipe):
             raise TypeError('Input \'edge\' should be an Pipe object')
 
         self.pipes[pipe.name] = pipe
@@ -1000,6 +1053,32 @@ class Node(object):
 
         return m_flo
 
+    def get_heat_stor_init(self):
+        """
+        Generate dict with initial heat storage state variable for all storage components in this node.
+
+        :return:
+        """
+        out = {}
+
+        for comp_name, comp_obj in self.get_components(filter_type=co.StorageVariable).iteritems():
+            out[comp_name] = comp_obj.get_heat_stor_init()
+
+        return out
+
+    def get_heat_stor_final(self):
+        """
+        Generate dict with final heat storage state variable for all storage components in this node.
+
+        :return:
+        """
+        out = {}
+
+        for comp_name, comp_obj in self.get_components(filter_type=co.StorageVariable).iteritems():
+            out[comp_name] = comp_obj.get_heat_stor_final()
+
+        return out
+
 
 class Edge(object):
     def __init__(self, name, edge, start_node, end_node, horizon,
@@ -1049,11 +1128,8 @@ class Edge(object):
 
         self.pipe_model = pipe_model
 
-        def str_to_class(str):
-            return reduce(getattr, str.split("."), sys.modules[__name__])
-
         try:
-            cls = str_to_class(pipe_model)
+            cls = pip.str_to_pipe(pipe_model)
         except AttributeError:
             cls = None
 

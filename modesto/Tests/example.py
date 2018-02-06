@@ -44,9 +44,9 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 15
+    n_steps = 24*7
     time_step = 3600
-    start_time = pd.Timestamp('20140501')
+    start_time = pd.Timestamp('20140604')
 
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
                        pipe_model='ExtensivePipe', graph=G,
@@ -56,12 +56,11 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    heat_profile = pd.DataFrame([1000] * n_steps, index=range(n_steps))
-    t_amb = ut.read_period_data('../Data/Weather', name='extT.csv', time_step=time_step, horizon=n_steps * time_step,
-                                start_time=start_time)
-    t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
+    heat_profile = ut.read_time_data('../Data/HeatDemand/Initialized', name='HeatDemandFiltered.csv')
+    t_amb = ut.read_time_data('../Data/Weather', name='extT.csv')['Te']
+    t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
-    optmodel.opt_settings(allow_flow_reversal=False)
+    optmodel.opt_settings(allow_flow_reversal=True)
 
     # general parameters
 
@@ -73,23 +72,24 @@ def construct_model():
     # building parameters
 
     zw_building_params = {'delta_T': 20,
-                          'mult': 50,
-                          'heat_profile': heat_profile,
+                          'mult': 1,
+                          'heat_profile': heat_profile['ZwartbergNEast'],
                           }
 
     ws_building_params = zw_building_params.copy()
-    ws_building_params['mult'] = 20
+    ws_building_params['mult'] = 1
+    ws_building_params['heat_profile'] = heat_profile['WaterscheiGarden']
 
     optmodel.change_params(zw_building_params, node='zwartbergNE',
                            comp='buildingD')
     optmodel.change_params(ws_building_params, node='waterscheiGarden',
                            comp='buildingD')
 
-    bbThor_params = {'pipe_type': 150}
+    bbThor_params = {'pipe_type': 500}
     spWaterschei_params = bbThor_params.copy()
-    spWaterschei_params['pipe_type'] = 200
+    spWaterschei_params['pipe_type'] = 500
     spZwartbergNE_params = bbThor_params.copy()
-    spZwartbergNE_params['pipe_type'] = 125
+    spZwartbergNE_params['pipe_type'] = 500
 
     optmodel.change_params(bbThor_params, comp='bbThor')
     optmodel.change_params(spWaterschei_params, comp='spWaterschei')
@@ -102,7 +102,7 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
-        'volume': 1,
+        'volume': 2e4,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
@@ -121,20 +121,17 @@ def construct_model():
 
     # Production parameters
 
-    c_f = ut.read_period_data(path='../Data/Weather',
-                              name='extT.csv',
-                              time_step=time_step,
-                              horizon=n_steps * time_step,
-                              start_time=start_time)
+    c_f = ut.read_time_data(path='../Data/ElectricityPrices',
+                              name='DAM_electricity_prices-2014_BE.csv')['price_BE']
 
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 10e6,
+                   'Qmax': 1.5e7,
                    'ramp_cost': 0.01,
-                   'ramp': 10e6 / 3600}
+                   'ramp': 1e6 / 3600}
 
     optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
@@ -254,13 +251,14 @@ if __name__ == '__main__':
     ax.legend(loc='lower center', ncol=3)
     fig.tight_layout()
 
-    fig2 = plt.figure()
+    fig2, ax2 = plt.subplots()
 
-    ax2 = fig2.add_subplot(111)
-    ax2.plot(storage_soc, label='Stored heat')
-    ax2.plot(storage_hf * 3600, label="Charged heat")
-    ax2.axhline(y=0, linewidth=2, color='k', linestyle='--')
+    ax2.plot(storage_soc, label='Stored heat [kWh]')
+    ax2b = ax2.twinx()
+    ax2b.plot(storage_hf, color='g', linestyle='--', label="Charged heat")
     ax2.legend()
+    ax2b.legend()
+    ax2b.set_ylabel('(dis)charged heat [W]')
     fig2.suptitle('Storage')
     #ax2.tight_layout()
 

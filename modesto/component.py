@@ -1,13 +1,23 @@
 from __future__ import division
 
 import logging
+import sys
 from math import pi, log, exp
-
-from pkg_resources import resource_filename
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
 
 import modesto.utils as ut
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
+from pkg_resources import resource_filename
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
+
+
+def str_to_comp(string):
+    """
+    Convert string to class initializer
+
+    :param string: name of class to be initialized
+    :return:
+    """
+    return reduce(getattr, string.split("."), sys.modules[__name__])
 
 
 class Component(object):
@@ -203,15 +213,17 @@ class Component(object):
         :return:
         """
 
+        # TODO make two-sided constraints (with possible double slack?) possible
+
         if ub is True:
             f = 1
         else:
             f = -1
 
         if slack_variable is None:
-            return f*variable <= f*bound
+            return f * variable <= f * bound
         else:
-            return f*variable <= f*bound + slack_variable
+            return f * variable <= f * bound + slack_variable
 
     def change_param(self, param, new_data):
         """
@@ -348,14 +360,19 @@ class FixedProfile(Component):
             'heat_profile': UserDataParameter('heat_profile',
                                               'Heat use in one (average) building',
                                               'W',
-                                              self.time_step),
+                                              time_step=self.time_step,
+                                              horizon=self.horizon,
+                                              start_time=self.start_time),
         }
 
         if self.temperature_driven:
             params['mass_flow'] = UserDataParameter('mass_flow',
                                                     'Mass flow through one (average) building substation',
                                                     'kg/s',
-                                                    self.time_step)
+                                                    time_step=self.time_step,
+                                                    horizon=self.horizon,
+                                                    start_time=self.start_time
+                                                    )
             params['temperature_supply'] = StateParameter('temperature_supply',
                                                           'Initial supply temperature at the component',
                                                           'K',
@@ -598,7 +615,9 @@ class ProducerVariable(Component):
             'fuel_cost': UserDataParameter('fuel_cost',
                                            'cost of fuel/electricity to generate heat',
                                            'euro/kWh',
-                                           time_step=self.time_step),
+                                           time_step=self.time_step,
+                                           horizon=self.horizon,
+                                           start_time=self.start_time),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
@@ -614,7 +633,9 @@ class ProducerVariable(Component):
             params['mass_flow'] = UserDataParameter('mass_flow',
                                                     'Flow through the production unit substation',
                                                     'kg/s',
-                                                    self.time_step)
+                                                    self.time_step,
+                                                    horizon=self.horizon,
+                                                    start_time=self.start_time)
             params['temperature_max'] = DesignParameter('temperature_max',
                                                         'Maximum allowed water temperature',
                                                         'K')
@@ -699,7 +720,7 @@ class ProducerVariable(Component):
                 return self.params['temperature_min'].v() <= b.temperatures[t, 'supply'] <= self.params[
                     'temperature_max'].v()
 
-            self.block.limit_teperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
+            self.block.limit_temperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
 
             def _decl_temperatures(b, t):
                 if t == 0:
@@ -762,7 +783,7 @@ class ProducerVariable(Component):
         cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t)
-                   / 3600 * self.time_step / 1000  for t in range(self.n_steps))
+                   / 3600 * self.time_step / 1000 for t in range(self.n_steps))
 
     def obj_co2(self):
         """
@@ -810,16 +831,16 @@ class SolarThermalCollector(Component):
         self.logger = logging.getLogger('modesto.components.SolThermCol')
         self.logger.info('Initializing SolarThermalCollector {}'.format(name))
 
-        filepath = resource_filename('modesto', 'Data/RenewableProduction')
-
-        self.max_prod = ut.read_period_data(path=filepath, name='SolarThermalNew.txt', time_step=time_step,
-                                            horizon=horizon, start_time=start_time)["30_40"]
-        # TODO Allow multiple orientations (the L-Tuple)
-
     def create_params(self):
         params = {
             'area': DesignParameter('area', 'Surface area of panels', 'm2'),
-            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K')
+            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K'),
+            'heat_profile': UserDataParameter(name='heat_profile',
+                                              description='Maximum heat generation per unit area of the solar panel',
+                                              unit='W/m2',
+                                              time_step=self.time_step,
+                                              horizon=self.horizon,
+                                              start_time=self.start_time)
         }
         return params
 
@@ -838,8 +859,10 @@ class SolarThermalCollector(Component):
         self.model = topmodel
         self.make_block(parent)
 
+        heat_profile = self.params['heat_profile'].v()
+
         def _heat_flow_max(m, t):
-            return self.max_prod.values[t]
+            return heat_profile[t]
 
         self.block.heat_flow_max = Param(self.model.TIME, rule=_heat_flow_max)
         self.block.heat_flow = Var(self.model.TIME, within=NonNegativeReals)
@@ -939,10 +962,11 @@ class StorageVariable(Component):
             'kIns': DesignParameter('kIns',
                                     'Thermal conductivity of insulation material',
                                     'W/(m.K)'),
-            'heat_stor': StateParameter('heat_stor',
-                                        'Heat stored in the thermal storage unit',
-                                        'J',
-                                        'fixedVal')
+            'heat_stor': StateParameter(name='heat_stor',
+                                        description='Heat stored in the thermal storage unit',
+                                        unit='kWh',
+                                        init_type='fixedVal',
+                                        slack=False)
         }
 
         return params
@@ -968,7 +992,7 @@ class StorageVariable(Component):
 
         heat_stor_init = self.params['heat_stor']
 
-        self.max_en = self.volume * self.cp * self.temp_diff * self.rho
+        self.max_en = self.volume * self.cp * self.temp_diff * self.rho / 1000 / 3600
 
         # Geometrical calculations
         w = (4 * self.volume / self.ar / pi) ** (1 / 3)  # Width of tank
@@ -1020,12 +1044,12 @@ class StorageVariable(Component):
             self.block.supply_temperature = Var(self.model.TIME)
 
         # Internal
-        self.block.heat_stor = Var(self.model.X_TIME) #, bounds=(
-            # 0, self.volume * self.cp * 1000 * self.temp_diff))
-        self.block.soc = Var(self.model.TIME)
-        self.logger.debug('Max heat: {}J'.format(str(self.volume * self.cp * 1000 * self.temp_diff)))
-        self.logger.debug('Tau:      {}d'.format(str(self.tau / 3600 / 365)))
-        self.logger.debug('Loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
+        self.block.heat_stor = Var(self.model.X_TIME)  # , bounds=(
+        # 0, self.volume * self.cp * 1000 * self.temp_diff))
+        self.block.soc = Var(self.model.X_TIME)
+        self.logger.debug('Max heat:          {}kWh'.format(str(self.volume * self.cp * 1000 * self.temp_diff / 1000 / 3600)))
+        self.logger.debug('Tau:               {}d'.format(str(self.tau / 3600 / 24 / 365)))
+        self.logger.debug('variable loss  :   {}%'.format(str(exp(-self.time_step / self.tau))))
 
         #############################################################################################
         # Equality constraints
@@ -1033,14 +1057,13 @@ class StorageVariable(Component):
         self.block.heat_loss = Var(self.model.TIME)
 
         def _eq_heat_loss(b, t):
-            return b.heat_loss[t] == (1 - exp(-self.time_step / self.tau)) * b.heat_stor[t] / self.time_step + \
-                                     b.heat_loss_ct[t]
+            return b.heat_loss[t] == (1 - exp(-self.time_step / self.tau)) * b.heat_stor[t] * 1000 * 3600 / self.time_step + b.heat_loss_ct[t]
 
         self.block.eq_heat_loss = Constraint(self.model.TIME, rule=_eq_heat_loss)
 
         # State equation
-        def _state_eq(b, t):
-            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step * (b.heat_flow[t] - b.heat_loss[t])
+        def _state_eq(b, t):   # in kWh
+            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step/3600 * (b.heat_flow[t] - b.heat_loss[t])/1000
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1049,7 +1072,7 @@ class StorageVariable(Component):
             return b.soc[t] == b.heat_stor[t] / self.max_en * 100
 
         self.block.state_eq = Constraint(self.model.TIME, rule=_state_eq)
-        self.block.soc_eq = Constraint(self.model.TIME, rule=_soq_eq)
+        self.block.soc_eq = Constraint(self.model.X_TIME, rule=_soq_eq)
 
         #############################################################################################
         # Inequality constraints
@@ -1058,23 +1081,27 @@ class StorageVariable(Component):
             uslack = self.make_slack('heat_stor_u_slack', self.model.X_TIME)
             lslack = self.make_slack('heat_stor_l_slack', self.model.X_TIME)
         else:
-            uslack = [None]*len(self.model.X_TIME)
-            lslack = [None]*len(self.model.X_TIME)
+            uslack = [None] * len(self.model.X_TIME)
+            lslack = [None] * len(self.model.X_TIME)
 
-        ub = self.params['heat_stor'].get_upper_boundary()/1000/3600
-        lb = self.params['heat_stor'].get_lower_boundary()/1000/3600
-        max = self.volume * self.cp * 1000 * self.temp_diff/1000/3600
-        if ub > max:
-            self.params['heat_stor'].change_upper_bound(max)
+        if self.params['heat_stor'].get_upper_boundary() is not None:
+            ub = self.params['heat_stor'].get_upper_boundary()
+            if ub > self.max_en:
+                self.params['heat_stor'].change_upper_bound(self.max_en)
+        else:
+            self.params['heat_stor'].change_upper_bound(self.max_en)
+
+        if self.params['heat_stor'].get_lower_boundary() is None:
+            self.params['heat_stor'].change_lower_bound(0)
 
         def _max_heat_stor(b, t):
-            return self.constrain_value(b.heat_stor[t]/1000/3600,
+            return self.constrain_value(b.heat_stor[t],
                                         self.params['heat_stor'].get_upper_boundary(),
                                         ub=True,
                                         slack_variable=uslack[t])
 
         def _min_heat_stor(b, t):
-            return self.constrain_value(b.heat_stor[t]/1000/3600,
+            return self.constrain_value(b.heat_stor[t],
                                         self.params['heat_stor'].get_lower_boundary(),
                                         ub=False,
                                         slack_variable=lslack[t])
@@ -1109,3 +1136,19 @@ class StorageVariable(Component):
         self.block.heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
 
         self.logger.info('Optimization model Storage {} compiled'.format(self.name))
+
+    def get_heat_stor_init(self):
+        """
+        Return initial heat storage state value
+
+        :return:
+        """
+        return self.block.heat_stor[0]
+
+    def get_heat_stor_final(self):
+        """
+        Return final heat storage state value
+
+        :return:
+        """
+        return self.block.heat_stor[self.model.X_TIME[-1]]

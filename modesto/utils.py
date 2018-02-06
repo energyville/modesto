@@ -29,7 +29,7 @@ def read_file(path, name, timestamp):
     return data
 
 
-def read_time_data(path, name):
+def read_time_data(path, name, expand=False, expand_year=2014):
     """
     Read a file that contains time data,
     first column should contain strings representing time in following format:
@@ -38,11 +38,18 @@ def read_time_data(path, name):
 
     :param path: Location of the file
     :param name: name of the file (add extension)
+    :param expand: Boolean. Decides if data should wrap around itself such that optimizations at the very beginning or end of the year can be performed. Default False.
+    :param expand_year: if expand=True, which year should be padded. All other data is removed. Default 2014.
     :return: A dataframe
     """
 
     df = read_file(path, name, timestamp=True)
     df = df.astype('float')
+
+    assert isinstance(expand_year, int), 'Integer is expected for expand_year.'
+
+    if expand:
+        df = expand_df(df, expand_year)
 
     return df
 
@@ -90,3 +97,36 @@ def read_period_data(path, name, time_step, horizon, start_time, method=None, se
     end_time = start_time + pd.Timedelta(seconds=horizon)
 
     return df[start_time:end_time]
+
+def select_period_data(df, horizon, time_step, start_time):
+    """
+    Select only relevant time span from existing dataframe
+
+    :param df: Input data frame
+    :param time_step: time step in seconds
+    :param horizon: horizon in seconds
+    :param start_time: start time as pd.Timestamp
+    :return: df
+    """
+    end_time = start_time + pd.Timedelta(seconds=horizon)
+
+    return df[start_time:end_time]
+
+
+def expand_df(df, start_year=2014):
+    """
+    Pad a given data frame with data for one year with a month of data for the previous and next year. The first and last month are repeated respectively.
+
+    :param df: input dataframe or series
+    :param start_year: Year that should be padded.
+    :return:
+    """
+
+    data = df[df.index.year == start_year]
+    before = data[data.index.month == 12]
+    before.index = before.index - pd.DateOffset(years=1)
+
+    after = data[data.index.month == 1]
+    after.index = after.index + pd.DateOffset(years=1)
+
+    return pd.concat([before, data, after])

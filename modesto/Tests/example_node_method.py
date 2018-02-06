@@ -52,7 +52,7 @@ def construct_model():
 
     nx.draw(G, with_labels=True)
 
-    optmodel = Modesto(n_steps * time_step, time_step, 'NodeMethod', G, start_time=start_time)
+    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step, pipe_model='NodeMethod', graph=G, start_time=start_time)
 
     ##################################
     # Set up data                    #
@@ -68,38 +68,37 @@ def construct_model():
     sine = 600 + 400 * np.sin(
         [i / int(86400 / time_step) * 2 * np.pi - np.pi / 2 for i in range(int(5 * 86400 / time_step))])
 
-    heat_profile_step = pd.DataFrame(step, index=range(n_steps))
-    heat_profile_linear = pd.DataFrame(linear, index=range(n_steps))
-    heat_profile_sine = pd.DataFrame(sine[0:n_steps], index=range(n_steps))
+    # TODO fix sine profiles
+    time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
+
+    heat_profile_step = pd.Series(step, index=time_index)
+    heat_profile_linear = pd.Series(linear, index=time_index)
+    heat_profile_sine = pd.Series(sine[0:n_steps], index=time_index)
 
     heat_profile = heat_profile_sine
 
     # Ambient temperature
-    t_amb = ut.read_period_data(path='../Data/Weather',
-                                name='extT.csv',
-                                time_step=time_step,
-                                horizon=n_steps * time_step,
-                                start_time=start_time)
+    t_amb = ut.read_time_data(path='../Data/Weather',
+                              name='extT.csv')
 
     # Ground temperature
-    t_g = pd.DataFrame([12 + 273.15] * n_steps, index=range(n_steps))
+    t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
     # Historical temperatures and mass flows
-    temp_history_return = pd.DataFrame([return_temp] * 20, index=range(20))
-    temp_history_supply = pd.DataFrame([supply_temp] * 20, index=range(20))
-    mass_flow_history = pd.DataFrame([10] * 20, index=range(20))
+    temp_history_return = pd.Series([return_temp] * 20, index=range(20))
+    temp_history_supply = pd.Series([supply_temp] * 20, index=range(20))
+    mass_flow_history = pd.Series([10] * 20, index=range(20))
 
     # Fuel costs
-    c_f = ut.read_period_data(path='../Data/ElectricityPrices',
-                              name='DAM_electricity_prices-2014_BE.csv',
-                              time_step=time_step,
-                              horizon=n_steps * time_step,
-                              start_time=start_time)
+    c_f = ut.read_time_data(path='../Data/ElectricityPrices',
+                            name='DAM_electricity_prices-2014_BE.csv')
     # Converting to euro per kWh
-    c_f['price_BE'] = c_f['price_BE'] / 1000
+    c_f = c_f['price_BE'] / 1000
 
     fig4, ax4 = plt.subplots()
-    ax4.plot(c_f, label='Electricity day-ahead market')
+    plotcf = ut.select_period_data(c_f, start_time=start_time, time_step=time_step, horizon=n_steps * time_step)
+    ax4.plot(plotcf,
+             label='Electricity day-ahead market')
     # ax3.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax4.legend()
     ax4.set_ylabel('Electricity price [euro/kWh]')
@@ -113,11 +112,11 @@ def construct_model():
 
     # general_parameters
 
-    general_params = {'Te': t_amb,
+    general_params = {'Te': t_amb['Te'],
                       'Tg': t_g}
 
     optmodel.change_params(general_params)
-
+    optmodel.test = 'Test'
     # building parameters
 
     ZW_building_params = {'delta_T': 20,
