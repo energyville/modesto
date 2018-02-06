@@ -8,7 +8,7 @@ from math import pi, log, exp
 import modesto.utils as ut
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
 from pkg_resources import resource_filename
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, Set
 
 class RCmodel(Component):
 
@@ -130,7 +130,68 @@ class RCmodel(Component):
 
         :return:
         """
-        pass
+
+        self.block.state_names = Set(initialize=self.states.keys())
+        self.block.edge_names = Set(initialize=self.edges.keys())
+
+        ##### Variables
+
+        self.block.Temperatures = Var(self.block.state_names, self.model.TIME)
+        self.block.StateHeatFlows = Var(self.block.state_names, self.model.TIME)
+        self.block.EdgeHeatFlows = Var(self.block.edge_names, self.model.TIME)
+
+        ##### Parameters
+
+        def decl_edge_direction(b, e):
+            return self.edges[e]
+
+        self.block.directions = Param(self.block.edge_names, rule=decl_edge_direction)
+
+        ##### State energy balances
+
+        def _energy_balance(b, s, t):
+            return b.StateHeatFlows[s, t] == sum(b.EdgeHeatFlows[e, t]*b.directions[e, t] for e in self.states[s].edges)
+
+        self.block.energy_balance = Constraint(self.block.state_names, self.model.TIME, rule=_energy_balance)
+
+        ##### Temperature change state
+
+        def _temp_change(b, s, t):
+            return b.Temperatures[s, t] == b.Temperatures[s, t-1] + b.StateHeatFlows[s, t]/self.cp/self.states[s].C
+
+        self.block.temp_change = Constraint(self.block.state_names, self.model.TIME, rule=_temp_change)
+
+        ##### Heat flow through edge
+
+        def _heat_flow(b, e, t):
+            e_ob = self.edges[e]
+            return b.EdgeHeatFlows[e, t] == (b.Temperatures[e_ob.start, t] - b.Temperatures[e_ob.stop, t])/e_ob.R
+
+        self.block.heat_flow = Constraint(self.block.edge_names, self.model.TIME, rule=_heat_flow)
+
+        ##### Limit temperatures
+
+        def _limit_temperature(b, s, t):
+            s_ob = self.states[s]
+            if s_ob.state_type == 'None':
+                return Constraint.Skip
+            elif s_ob.state_type == 'day':
+                max_temp = self.params['day_max_temperature'].v(t)
+                min_temp = self.params['day_min_temperature'].v(t)
+            elif s_ob.state_type == 'night':
+                max_temp = self.params['night_max_temperature'].v(t)
+                min_temp = self.params['night_min_temperature'].v(t)
+            elif s_ob.state_type == 'bathroom':
+                max_temp = self.params['bathroom_max_temperature'].v(t)
+                min_temp = self.params['bathroom_min_temperature'].v(t)
+            else:
+                raise Exception('No valid type of state type was given')
+
+            return min_temp <= b.Temperatures[s, t] <= max_temp
+
+        # TODO Add temperature inputs
+        # TODO Add heat inputs
+
 
     def create_params(self):
         params = {
