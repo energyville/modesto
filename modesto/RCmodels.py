@@ -68,7 +68,7 @@ class RCmodel(Component):
             raise KeyError('{} is not a component of the RC-model {}'.format(comp, self.name))
 
         if property not in self.structure[comp_type][comp]:
-            raise KeyError('{} is not a property of the {} component of the RC-model {}'.format(property, state, self.name))
+            raise KeyError('{} is not a property of the {} component of the RC-model {}'.format(property, comp, self.name))
 
         return self.structure[comp_type][comp][property]
 
@@ -268,7 +268,7 @@ class State:
         self.edges = edges
 
         self.state_types = ['day', 'night', 'bathroom', 'None']
-        if state_type is not in self.state_types:
+        if state_type not in self.state_types:
             raise ValueError('The type of state should be one of the following types: {}'.format(self.state_types))
         self.state_type = state_type
 
