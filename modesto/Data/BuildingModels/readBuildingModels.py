@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
+import os
 
+print os.getcwd()
 
 def get_file_names():
     filenames = ['Gebouweigenschappen SFH_D_1_2zone.xlsx',
@@ -57,6 +59,8 @@ def read_excel_sheet(filename, sheet):
 
 index = read_excel_sheet('Gebouweigenschappen SFH_D_1_2zone.xlsx', 'Gebouwgegevens Tabula 2zone').index
 
+totaldf = pd.DataFrame(index= index)
+
 for file_name in get_file_names():
     for sheet_name in get_sheet_names():
         print '\nExcel file: ', file_name
@@ -66,5 +70,13 @@ for file_name in get_file_names():
             pass
         elif not index.equals(df.index):
             raise Exception('{} in {} does not give a correct result'.format(sheet_name, file_name))
+        else:
+            filnamtrim = file_name.split(' ')[1].split('.')[0]
+            modelname = {
+                'Gebouwgegevens Tabula 2zone': 'TAB', 'Tabula RefULG 1': 'REF1', 'Tabula RefULG 2':'REF2'
+            }
+            totaldf['_'.join([filnamtrim, modelname[sheet_name]])] = df['value']
+            totaldf.to_csv('buildParamSummary.csv', sep=';')
+
 
 print 'Test succeeded'
