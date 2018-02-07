@@ -27,7 +27,7 @@ def get_file_names():
 
 def get_sheet_names():
 
-    sheets = ['Gebouwgegevens Tabula 2zone', 'Tabula RefULG1', 'Tabula RefULG2']
+    sheets = ['Gebouwgegevens Tabula 2zone', 'Tabula RefULG 1', 'Tabula RefULG 2']
 
     return sheets
 
@@ -38,22 +38,33 @@ def read_excel_sheet(filename, sheet):
         raise ValueError('{} is not a valid filename'.format(filename))
     if sheet not in get_sheet_names():
         raise ValueError('{} is not a valid sheet name'.format(sheet))
+    if '5' in filename and (sheet == 'Tabula RefULG 1' or sheet == 'Tabula RefULG 2'):
+        print 'Warning: No Building models are available for {}.{}'.format(filename, sheet)
+        return None
 
-    df = pd.read_excel(io=filename, sheet_name=sheet, skiprows=3, usecols='DC:DF', names=['param', '=', 'value'])
-    del df['=']
-    print df
+    df = pd.read_excel(io=filename, sheet_name=sheet, skiprows=2)
+
+    columns_to_be_removed = range(0, list(df).index('SolNESW THEO')) + \
+                            range(list(df).index('SolNESW THEO')+4, len(df.columns))
+    df = df.drop(df.columns[columns_to_be_removed], axis=1)
+
+    df.columns = ['type', 'param', '=', 'value']
+
     df = df[np.isfinite(df['value'])]
     df = df.set_index('param', drop=True)
+
     return df
 
 index = read_excel_sheet('Gebouweigenschappen SFH_D_1_2zone.xlsx', 'Gebouwgegevens Tabula 2zone').index
 
 for file_name in get_file_names():
     for sheet_name in get_sheet_names():
-        print '\nNew file:'
-        print file_name
-        print sheet_name
-        if not index.equals(read_excel_sheet(file_name, sheet_name).index):
+        print '\nExcel file: ', file_name
+        print 'SHeet name: ', sheet_name
+        df = read_excel_sheet(file_name, sheet_name)
+        if df is None:
+            pass
+        elif not index.equals(df.index):
             raise Exception('{} in {} does not give a correct result'.format(sheet_name, file_name))
 
 print 'Test succeeded'
