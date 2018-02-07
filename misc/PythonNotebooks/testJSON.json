@@ -1,0 +1,47 @@
+{
+    "directed": false, 
+    "graph": {}, 
+    "nodes": [
+        {
+            "state_type": "day", 
+            "C": 1000, 
+            "heat_source": {
+                "Q_sol": 0.05
+            }, 
+            "id": "A"
+        }, 
+        {
+            "state_type": "night", 
+            "C": 2000, 
+            "heat_source": {
+                "Q_int": 0.7
+            }, 
+            "id": "C"
+        }, 
+        {
+            "state_type": "floor", 
+            "C": 500, 
+            "heat_source": {
+                "Q_int": 0.3
+            }, 
+            "id": "B"
+        }, 
+        {
+            "T_fix": "T_e", 
+            "id": "Te"
+        }
+    ], 
+    "links": [
+        {
+            "source": "A", 
+            "R": 100, 
+            "target": "B"
+        }, 
+        {
+            "source": "C", 
+            "R": 50, 
+            "target": "B"
+        }
+    ], 
+    "multigraph": false
+}

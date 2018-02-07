@@ -1,3 +1,8 @@
+"""
+Module to read and build optimization problem equations for building models, described by an RC-equivalent circuit.
+
+"""
+
 from __future__ import division
 
 from modesto.component import Component
