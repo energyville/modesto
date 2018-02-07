@@ -41,6 +41,11 @@
             "source": "C", 
             "R": 50, 
             "target": "B"
+        }, 
+        {
+            "source": "B", 
+            "R": 150, 
+            "target": "Te"
         }
     ], 
     "multigraph": false
