@@ -4,6 +4,7 @@ import collections
 from math import sqrt
 
 import component as co
+import RCmodels as rc
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -282,13 +283,14 @@ class Modesto:
         missing_params[None]['general'] = {}
         for name, param in self.params.items():
             if not param.check():
-                print param
                 missing_params[None]['general'][name] = param.get_description()
                 flag = True
 
         for node, comp_list in self.components.items():
             for comp, comp_obj in comp_list.items():
-                missing_params[node][comp], flag = comp_obj.check_data()
+                missing_params[node][comp], flag_comp = comp_obj.check_data()
+                if flag_comp:
+                    flag = True
 
         if flag:
             raise Exception('Following parameters are missing:\n{}'
@@ -871,7 +873,11 @@ class Node(object):
         try:
             cls = co.str_to_comp(ctype)
         except AttributeError:
-            cls = None
+            try:
+                cls = rc.str_to_comp(ctype)
+            except AttributeError:
+                cls = None
+
 
         if cls:
             obj = cls(name=name, start_time=self.start_time, horizon=self.horizon,
