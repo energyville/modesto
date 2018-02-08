@@ -214,8 +214,8 @@ class RCmodel(Component):
         self.block.StateTemperatures = Var(self.block.state_names, self.model.TIME)
         self.block.StateHeatFlows = Var(self.block.state_names, self.model.TIME)
         self.block.EdgeHeatFlows = Var(self.block.edge_names, self.model.TIME)
-        self.block.mass_flow = Var(self.block.TIME)
-        self.block.heat_flow = Var(self.block.TIME)
+        self.block.mass_flow = Var(self.model.TIME)
+        self.block.heat_flow = Var(self.model.TIME)
 
         ##### Parameters
 
@@ -231,7 +231,7 @@ class RCmodel(Component):
             else:
                 return sum(self.params[i].v(t) for i in incoming_heat_names)
 
-        self.block.state_heat = Param(self.block.states, self.model.TIME, rule=decl_state_heat)
+        self.block.state_heat = Param(self.block.state_names, self.model.TIME, rule=decl_state_heat)
 
         ##### State temperature
 
@@ -243,7 +243,7 @@ class RCmodel(Component):
             else:
                 return b.StateTemperatures[s, t] == self.params[temp_name].v(t)
 
-        self.block.state_temp = Constraint(self.block.states, self.block.TIME, rule=decl_state_temp)
+        self.block.state_temp = Constraint(self.block.state_names, self.model.TIME, rule=decl_state_temp)
 
         ##### State energy balances
 
@@ -265,11 +265,11 @@ class RCmodel(Component):
 
         ##### Heat flow through edge
 
-        def _heat_flow(b, e, t):
+        def _edge_heat_flow(b, e, t):
             e_ob = self.edges[e]
             return b.EdgeHeatFlows[e, t] == (b.Temperatures[e_ob.start, t] - b.Temperatures[e_ob.stop, t])/e_ob.R
 
-        self.block.heat_flow = Constraint(self.block.edge_names, self.model.TIME, rule=_heat_flow)
+        self.block.edge_heat_flow = Constraint(self.block.edge_names, self.model.TIME, rule=_edge_heat_flow)
 
         ##### Limit temperatures
 
@@ -291,58 +291,63 @@ class RCmodel(Component):
 
             return min_temp <= b.Temperatures[s, t] <= max_temp
 
-        self.block.limit_temperatures = Constraint(self.block.states, self.block.TIME, rule=_limit_temperature)
+        self.block.limit_temperatures = Constraint(self.block.state_names, self.model.TIME, rule=_limit_temperature)
 
         ##### Substation model
 
-        mult = self.params['mult']
-        delta_T = self.params['delta_T']
-        heat_profile = self.params['heat_profile']
+        mult = self.params['mult'].v()
+        delta_T = self.params['delta_T'].v()
 
-        def _mass_flow(b, t):
-            return mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
+        def decl_heat_flow(b, t):
+            # TODO Find good way to find control inputs
+            return b.heat_flow[t] == mult*0
 
-        def _heat_flow(b, t):
-            return mult.v() * heat_profile.v(t)
+        self.block.decl_heat_flow = Constraint(self.model.TIME, rule=decl_heat_flow)
+
+        def decl_mass_flow(b, t):
+            return b.mass_flow[t] == mult * b.heat_flow[t] / self.cp / delta_T
+
+        self.block.decl_mass_flow = Constraint(self.model.TIME, rule=decl_mass_flow)
 
         if self.temperature_driven:
-            self.block.temperatures = Var(self.model.TIME, self.model.lines)
-
-            def _decl_temperatures(b, t):
-                if t == 0:
-                    return Constraint.Skip
-                elif b.mass_flow[t] == 0:
-                    return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
-                else:
-                    return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
-                           b.heat_flow[t] / b.mass_flow[t] / self.cp
-
-            def _init_temperatures(b, l):
-                return b.temperatures[0, l] == self.params['temperature_' + l].v()
-
-            uslack = self.make_slack('temperature_max_uslack', self.model.TIME)
-            lslack = self.make_slack('temperature_max_l_slack', self.model.TIME)
-
-            ub = self.params['temperature_max'].v()
-            lb = self.params['temperature_min'].v()
-
-            def _max_temp_ss(b, t):
-                return self.constrain_value(b.temperatures[t, 'supply'],
-                                            ub,
-                                            ub=True,
-                                            slack_variable=uslack[t])
-
-            def _min_temp_ss(b, t):
-                return self.constrain_value(b.temperatures[t, 'supply'],
-                                            lb,
-                                            ub=False,
-                                            slack_variable=lslack[t])
-
-            self.block.max_temp_ss = Constraint(self.model.TIME, rule=_max_temp_ss)
-            self.block.min_temp_ss = Constraint(self.model.TIME, rule=_min_temp_ss)
-
-            self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
-            self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
+            print 'WARNING: No temperature variable model implemented (yet)'
+            # self.block.temperatures = Var(self.model.TIME, self.model.lines)
+            #
+            # def _decl_temperatures(b, t):
+            #     if t == 0:
+            #         return Constraint.Skip
+            #     elif b.mass_flow[t] == 0:
+            #         return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
+            #     else:
+            #         return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
+            #                b.heat_flow[t] / b.mass_flow[t] / self.cp
+            #
+            # def _init_temperatures(b, l):
+            #     return b.temperatures[0, l] == self.params['temperature_' + l].v()
+            #
+            # uslack = self.make_slack('temperature_max_uslack', self.model.TIME)
+            # lslack = self.make_slack('temperature_max_l_slack', self.model.TIME)
+            #
+            # ub = self.params['temperature_max'].v()
+            # lb = self.params['temperature_min'].v()
+            #
+            # def _max_temp_ss(b, t):
+            #     return self.constrain_value(b.temperatures[t, 'supply'],
+            #                                 ub,
+            #                                 ub=True,
+            #                                 slack_variable=uslack[t])
+            #
+            # def _min_temp_ss(b, t):
+            #     return self.constrain_value(b.temperatures[t, 'supply'],
+            #                                 lb,
+            #                                 ub=False,
+            #                                 slack_variable=lslack[t])
+            #
+            # self.block.max_temp_ss = Constraint(self.model.TIME, rule=_max_temp_ss)
+            # self.block.min_temp_ss = Constraint(self.model.TIME, rule=_min_temp_ss)
+            #
+            # self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
+            # self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
 
     def create_params(self):
         params = {
