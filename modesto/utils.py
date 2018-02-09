@@ -130,3 +130,4 @@ def expand_df(df, start_year=2014):
     after.index = after.index + pd.DateOffset(years=1)
 
     return pd.concat([before, data, after])
+

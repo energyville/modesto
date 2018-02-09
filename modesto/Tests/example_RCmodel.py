@@ -57,8 +57,12 @@ def construct_model():
     ##################################
 
     heat_profile = ut.read_time_data('../Data/HeatDemand/Initialized', name='HeatDemandFiltered.csv')
-    t_amb = ut.read_time_data('../Data/Weather', name='extT.csv')['Te']
-    t_g = pd.Series(12 + 273.15, index=t_amb.index)
+    t_amb = ut.read_time_data('../Data/Weather', name='weatherData.csv')['Te']
+    t_g = ut.read_time_data('../Data/Weather', name='weatherData.csv')['Tg']
+    QsolN = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolN']
+    QsolE = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolS']
+    QsolS = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolN']
+    QsolW = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolW']
 
     optmodel.opt_settings(allow_flow_reversal=True)
 
@@ -82,10 +86,10 @@ def construct_model():
                           'floor_min_temperature': pd.Series(16 + 273.15, index=t_amb.index),
                           'floor_max_temperature': pd.Series(24 + 273.15, index=t_amb.index),
                           'model_type': 'SFH_D_1_2zone_TAB',
-                          'Q_sol_E': pd.Series(1, index=t_amb.index),
-                          'Q_sol_W': pd.Series(1, index=t_amb.index),
-                          'Q_sol_S': pd.Series(1, index=t_amb.index),
-                          'Q_sol_N': pd.Series(1, index=t_amb.index),
+                          'Q_sol_E': QsolE,
+                          'Q_sol_W': QsolW,
+                          'Q_sol_S': QsolS,
+                          'Q_sol_N': QsolN,
                           'Q_int_D': pd.Series(1, index=t_amb.index),
                           'Q_int_N': pd.Series(1, index=t_amb.index),
                           'Te':  pd.Series(12 + 273.15, index=t_amb.index),
