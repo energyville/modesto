@@ -1,3 +1,5 @@
+from __future__ import division
+
 import logging
 
 import matplotlib.pyplot as plt
@@ -63,6 +65,16 @@ def construct_model():
     QsolE = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolS']
     QsolS = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolN']
     QsolW = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolW']
+    day_max = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['day_max']
+    day_min = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['day_min']
+    night_max = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['night_max']
+    night_min = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['night_min']
+    bathroom_max = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['bathroom_max']
+    bathroom_min = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['bathroom_min']
+    floor_max = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['floor_max']
+    floor_min = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['floor_min']
+    Q_int_D = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['Q_int_D']
+    Q_int_N = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['Q_int_N']
 
     optmodel.opt_settings(allow_flow_reversal=True)
 
@@ -77,23 +89,23 @@ def construct_model():
 
     zw_building_params = {'delta_T': 20,
                           'mult': 100,
-                          'night_min_temperature': pd.Series(16 + 273.15, index=t_amb.index),
-                          'night_max_temperature': pd.Series(24 + 273.15, index=t_amb.index),
-                          'day_min_temperature': pd.Series(16 + 273.15, index=t_amb.index),
-                          'day_max_temperature': pd.Series(24 + 273.15, index=t_amb.index),
-                          'bathroom_min_temperature': pd.Series(16 + 273.15, index=t_amb.index),
-                          'bathroom_max_temperature': pd.Series(24 + 273.15, index=t_amb.index),
-                          'floor_min_temperature': pd.Series(16 + 273.15, index=t_amb.index),
-                          'floor_max_temperature': pd.Series(24 + 273.15, index=t_amb.index),
+                          'night_min_temperature': night_min,
+                          'night_max_temperature': night_max,
+                          'day_min_temperature': day_min,
+                          'day_max_temperature': day_max,
+                          'bathroom_min_temperature': bathroom_min,
+                          'bathroom_max_temperature': bathroom_max,
+                          'floor_min_temperature': floor_min,
+                          'floor_max_temperature': floor_max,
                           'model_type': 'SFH_D_1_2zone_TAB',
                           'Q_sol_E': QsolE,
                           'Q_sol_W': QsolW,
                           'Q_sol_S': QsolS,
                           'Q_sol_N': QsolN,
-                          'Q_int_D': pd.Series(1, index=t_amb.index),
-                          'Q_int_N': pd.Series(1, index=t_amb.index),
-                          'Te':  pd.Series(12 + 273.15, index=t_amb.index),
-                          'Tg': pd.Series(12 + 273.15, index=t_amb.index),
+                          'Q_int_D': Q_int_D,
+                          'Q_int_N': Q_int_N,
+                          'Te':  t_amb,
+                          'Tg': t_g,
                           'TiD0': 17 + 273.15,
                           'TflD0': 15 + 273.15,
                           'TwiD0': 17 + 273.15,
