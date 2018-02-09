@@ -110,20 +110,20 @@ class RCmodel(Component):
                    Q_fix={'Q_sol_N': bp['abs4ND'], 'Q_sol_E': bp['abs4ED'], 'Q_sol_S': bp['abs4SD'],
                       'Q_sol_W': bp['abs4WD'], 'Q_int_D': bp['f4D']},
                    Q_control={'Q_hea_D': bp['f4D']},
-                   state_type='day')
+                   state_type=None)
         G.add_node('TwiD',
                    C=bp['CwiD'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs2ND'], 'Q_sol_E': bp['abs2ED'], 'Q_sol_S': bp['abs2SD'],
                       'Q_sol_W': bp['abs2WD'], 'Q_int_D': bp['f2D']},
                    Q_control={'Q_hea_D': bp['f2D']},
-                   state_type='day')
+                   state_type=None)
         G.add_node('TwD',
                    C=bp['CwD'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs1ND'], 'Q_sol_E': bp['abs1ED'], 'Q_sol_S': bp['abs1SD'],
                       'Q_sol_W': bp['abs1WD'], 'Q_int_D': bp['f1D']},
-                   Q_control={'Q_hea_D': bp['f1D']}, state_type='day')
+                   Q_control={'Q_hea_D': bp['f1D']}, state_type=None)
 
         # Internal floor
         G.add_node('TfiD',
@@ -132,14 +132,14 @@ class RCmodel(Component):
                    Q_fix={'Q_sol_N': bp['abs5ND'], 'Q_sol_E': bp['abs5ED'], 'Q_sol_S': bp['abs5SD'],
                       'Q_sol_W': bp['abs5WD'], 'Q_int_D': bp['f5D']},
                    Q_control={'Q_hea_D': bp['f5D']},
-                   state_type='floor')
+                   state_type=None)
         G.add_node('TfiN',
                    C=bp['CfiD'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs5NN'], 'Q_sol_E': bp['abs5EN'], 'Q_sol_S': bp['abs5SN'],
                       'Q_sol_W': bp['abs5WN'], 'Q_int_N': bp['f5N']},
                    Q_control={'Q_hea_N': bp['f5N']},
-                   state_type='floor')
+                   state_type=None)
 
         # Night zone
         G.add_node('TiN',
@@ -155,14 +155,14 @@ class RCmodel(Component):
                    Q_fix={'Q_sol_N': bp['abs2NN'], 'Q_sol_E': bp['abs2EN'], 'Q_sol_S': bp['abs2SN'],
                       'Q_sol_W': bp['abs2WN'], 'Q_int_N': bp['f2N']},
                    Q_control={'Q_hea_N': bp['f2N']},
-                   state_type='night')
+                   state_type=None)
         G.add_node('TwN',
                    C=bp['CwN'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs1NN'], 'Q_sol_E': bp['abs1EN'], 'Q_sol_S': bp['abs1SN'],
                       'Q_sol_W': bp['abs1WN'], 'Q_int_N': bp['f1N']},
                    Q_control={'Q_hea_N': bp['f1N']},
-                   state_type='night')
+                   state_type=None)
 
         # External temperatures
         G.add_node('Te',
@@ -290,8 +290,6 @@ class RCmodel(Component):
 
         self.block.init_temp = Constraint(self.block.control_states, rule=_init_temp)
 
-        self.block.init_temp.pprint()
-
         ##### Heat flow through edge
 
         def _edge_heat_flow(b, e, t):
@@ -362,10 +360,12 @@ class RCmodel(Component):
         self.block.max_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_max_temp)
         self.block.min_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_min_temp)
 
+        self.block.min_temp.pprint()
+        self.block.StateTemperatures.pprint()
         ##### Limit heat flows
 
         def _limit_heat_flows(b, i, t):
-            return 0 <= b.ControlHeatFlows[i, t] <= 10000
+            return 0 <= b.ControlHeatFlows[i, t] <= 100000
 
         self.block.limit_heat_flows = Constraint(self.block.control_variables, self.model.TIME, rule=_limit_heat_flows)
 
@@ -381,7 +381,7 @@ class RCmodel(Component):
         self.block.decl_heat_flow = Constraint(self.model.TIME, rule=decl_heat_flow)
 
         def decl_mass_flow(b, t):
-            return b.mass_flow[t] == mult * b.heat_flow[t] / self.cp / delta_T
+            return b.mass_flow[t] == b.heat_flow[t] / self.cp / delta_T
 
         self.block.decl_mass_flow = Constraint(self.model.TIME, rule=decl_mass_flow)
 

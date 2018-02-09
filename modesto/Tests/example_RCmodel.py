@@ -20,6 +20,11 @@ logger = logging.getLogger('Main.py')
 # Set up Graph of network #
 ###########################
 
+
+n_steps = 24*2
+time_step = 3600
+start_time = pd.Timestamp('20140104')
+
 def construct_model():
     G = nx.DiGraph()
 
@@ -46,19 +51,14 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 5
-    time_step = 3600
-    start_time = pd.Timestamp('20140104')
-
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='SimplePipe', graph=G,
+                       pipe_model='ExtensivePipe', graph=G,
                        start_time=start_time)
 
     ##################################
     # Fill in the parameters         #
     ##################################
 
-    heat_profile = ut.read_time_data('../Data/HeatDemand/Initialized', name='HeatDemandFiltered.csv')
     t_amb = ut.read_time_data('../Data/Weather', name='weatherData.csv')['Te']
     t_g = ut.read_time_data('../Data/Weather', name='weatherData.csv')['Tg']
     QsolN = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolN']
@@ -97,7 +97,7 @@ def construct_model():
                           'bathroom_max_temperature': bathroom_max,
                           'floor_min_temperature': floor_min,
                           'floor_max_temperature': floor_max,
-                          'model_type': 'SFH_D_1_2zone_TAB',
+                          'model_type': 'SFH_T_5_ins_TAB',
                           'Q_sol_E': QsolE,
                           'Q_sol_W': QsolW,
                           'Q_sol_S': QsolS,
@@ -106,15 +106,15 @@ def construct_model():
                           'Q_int_N': Q_int_N,
                           'Te':  t_amb,
                           'Tg': t_g,
-                          'TiD0': 17 + 273.15,
-                          'TflD0': 15 + 273.15,
-                          'TwiD0': 17 + 273.15,
-                          'TwD0': 17 + 273.15,
-                          'TfiD0': 17 + 273.15,
-                          'TfiN0': 17 + 273.15,
-                          'TiN0': 17 + 273.15,
-                          'TwiN0': 17 + 273.15,
-                          'TwN0': 17 + 273.15,
+                          'TiD0': 20 + 273.15,
+                          'TflD0': 20 + 273.15,
+                          'TwiD0': 20 + 273.15,
+                          'TwD0': 20 + 273.15,
+                          'TfiD0': 20 + 273.15,
+                          'TfiN0': 20 + 273.15,
+                          'TiN0': 20 + 273.15,
+                          'TwiN0': 20 + 273.15,
+                          'TwN0': 20 + 273.15,
                           }
 
     ws_building_params = zw_building_params.copy()
@@ -167,6 +167,7 @@ def construct_model():
 
     c_f = ut.read_time_data(path='../Data/ElectricityPrices',
                               name='DAM_electricity_prices-2014_BE.csv')['price_BE']
+    # cf = pd.Series(0.5, index=t_amb.index)
 
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
@@ -199,7 +200,7 @@ def construct_model():
 if __name__ == '__main__':
     optmodel = construct_model()
     optmodel.compile()
-    optmodel.set_objective('cost')
+    optmodel.set_objective('energy')
 
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
@@ -211,25 +212,42 @@ if __name__ == '__main__':
     # Collect result                 #
     ##################################
 
-    print '\nWaterschei.buildingD'
-    print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden',
-                                           comp='buildingD')
-
-    print '\nzwartbergNE.buildingD'
-    print 'Heat flow', optmodel.get_result('heat_flow', node='zwartbergNE',
-                                           comp='buildingD')
-    TiD = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+    # print '\nWaterschei.buildingD'
+    # print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden',
+    #                                        comp='buildingD')
+    TiD_ws = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
                                            comp='buildingD', index='TiD', state=True)
-    Q_hea_D = optmodel.get_result('ControlHeatFlows', node='zwartbergNE',
+    TiN_ws = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
+                                           comp='buildingD', index='TiN', state=True)
+    Q_hea_D_ws = optmodel.get_result('ControlHeatFlows', node='waterscheiGarden',
                                              comp='buildingD', index='Q_hea_D')
-    Q_TiD = optmodel.get_result('StateHeatFlows', node='zwartbergNE',
-                                                    comp='buildingD', index='TiD')
-    Q_TiDTe = optmodel.get_result('EdgeHeatFlows', node='zwartbergNE',
-                                                    comp='buildingD', index='TiDTe')
-    print 'Temperature\n', TiD
-    print 'Control heat flows \n', Q_hea_D
-    print 'State heat flows \n', Q_TiD
-    print 'Edge heat flow \n', Q_TiDTe
+    Q_hea_N_ws = optmodel.get_result('ControlHeatFlows', node='waterscheiGarden',
+                                             comp='buildingD', index='Q_hea_N')
+    # print '\nzwartbergNE.buildingD'
+    # print 'Heat flow', optmodel.get_result('heat_flow', node='zwartbergNE',
+    #                                        comp='buildingD')
+    TiD_zw = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TiD', state=True)
+    TflD_zw = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TflD', state=True)
+    TwiD_zw = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TwiD', state=True)
+    TwD_zw = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TwD', state=True)
+    TfiD_zw = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TfiD', state=True)
+    TfiN_zw = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TfiN', state=True)
+    TiN_zw = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TiN', state=True)
+    TwiN_zw = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TwiN', state=True)
+    TwN_zw = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TwN', state=True)
+    Q_hea_D_zw = optmodel.get_result('ControlHeatFlows', node='zwartbergNE',
+                                             comp='buildingD', index='Q_hea_D')
+    Q_hea_N_zw = optmodel.get_result('ControlHeatFlows', node='zwartbergNE',
+                                             comp='buildingD', index='Q_hea_N')
 
     # print '\nthorPark'
     # print 'Heat flow', optmodel.get_result('heat_flow', node='ThorPark',
@@ -301,19 +319,18 @@ if __name__ == '__main__':
     ax.plot(prod_hf, label='Producer')
     ax.plot(waterschei_hf + storage_hf + zwartberg_hf, label='Users and storage')  # , )])  #
     ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
-
     ax.set_title('Heat flows [W]')
-
-    ax.legend(loc='lower center', ncol=3)
+    ax.legend()
     fig.tight_layout()
 
     fig2, ax2 = plt.subplots()
 
-    ax2.plot(storage_soc, label='Stored heat [kWh]')
+    l1 = ax2.plot(storage_soc, label='Stored heat [kWh]')
     ax2b = ax2.twinx()
-    ax2b.plot(storage_hf, color='g', linestyle='--', label="Charged heat")
-    ax2.legend()
-    ax2b.legend()
+    l2 = ax2b.plot(storage_hf, color='g', linestyle='--', label="Charged heat")
+    # ax2.legend()
+    # ax2b.legend()
+    ax.legend(l1, l2)
     ax2b.set_ylabel('(dis)charged heat [W]')
     fig2.suptitle('Storage')
     #ax2.tight_layout()
@@ -328,5 +345,63 @@ if __name__ == '__main__':
     ax3.legend()
     ax3.set_ylabel('Heat Flow [W]')
     #ax3.tight_layout()
+
+    fig4 = plt.figure()
+
+    ax4 = fig4.add_subplot(221)
+    ax4.plot(TiD_ws, label='Waterschei')
+    ax4.plot(TiD_zw, label="Zwartberg")
+    ax4.legend()
+    ax4.set_ylabel('Day zone temperatures')
+
+    ax5 = fig4.add_subplot(222)
+    ax5.plot(TiN_ws, label='Waterschei')
+    ax5.plot(TiN_zw, label="Zwartberg")
+    ax5.legend()
+    ax5.set_ylabel('Night zone temperatures')
+
+    ax4 = fig4.add_subplot(223)
+    ax4.plot(Q_hea_D_ws, label='Waterschei')
+    ax4.plot(Q_hea_D_zw, label="Zwartberg")
+    ax4.legend()
+    ax4.set_ylabel('Day zone heat [W]')
+
+    ax5 = fig4.add_subplot(224)
+    ax5.plot(Q_hea_N_ws, label='Waterschei')
+    ax5.plot(Q_hea_N_zw, label="Zwartberg")
+    ax5.legend()
+    ax5.set_ylabel('Night zone heat [W]')
+    #ax3.tight_layout()
+
+    fig5 = plt.figure()
+    day_max = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
+                                  time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['day_max']
+    day_min = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
+                                  time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['day_min']
+    night_max = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
+                                    time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['night_max']
+    night_min = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
+                                    time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['night_min']
+
+    ax5 = fig5.add_subplot(211)
+    ax5.plot(TiD_zw, label='TiD')
+    ax5.plot(TflD_zw, label='TflD')
+    ax5.plot(TwiD_zw, label='TwiD')
+    ax5.plot(TwD_zw, label='TwD')
+    ax5.plot(TfiD_zw, label='TfiD')
+    ax5.plot(day_max, label='maximum', linestyle='--', color='k')
+    ax5.plot(day_min, label='minimum', linestyle='--', color='k')
+    ax5.legend()
+    ax5.set_ylabel('State temperatures [W]')
+    ax6 = fig5.add_subplot(212)
+    ax6.plot(TfiN_zw, label='TfiN')
+    ax6.plot(TiN_zw, label='TiN')
+    ax6.plot(TwiN_zw, label='TwiN')
+    ax6.plot(TwN_zw, label='TwN')
+    ax6.plot(night_max, label='maximum', linestyle='--', color='k')
+    ax6.plot(night_min, label='minimum', linestyle='--', color='k')
+    ax6.legend()
+    ax6.set_ylabel('State temperatures [W]')
+
 
     plt.show()
