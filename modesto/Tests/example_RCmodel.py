@@ -46,7 +46,7 @@ def construct_model():
 
     n_steps = 24*7
     time_step = 3600
-    start_time = pd.Timestamp('20140604')
+    start_time = pd.Timestamp('20140104')
 
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
                        pipe_model='SimplePipe', graph=G,
@@ -72,21 +72,39 @@ def construct_model():
     # building parameters
 
     zw_building_params = {'delta_T': 20,
-                          'mult': 1,
+                          'mult': 100,
                           'night_min_temperature': pd.Series(16 + 273.15, index=t_amb.index),
                           'night_max_temperature': pd.Series(24 + 273.15, index=t_amb.index),
                           'day_min_temperature': pd.Series(16 + 273.15, index=t_amb.index),
                           'day_max_temperature': pd.Series(24 + 273.15, index=t_amb.index),
                           'bathroom_min_temperature': pd.Series(16 + 273.15, index=t_amb.index),
                           'bathroom_max_temperature': pd.Series(24 + 273.15, index=t_amb.index),
-                          'model_type': 'SFH_D_1_2zone_TAB'
+                          'floor_min_temperature': pd.Series(16 + 273.15, index=t_amb.index),
+                          'floor_max_temperature': pd.Series(24 + 273.15, index=t_amb.index),
+                          'model_type': 'SFH_D_1_2zone_TAB',
+                          'Q_sol_E': pd.Series(1, index=t_amb.index),
+                          'Q_sol_W': pd.Series(1, index=t_amb.index),
+                          'Q_sol_S': pd.Series(1, index=t_amb.index),
+                          'Q_sol_N': pd.Series(1, index=t_amb.index),
+                          'Q_int_D': pd.Series(1, index=t_amb.index),
+                          'Q_int_N': pd.Series(1, index=t_amb.index),
+                          'Te':  pd.Series(12 + 273.15, index=t_amb.index),
+                          'Tg': pd.Series(12 + 273.15, index=t_amb.index),
+                          'TiD0': 17+273.15,
+                          'TflD0': 17 + 273.15,
+                          'TwiD0': 17 + 273.15,
+                          'TwD0': 17 + 273.15,
+                          'TfiD0': 17 + 273.15,
+                          'TfiN0': 17 + 273.15,
+                          'TiN0': 17 + 273.15,
+                          'TwiN0': 17 + 273.15,
+                          'TwN0': 17 + 273.15,
                           }
 
     ws_building_params = zw_building_params.copy()
-    ws_building_params['mult'] = 1
+    ws_building_params['mult'] = 200
     ws_building_params['model_type'] = 'SFH_T_5_ins_TAB'
 
-    optmodel.print_comp_param('zwartbergNE', 'buildingD')
     optmodel.change_params(zw_building_params, node='zwartbergNE',
                            comp='buildingD')
     optmodel.change_params(ws_building_params, node='waterscheiGarden',
@@ -181,6 +199,18 @@ if __name__ == '__main__':
     print '\nzwartbergNE.buildingD'
     print 'Heat flow', optmodel.get_result('heat_flow', node='zwartbergNE',
                                            comp='buildingD')
+    TiD = optmodel.get_result('StateTemperatures', node='zwartbergNE',
+                                           comp='buildingD', index='TiD')
+    Q_hea_D = optmodel.get_result('ControlHeatFlows', node='zwartbergNE',
+                                             comp='buildingD', index='Q_hea_D')
+    Q_TiD = optmodel.get_result('StateHeatFlows', node='zwartbergNE',
+                                                    comp='buildingD', index='TiD')
+    Q_TiDTe = optmodel.get_result('EdgeHeatFlows', node='zwartbergNE',
+                                                    comp='buildingD', index='TiDTe')
+    print 'Temperature\n', TiD
+    print 'Control heat flows \n', Q_hea_D
+    print 'State heat flows \n', Q_TiD
+    print 'Edge heat flow \n', Q_TiDTe
 
     # print '\nthorPark'
     # print 'Heat flow', optmodel.get_result('heat_flow', node='ThorPark',

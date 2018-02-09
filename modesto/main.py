@@ -518,7 +518,7 @@ class Modesto:
 
             else:
                 for i in self.model.TIME:
-                    result.append(opt_obj[(i, index)].value)
+                    result.append(opt_obj[(index, i)].value)
                 timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
                                              periods=len(result))
                 result = pd.Series(data=result, index=timeindex, name=resname + '_' + str(index))

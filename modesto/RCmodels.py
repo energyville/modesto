@@ -14,7 +14,7 @@ import networkx as nx
 import pandas as pd
 import os
 import modesto.utils as ut
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
 from pkg_resources import resource_filename
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, Set
 
@@ -59,6 +59,7 @@ class RCmodel(Component):
         self.structure = None
         self.states = {}
         self.edges = {}
+        self.controlVariables = []
 
     def build(self):
         """
@@ -73,50 +74,17 @@ class RCmodel(Component):
                                        node_object=self.structure.nodes[state])
 
         for edge in self.structure.edges():
-            self.edges[edge] = Edge(name=edge,
-                                    edge_object=self.structure.edges[edge])
-
-    def get_property(self, comp_type, comp, property):
-        """
-        Get a state property
-
-        :param comp_type: Type of component, can be either 'states' or 'edges'
-        :param state: Name of the state
-        :return: Type of room
-        """
-        if comp_type == 'states':
-            if comp not in self.structure:
-                raise KeyError('{} is not a component of the RC-model {}'.format(comp, self.name))
-            try:
-                return self.structure.nodes[comp][property]
-            except:
-                raise KeyError(
-                    '{} is not a property of the {} component of the RC-model {}'.format(property, comp, self.name))
-        else:
-            raise KeyError('{} is not allowed. Choose either edges or states as comp_type input'.format(comp_type))
-
-    def get_state_type(self, state):
-        """
-        Get the type of room of a state
-
-        :param state: Name of the state
-        :return: Type of room
-        """
-
-        return self.get_property('states', state, 'state_type')
-
-    def get_edges(self, state):
-        """
-        Get all the names of the edges connected to a state and their direction
-
-        :param state: Name of the state
-        :return: A dictionary, keys are edge names and values are direction (+1 is into node, -1 is out of the node)
-        """
-        edges = {}
-
-        return edges
+            self.edges[''.join(edge)] = Edge(name=''.join(edge),
+                                             tuple = edge,
+                                             edge_object=self.structure.edges[edge])
 
     def get_model_data(self, model_type):
+        """
+        Set up networkX object describing model structure
+
+        :param model_type: Type of model indicating parameters of a specific type of model
+        :return: NetworkX object
+        """
         if model_type not in self.model_types:
             raise ValueError('The given model type {} is not valid.'.format(model_type))
 
@@ -129,50 +97,86 @@ class RCmodel(Component):
         bp = model_params[model_type]
 
         # Day zone
-        G.add_node('TiD', C=bp['CiD'], T_fix=None,
-                   Q={'Q_sol_N': bp['abs3ND'], 'Q_sol_E': bp['abs3ED'], 'Q_sol_S': bp['abs3SD'],
-                      'Q_sol_W': bp['abs3WD'],
-                      'Q_int_D': bp['f3D'], 'Q_hea_D': bp['f3D']}, state_type='day')
-        G.add_node('TflD', C=bp['CflD'], T_fix=None,
-                   Q={'Q_sol_N': bp['abs4ND'], 'Q_sol_E': bp['abs4ED'], 'Q_sol_S': bp['abs4SD'],
-                      'Q_sol_W': bp['abs4WD'],
-                      'Q_int_D': bp['f4D'], 'Q_hea_D': bp['f4D']}, state_type='day')
-        G.add_node('TwiD', C=bp['CwiD'], T_fix=None,
-                   Q={'Q_sol_N': bp['abs2ND'], 'Q_sol_E': bp['abs2ED'], 'Q_sol_S': bp['abs2SD'],
-                      'Q_sol_W': bp['abs2WD'],
-                      'Q_int_D': bp['f2D'], 'Q_hea_D': bp['f2D']}, state_type='day')
-        G.add_node('TwD', C=bp['CwD'], T_fix=None,
-                   Q={'Q_sol_N': bp['abs1ND'], 'Q_sol_E': bp['abs1ED'], 'Q_sol_S': bp['abs1SD'],
-                      'Q_sol_W': bp['abs1WD'],
-                      'Q_int_D': bp['f1D'], 'Q_hea_D': bp['f1D']}, state_type='day')
+        G.add_node('TiD',
+                   C=bp['CiD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs3ND'], 'Q_sol_E': bp['abs3ED'], 'Q_sol_S': bp['abs3SD'],
+                          'Q_sol_W': bp['abs3WD'],'Q_int_D': bp['f3D']},
+                   Q_control={'Q_hea_D': bp['f3D']},
+                   state_type='day')
+        G.add_node('TflD',
+                   C=bp['CflD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs4ND'], 'Q_sol_E': bp['abs4ED'], 'Q_sol_S': bp['abs4SD'],
+                      'Q_sol_W': bp['abs4WD'], 'Q_int_D': bp['f4D']},
+                   Q_control={'Q_hea_D': bp['f4D']},
+                   state_type='day')
+        G.add_node('TwiD',
+                   C=bp['CwiD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs2ND'], 'Q_sol_E': bp['abs2ED'], 'Q_sol_S': bp['abs2SD'],
+                      'Q_sol_W': bp['abs2WD'], 'Q_int_D': bp['f2D']},
+                   Q_control={'Q_hea_D': bp['f2D']},
+                   state_type='day')
+        G.add_node('TwD',
+                   C=bp['CwD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs1ND'], 'Q_sol_E': bp['abs1ED'], 'Q_sol_S': bp['abs1SD'],
+                      'Q_sol_W': bp['abs1WD'], 'Q_int_D': bp['f1D']},
+                   Q_control={'Q_hea_D': bp['f1D']}, state_type='day')
 
         # Internal floor
-        G.add_node('TfiD', C=bp['CfiD'], T_fix=None,
-                   Q={'Q_sol_N': bp['abs5ND'], 'Q_sol_E': bp['abs5ED'], 'Q_sol_S': bp['abs5SD'],
-                      'Q_sol_W': bp['abs5WD'],
-                      'Q_int_D': bp['f5D'], 'Q_hea_D': bp['f5D']}, state_type='floor')
-        G.add_node('TfiN', C=bp['CfiD'], T_fix=None,
-                   Q={'Q_sol_N': bp['abs5NN'], 'Q_sol_E': bp['abs5EN'], 'Q_sol_S': bp['abs5SN'],
-                      'Q_sol_W': bp['abs5WN'],
-                      'Q_int_N': bp['f5N'], 'Q_heaN': bp['f5N']}, state_type='floor')
+        G.add_node('TfiD',
+                   C=bp['CfiD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs5ND'], 'Q_sol_E': bp['abs5ED'], 'Q_sol_S': bp['abs5SD'],
+                      'Q_sol_W': bp['abs5WD'], 'Q_int_D': bp['f5D']},
+                   Q_control={'Q_hea_D': bp['f5D']},
+                   state_type='floor')
+        G.add_node('TfiN',
+                   C=bp['CfiD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs5NN'], 'Q_sol_E': bp['abs5EN'], 'Q_sol_S': bp['abs5SN'],
+                      'Q_sol_W': bp['abs5WN'], 'Q_int_N': bp['f5N']},
+                   Q_control={'Q_hea_N': bp['f5N']},
+                   state_type='floor')
 
         # Night zone
-        G.add_node('TiN', C=bp['CiN'], T_fix=None,
-                   Q={'Q_sol_N': bp['abs3NN'], 'Q_sol_E': bp['abs3EN'], 'Q_sol_S': bp['abs3SN'],
-                      'Q_sol_W': bp['abs3WN'],
-                      'Q_int_N': bp['f3N'], 'Q_heaN': bp['f3N']}, state_type='night')
-        G.add_node('TwiN', C=bp['CwiN'], T_fix=None,
-                   Q={'Q_sol_N': bp['abs2NN'], 'Q_sol_E': bp['abs2EN'], 'Q_sol_S': bp['abs2SN'],
-                      'Q_sol_W': bp['abs2WN'],
-                      'Q_int_N': bp['f2N'], 'Q_heaN': bp['f2N']}, state_type='night')
-        G.add_node('TwN', C=bp['CwN'], T_fix=None,
-                   Q={'Q_sol_N': bp['abs1NN'], 'Q_sol_E': bp['abs1EN'], 'Q_sol_S': bp['abs1SN'],
-                      'Q_sol_W': bp['abs1WN'],
-                      'Q_int_N': bp['f1N'], 'Q_heaN': bp['f1N']}, state_type='night')
+        G.add_node('TiN',
+                   C=bp['CiN'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs3NN'], 'Q_sol_E': bp['abs3EN'], 'Q_sol_S': bp['abs3SN'],
+                      'Q_sol_W': bp['abs3WN'], 'Q_int_N': bp['f3N']},
+                   Q_control={'Q_hea_N': bp['f3N']},
+                   state_type='night')
+        G.add_node('TwiN',
+                   C=bp['CwiN'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs2NN'], 'Q_sol_E': bp['abs2EN'], 'Q_sol_S': bp['abs2SN'],
+                      'Q_sol_W': bp['abs2WN'], 'Q_int_N': bp['f2N']},
+                   Q_control={'Q_hea_N': bp['f2N']},
+                   state_type='night')
+        G.add_node('TwN',
+                   C=bp['CwN'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs1NN'], 'Q_sol_E': bp['abs1EN'], 'Q_sol_S': bp['abs1SN'],
+                      'Q_sol_W': bp['abs1WN'], 'Q_int_N': bp['f1N']},
+                   Q_control={'Q_hea_N': bp['f1N']},
+                   state_type='night')
 
         # External temperatures
-        G.add_node('Te', C=None,  T_fix='T_e', Q=None, state_type=None)
-        G.add_node('Tg', C=None, T_fix='T_g', Q=None, state_type=None)
+        G.add_node('Te',
+                   C=None,
+                   T_fix='Te',
+                   Q_fix=None,
+                   Q_control=None,
+                   state_type=None)
+        G.add_node('Tg',
+                   C=None,
+                   T_fix='Tg',
+                   Q_fix=None,
+                   Q_control=None,
+                   state_type=None)
 
         # Connections
         G.add_edge('Te', 'TwD', U=bp['UwD'])
@@ -192,6 +196,7 @@ class RCmodel(Component):
         G.add_edge('TiN', 'Te', U=bp['infN'])
 
         self.structure = G
+        self.controlVariables += ['Q_hea_D', 'Q_hea_N']
 
     def compile(self, topmodel, parent):
         """
@@ -204,70 +209,92 @@ class RCmodel(Component):
         self.model = topmodel
         self.make_block(parent)
 
-        self.get_model_data(self.params['model_type'].v())
+        self.build()
 
+        ##### Sets
         self.block.state_names = Set(initialize=self.states.keys())
         self.block.edge_names = Set(initialize=self.edges.keys())
 
+        fixed_states = []
+        control_states = []
+        for state, obj in self.states.items():
+            if obj.input['temperature'] is not None:
+                fixed_states.append(state)
+            else:
+                control_states.append(state)
+
+        self.block.fixed_states = Set(initialize=fixed_states)
+        self.block.control_states = Set(initialize=control_states)
+        self.block.control_variables = Set(initialize=self.controlVariables)
+
         ##### Variables
 
-        self.block.StateTemperatures = Var(self.block.state_names, self.model.TIME)
-        self.block.StateHeatFlows = Var(self.block.state_names, self.model.TIME)
+        self.block.StateTemperatures = Var(self.block.control_states, self.model.X_TIME)
+        self.block.StateHeatFlows = Var(self.block.control_states, self.model.TIME)
+        self.block.ControlHeatFlows = Var(self.block.control_variables, self.model.TIME)
         self.block.EdgeHeatFlows = Var(self.block.edge_names, self.model.TIME)
         self.block.mass_flow = Var(self.model.TIME)
         self.block.heat_flow = Var(self.model.TIME)
 
         ##### Parameters
 
-        def decl_edge_direction(b, e):
-            return self.edges[e]
+        def decl_edge_direction(b, s, e):
+            return self.edges[e].get_direction(s)
 
-        self.block.directions = Param(self.block.edge_names, rule=decl_edge_direction)
+        self.block.directions = Param(self.block.state_names, self.block.edge_names, rule=decl_edge_direction)
 
         def decl_state_heat(b, s, t):
-            incoming_heat_names = self.states[s].input['heat']
-            if not incoming_heat_names:
-                return None
-            else:
-                return sum(self.params[i].v(t) for i in incoming_heat_names)
+            obj = self.states[s]
+            incoming_heat_names = obj.input['heat_fix']
+            return sum(self.params[i].v(t)*obj.get_q_factor(i) for i in incoming_heat_names)
 
-        self.block.state_heat = Param(self.block.state_names, self.model.TIME, rule=decl_state_heat)
+        self.block.fixed_state_heat = Param(self.block.control_states, self.model.TIME, rule=decl_state_heat)
 
-        ##### State temperature
+        def decl_fixed_temperature(b, s, t):
+            temp = self.states[s].input['temperature']
+            return self.params[temp].v(t)
 
-        def decl_state_temp(b, s, t):
-            temp_name = self.states[s].input['temperature']
-
-            if not temp_name:
-                return Constraint.Skip
-            else:
-                return b.StateTemperatures[s, t] == self.params[temp_name].v(t)
-
-        self.block.state_temp = Constraint(self.block.state_names, self.model.TIME, rule=decl_state_temp)
+        self.block.FixedTemperatures = Param(self.block.fixed_states,
+                                            self.model.TIME, rule=decl_fixed_temperature)
 
         ##### State energy balances
 
         def _energy_balance(b, s, t):
-            if not self.states[s].input['temperature']:
-                return b.StateHeatFlows[s, t] == b.state_heat[s, t] + \
-                       sum(b.EdgeHeatFlows[e, t]*b.directions[e, t] for e in self.states[s].edges)
-            else:
-                return Constraint.Skip
+            return sum(b.ControlHeatFlows[i, t]*self.states[s].get_q_factor(i) for i in b.control_variables) \
+                   + b.fixed_state_heat[s, t] + \
+                   sum(b.EdgeHeatFlows[e, t]*b.directions[s, e] for e in b.edge_names) == \
+                   b.StateHeatFlows[s, t]
 
-        self.block.energy_balance = Constraint(self.block.state_names, self.model.TIME, rule=_energy_balance)
+        self.block.energy_balance = Constraint(self.block.control_states,
+                                               self.model.TIME, rule=_energy_balance)
+
 
         ##### Temperature change state
 
         def _temp_change(b, s, t):
-            return b.Temperatures[s, t] == b.Temperatures[s, t-1] + b.StateHeatFlows[s, t]/self.cp/self.states[s].C
+            return b.StateTemperatures[s, t+1] == b.StateTemperatures[s, t] + \
+                   b.StateHeatFlows[s, t]/self.states[s].C*self.time_step
 
-        self.block.temp_change = Constraint(self.block.state_names, self.model.TIME, rule=_temp_change)
+        self.block.temp_change = Constraint(self.block.control_states, self.model.TIME, rule=_temp_change)
+
+        def _init_temp(b, s):
+            return b.StateTemperatures[s, 0] == self.params[s + '0'].v()
+
+        self.block.init_temp = Constraint(self.block.control_states, rule=_init_temp)
 
         ##### Heat flow through edge
 
         def _edge_heat_flow(b, e, t):
             e_ob = self.edges[e]
-            return b.EdgeHeatFlows[e, t] == (b.Temperatures[e_ob.start, t] - b.Temperatures[e_ob.stop, t])/e_ob.R
+            if e_ob.start in b.control_states:
+                start_temp = b.StateTemperatures[e_ob.start, t]
+            else:
+                start_temp = b.FixedTemperatures[e_ob.start, t]
+            if e_ob.stop in b.control_states:
+                stop_temp = b.StateTemperatures[e_ob.stop, t]
+            else:
+                stop_temp = b.FixedTemperatures[e_ob.stop, t]
+            return b.EdgeHeatFlows[e, t] == (start_temp - stop_temp)*e_ob.U
 
         self.block.edge_heat_flow = Constraint(self.block.edge_names, self.model.TIME, rule=_edge_heat_flow)
 
@@ -286,12 +313,22 @@ class RCmodel(Component):
             elif s_ob.state_type == 'bathroom':
                 max_temp = self.params['bathroom_max_temperature'].v(t)
                 min_temp = self.params['bathroom_min_temperature'].v(t)
+            elif s_ob.state_type == 'floor':
+                max_temp = self.params['floor_max_temperature'].v(t)
+                min_temp = self.params['floor_min_temperature'].v(t)
             else:
-                raise Exception('No valid type of state type was given')
+                raise Exception('{} was given as state type which is not valid'.format(s_ob.state_type))
 
-            return min_temp <= b.Temperatures[s, t] <= max_temp
+            return min_temp <= b.StateTemperatures[s, t] <= max_temp
 
-        self.block.limit_temperatures = Constraint(self.block.state_names, self.model.TIME, rule=_limit_temperature)
+        self.block.limit_temperatures = Constraint(self.block.control_states, self.model.TIME, rule=_limit_temperature)
+
+        ##### Limit heat flows
+
+        def _limit_heat_flows(b, i, t):
+            return 0 <= b.ControlHeatFlows[i, t] <= 10000
+
+        self.block.limit_heat_flows = Constraint(self.block.control_variables, self.model.TIME, rule=_limit_heat_flows)
 
         ##### Substation model
 
@@ -300,7 +337,7 @@ class RCmodel(Component):
 
         def decl_heat_flow(b, t):
             # TODO Find good way to find control inputs
-            return b.heat_flow[t] == mult*0
+            return b.heat_flow[t] == mult*sum(b.ControlHeatFlows[i, t] for i in b.control_variables)
 
         self.block.decl_heat_flow = Constraint(self.model.TIME, rule=decl_heat_flow)
 
@@ -308,6 +345,8 @@ class RCmodel(Component):
             return b.mass_flow[t] == mult * b.heat_flow[t] / self.cp / delta_T
 
         self.block.decl_mass_flow = Constraint(self.model.TIME, rule=decl_mass_flow)
+
+        # self.block.pprint()
 
         if self.temperature_driven:
             print 'WARNING: No temperature variable model implemented (yet)'
@@ -351,6 +390,42 @@ class RCmodel(Component):
 
     def create_params(self):
         params = {
+            'TiD0': StateParameter('TiD0',
+                                   'Begin temperature at state TiD',
+                                   'K',
+                                   init_type='fixedVal'),  # TODO Implement all types of init
+            'TflD0': StateParameter('TflD0',
+                                   'Begin temperature at state TflD',
+                                   'K',
+                                   init_type='fixedVal'),
+            'TwiD0': StateParameter('TwiD0',
+                                   'Begin temperature at state TwiD',
+                                   'K',
+                                   init_type='fixedVal'),
+            'TwD0': StateParameter('TwD0',
+                                   'Begin temperature at state TwD',
+                                   'K',
+                                   init_type='fixedVal'),
+            'TfiD0': StateParameter('TfiD0',
+                                   'Begin temperature at state TfiD',
+                                   'K',
+                                   init_type='fixedVal'),
+            'TiN0': StateParameter('TiN0',
+                                   'Begin temperature at state TiN',
+                                   'K',
+                                   init_type='fixedVal'),  # TODO Implement all types of init
+            'TwiN0': StateParameter('TwiN0',
+                                   'Begin temperature at state TwiN',
+                                   'K',
+                                   init_type='fixedVal'),
+            'TwN0': StateParameter('TwN0',
+                                   'Begin temperature at state TwN',
+                                   'K',
+                                   init_type='fixedVal'),
+            'TfiN0': StateParameter('TfiN0',
+                                   'Begin temperature at state TfiN',
+                                   'K',
+                                   init_type='fixedVal'),
             'delta_T': DesignParameter('delta_T',
                                        'Temperature difference across substation',
                                        'K'),
@@ -401,9 +476,76 @@ class RCmodel(Component):
                                                      self.time_step,
                                                      self.horizon,
                                                      self.start_time
-                                                     )
+                                                     ),
+            'floor_max_temperature': UserDataParameter('bathroom_max_temperature',
+                                                          'Minimum temperature for bathroom zones',
+                                                          'K',
+                                                          self.time_step,
+                                                          self.horizon,
+                                                          self.start_time
+                                                          ),
+            'floor_min_temperature': UserDataParameter('bathroom_min_temperature',
+                                                          'Minimum temperature for bathroom zones',
+                                                          'K',
+                                                          self.time_step,
+                                                          self.horizon,
+                                                          self.start_time
+                                                          ),
+            'Q_sol_E': WeatherDataParameter('Q_sol_E',
+                                            'Eastern solar radiation',
+                                            'W',
+                                            self.time_step,
+                                            self.horizon,
+                                            self.start_time
+                                            ),
+            'Q_sol_S': WeatherDataParameter('Q_sol_S',
+                                            'Southern solar radiation',
+                                            'W',
+                                            self.time_step,
+                                            self.horizon,
+                                            self.start_time
+                                            ),
+            'Q_sol_W': WeatherDataParameter('Q_sol_W',
+                                            'Western solar radiation',
+                                            'W',
+                                            self.time_step,
+                                            self.horizon,
+                                            self.start_time
+                                            ),
+            'Q_sol_N': WeatherDataParameter('Q_sol_N',
+                                            'Northern solar radiation',
+                                            'W',
+                                            self.time_step,
+                                            self.horizon,
+                                            self.start_time),
+            'Q_int_D': UserDataParameter('Q_int_D',
+                                         'Internal heat gains, day zones',
+                                         'W',
+                                         self.time_step,
+                                         self.horizon,
+                                         self.start_time
+                                         ),
+            'Q_int_N': UserDataParameter('Q_int_N',
+                                         'Internal heat gains, night zones',
+                                         'W',
+                                         self.time_step,
+                                         self.horizon,
+                                         self.start_time
+                                         ),
+            'Te': WeatherDataParameter('Te',
+                                       'Ambient temperature',
+                                       'K',
+                                       time_step=self.time_step,
+                                       horizon=self.horizon,
+                                       start_time=self.start_time),
+            'Tg': WeatherDataParameter('Tg',
+                                       'Undisturbed ground temperature',
+                                       'K',
+                                       time_step=self.time_step,
+                                       horizon=self.horizon,
+                                       start_time=self.start_time)
         }
-
+        # TODO Te, Tg and Q_sol als global parameters?
         return params
 
 
@@ -427,7 +569,9 @@ class State:
         self.edges = self.get_edges()
         self.state_type = self.get_state_type()
 
-        self.input = {'temperature': self.get_temp_fix(), 'heat': self.get_Q()}
+        self.input = {'temperature': self.get_temp_fix(),
+                      'heat_fix': self.get_q_fix(),
+                      'heat_control': self.get_q_control()}
 
     def get_property(self, property):
         """
@@ -484,17 +628,40 @@ class State:
 
         :return: Name of parameter/None
         """
-
         return self.get_property('T_fix')
 
-    def get_Q(self):
+    def get_q_fix(self):
         """
-        Get incoming heat flows (except those defined by edges)
+        Get incoming fixed heat flows
+
+        :return: Dict/None
+        """
+        q_dict = self.get_property('Q_fix')
+        if q_dict is None:
+            return []
+        else:
+            return q_dict.keys()
+
+    def get_q_control(self):
+        """
+        Get incoming controllable heat flows (except those defined by edges)
 
         :return: Dict/None
         """
 
-        return self.get_property('Q')
+        q_dict = self.get_property('Q_control')
+        if q_dict is None:
+            return []
+        else:
+            return q_dict.keys()
+
+    def get_q_factor(self, q_name):
+        if q_name in self.input['heat_control']:
+            return self.get_property('Q_control')[q_name]
+        elif q_name in self.input['heat_fix']:
+            return self.get_property('Q_fix')[q_name]
+        else:
+            return 0
 
 
 class Edge:
@@ -503,7 +670,7 @@ class Edge:
 
     """
 
-    def __init__(self, name, edge_object):
+    def __init__(self, name, tuple, edge_object):
         """
         Initialization method for class Edge
 
@@ -511,8 +678,25 @@ class Edge:
         """
 
         self.name = name
+        self.tuple = tuple
         self.object = edge_object
         self.U = self.get_u_value()
+        self.start = self.get_start_node()
+        self.stop = self.get_stop_node()
+
+    def get_start_node(self):
+        return self.tuple[0]
+
+    def get_stop_node(self):
+        return self.tuple[1]
+
+    def get_direction(self, node):
+        if self.start == node:
+            return -1
+        elif self.stop == node:
+            return 1
+        else:
+            return 0
 
     def get_property(self, property):
         """
