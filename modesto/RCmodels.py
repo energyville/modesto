@@ -300,28 +300,57 @@ class RCmodel(Component):
 
         ##### Limit temperatures
 
-        def _limit_temperature(b, s, t):
-            s_ob = self.states[s]
-            if s_ob.state_type == 'None':
-                return Constraint.Skip
+        max_temp = {}
+        min_temp = {}
+        uslack = {}
+        lslack = {}
+
+        for state in self.block.control_states:
+            s_ob = self.states[state]
+
+            if s_ob.state_type is None:
+                max_temp[state] = None
+                min_temp[state] = None
             elif s_ob.state_type == 'day':
-                max_temp = self.params['day_max_temperature'].v(t)
-                min_temp = self.params['day_min_temperature'].v(t)
+                max_temp[state] = self.params['day_max_temperature']
+                min_temp[state] = self.params['day_min_temperature']
             elif s_ob.state_type == 'night':
-                max_temp = self.params['night_max_temperature'].v(t)
-                min_temp = self.params['night_min_temperature'].v(t)
+                max_temp[state] = self.params['night_max_temperature']
+                min_temp[state] = self.params['night_min_temperature']
             elif s_ob.state_type == 'bathroom':
-                max_temp = self.params['bathroom_max_temperature'].v(t)
-                min_temp = self.params['bathroom_min_temperature'].v(t)
+                max_temp[state] = self.params['bathroom_max_temperature']
+                min_temp[state] = self.params['bathroom_min_temperature']
             elif s_ob.state_type == 'floor':
-                max_temp = self.params['floor_max_temperature'].v(t)
-                min_temp = self.params['floor_min_temperature'].v(t)
+                max_temp[state] = self.params['floor_max_temperature']
+                min_temp[state] = self.params['floor_min_temperature']
             else:
                 raise Exception('{} was given as state type which is not valid'.format(s_ob.state_type))
 
-            return min_temp <= b.StateTemperatures[s, t] <= max_temp
+            if self.params[state + '0'].get_slack():
+                uslack[state] = self.make_slack(state + '_u_slack', self.model.X_TIME)
+                lslack[state] = self.make_slack(state + '_l_slack', self.model.X_TIME)
+            else:
+                uslack[state] = [None] * len(self.model.X_TIME)
+                lslack[state] = [None] * len(self.model.X_TIME)
 
-        self.block.limit_temperatures = Constraint(self.block.control_states, self.model.TIME, rule=_limit_temperature)
+        def _max_temp(b, s, t):
+            if max_temp[s] is None:
+                return Constraint.Skip
+            return self.constrain_value(b.StateTemperatures[s, t],
+                                        max_temp[s].v(t),
+                                        ub=True,
+                                        slack_variable=uslack[state][t])
+
+        def _min_temp(b, s, t):
+            if min_temp[s] is None:
+                return Constraint.Skip
+            return self.constrain_value(b.StateTemperatures[s, t],
+                                        min_temp[s].v(t),
+                                        ub=False,
+                                        slack_variable=lslack[state][t])
+
+        self.block.max_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_max_temp)
+        self.block.min_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_min_temp)
 
         ##### Limit heat flows
 
@@ -393,39 +422,48 @@ class RCmodel(Component):
             'TiD0': StateParameter('TiD0',
                                    'Begin temperature at state TiD',
                                    'K',
-                                   init_type='fixedVal'),  # TODO Implement all types of init
+                                   init_type='fixedVal',
+                                   slack=True),  # TODO Implement all types of init
             'TflD0': StateParameter('TflD0',
                                    'Begin temperature at state TflD',
                                    'K',
-                                   init_type='fixedVal'),
+                                   init_type='fixedVal',
+                                   slack=True),
             'TwiD0': StateParameter('TwiD0',
                                    'Begin temperature at state TwiD',
                                    'K',
-                                   init_type='fixedVal'),
+                                   init_type='fixedVal',
+                                   slack=True),
             'TwD0': StateParameter('TwD0',
                                    'Begin temperature at state TwD',
                                    'K',
-                                   init_type='fixedVal'),
+                                   init_type='fixedVal',
+                                   slack=True),
             'TfiD0': StateParameter('TfiD0',
                                    'Begin temperature at state TfiD',
                                    'K',
-                                   init_type='fixedVal'),
+                                   init_type='fixedVal',
+                                   slack=True),
             'TiN0': StateParameter('TiN0',
                                    'Begin temperature at state TiN',
                                    'K',
-                                   init_type='fixedVal'),  # TODO Implement all types of init
+                                   init_type='fixedVal',
+                                   slack=True),  # TODO Implement all types of init
             'TwiN0': StateParameter('TwiN0',
                                    'Begin temperature at state TwiN',
                                    'K',
-                                   init_type='fixedVal'),
+                                   init_type='fixedVal',
+                                   slack=True),
             'TwN0': StateParameter('TwN0',
                                    'Begin temperature at state TwN',
                                    'K',
-                                   init_type='fixedVal'),
+                                   init_type='fixedVal',
+                                   slack=True),
             'TfiN0': StateParameter('TfiN0',
                                    'Begin temperature at state TfiN',
                                    'K',
-                                   init_type='fixedVal'),
+                                   init_type='fixedVal',
+                                   slack=True),
             'delta_T': DesignParameter('delta_T',
                                        'Temperature difference across substation',
                                        'K'),
