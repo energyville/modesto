@@ -44,7 +44,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 24*7
+    n_steps = 5
     time_step = 3600
     start_time = pd.Timestamp('20140104')
 
@@ -109,6 +109,9 @@ def construct_model():
                            comp='buildingD')
     optmodel.change_params(ws_building_params, node='waterscheiGarden',
                            comp='buildingD')
+
+    optmodel.change_init_type(node='zwartbergNE', comp='buildingD',
+                              state='TiD0', new_type='cyclic')
 
     bbThor_params = {'pipe_type': 500}
     spWaterschei_params = bbThor_params.copy()
@@ -200,7 +203,7 @@ if __name__ == '__main__':
     print 'Heat flow', optmodel.get_result('heat_flow', node='zwartbergNE',
                                            comp='buildingD')
     TiD = optmodel.get_result('StateTemperatures', node='zwartbergNE',
-                                           comp='buildingD', index='TiD')
+                                           comp='buildingD', index='TiD', state=True)
     Q_hea_D = optmodel.get_result('ControlHeatFlows', node='zwartbergNE',
                                              comp='buildingD', index='Q_hea_D')
     Q_TiD = optmodel.get_result('StateHeatFlows', node='zwartbergNE',

@@ -278,9 +278,19 @@ class RCmodel(Component):
         self.block.temp_change = Constraint(self.block.control_states, self.model.TIME, rule=_temp_change)
 
         def _init_temp(b, s):
-            return b.StateTemperatures[s, 0] == self.params[s + '0'].v()
+            if self.params[s + '0'].get_init_type() == 'fixedVal':
+                return b.StateTemperatures[s, 0] == self.params[s + '0'].v()
+            elif self.params[s + '0'].get_init_type() == 'cyclic':
+                return b.StateTemperatures[s, 0] == b.StateTemperatures[s, self.model.X_TIME[-1]]
+            elif self.params[s + '0'].get_init_type() == 'free':
+                return Constraint.Skip
+            else:
+                raise Exception('{} is an initialization type that has not '
+                                 'been implemented for the building RC models'.format(self.params[s + '0']))
 
         self.block.init_temp = Constraint(self.block.control_states, rule=_init_temp)
+
+        self.block.init_temp.pprint()
 
         ##### Heat flow through edge
 

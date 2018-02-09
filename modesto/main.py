@@ -469,7 +469,7 @@ class Modesto:
                 'There is no component named {} at node {}'.format(name, node))
         return self.components[node][name]
 
-    def get_result(self, name, node=None, comp=None, index=None, check_results=True):
+    def get_result(self, name, node=None, comp=None, index=None, check_results=True, state=False):
         """
         Returns the numerical values of a certain parameter or time-dependent variable after optimization
 
@@ -477,6 +477,7 @@ class Modesto:
         :param name: Name of the needed variable/parameter
         :param check_results: Check if model is solved. Default True. If Modesto is part of a larger optimization,
             change to false in order to be able to use this function.
+        :param state: If True, the state_time axis is used (one element longer) instead of the ordinary time acis
         :return: A pandas DataFrame containing all values of the variable/parameter over the time horizon
         """
 
@@ -517,7 +518,11 @@ class Modesto:
                 result = pd.Series(data=result, index=timeindex, name=resname)
 
             else:
-                for i in self.model.TIME:
+                if state:
+                    time = self.model.X_TIME
+                else:
+                    time = self.model.TIME
+                for i in time:
                     result.append(opt_obj[(index, i)].value)
                 timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
                                              periods=len(result))

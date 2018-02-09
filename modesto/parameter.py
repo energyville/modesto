@@ -180,6 +180,9 @@ class StateParameter(Parameter):
         return Parameter.get_description(self) + '\nInitType: {} \nUpper bound: {} \nLower bound: {} \nSlack: {}' \
             .format(self.init_type, self.ub, self.lb, self.slack)
 
+    def get_init_type(self):
+        return self.init_type
+
 
 # TODO maybe we should distinguish between DataFrameParameter (can be a table) and SeriesParameter (only single columns allowed)
 
