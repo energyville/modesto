@@ -4,6 +4,7 @@ import collections
 from math import sqrt
 
 import component as co
+import RCmodels as rc
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -282,13 +283,14 @@ class Modesto:
         missing_params[None]['general'] = {}
         for name, param in self.params.items():
             if not param.check():
-                print param
                 missing_params[None]['general'][name] = param.get_description()
                 flag = True
 
         for node, comp_list in self.components.items():
             for comp, comp_obj in comp_list.items():
-                missing_params[node][comp], flag = comp_obj.check_data()
+                missing_params[node][comp], flag_comp = comp_obj.check_data()
+                if flag_comp:
+                    flag = True
 
         if flag:
             raise Exception('Following parameters are missing:\n{}'
@@ -467,7 +469,7 @@ class Modesto:
                 'There is no component named {} at node {}'.format(name, node))
         return self.components[node][name]
 
-    def get_result(self, name, node=None, comp=None, index=None, check_results=True):
+    def get_result(self, name, node=None, comp=None, index=None, check_results=True, state=False):
         """
         Returns the numerical values of a certain parameter or time-dependent variable after optimization
 
@@ -475,6 +477,7 @@ class Modesto:
         :param name: Name of the needed variable/parameter
         :param check_results: Check if model is solved. Default True. If Modesto is part of a larger optimization,
             change to false in order to be able to use this function.
+        :param state: If True, the state_time axis is used (one element longer) instead of the ordinary time acis
         :return: A pandas DataFrame containing all values of the variable/parameter over the time horizon
         """
 
@@ -515,8 +518,12 @@ class Modesto:
                 result = pd.Series(data=result, index=timeindex, name=resname)
 
             else:
-                for i in self.model.TIME:
-                    result.append(opt_obj[(i, index)].value)
+                if state:
+                    time = self.model.X_TIME
+                else:
+                    time = self.model.TIME
+                for i in time:
+                    result.append(opt_obj[(index, i)].value)
                 timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
                                              periods=len(result))
                 result = pd.Series(data=result, index=timeindex, name=resname + '_' + str(index))
@@ -871,7 +878,11 @@ class Node(object):
         try:
             cls = co.str_to_comp(ctype)
         except AttributeError:
-            cls = None
+            try:
+                cls = rc.str_to_comp(ctype)
+            except AttributeError:
+                cls = None
+
 
         if cls:
             obj = cls(name=name, start_time=self.start_time, horizon=self.horizon,
