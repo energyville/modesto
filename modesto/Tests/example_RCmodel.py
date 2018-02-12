@@ -21,7 +21,7 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 
-n_steps = 24*2
+n_steps = 24*5
 time_step = 3600
 start_time = pd.Timestamp('20140104')
 
@@ -52,7 +52,7 @@ def construct_model():
     ###################################
 
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='ExtensivePipe', graph=G,
+                       pipe_model='SimplePipe', graph=G,
                        start_time=start_time)
 
     ##################################
@@ -200,7 +200,7 @@ def construct_model():
 if __name__ == '__main__':
     optmodel = construct_model()
     optmodel.compile()
-    optmodel.set_objective('energy')
+    optmodel.set_objective('cost')
 
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
@@ -314,13 +314,23 @@ if __name__ == '__main__':
 
     fig = plt.figure()
 
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(211)
 
     ax.plot(prod_hf, label='Producer')
     ax.plot(waterschei_hf + storage_hf + zwartberg_hf, label='Users and storage')  # , )])  #
     ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax.set_title('Heat flows [W]')
     ax.legend()
+
+    c_f = ut.read_period_data(path='../Data/ElectricityPrices',
+                              name='DAM_electricity_prices-2014_BE.csv',
+                              time_step=time_step, horizon=n_steps * time_step,
+                              start_time=start_time)['price_BE']
+
+    ax1 = fig.add_subplot(212)
+    ax1.plot(c_f, label='Fuel price (electricity) euro/MWh')
+    ax1.set_title('Price')
+    ax1.legend()
     fig.tight_layout()
 
     fig2, ax2 = plt.subplots()
@@ -348,13 +358,28 @@ if __name__ == '__main__':
 
     fig4 = plt.figure()
 
+
+    day_max = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
+                                  time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['day_max']
+    day_min = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
+                                  time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['day_min']
+    night_max = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
+                                    time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['night_max']
+    night_min = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
+                                    time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['night_min']
+
     ax4 = fig4.add_subplot(221)
+    ax4.plot(day_max, label='maximum', linestyle='--', color='k')
+    ax4.plot(day_min, label='minimum', linestyle='--', color='k')
     ax4.plot(TiD_ws, label='Waterschei')
     ax4.plot(TiD_zw, label="Zwartberg")
     ax4.legend()
     ax4.set_ylabel('Day zone temperatures')
 
     ax5 = fig4.add_subplot(222)
+
+    ax4.plot(night_max, label='maximum', linestyle='--', color='k')
+    ax4.plot(night_min, label='minimum', linestyle='--', color='k')
     ax5.plot(TiN_ws, label='Waterschei')
     ax5.plot(TiN_zw, label="Zwartberg")
     ax5.legend()
@@ -374,14 +399,6 @@ if __name__ == '__main__':
     #ax3.tight_layout()
 
     fig5 = plt.figure()
-    day_max = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
-                                  time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['day_max']
-    day_min = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
-                                  time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['day_min']
-    night_max = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
-                                    time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['night_max']
-    night_min = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
-                                    time_step=time_step, horizon=n_steps*time_step, start_time=start_time)['night_min']
 
     ax5 = fig5.add_subplot(211)
     ax5.plot(TiD_zw, label='TiD')

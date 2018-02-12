@@ -334,7 +334,7 @@ class RCmodel(Component):
             else:
                 raise Exception('{} was given as state type which is not valid'.format(s_ob.state_type))
 
-            if self.params[state + '0'].get_slack():
+            if (self.params[state + '0'].get_slack()) and (s_ob.state_type is not None):
                 uslack[state] = self.make_slack(state + '_u_slack', self.model.X_TIME)
                 lslack[state] = self.make_slack(state + '_l_slack', self.model.X_TIME)
             else:
@@ -360,8 +360,6 @@ class RCmodel(Component):
         self.block.max_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_max_temp)
         self.block.min_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_min_temp)
 
-        self.block.min_temp.pprint()
-        self.block.StateTemperatures.pprint()
         ##### Limit heat flows
 
         def _limit_heat_flows(b, i, t):

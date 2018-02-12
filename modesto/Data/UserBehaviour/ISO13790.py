@@ -34,7 +34,7 @@ for i in time_index:
         df['night_min'][i] = 20 + 273.15
         df['bathroom_min'][i] = 18 + 273.15
         df['floor_min'][i] = 18 + 273.15
-    elif (i.hour > 7) or (i.hour <= 17):
+    elif (i.hour > 7) and (i.hour <= 17):
         if i.weekday < 5:
             df['Q_int_N'][i] = 8
         else:
@@ -45,7 +45,7 @@ for i in time_index:
         df['night_min'][i] = 16 + 273.15
         df['bathroom_min'][i] = 16 + 273.15
         df['floor_min'][i] = 16 + 273.15
-    elif (i.hour > 17) or (i.hour < 23):
+    elif (i.hour > 17) and (i.hour < 23):
         if i.weekday < 5:
             df['Q_int_N'][i] = 20
         else:
