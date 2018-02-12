@@ -21,7 +21,7 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 
-n_steps = 24*5
+n_steps = 24*2
 time_step = 3600
 start_time = pd.Timestamp('20140104')
 
@@ -118,7 +118,7 @@ def construct_model():
                           }
 
     ws_building_params = zw_building_params.copy()
-    ws_building_params['mult'] = 200
+    ws_building_params['mult'] = 100
     ws_building_params['model_type'] = 'SFH_T_5_ins_TAB'
 
     optmodel.change_params(zw_building_params, node='zwartbergNE',
@@ -206,7 +206,7 @@ if __name__ == '__main__':
     optmodel.model.OBJ_COST.pprint()
     optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.2, mipfocus=3)
+    optmodel.solve(tee=True, mipgap=0.1, mipfocus=None)
 
     ##################################
     # Collect result                 #
