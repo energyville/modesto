@@ -52,7 +52,7 @@ def construct_model():
     ###################################
 
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='SimplePipe', graph=G,
+                       pipe_model='ExtensivePipe', graph=G,
                        start_time=start_time)
 
     ##################################
@@ -206,7 +206,7 @@ if __name__ == '__main__':
     optmodel.model.OBJ_COST.pprint()
     optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.2)
+    optmodel.solve(tee=True, mipgap=0.2, mipfocus=3)
 
     ##################################
     # Collect result                 #

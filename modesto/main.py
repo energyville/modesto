@@ -329,7 +329,7 @@ class Modesto:
                 all_comps.append(comp_obj)
         return all_comps
 
-    def solve(self, tee=False, mipgap=0.1, verbose=False):
+    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False):
         """
         Solve a new optimization
 
@@ -344,7 +344,12 @@ class Modesto:
 
         opt = SolverFactory("gurobi")
         # opt.options["Threads"] = threads
-        opt.options["MIPGap"] = mipgap
+        if mipgap is not None:
+            opt.options["MIPGap"] = mipgap
+
+        if mipfocus is not None:
+            opt.options["MIPFocus"] = mipfocus
+
         self.results = opt.solve(self.model, tee=tee)
 
         if verbose:

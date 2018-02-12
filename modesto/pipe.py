@@ -313,20 +313,20 @@ class ExtensivePipe(Pipe):
 
         # Binaries
         self.block.forward = Var(self.model.TIME, self.block.DN_ind,
-                                 within=Binary)  # mu +
+                                 within=Binary, initialize=1)  # mu +
         self.block.reverse = Var(self.model.TIME, self.block.DN_ind,
-                                 within=Binary)  # mu -
+                                 within=Binary, initialize=0)  # mu -
         self.block.dn_sel = Var(self.block.DN_ind, within=Binary)
 
         # Real 0-1: Weights
         self.block.weight1 = Var(self.model.TIME, self.block.DN_ind,
-                                 bounds=(0, 1))
+                                 bounds=(0, 1), initialize=0)
         self.block.weight2 = Var(self.model.TIME, self.block.DN_ind,
-                                 bounds=(0, 1))
+                                 bounds=(0, 1), initialize=0)
         self.block.weight3 = Var(self.model.TIME, self.block.DN_ind,
-                                 bounds=(0, 1))
+                                 bounds=(0, 1), initialize=0.5)
         self.block.weight4 = Var(self.model.TIME, self.block.DN_ind,
-                                 bounds=(0, 1))
+                                 bounds=(0, 1), initialize=0.5)
 
         """
         Pipe model
