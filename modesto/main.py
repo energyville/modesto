@@ -611,7 +611,7 @@ class Modesto:
 
         self._print_params(descriptions)
 
-    def print_general_param(self, name):
+    def print_general_param(self, name=None):
         """
         Print a single, general parameter
 
@@ -619,10 +619,18 @@ class Modesto:
         :return:
         """
 
-        if name not in self.params:
-            raise IndexError('%s is not a valid general parameter ' % name)
+        if name is None:
+            list = {}
 
-        self._print_params({None: {'general': {name: self.params[name].get_description()}}})
+            for name in self.params:
+                list[name] =  self.params[name].get_description()
+
+            self._print_params({None: {'general': list}})
+        else:
+            if name not in self.params:
+                raise IndexError('%s is not a valid general parameter ' % name)
+
+            self._print_params({None: {'general': {name: self.params[name].get_description()}}})
 
     @staticmethod
     def _print_params(descriptions, disp=True):
