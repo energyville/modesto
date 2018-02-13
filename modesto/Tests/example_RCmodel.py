@@ -19,7 +19,7 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 
-n_steps = 24 * 3
+n_steps = 24 * 7
 time_step = 3600
 start_time = pd.Timestamp('20140104')
 
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     optmodel.model.OBJ_COST.pprint()
     optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.1, mipfocus=None, solver='cplex')
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='cplex')
 
     ##################################
     # Collect result                 #
