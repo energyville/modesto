@@ -294,12 +294,12 @@ class ExtensivePipe(Pipe):
         self.block.heat_loss_tot = Var(self.model.TIME)
 
         # Binaries
-        self.block.forward = Var(self.model.TIME, within=Binary)  # , initialize=1)  # mu +
-        self.block.reverse = Var(self.model.TIME, within=Binary)  # , initialize=0)  # mu -
+        self.block.forward = Var(self.model.TIME, within=Binary) #, initialize=1)  # mu +
+        self.block.reverse = Var(self.model.TIME, within=Binary) #, initialize=0)  # mu -
 
         # Real 0-1: Weights
-        self.block.weight1 = Var(self.model.TIME, bounds=(0, 1))  # , initialize=0)
-        self.block.weight2 = Var(self.model.TIME, bounds=(0, 1))  # , initialize=0)
+        self.block.weight1 = Var(self.model.TIME, bounds=(0, 1))
+        self.block.weight2 = Var(self.model.TIME, bounds=(0, 1))
         self.block.weight3 = Var(self.model.TIME, bounds=(0, 1))
         self.block.weight4 = Var(self.model.TIME, bounds=(0, 1))
 
