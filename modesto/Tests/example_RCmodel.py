@@ -378,8 +378,8 @@ if __name__ == '__main__':
 
     ax5 = fig4.add_subplot(222)
 
-    ax4.plot(night_max, label='maximum', linestyle='--', color='k')
-    ax4.plot(night_min, label='minimum', linestyle='--', color='k')
+    ax5.plot(night_max, label='maximum', linestyle='--', color='k')
+    ax5.plot(night_min, label='minimum', linestyle='--', color='k')
     ax5.plot(TiN_ws, label='Waterschei')
     ax5.plot(TiN_zw, label="Zwartberg")
     ax5.legend()
