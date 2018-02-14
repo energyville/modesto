@@ -3,21 +3,21 @@ from __future__ import division
 import collections
 from math import sqrt
 
-import component as co
-import RCmodels as rc
 import networkx as nx
 import numpy as np
-import pandas as pd
-import pipe as pip
 # noinspection PyUnresolvedReferences
 import pyomo.environ
-# noinspection PyUnresolvedReferences
-from parameter import *
 from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var
 from pyomo.core.base.param import IndexedParam
 from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
+
+import RCmodels as rc
+import component as co
+import pipe as pip
+# noinspection PyUnresolvedReferences
+from parameter import *
 
 
 class Modesto:
@@ -329,7 +329,7 @@ class Modesto:
                 all_comps.append(comp_obj)
         return all_comps
 
-    def solve(self, tee=False, mipgap=0.1, verbose=False):
+    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi'):
         """
         Solve a new optimization
 
@@ -342,9 +342,24 @@ class Modesto:
         if verbose:
             self.model.pprint()
 
-        opt = SolverFactory("gurobi")
+        opt = SolverFactory(solver)
         # opt.options["Threads"] = threads
-        opt.options["MIPGap"] = mipgap
+        if solver == 'gurobi':
+            if mipgap is not None:
+                opt.options["MIPGap"] = mipgap
+
+            if mipfocus is not None:
+                opt.options["MIPFocus"] = mipfocus
+        elif solver == 'cplex':
+            opt.options['mip display'] = 3
+            opt.options[
+                'mip strategy probe'] = 3
+            # https://www.ibm.com/support/knowledgecenter/SSSA5P_12.5.1/ilog.odms.cplex.help/CPLEX/Parameters/topics/Probe.html
+            # opt.options['emphasis mip'] = 2
+            # opt.options['mip cuts all'] = 2
+            if mipgap is not None:
+                opt.options['mip tolerances mipgap'] = mipgap
+
         self.results = opt.solve(self.model, tee=tee)
 
         if verbose:
@@ -890,7 +905,6 @@ class Node(object):
                 cls = rc.str_to_comp(ctype)
             except AttributeError:
                 cls = None
-
 
         if cls:
             obj = cls(name=name, start_time=self.start_time, horizon=self.horizon,
