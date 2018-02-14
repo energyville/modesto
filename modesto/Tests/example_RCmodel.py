@@ -19,7 +19,7 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 
-n_steps = 24 * 7
+n_steps = 24 * 4
 time_step = 3600
 start_time = pd.Timestamp('20140104')
 
@@ -420,4 +420,11 @@ if __name__ == '__main__':
     ax6.legend()
     ax6.set_ylabel('State temperatures [W]')
 
+    fig6, ax = plt.subplots(1, 1)
+
+    weight = pd.DataFrame()
+    for i in [1, 2, 3, 4]:
+        weight[i] = optmodel.get_result('weight', comp='bbThor', indexfirst=False, index=i)
+    weight.index = range(len(weight))
+    weight.to_pickle('weights')
     plt.show()

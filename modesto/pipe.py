@@ -298,8 +298,13 @@ class ExtensivePipe(Pipe):
         self.block.reverse = Var(self.model.TIME, within=Binary)  # , initialize=0)  # mu -
 
         # Real 0-1: Weights
-        self.block.w_ind = Set(initialize=range(1, 5), ordered=True)
+        self.block.w_ind = Set(initialize=[1,2,3,4], ordered=True)
         self.block.weight = Var(self.model.TIME, self.block.w_ind, bounds=(0, 1))
+
+
+        def _w_sos_ind(b, t):
+            return [(t, i) for i in b.w_ind]
+        self.block.w_sos_ind = Set(self.model.TIME, dimen=2, initialize=_w_sos_ind, ordered=True)
 
         """
         Pipe model
@@ -358,7 +363,15 @@ class ExtensivePipe(Pipe):
         self.block.eq_sum_weights = Constraint(self.model.TIME,
                                                rule=_eq_sum_weights)
 
-        self.block.sos_constr = SOSConstraint(self.model.TIME, var=self.block.weight, index=self.block.w_ind, sos=2)
+        self.block.sos_constr = SOSConstraint(self.model.TIME, var=self.block.weight, index=self.block.w_sos_ind, sos=2)
+
+        print '##########################################################################'
+        print self.name, 'SOS constraint'
+        print ''
+        self.block.sos_constr.pprint()
+
+        print ''
+        print '##########################################################################'
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
