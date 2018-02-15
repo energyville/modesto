@@ -527,7 +527,7 @@ class Modesto:
                 for i in opt_obj:
                     result.append(value(opt_obj[i]))
 
-                timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step)+'S',
                                              periods=len(result))
 
                 result = pd.Series(data=result, index=timeindex, name=resname)
@@ -539,7 +539,7 @@ class Modesto:
                     time = self.model.TIME
                 for i in time:
                     result.append(opt_obj[(index, i)].value)
-                timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step)+'S',
                                              periods=len(result))
                 result = pd.Series(data=result, index=timeindex, name=resname + '_' + str(index))
 
@@ -548,7 +548,7 @@ class Modesto:
         elif isinstance(opt_obj, IndexedParam):
             result = opt_obj.values()
 
-            timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+            timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step)+'S',
                                          periods=len(result))
             result = pd.Series(data=result, index=timeindex, name=resname)
 
