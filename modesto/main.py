@@ -677,10 +677,13 @@ class Modesto:
     def calculate_mf(self):
         """
         Given the heat demands of all substations, calculate the mass flow throughout the entire network
+        !!!! Only one producer node possible at the moment, with only a single component at this node
 
         :param producer_node: Name of the node for which the equation is skipped to get a determined system
         :return:
         """
+
+        # TODO Only one producer node possible at the moment, with only a single componenta at the node
 
         nodes = self.get_nodes()
         edges = self.get_edges()
@@ -692,11 +695,17 @@ class Modesto:
 
         inc_matrix = -nx.incidence_matrix(self.graph, oriented=True).todense()
 
-        # Remove one node and the corresponding row from the matrix to make the system determined
-        left_out_node = nodes[-1]
-        row_nr = nodes.index(left_out_node)
+        # Remove the producer node and the corresponding row from the matrix to make the system determined
+        prod_nodes = self.find_producer_nodes()
+        if not prod_nodes:
+            raise Exception('No heat generation unit is present in the given network, please add one')
+        elif len(prod_nodes) > 1:
+            raise Exception('modesto is not (yet) capable of dealing with the combination of time delays'
+                            'and multiple heat generation units!')
+
+        row_nr = nodes.index(prod_nodes[0])
         row = inc_matrix[row_nr, :]
-        nodes.remove(left_out_node)
+        nodes.remove(prod_nodes[0])
         matrix = np.delete(inc_matrix, row_nr, 0)
 
         for t in self.time:
@@ -716,16 +725,23 @@ class Modesto:
             for i, edge in enumerate(edges):
                 result[None][edge].append(sol[i])
 
-            mf_nodes[left_out_node].append(sum(
+            mf_nodes[prod_nodes[0]].append(sum(
                 result[None][edge][-1] * row[0, i] for i, edge in
                 enumerate(edges)))
 
-            for comp in self.nodes[left_out_node].get_components():
-                result[left_out_node][comp].append(mf_nodes[left_out_node][-1])
+            for comp in self.nodes[prod_nodes[0]].get_components():
+                result[prod_nodes[0]][comp].append(mf_nodes[prod_nodes[0]][-1])
 
-                # TODO Only one component at producer node possible at the moment
 
         return result
+
+    def find_producer_nodes(self):
+        prod_nodes = []
+        for node in self.get_nodes():
+            if self.nodes[node].contains_heat_source():
+                prod_nodes.append(node)
+
+        return prod_nodes
 
     def add_mf(self):
         mf = self.calculate_mf()
@@ -850,6 +866,11 @@ class Node(object):
         self.temperature_driven = temperature_driven
 
         self.build()
+
+    def contains_heat_source(self):
+        for comp, comp_obj in self.components.items():
+            if comp_obj.is_heat_source():
+                return True
 
     def __get_data(self, name):
         assert name in self.node, "%s is not stored in the networkx node object for %s" % (

@@ -487,16 +487,16 @@ class NodeMethod(Pipe):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             if line == 'supply':
-                return self.block.temperature_in[t, line]
+                return self.block.temperature_in[line, t]
             elif line == 'return':
-                return self.block.temperature_out[t, line]
+                return self.block.temperature_out[line, t]
             else:
                 raise ValueError('The input line can only take the values from {}'.format(self.model.lines.values))
         elif node == self.end_node:
             if line == 'supply':
-                return self.block.temperature_out[t, line]
+                return self.block.temperature_out[line, t]
             elif line == 'return':
-                return self.block.temperature_in[t, line]
+                return self.block.temperature_in[line, t]
             else:
                 raise ValueError('The input line can only take the values from {}'.format(self.model.lines.values))
         else:
@@ -534,11 +534,11 @@ class NodeMethod(Pipe):
 
         # Declare temperature variables ################################################################################
 
-        self.block.temperatures = Var(self.block.all_time, self.model.lines)  # all temperatures (historical and future)
-        self.block.temperature_out_nhc = Var(self.model.TIME, self.model.lines)  # no heat capacity (only future)
-        self.block.temperature_out_nhl = Var(self.model.TIME, self.model.lines)  # no heat losses (only future)
-        self.block.temperature_out = Var(self.model.TIME, self.model.lines)  # no heat losses (only future)
-        self.block.temperature_in = Var(self.model.TIME, self.model.lines)  # incoming temperature (future)
+        self.block.temperatures = Var(self.model.lines, self.block.all_time)  # all temperatures (historical and future)
+        self.block.temperature_out_nhc = Var(self.model.lines, self.block.all_time)  # no heat capacity (only future)
+        self.block.temperature_out_nhl = Var(self.model.lines, self.block.all_time)  # no heat losses (only future)
+        self.block.temperature_out = Var(self.model.lines, self.block.all_time)  # no heat losses (only future)
+        self.block.temperature_in = Var(self.model.lines, self.block.all_time)  # incoming temperature (future)
 
         # Declare list filled with all previous mass flows and future mass flows #######################################
 
@@ -554,16 +554,16 @@ class NodeMethod(Pipe):
 
         def _decl_temp_history(b, t, l):
             if t < self.n_steps:
-                return b.temperatures[t, l] == b.temperature_in[self.n_steps - t - 1, l]
+                return b.temperatures[l, t] == b.temperature_in[l, self.n_steps - t - 1]
             else:
-                return b.temperatures[t, l] == self.params['temperature_history_' + l].v(t - self.n_steps)
+                return b.temperatures[l, t] == self.params['temperature_history_' + l].v(t - self.n_steps)
 
         self.block.def_temp_history = Constraint(self.block.all_time, self.model.lines, rule=_decl_temp_history)
 
         # Initialize incoming temperature ##############################################################################
 
         def _decl_init_temp_in(b, l):
-            return b.temperature_in[0, l] == self.params['temperature_history_' + l].v(
+            return b.temperature_in[l, 0] == self.params['temperature_history_' + l].v(
                 0)  # TODO better initialization??
 
         self.block.decl_init_temp_in = Constraint(self.model.lines, rule=_decl_init_temp_in)
@@ -609,10 +609,10 @@ class NodeMethod(Pipe):
         # Define Y #####################################################################################################
 
         # Eq. 3.4.9
-        self.block.Y = Var(self.model.TIME, self.model.lines)
+        self.block.Y = Var(self.model.lines, self.model.TIME)
 
         def _y(b, t, l):
-            return b.Y[t, l] == sum(b.mf_history[i] * b.temperatures[i, l] * self.time_step
+            return b.Y[l, t] == sum(b.mf_history[i] * b.temperatures[l, i] * self.time_step
                                     for i in range(self.n_steps - 1 - t + b.n[t] + 1, self.n_steps - 1 - t + b.m[t]))
 
         self.block.def_Y = Constraint(self.model.TIME, self.model.lines, rule=_y)
@@ -637,9 +637,9 @@ class NodeMethod(Pipe):
             if b.mass_flow[t] == 0:
                 return Constraint.Skip
             else:
-                return b.temperature_out_nhc[t, l] == ((b.R[t] - Z) * b.temperatures[self.n_steps - 1 - t + b.n[t], l]
-                                                       + b.Y[t, l] + (b.mass_flow[t] * self.time_step - b.S[t] + Z) *
-                                                       b.temperatures[self.n_steps - 1 - t + b.m[t], l]) \
+                return b.temperature_out_nhc[l, t] == ((b.R[t] - Z) * b.temperatures[l, self.n_steps - 1 - t + b.n[t]]
+                                                       + b.Y[l, t] + (b.mass_flow[t] * self.time_step - b.S[t] + Z) *
+                                                       b.temperatures[l, self.n_steps - 1 - t + b.m[t]]) \
                                                       / b.mass_flow[t] / self.time_step
 
         self.block.def_temp_out_nhc = Constraint(self.model.TIME, self.model.lines, rule=_def_temp_out_nhc)
@@ -647,11 +647,11 @@ class NodeMethod(Pipe):
         # Pipe wall heat capacity ######################################################################################
 
         # Eq. 3.4.20
-        self.block.K = 1 / Rs
+        self.block.K = 1 / self.Rs[self.params['pipe_type'].v()]
 
         # Eq. 3.4.14
 
-        self.block.wall_temp = Var(self.model.TIME, self.model.lines)
+        self.block.wall_temp = Var(self.model.lines, self.model.TIME)
 
         def _decl_temp_out_nhl(b, t, l):
             if t == 0:
@@ -659,9 +659,9 @@ class NodeMethod(Pipe):
             elif b.mass_flow[t] == 0:
                 return Constraint.Skip
             else:
-                return b.temperature_out_nhl[t, l] == (b.temperature_out_nhc[t, l] * b.mass_flow[t]
+                return b.temperature_out_nhl[l, t] == (b.temperature_out_nhc[l, t] * b.mass_flow[t]
                                                        * self.cp * self.time_step
-                                                       + C * b.wall_temp[t - 1, l]) / \
+                                                       + C * b.wall_temp[l, t - 1]) / \
                                                       (C + b.mass_flow[t] * self.cp * self.time_step)
 
         def _temp_wall(b, t, l):
@@ -669,19 +669,19 @@ class NodeMethod(Pipe):
                 if t == 0:
                     return Constraint.Skip
                 else:
-                    return b.wall_temp[t, l] == self.model.Tg[t] + (b.wall_temp[t - 1, l] - self.model.Tg[t]) * \
+                    return b.wall_temp[l, t] == self.model.Tg[t] + (b.wall_temp[l, t - 1] - self.model.Tg[t]) * \
                                                                    np.exp(-b.K * self.time_step /
-                                                                          (
-                                                                              surface * self.rho * self.cp + C / self.length))
+                                                                          (surface * self.rho * self.cp +
+                                                                           C / self.length))
             else:
-                return b.wall_temp[t, l] == b.temperature_out_nhl[t, l]
+                return b.wall_temp[l, t] == b.temperature_out_nhl[l, t]
 
         # self.block.temp_wall = Constraint(self.model.TIME, self.model.lines, rule=_temp_wall)
 
         # Eq. 3.4.15
 
         def _init_temp_wall(b, l):
-            return b.wall_temp[0, l] == self.params['wall_temperature_' + l].v()
+            return b.wall_temp[l, 0] == self.params['wall_temperature_' + l].v()
 
         self.block.init_temp_wall = Constraint(self.model.lines, rule=_init_temp_wall)
 
@@ -737,15 +737,15 @@ class NodeMethod(Pipe):
         def _temp_out(b, t, l):
             if b.mass_flow[t] == 0:
                 if t == 0:
-                    return b.temperature_out[t, l] == self.params['temperature_out_' + l].v()
+                    return b.temperature_out[l, t] == self.params['temperature_out_' + l].v()
                 else:
-                    return b.temperature_out[t, l] == (b.temperature_out[t - 1, l] - self.model.Tg[t]) * \
+                    return b.temperature_out[l, t] == (b.temperature_out[l, t - 1] - self.model.Tg[t]) * \
                                                       np.exp(-b.K * self.time_step /
                                                              (surface * self.rho * self.cp + C / self.length)) \
                                                       + self.model.Tg[t]
             else:
-                return b.temperature_out[t, l] == self.model.Tg[t] + \
-                                                  (b.temperature_out_nhl[t, l] - self.model.Tg[t]) * \
+                return b.temperature_out[l, t] == self.model.Tg[t] + \
+                                                  (b.temperature_out_nhl[l, t] - self.model.Tg[t]) * \
                                                   np.exp(-(b.K * b.tk[t]) /
                                                          (surface * self.rho * self.cp))
 

@@ -174,7 +174,7 @@ def construct_model():
 
     # optmodel.print_all_params()
     # optmodel.print_general_param('Te')
-    optmodel.print_comp_param(node='ThorPark', comp='plant')
+    # optmodel.print_comp_param(node='ThorPark', comp='plant')
     # optmodel.print_comp_param('waterscheiGarden.storage')
     # optmodel.print_comp_param('waterscheiGarden.storage', 'kIns', 'volume')
 

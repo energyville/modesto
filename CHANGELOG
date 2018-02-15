@@ -1,0 +1,8 @@
+VERSION 0.2
+===========
+
+* Fix DateTimeIndex bug in get_results for plotting
+* Fix bugs in mass flow calculation for Node method
+
+VERSION 0.1
+===========
