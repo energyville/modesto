@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set, Binary, Block, RangeSet
+from pyomo.core.base import Param, Var, Constraint, Set, Binary, Block
 
 from component import Component
 from parameter import DesignParameter, StateParameter, UserDataParameter
@@ -294,13 +294,14 @@ class ExtensivePipe(Pipe):
         self.block.heat_loss_tot = Var(self.model.TIME)
 
         # Binaries
-        self.block.forward = Var(self.model.TIME, within=Binary)  # , initialize=1)  # mu +
-        self.block.reverse = Var(self.model.TIME, within=Binary)  # , initialize=0)  # mu -
+        self.block.forward = Var(self.model.TIME, within=Binary) #, initialize=1)  # mu +
+        self.block.reverse = Var(self.model.TIME, within=Binary) #, initialize=0)  # mu -
 
         # Real 0-1: Weights
-        self.block.weight_ind = [1,2,3,4]
-
-        self.block.weight = Var(self.block.weight_ind, self.model.TIME, bounds=(0, 1))
+        self.block.weight1 = Var(self.model.TIME, bounds=(0, 1))
+        self.block.weight2 = Var(self.model.TIME, bounds=(0, 1))
+        self.block.weight3 = Var(self.model.TIME, bounds=(0, 1))
+        self.block.weight4 = Var(self.model.TIME, bounds=(0, 1))
 
         """
         Pipe model
@@ -337,17 +338,16 @@ class ExtensivePipe(Pipe):
         # Eq. (3.7)
         def _eq_mass_flow(b, t):
             return b.mass_flow[t] == \
-                   (b.weight[4, t] - b.weight[1, t]) * b.mass_flow_max + (b.weight[3, t] - b.weight[2,
-                                                                                                    t]) * b.mass_flow_0[
-                                                                             t]
+                   (b.weight4[t] - b.weight1[t]) * b.mass_flow_max + (b.weight3[t] - b.weight2[
+                       t]) * b.mass_flow_0[t]
 
         self.block.eq_mass_flow = Constraint(self.model.TIME,
                                              rule=_eq_mass_flow)
 
         # Eq. (3.8)
         def _eq_heat_loss(b, t):
-            return b.heat_loss[t] == (b.weight[3, t] + b.weight[4, t] -
-                                      b.weight[1, t] - b.weight[2, t]) * \
+            return b.heat_loss[t] == (b.weight3[t] + b.weight4[t] -
+                                      b.weight1[t] - b.weight2[t]) * \
                                      b.heat_loss_max[t]
 
         self.block.eq_heat_loss = Constraint(self.model.TIME,
@@ -355,20 +355,21 @@ class ExtensivePipe(Pipe):
 
         # Eq. (3.9)
         def _eq_sum_weights(b, t):
-            return sum(b.weight[:, t]) == 1
+            return b.weight1[t] + b.weight2[t] + b.weight3[t] + \
+                   b.weight4[t] == 1
 
         self.block.eq_sum_weights = Constraint(self.model.TIME,
                                                rule=_eq_sum_weights)
 
         # Eq. (3.10)
         def _ineq_reverse(b, t):
-            return b.weight[1, t] + b.weight[2, t] >= b.reverse[t]
+            return b.weight1[t] + b.weight2[t] >= b.reverse[t]
 
         def _ineq_forward(b, t):
-            return b.weight[3, t] + b.weight[4, t] >= b.forward[t]
+            return b.weight3[t] + b.weight4[t] >= b.forward[t]
 
         def _ineq_center(b, t):
-            return b.weight[2, t] + b.weight[3, t] >= 1 - b.reverse[t] - b.forward[t]
+            return b.weight2[t] + b.weight3[t] >= 1 - b.reverse[t] - b.forward[t]
 
         self.block.ineq_reverse = Constraint(self.model.TIME,
                                              rule=_ineq_reverse)
