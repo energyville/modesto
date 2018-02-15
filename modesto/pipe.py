@@ -669,7 +669,7 @@ class NodeMethod(Pipe):
                 if t == 0:
                     return Constraint.Skip
                 else:
-                    return b.wall_temp[l, t] == self.model.Tg[t] + (b.wall_temp[t - 1, l] - self.model.Tg[t]) * \
+                    return b.wall_temp[l, t] == self.model.Tg[t] + (b.wall_temp[l, t - 1] - self.model.Tg[t]) * \
                                                                    np.exp(-b.K * self.time_step /
                                                                           (surface * self.rho * self.cp +
                                                                            C / self.length))
