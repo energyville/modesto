@@ -225,7 +225,7 @@ if __name__ == '__main__':
     optmodel.compile()
     optmodel.set_objective('cost')
 
-    optmodel.solve(tee=False, mipgap=0.01)
+    optmodel.solve(tee=True, mipgap=0.01, solver='ipopt')
 
     ##################################
     # Collect result s               #

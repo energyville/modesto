@@ -329,7 +329,8 @@ class Modesto:
                 all_comps.append(comp_obj)
         return all_comps
 
-    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi'):
+    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi',
+              executable='C:\cygwin64\home\u0111619\CoinIpopt/build/bin\ipopt.exe'):
         """
         Solve a new optimization
 
@@ -342,7 +343,10 @@ class Modesto:
         if verbose:
             self.model.pprint()
 
-        opt = SolverFactory(solver)
+        if solver == 'ipopt':
+            opt = SolverFactory(solver, executable=executable)
+        else:
+            opt = SolverFactory(solver)
         # opt.options["Threads"] = threads
         if solver == 'gurobi':
             if mipgap is not None:
