@@ -40,8 +40,8 @@ def setup_modesto(graph):
     :return:
     """
 
-    numdays = 24
-    horizon = numdays * 6 * 3600
+    numdays = 365
+    horizon = numdays * 24 * 3600
     time_step = 3600
     start_time = pd.Timestamp('20140101')
     pipe_model = 'ExtensivePipe'
@@ -70,7 +70,7 @@ def setup_modesto(graph):
     building_params = {
         'delta_T': 40,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 0.01, 0.01, 1, 1, 0.1]*numdays) * Pnom
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 0.01, 0.01, 1, 1, 0.1]*4*numdays) * Pnom
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
 
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     print opts
 
     for name, opt in opts.iteritems():
-        res = opt.solve(tee=True, mipgap=0.001, solver='cplex')
+        res = opt.solve(tee=True, mipgap=0.001, solver='gurobi')
         if not res == 0:
             raise Exception('Optimization {} failed to solve.'.format(name))
 
