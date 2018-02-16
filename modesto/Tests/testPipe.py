@@ -39,7 +39,9 @@ def setup_modesto(graph):
     :param graph: nx.DiGraph object specifying network lay-out
     :return:
     """
-    horizon = 6 * 3600
+
+    numdays = 24
+    horizon = numdays * 6 * 3600
     time_step = 3600
     start_time = pd.Timestamp('20140101')
     pipe_model = 'ExtensivePipe'
@@ -68,7 +70,7 @@ def setup_modesto(graph):
     building_params = {
         'delta_T': 40,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 0.01, 0.01, 1, 1, 0.1]) * Pnom
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 0.01, 0.01, 1, 1, 0.1]*numdays) * Pnom
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
 
