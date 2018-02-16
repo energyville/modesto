@@ -294,14 +294,15 @@ class ExtensivePipe(Pipe):
         self.block.heat_loss_tot = Var(self.model.TIME)
 
         # Binaries
-        self.block.forward = Var(self.model.TIME, within=Binary) #, initialize=1)  # mu +
-        self.block.reverse = Var(self.model.TIME, within=Binary) #, initialize=0)  # mu -
+        self.block.mu_dir = Var(self.model.TIME, within=Binary)  # , initialize=1)  # mu +
+        self.block.mu_zero = Var(self.model.TIME, within=Binary)  # , initialize=0)  # mu -
 
         # Real 0-1: Weights
         self.block.weight1 = Var(self.model.TIME, bounds=(0, 1))
         self.block.weight2 = Var(self.model.TIME, bounds=(0, 1))
         self.block.weight3 = Var(self.model.TIME, bounds=(0, 1))
         self.block.weight4 = Var(self.model.TIME, bounds=(0, 1))
+        self.block.weight5 = Var(self.model.TIME, bounds=(0, 1))
 
         """
         Pipe model
@@ -338,7 +339,7 @@ class ExtensivePipe(Pipe):
         # Eq. (3.7)
         def _eq_mass_flow(b, t):
             return b.mass_flow[t] == \
-                   (b.weight4[t] - b.weight1[t]) * b.mass_flow_max + (b.weight3[t] - b.weight2[
+                   (b.weight5[t] - b.weight1[t]) * b.mass_flow_max + (b.weight4[t] - b.weight2[
                        t]) * b.mass_flow_0[t]
 
         self.block.eq_mass_flow = Constraint(self.model.TIME,
@@ -346,8 +347,7 @@ class ExtensivePipe(Pipe):
 
         # Eq. (3.8)
         def _eq_heat_loss(b, t):
-            return b.heat_loss[t] == (b.weight3[t] + b.weight4[t] -
-                                      b.weight1[t] - b.weight2[t]) * \
+            return b.heat_loss[t] == (b.weight4[t] + b.weight5[t] + b.weight1[t] + b.weight2[t]) * \
                                      b.heat_loss_max[t]
 
         self.block.eq_heat_loss = Constraint(self.model.TIME,
@@ -356,27 +356,32 @@ class ExtensivePipe(Pipe):
         # Eq. (3.9)
         def _eq_sum_weights(b, t):
             return b.weight1[t] + b.weight2[t] + b.weight3[t] + \
-                   b.weight4[t] == 1
+                   b.weight4[t] + b.weight5[t] == 1
 
         self.block.eq_sum_weights = Constraint(self.model.TIME,
                                                rule=_eq_sum_weights)
 
         # Eq. (3.10)
         def _ineq_reverse(b, t):
-            return b.weight1[t] + b.weight2[t] >= b.reverse[t]
+            return b.weight1[t] + b.weight2[t] >= 1 - b.mu_dir[t] - b.mu_zero[t]
 
         def _ineq_forward(b, t):
-            return b.weight3[t] + b.weight4[t] >= b.forward[t]
+            return b.weight4[t] + b.weight5[t] >= b.mu_dir[t] - b.mu_zero[t]
 
-        def _ineq_center(b, t):
-            return b.weight2[t] + b.weight3[t] >= 1 - b.reverse[t] - b.forward[t]
+        def _ineq_zero_rev(b, t):
+            return b.weight2[t] + b.weight3[t] >= b.mu_zero[t] - b.mu_dir[t]
+
+        def _ineq_zero_for(b, t):
+            return b.weight3[t] + b.weight4[t] >= b.mu_dir[t] + b.mu_zero[t] -1
 
         self.block.ineq_reverse = Constraint(self.model.TIME,
                                              rule=_ineq_reverse)
         self.block.ineq_forward = Constraint(self.model.TIME,
                                              rule=_ineq_forward)
-        self.block.ineq_center = Constraint(self.model.TIME,
-                                            rule=_ineq_center)
+        self.block.ineq_center_rev = Constraint(self.model.TIME,
+                                                rule=_ineq_zero_rev)
+        self.block.ineq_center_for = Constraint(self.model.TIME,
+                                                rule=_ineq_zero_for)
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
