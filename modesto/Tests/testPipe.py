@@ -77,7 +77,7 @@ def setup_modesto(graph):
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': Pnom * 1.5,
+                   'Qmax': Pnom * 200,
                    'ramp_cost': 0.01,
                    'ramp': Pnom / 3600}
 
@@ -90,8 +90,6 @@ def setup_modesto(graph):
 
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
-
-    optmodel.solve(tee=True, mipgap=0.001, solver='cplex')
 
     return optmodel
 
@@ -108,16 +106,28 @@ if __name__ == '__main__':
     print opts
 
     for name, opt in opts.iteritems():
+        res = opt.solve(tee=True, mipgap=0.001, solver='cplex')
+        if not res == 0:
+            raise Exception('Optimization {} failed to solve.'.format(name))
+
+    for name, opt in opts.iteritems():
+        print ''
         print name, str(opt.get_objective('energy'))
 
     import matplotlib.pyplot as plt
 
-    fig, axs = plt.subplots(2, 1, sharex=True)
+    fig, axs = plt.subplots(3, 1, sharex=True)
 
     for name, opt in opts.iteritems():
         axs[0].plot(opt.get_result('heat_flow', node='cons', comp='cons'), linestyle='--', label='cons_' + name)
         axs[0].plot(opt.get_result('heat_flow', node='prod', comp='prod'), label='prod_' + name)
         axs[1].plot(opt.get_result('heat_loss', comp='pipe'), label=name)
+        axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name+'_in')
+        axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name+'_out')
+
+
     axs[0].legend()
+    axs[1].legend()
+    axs[2].legend()
 
     plt.show()
