@@ -352,11 +352,11 @@ class Modesto:
                 opt.options["MIPFocus"] = mipfocus
         elif solver == 'cplex':
             opt.options['mip display'] = 3
-            opt.options[
-                'mip strategy probe'] = 3
+            # opt.options[
+            #     'mip strategy probe'] = 3
             # https://www.ibm.com/support/knowledgecenter/SSSA5P_12.5.1/ilog.odms.cplex.help/CPLEX/Parameters/topics/Probe.html
-            # opt.options['emphasis mip'] = 2
-            # opt.options['mip cuts all'] = 2
+            opt.options['emphasis mip'] = 1
+            opt.options['mip cuts all'] = 2
             if mipgap is not None:
                 opt.options['mip tolerances mipgap'] = mipgap
 
