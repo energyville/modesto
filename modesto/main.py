@@ -3,21 +3,21 @@ from __future__ import division
 import collections
 from math import sqrt
 
-import component as co
-import RCmodels as rc
 import networkx as nx
 import numpy as np
-import pandas as pd
-import pipe as pip
 # noinspection PyUnresolvedReferences
 import pyomo.environ
-# noinspection PyUnresolvedReferences
-from parameter import *
 from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var
 from pyomo.core.base.param import IndexedParam
 from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
+
+import RCmodels as rc
+import component as co
+import pipe as pip
+# noinspection PyUnresolvedReferences
+from parameter import *
 
 
 class Modesto:
@@ -330,7 +330,7 @@ class Modesto:
                 all_comps.append(comp_obj)
         return all_comps
 
-    def solve(self, tee=False, mipgap=0.1, verbose=False):
+    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi'):
         """
         Solve a new optimization
 
@@ -343,9 +343,24 @@ class Modesto:
         if verbose:
             self.model.pprint()
 
-        opt = SolverFactory("gurobi")
+        opt = SolverFactory(solver)
         # opt.options["Threads"] = threads
-        opt.options["MIPGap"] = mipgap
+        if solver == 'gurobi':
+            if mipgap is not None:
+                opt.options["MIPGap"] = mipgap
+
+            if mipfocus is not None:
+                opt.options["MIPFocus"] = mipfocus
+        elif solver == 'cplex':
+            opt.options['mip display'] = 3
+            # opt.options[
+            #     'mip strategy probe'] = 3
+            # https://www.ibm.com/support/knowledgecenter/SSSA5P_12.5.1/ilog.odms.cplex.help/CPLEX/Parameters/topics/Probe.html
+            opt.options['emphasis mip'] = 1
+            opt.options['mip cuts all'] = 2
+            if mipgap is not None:
+                opt.options['mip tolerances mipgap'] = mipgap
+
         self.results = opt.solve(self.model, tee=tee)
 
         if verbose:
@@ -513,7 +528,7 @@ class Modesto:
                 for i in opt_obj:
                     result.append(value(opt_obj[i]))
 
-                timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step)+'S',
                                              periods=len(result))
 
                 result = pd.Series(data=result, index=timeindex, name=resname)
@@ -525,7 +540,7 @@ class Modesto:
                     time = self.model.TIME
                 for i in time:
                     result.append(opt_obj[(index, i)].value)
-                timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step)+'S',
                                              periods=len(result))
                 result = pd.Series(data=result, index=timeindex, name=resname + '_' + str(index))
 
@@ -534,7 +549,7 @@ class Modesto:
         elif isinstance(opt_obj, IndexedParam):
             result = opt_obj.values()
 
-            timeindex = pd.DatetimeIndex(start=self.start_time, freq=pd.DateOffset(seconds=self.time_step),
+            timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step)+'S',
                                          periods=len(result))
             result = pd.Series(data=result, index=timeindex, name=resname)
 
@@ -704,7 +719,7 @@ class Modesto:
 
         return self._print_params(descriptions, disp)
 
-    def print_general_param(self, name, disp=True):
+    def print_general_param(self, name=None, disp=True):
         """
         Print a single, general parameter
 
@@ -712,10 +727,19 @@ class Modesto:
         :return:
         """
 
-        if name not in self.params:
-            raise IndexError('%s is not a valid general parameter ' % name)
+        if name is None:
+            list = {}
 
-        return self._print_params({None: {'general': {name: self.params[name].get_description()}}}, disp)
+            for name in self.params:
+                list[name] =  self.params[name].get_description()
+
+            self._print_params({None: {'general': list}})
+        else:
+            if name not in self.params:
+                raise IndexError('%s is not a valid general parameter ' % name)
+
+            self._print_params({None: {'general': {name: self.params[name].get_description()}}})
+
 
     @staticmethod
     def _print_params(descriptions, disp=True):
@@ -747,10 +771,13 @@ class Modesto:
     def calculate_mf(self):
         """
         Given the heat demands of all substations, calculate the mass flow throughout the entire network
+        !!!! Only one producer node possible at the moment, with only a single component at this node
 
         :param producer_node: Name of the node for which the equation is skipped to get a determined system
         :return:
         """
+
+        # TODO Only one producer node possible at the moment, with only a single componenta at the node
 
         nodes = self.get_nodes()
         edges = self.get_edges()
@@ -762,11 +789,17 @@ class Modesto:
 
         inc_matrix = -nx.incidence_matrix(self.graph, oriented=True).todense()
 
-        # Remove one node and the corresponding row from the matrix to make the system determined
-        left_out_node = nodes[-1]
-        row_nr = nodes.index(left_out_node)
+        # Remove the producer node and the corresponding row from the matrix to make the system determined
+        prod_nodes = self.find_producer_nodes()
+        if not prod_nodes:
+            raise Exception('No heat generation unit is present in the given network, please add one')
+        elif len(prod_nodes) > 1:
+            raise Exception('modesto is not (yet) capable of dealing with the combination of time delays'
+                            'and multiple heat generation units!')
+
+        row_nr = nodes.index(prod_nodes[0])
         row = inc_matrix[row_nr, :]
-        nodes.remove(left_out_node)
+        nodes.remove(prod_nodes[0])
         matrix = np.delete(inc_matrix, row_nr, 0)
 
         for t in self.time:
@@ -786,16 +819,23 @@ class Modesto:
             for i, edge in enumerate(edges):
                 result[None][edge].append(sol[i])
 
-            mf_nodes[left_out_node].append(sum(
+            mf_nodes[prod_nodes[0]].append(sum(
                 result[None][edge][-1] * row[0, i] for i, edge in
                 enumerate(edges)))
 
-            for comp in self.nodes[left_out_node].get_components():
-                result[left_out_node][comp].append(mf_nodes[left_out_node][-1])
+            for comp in self.nodes[prod_nodes[0]].get_components():
+                result[prod_nodes[0]][comp].append(mf_nodes[prod_nodes[0]][-1])
 
-                # TODO Only one component at producer node possible at the moment
 
         return result
+
+    def find_producer_nodes(self):
+        prod_nodes = []
+        for node in self.get_nodes():
+            if self.nodes[node].contains_heat_source():
+                prod_nodes.append(node)
+
+        return prod_nodes
 
     def add_mf(self):
         mf = self.calculate_mf()
@@ -921,6 +961,11 @@ class Node(object):
 
         self.build()
 
+    def contains_heat_source(self):
+        for comp, comp_obj in self.components.items():
+            if comp_obj.is_heat_source():
+                return True
+
     def __get_data(self, name):
         assert name in self.node, "%s is not stored in the networkx node object for %s" % (
             name, self.name)
@@ -975,7 +1020,6 @@ class Node(object):
                 cls = rc.str_to_comp(ctype)
             except AttributeError:
                 cls = None
-
 
         if cls:
             obj = cls(name=name, start_time=self.start_time, horizon=self.horizon,

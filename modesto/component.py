@@ -124,7 +124,7 @@ class Component(object):
         if not line in self.model.lines:
             raise ValueError('The input line can only take the values from {}'.format(self.model.lines.value))
 
-        return self.block.temperatures[t, line]
+        return self.block.temperatures[line, t]
 
     def get_heat(self, t):
         """
@@ -136,6 +136,9 @@ class Component(object):
         if self.block is None:
             raise Exception("The optimization model for %s has not been compiled" % self.name)
         return self.direction * self.block.heat_flow[t]
+
+    def is_heat_source(self):
+        return False
 
     def get_mflo(self, t, compiled=True):
         """
@@ -421,19 +424,19 @@ class FixedProfile(Component):
         self.block.heat_flow = Param(self.model.TIME, rule=_heat_flow)
 
         if self.temperature_driven:
-            self.block.temperatures = Var(self.model.TIME, self.model.lines)
+            self.block.temperatures = Var(self.model.lines, self.model.TIME)
 
             def _decl_temperatures(b, t):
                 if t == 0:
                     return Constraint.Skip
                 elif b.mass_flow[t] == 0:
-                    return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
+                    return b.temperatures['supply', t] == b.temperatures['return', t]
                 else:
-                    return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
+                    return b.temperatures['supply', t] - b.temperatures['return', t] == \
                            b.heat_flow[t] / b.mass_flow[t] / self.cp
 
             def _init_temperatures(b, l):
-                return b.temperatures[0, l] == self.params['temperature_' + l].v()
+                return b.temperatures[l, 0] == self.params['temperature_' + l].v()
 
             uslack = self.make_slack('temperature_max_uslack', self.model.TIME)
             lslack = self.make_slack('temperature_max_l_slack', self.model.TIME)
@@ -442,13 +445,13 @@ class FixedProfile(Component):
             lb = self.params['temperature_min'].v()
 
             def _max_temp(b, t):
-                return self.constrain_value(b.temperatures[t, 'supply'],
+                return self.constrain_value(b.temperatures['supply', t],
                                             ub,
                                             ub=True,
                                             slack_variable=uslack[t])
 
             def _min_temp(b, t):
-                return self.constrain_value(b.temperatures[t, 'supply'],
+                return self.constrain_value(b.temperatures['supply', t],
                                             lb,
                                             ub=False,
                                             slack_variable=lslack[t])
@@ -580,6 +583,9 @@ class ProducerFixed(FixedProfile):
                                             direction=1,
                                             temperature_driven=temperature_driven)
 
+    def is_heat_source(self):
+        return True
+
 
 class ProducerVariable(Component):
     def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
@@ -603,6 +609,9 @@ class ProducerVariable(Component):
 
         self.logger = logging.getLogger('modesto.components.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
+
+    def is_heat_source(self):
+        return True
 
     def create_params(self):
         params = {
@@ -716,11 +725,10 @@ class ProducerVariable(Component):
 
         if self.temperature_driven:
 
-            self.block.temperatures = Var(self.model.TIME,
-                                          self.model.lines)
+            self.block.temperatures = Var(self.model.lines, self.model.TIME)
 
             def _limit_temperatures(b, t):
-                return self.params['temperature_min'].v() <= b.temperatures[t, 'supply'] <= self.params[
+                return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
                     'temperature_max'].v()
 
             self.block.limit_temperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
@@ -731,15 +739,15 @@ class ProducerVariable(Component):
                 elif b.mass_flow[t] == 0:
                     return Constraint.Skip
                 else:
-                    return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == b.heat_flow[t] / b.mass_flow[
+                    return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / b.mass_flow[
                         t] / self.cp
 
             def _init_temperature(b, l):
-                return b.temperatures[0, l] == self.params['temperature_' + l].v()
+                return b.temperatures[l, 0] == self.params['temperature_' + l].v()
 
             def _decl_temp_mf0(b, t):
                 if (not t == 0) and b.mass_flow[t] == 0:
-                    return b.temperatures[t, 'supply'] == b.temperatures[t - 1, 'supply']
+                    return b.temperatures['supply', t] == b.temperatures['supply', t - 1]
                 else:
                     return Constraint.Skip
 
@@ -833,6 +841,9 @@ class SolarThermalCollector(Component):
 
         self.logger = logging.getLogger('modesto.components.SolThermCol')
         self.logger.info('Initializing SolarThermalCollector {}'.format(name))
+
+    def is_heat_source(self):
+        return True
 
     def create_params(self):
         params = {
