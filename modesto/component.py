@@ -81,7 +81,10 @@ class Component(object):
         else:
             Exception('The optimization model of %s has not been built yet.' % self.name)
 
-    def get_params(self):
+    def get_param(self, name):
+        return self.params[name]
+
+    def get_param_names(self):
         """
 
         :return: A list of all parameters necessary for this type of component
