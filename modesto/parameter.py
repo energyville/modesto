@@ -27,6 +27,9 @@ class Parameter(object):
         self.logger = logging.getLogger('modesto.parameter.Parameter')
         self.logger.info('Initializing Parameter {}'.format(name))
 
+    def change_start_time(self, val):
+        pass
+
     def change_value(self, new_val):
         """
         Change the value of the parameter
@@ -187,7 +190,7 @@ class StateParameter(Parameter):
 # TODO maybe we should distinguish between DataFrameParameter (can be a table) and SeriesParameter (only single columns allowed)
 
 class TimeSeriesParameter(Parameter):
-    def __init__(self, name, description, unit, time_step, horizon, start_time, val=None):
+    def __init__(self, name, description, unit, time_step, horizon, val=None):
         """
         Class that describes a parameter with a value consisting of a dataframe
 
@@ -203,7 +206,7 @@ class TimeSeriesParameter(Parameter):
         self.time_data = False  # Does the dataframe have a timeData index?
         self.time_step = time_step
         self.horizon = horizon
-        self.start_time = start_time
+        self.start_time = None
         Parameter.__init__(self, name, description, unit, val)
 
     def get_value(self, time=None):
@@ -213,6 +216,9 @@ class TimeSeriesParameter(Parameter):
         :param time:
         :return:
         """
+
+        if self.start_time is None:
+            raise Exception('No start time has been given to parameter {} yet'.format(self.name))
 
         if time is None:
             if self.time_data: # Data has a pd.DatetimeIndex
@@ -254,9 +260,17 @@ class TimeSeriesParameter(Parameter):
 
         self.value = new_val
 
+    def change_start_time(self, val):
+        if not isinstance(val, pd.Timestamp):
+            raise TypeError('New start time should be pandas timestamp')
+
+        self.start_time = val
+
+        self.start_time = val
+
 
 class UserDataParameter(TimeSeriesParameter):
-    def __init__(self, name, description, unit, time_step, horizon, start_time, val=None):
+    def __init__(self, name, description, unit, time_step, horizon, val=None):
         """
         Class that describes a user data parameter
 
@@ -267,11 +281,11 @@ class UserDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, time_step, horizon, start_time, val)
+        TimeSeriesParameter.__init__(self, name, description, unit, time_step, horizon, val)
 
 
 class WeatherDataParameter(TimeSeriesParameter):
-    def __init__(self, name, description, unit, time_step, horizon, start_time, val=None):
+    def __init__(self, name, description, unit, time_step, horizon, val=None):
         """
         Class that describes a weather data parameter
 
@@ -282,4 +296,4 @@ class WeatherDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, time_step, horizon, start_time, val)
+        TimeSeriesParameter.__init__(self, name, description, unit, time_step, horizon, val)

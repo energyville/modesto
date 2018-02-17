@@ -21,8 +21,7 @@ from parameter import *
 
 
 class Modesto:
-    def __init__(self, horizon, time_step, pipe_model, graph,
-                 start_time='20140101'):
+    def __init__(self, horizon, time_step, pipe_model, graph):
         """
         This class allows setting up optimization problems for district energy systems
 
@@ -31,8 +30,6 @@ class Modesto:
         :param objective: String describing the objective of the optimization problem
         :param pipe_model: String describing the type of model to be used for the pipes
         :param graph: networkx object, describing the structure of the network
-        :param start_time: Start time of this modesto instance. Either a pandas Timestamp object or a string of format
-            'yyyymmdd'. Default '20140101'.
         """
 
         self.model = ConcreteModel()
@@ -45,14 +42,7 @@ class Modesto:
 
         self.results = None
 
-        if isinstance(start_time, str):
-            self.start_time = pd.Timestamp(start_time)
-        elif isinstance(start_time, pd.Timestamp):
-            self.start_time = start_time
-        else:
-            raise IOError("start_time specifier not recognized. Should be "
-                          "either string of format 'yyyymmdd' or pd.Timestamp.")
-
+        self.start_time = None
         self.state_time = range(self.n_steps + 1)
         self.time = self.state_time[:-1]
 
@@ -89,14 +79,12 @@ class Modesto:
                                        'Ambient temperature',
                                        'K',
                                        time_step=self.time_step,
-                                       horizon=self.horizon,
-                                       start_time=self.start_time),
+                                       horizon=self.horizon),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
                                        'K',
                                        time_step=self.time_step,
-                                       horizon=self.horizon,
-                                       start_time=self.start_time)
+                                       horizon=self.horizon)
         }
 
         return params
@@ -133,7 +121,6 @@ class Modesto:
                                      node=self.graph.nodes[node],
                                      horizon=self.horizon,
                                      time_step=self.time_step,
-                                     start_time=self.start_time,
                                      temperature_driven=self.temperature_driven))
 
             # Add the new components
@@ -170,8 +157,7 @@ class Modesto:
                                     time_step=self.time_step,
                                     pipe_model=self.pipe_model,
                                     allow_flow_reversal=self.allow_flow_reversal,
-                                    temperature_driven=self.temperature_driven,
-                                    start_time=self.start_time)
+                                    temperature_driven=self.temperature_driven)
 
             start_node.add_pipe(self.edges[name].pipe)
             end_node.add_pipe(self.edges[name].pipe)
@@ -226,12 +212,23 @@ class Modesto:
 
             self.objectives['temp'] = self.model.OBJ_TEMP
 
-    def compile(self):
+    def compile(self, start_time='24012014'):
         """
         Compile the optimization problem
 
+        :param start_time: Start time of this modesto instance. Either a pandas Timestamp object or a string of format
+            'yyyymmdd'. Default '20140101'.
         :return:
         """
+
+        # Set time
+        if isinstance(start_time, str):
+            self.start_time = pd.Timestamp(start_time)
+        elif isinstance(start_time, pd.Timestamp):
+            self.start_time = start_time
+        else:
+            raise IOError("start_time specifier not recognized. Should be "
+                          "either string of format 'yyyymmdd' or pd.Timestamp.")
 
         # Check if not compiled already
         if self.compiled:
@@ -240,6 +237,7 @@ class Modesto:
 
         # Check whether all necessary parameters are there
         self.check_data()
+        self.update_time(start_time)
 
         # General parameters
         self.model.TIME = Set(initialize=self.time, ordered=True)
@@ -259,9 +257,9 @@ class Modesto:
 
         # Components
         for name, edge in self.edges.items():
-            edge.compile(self.model)
+            edge.compile(self.model, start_time)
         for name, node in self.nodes.items():
-            node.compile(self.model)
+            node.compile(self.model, start_time)
 
         self.__build_objectives()
 
@@ -832,10 +830,19 @@ class Modesto:
 
         return out
 
+    def update_time(self, new_val):
+        """
+        Change the start time of all parameters to ensure correct read out of data
+
+        :param pd.Timestamp new_val: New start time
+        :return: 
+        """
+        for _, param in self.params.items():
+            param.change_start_time(new_val)
+
 
 class Node(object):
-    def __init__(self, name, node, horizon, time_step,
-                 start_time, temperature_driven=False):
+    def __init__(self, name, node, horizon, time_step, temperature_driven=False):
         """
         Class that represents a geographical network location,
         associated with a number of components and connected to other nodes through edges
@@ -845,11 +852,9 @@ class Node(object):
         :param node: Networkx Node object
         :param horizon: Horizon of the problem
         :param time_step: Time step between two points of the problem
-        :param pd.Timestamp start_time: start time of optimization
         """
         self.horizon = horizon
         self.time_step = time_step
-        self.start_time = start_time
 
         self.logger = logging.getLogger('modesto.Node')
         self.logger.info('Initializing Node {}'.format(name))
@@ -928,7 +933,7 @@ class Node(object):
                 cls = None
 
         if cls:
-            obj = cls(name=name, start_time=self.start_time, horizon=self.horizon,
+            obj = cls(name=name, horizon=self.horizon,
                       time_step=self.time_step,
                       temperature_driven=self.temperature_driven)
         else:
@@ -959,11 +964,17 @@ class Node(object):
 
         self.logger.info('Build of {} finished'.format(self.name))
 
-    def compile(self, model):
+    def compile(self, model, start_time):
+        """
+        
+        :param pd.Timestamp start_time: start time of optimization
+        :param model: 
+        :return: 
+        """
         self._make_block(model)
 
         for name, comp in self.components.items():
-            comp.compile(model, self.block)
+            comp.compile(model, self.block, start_time)
 
         self._add_bal()
 
@@ -1136,7 +1147,7 @@ class Node(object):
 
 class Edge(object):
     def __init__(self, name, edge, start_node, end_node, horizon,
-                 time_step, start_time, pipe_model, allow_flow_reversal,
+                 time_step, pipe_model, allow_flow_reversal,
                  temperature_driven):
         """
         Connection object between two nodes in a graph
@@ -1147,7 +1158,6 @@ class Edge(object):
         :param stop_node: modesto.Node object
         :param horizon: Horizon of the problem
         :param time_step: Time step between two points of the problem
-        :param pd.Timestamp start_time: Start time of optimization
         :param pipe_model: Type of pipe model to be used
         """
 
@@ -1159,7 +1169,6 @@ class Edge(object):
 
         self.horizon = horizon
         self.time_step = time_step
-        self.start_time = start_time
 
         self.start_node = start_node
         self.end_node = end_node
@@ -1206,9 +1215,16 @@ class Edge(object):
 
         return obj
 
-    def compile(self, model):
+    def compile(self, model, start_time):
+        """
+        
+        
+        :param pd.Timestamp start_time: Start time of optimization
+        :param model: 
+        :return: 
+        """
 
-        self.pipe.compile(model)
+        self.pipe.compile(model, start_time)
 
     def get_length(self):
 
