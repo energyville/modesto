@@ -236,8 +236,8 @@ class Modesto:
             self.model = ConcreteModel()
 
         # Check whether all necessary parameters are there
-        self.check_data()
-        self.update_time(start_time)
+        self.check_data(self.start_time)
+        self.update_time(self.start_time)
 
         # General parameters
         self.model.TIME = Set(initialize=self.time, ordered=True)
@@ -265,7 +265,7 @@ class Modesto:
 
         self.compiled = True  # Change compilation flag
 
-    def check_data(self):
+    def check_data(self, start_time=None):
         """
         Checks whether all parameters have been assigned a value,
         if not an error is raised
@@ -276,7 +276,7 @@ class Modesto:
         flag = False
 
         if self.temperature_driven:
-            self.add_mf()
+            self.add_mf(start_time)
 
         missing_params[None]['general'] = {}
         for name, param in self.params.items():
@@ -672,7 +672,7 @@ class Modesto:
         else:
             return string
 
-    def calculate_mf(self):
+    def calculate_mf(self, start_time):
         """
         Given the heat demands of all substations, calculate the mass flow throughout the entire network
         !!!! Only one producer node possible at the moment, with only a single component at this node
@@ -714,7 +714,7 @@ class Modesto:
                 for comp, comp_obj in self.nodes[node].get_components().items():
                     result[node][comp].append(
                         comp_obj.get_mflo(t, compiled=False))
-                mf_node = self.nodes[node].get_mflo(t)
+                mf_node = self.nodes[node].get_mflo(t, start_time)
                 mf_nodes[node].append(mf_node)
                 vector.append(mf_node)
 
@@ -741,8 +741,8 @@ class Modesto:
 
         return prod_nodes
 
-    def add_mf(self):
-        mf = self.calculate_mf()
+    def add_mf(self, start_time):
+        mf = self.calculate_mf(start_time)
 
         for node, comp_list in self.components.items():
 
@@ -1103,7 +1103,7 @@ class Node(object):
         self.logger.info(
             'Optimization block initialized for {}'.format(self.name))
 
-    def get_mflo(self, t):
+    def get_mflo(self, t, start_time):
         """
         Calculate the mass flow into the network
 
@@ -1114,7 +1114,7 @@ class Node(object):
 
         m_flo = 0
         for _, comp in self.components.items():
-            m_flo += comp.get_mflo(t, compiled=False)
+            m_flo += comp.get_mflo(t, compiled=False, start_time=start_time)
 
         return m_flo
 

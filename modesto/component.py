@@ -145,7 +145,7 @@ class Component(object):
     def is_heat_source(self):
         return False
 
-    def get_mflo(self, t, compiled=True):
+    def get_mflo(self, t, compiled=True, start_time=None):
         """
         Return mass_flow variable at time t
 
@@ -155,6 +155,7 @@ class Component(object):
         """
         # TODO Find something better!
         if not compiled:
+            self.update_time(start_time)
             try:
                 return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v() \
                        / self.cp / self.params['delta_T'].v()

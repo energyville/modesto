@@ -19,7 +19,7 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 
-n_steps = 24 * 7
+n_steps = 24 * 1
 time_step = 3600
 start_time = pd.Timestamp('20140104')
 
@@ -51,8 +51,7 @@ def construct_model():
     ###################################
 
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='ExtensivePipe', graph=G,
-                       start_time=start_time)
+                       pipe_model='ExtensivePipe', graph=G)
 
     ##################################
     # Fill in the parameters         #
@@ -198,14 +197,14 @@ def construct_model():
 
 if __name__ == '__main__':
     optmodel = construct_model()
-    optmodel.compile()
+    optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
 
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
     optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='cplex')
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi')
 
     ##################################
     # Collect result                 #
