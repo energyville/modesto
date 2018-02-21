@@ -76,13 +76,7 @@ class Pipe(Component):
 
     def get_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
-        if node == self.start_node:
-            return -1 * self.block.mass_flow[t]
-        elif node == self.end_node:
-            return self.block.mass_flow[t]
-        else:
-            warnings.warn('Warning: node not contained in this pipe')
-            exit(1)
+        return self.get_direction(node) * self.block.mass_flow[t]
 
     def get_heat(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
@@ -97,9 +91,9 @@ class Pipe(Component):
     def get_direction(self, node, line='supply'):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
-            return 1
-        elif node == self.end_node:
             return -1
+        elif node == self.end_node:
+            return 1
         else:
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
@@ -250,7 +244,7 @@ class ExtensivePipe(Pipe):
         self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
 
         # Maximal heat loss per unit length
-        def _heat_loss_max(b, t):
+        def _heat_loss(b, t):
             """
             Rule to calculate maximal heat loss per unit length
 
@@ -263,7 +257,7 @@ class ExtensivePipe(Pipe):
                  Rs
             return dq
 
-        self.block.heat_loss_max = Param(self.model.TIME, rule=_heat_loss_max)
+        self.block.heat_loss = Param(self.model.TIME, rule=_heat_loss)
 
         # Mass flow rate from which heat losses stay constant
         def _mass_flow_0(b, t):
@@ -274,7 +268,7 @@ class ExtensivePipe(Pipe):
             :param dn: DN index
             :return: Mass flow rate in kg/s for given DN
             """
-            return b.heat_loss_max[t] / self.cp / (
+            return b.heat_loss[t] / self.cp / (
                 self.temp_sup - self.temp_ret)
 
         self.block.mass_flow_0 = Param(self.model.TIME, rule=_mass_flow_0)
@@ -290,18 +284,7 @@ class ExtensivePipe(Pipe):
         self.block.heat_flow_out = Var(self.model.TIME, bounds=mflo_ub)
         self.block.mass_flow_dn = Var(self.model.TIME, bounds=mflo_ub)
         self.block.mass_flow = Var(self.model.TIME, bounds=mflo_ub)
-        self.block.heat_loss = Var(self.model.TIME)
         self.block.heat_loss_tot = Var(self.model.TIME)
-
-        # Binaries
-        self.block.forward = Var(self.model.TIME, within=Binary) #, initialize=1)  # mu +
-        self.block.reverse = Var(self.model.TIME, within=Binary) #, initialize=0)  # mu -
-
-        # Real 0-1: Weights
-        self.block.weight1 = Var(self.model.TIME, bounds=(0, 1))
-        self.block.weight2 = Var(self.model.TIME, bounds=(0, 1))
-        self.block.weight3 = Var(self.model.TIME, bounds=(0, 1))
-        self.block.weight4 = Var(self.model.TIME, bounds=(0, 1))
 
         """
         Pipe model
@@ -335,48 +318,7 @@ class ExtensivePipe(Pipe):
         self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
                                                  rule=_eq_heat_loss_tot)
 
-        # Eq. (3.7)
-        def _eq_mass_flow(b, t):
-            return b.mass_flow[t] == \
-                   (b.weight4[t] - b.weight1[t]) * b.mass_flow_max + (b.weight3[t] - b.weight2[
-                       t]) * b.mass_flow_0[t]
 
-        self.block.eq_mass_flow = Constraint(self.model.TIME,
-                                             rule=_eq_mass_flow)
-
-        # Eq. (3.8)
-        def _eq_heat_loss(b, t):
-            return b.heat_loss[t] == (b.weight3[t] + b.weight4[t] -
-                                      b.weight1[t] - b.weight2[t]) * \
-                                     b.heat_loss_max[t]
-
-        self.block.eq_heat_loss = Constraint(self.model.TIME,
-                                             rule=_eq_heat_loss)
-
-        # Eq. (3.9)
-        def _eq_sum_weights(b, t):
-            return b.weight1[t] + b.weight2[t] + b.weight3[t] + \
-                   b.weight4[t] == 1
-
-        self.block.eq_sum_weights = Constraint(self.model.TIME,
-                                               rule=_eq_sum_weights)
-
-        # Eq. (3.10)
-        def _ineq_reverse(b, t):
-            return b.weight1[t] + b.weight2[t] >= b.reverse[t]
-
-        def _ineq_forward(b, t):
-            return b.weight3[t] + b.weight4[t] >= b.forward[t]
-
-        def _ineq_center(b, t):
-            return b.weight2[t] + b.weight3[t] >= 1 - b.reverse[t] - b.forward[t]
-
-        self.block.ineq_reverse = Constraint(self.model.TIME,
-                                             rule=_ineq_reverse)
-        self.block.ineq_forward = Constraint(self.model.TIME,
-                                             rule=_ineq_forward)
-        self.block.ineq_center = Constraint(self.model.TIME,
-                                            rule=_ineq_center)
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
