@@ -993,49 +993,42 @@ class Node(object):
         # TODO No mass flow reversal yet
         if self.temperature_driven:
 
-            incoming_comps = collections.defaultdict(list)
-            incoming_pipes = collections.defaultdict(list)
-            outgoing_comps = collections.defaultdict(list)
-            outgoing_pipes = collections.defaultdict(list)
-
-            for name, comp in c.items():
-                if comp.get_direction() == 1:
-                    incoming_comps['supply'].append(name)
-                    outgoing_comps['return'].append(name)
-                else:
-                    outgoing_comps['supply'].append(name)
-                    incoming_comps['return'].append(name)
-
-            for name, pipe in p.items():
-                if pipe.get_direction(self.name) == -1:
-                    incoming_pipes['supply'].append(name)
-                    outgoing_pipes['return'].append(name)
-                else:
-                    outgoing_pipes['supply'].append(name)
-                    incoming_pipes['return'].append(name)
-
             self.block.mix_temp = Var(self.model.TIME, self.model.lines)
 
             def _temp_bal_incoming(b, t, l):
+
+                incoming_comps = collections.defaultdict(list)
+                incoming_pipes = collections.defaultdict(list)
+
+                for name, comp in c.items():
+                    if comp.get_mflo(t) >= 0:
+                        incoming_comps['supply'].append(name)
+                    else:
+                        incoming_comps['return'].append(name)
+
+                for name, pipe in p.items():
+                    if pipe.get_mflo(self.name, t) >= 0:
+                        incoming_pipes['supply'].append(name)
+                    else:
+                        incoming_pipes['return'].append(name)
                 # Zero mass flow rate:
-                if sum(c[comp].get_mflo(t) for comp in c) + \
+                if sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) + \
                         sum(p[pipe].get_mflo(self.name, t) for pipe in
                             incoming_pipes[l]) == 0:
                     # mixed temperature is average of all joined pipes, actual value should not matter,
                     # because packages in pipes of this time step will have zero size and components do not take over
                     # mixed temperature in case there is no mass flow
-                    return b.mix_temp[t, l] == (
-                                                   sum(c[comp].get_temperature(t, l) for comp in c) +
-                                                   sum(p[pipe].get_temperature(self.name, t, l) for
-                                                       pipe in p)) / (len(p) + len(c))
+
+                    return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t,l) for comp in c) +
+                            sum(p[pipe].get_temperature(self.name, t, l) for pipe in p)) / (len(p) + len(c))
+
 
                 else:  # mass flow rate through the node
                     return (sum(
                         c[comp].get_mflo(t) for comp in incoming_comps[l]) +
                             sum(p[pipe].get_mflo(self.name, t) for pipe in
                                 incoming_pipes[l])) * b.mix_temp[t, l] == \
-                           sum(c[comp].get_mflo(t) * c[comp].get_temperature(t,
-                                                                             l)
+                           sum(c[comp].get_mflo(t) * c[comp].get_temperature(t,l)
                                for comp in incoming_comps[l]) + \
                            sum(p[pipe].get_mflo(self.name, t) * p[
                                pipe].get_temperature(self.name, t, l)
@@ -1046,6 +1039,22 @@ class Node(object):
                                                    rule=_temp_bal_incoming)
 
             def _temp_bal_outgoing(b, t, l, comp):
+
+                outgoing_comps = collections.defaultdict(list)
+                outgoing_pipes = collections.defaultdict(list)
+
+                for name, comp_obj in c.items():
+                    if comp_obj.get_mflo(t) >= 0:
+                        outgoing_comps['return'].append(name)
+                    else:
+                        outgoing_comps['supply'].append(name)
+
+                for name, pipe_obj in p.items():
+                    if pipe_obj.get_mflo(self.name, t) >= 0:
+                        outgoing_pipes['return'].append(name)
+                    else:
+                        outgoing_pipes['supply'].append(name)
+
                 if t == 0:
                     return Constraint.Skip
                 if comp in outgoing_pipes[l]:
@@ -1058,7 +1067,7 @@ class Node(object):
 
             self.block.outgoing_temp_comps = Constraint(self.model.TIME,
                                                         self.model.lines,
-                                                        self.components.keys(),
+                                                        c.keys(),
                                                         rule=_temp_bal_outgoing)
             self.block.outgoing_temp_pipes = Constraint(self.model.TIME,
                                                         self.model.lines,

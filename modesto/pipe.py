@@ -76,13 +76,7 @@ class Pipe(Component):
 
     def get_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
-        if node == self.start_node:
-            return -1 * self.block.mass_flow[t]
-        elif node == self.end_node:
-            return self.block.mass_flow[t]
-        else:
-            warnings.warn('Warning: node not contained in this pipe')
-            exit(1)
+        return self.get_direction(node) * self.block.mass_flow[t]
 
     def get_heat(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
@@ -97,9 +91,9 @@ class Pipe(Component):
     def get_direction(self, node, line='supply'):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
-            return 1
-        elif node == self.end_node:
             return -1
+        elif node == self.end_node:
+            return 1
         else:
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
