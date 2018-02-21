@@ -19,7 +19,7 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 
-n_steps = 24 * 1
+n_steps = 24 * 4
 time_step = 3600
 start_time = pd.Timestamp('20140104')
 

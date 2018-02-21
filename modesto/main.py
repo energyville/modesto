@@ -713,7 +713,7 @@ class Modesto:
             for node in nodes:
                 for comp, comp_obj in self.nodes[node].get_components().items():
                     result[node][comp].append(
-                        comp_obj.get_mflo(t, compiled=False))
+                        comp_obj.get_mflo(t, compiled=False, start_time=start_time))
                 mf_node = self.nodes[node].get_mflo(t, start_time)
                 mf_nodes[node].append(mf_node)
                 vector.append(mf_node)
