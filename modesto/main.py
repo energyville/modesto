@@ -1007,8 +1007,10 @@ class Node(object):
                     # mixed temperature is average of all joined pipes, actual value should not matter,
                     # because packages in pipes of this time step will have zero size and components do not take over
                     # mixed temperature in case there is no mass flow
+
                     return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t,l) for comp in c) +
                             sum(p[pipe].get_temperature(self.name, t, l) for pipe in p)) / (len(p) + len(c))
+
 
                 else:  # mass flow rate through the node
                     return (sum(
