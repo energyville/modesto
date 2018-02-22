@@ -76,13 +76,7 @@ class Pipe(Component):
 
     def get_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
-        if node == self.start_node:
-            return -1 * self.block.mass_flow[t]
-        elif node == self.end_node:
-            return self.block.mass_flow[t]
-        else:
-            warnings.warn('Warning: node not contained in this pipe')
-            exit(1)
+        return self.get_direction(node) * self.block.mass_flow[t]
 
     def get_heat(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
@@ -97,9 +91,9 @@ class Pipe(Component):
     def get_direction(self, node, line='supply'):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
-            return 1
-        elif node == self.end_node:
             return -1
+        elif node == self.end_node:
+            return 1
         else:
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
@@ -150,7 +144,7 @@ class SimplePipe(Pipe):
                       allow_flow_reversal=allow_flow_reversal,
                       temperature_driven=temperature_driven)
 
-    def compile(self, model):
+    def compile(self, model, start_time):
         """
         Compile the optimization model
 
@@ -158,6 +152,7 @@ class SimplePipe(Pipe):
 
         :return:
         """
+        self.update_time(start_time)
 
         self.make_block(model)
 
@@ -201,12 +196,13 @@ class ExtensivePipe(Pipe):
         self.allow_flow_reversal = allow_flow_reversal
         self.dn = None
 
-    def compile(self, model):
+    def compile(self, model, start_time):
         """
         Build the structure of the optimization model
 
         :return:
         """
+        self.update_time(start_time)
 
         self.dn = self.params['pipe_type'].v()
         if self.dn is None:
@@ -385,29 +381,25 @@ class NodeMethod(Pipe):
                                                 'Predicted mass flows through the pipe (positive if rom start to stop node)',
                                                 'kg/s',
                                                 time_step=self.time_step,
-                                                horizon=self.horizon,
-                                                start_time=self.start_time)
+                                                horizon=self.horizon)
 
         params['mass_flow_history'] = UserDataParameter('mass_flow_history',
                                                         'Historic mass flows through the pipe (positive if rom start to stop node)',
                                                         'kg/s',
                                                         time_step=self.time_step,
-                                                        horizon=self.horizon,
-                                                        start_time=self.start_time)
+                                                        horizon=self.horizon)
 
         params['temperature_history_supply'] = UserDataParameter('temperature_history_supply',
                                                                  'Historic incoming temperatures for the supply line, first value is the most recent value',
                                                                  'K',
                                                                  time_step=self.time_step,
-                                                                 horizon=self.horizon,
-                                                                 start_time=self.start_time)
+                                                                 horizon=self.horizon)
 
         params['temperature_history_return'] = UserDataParameter('temperature_history_return',
                                                                  'Historic incoming temperatures for the return line, first value is the most recent value',
                                                                  'K',
                                                                  time_step=self.time_step,
-                                                                 horizon=self.horizon,
-                                                                 start_time=self.start_time)
+                                                                 horizon=self.horizon)
 
         params['wall_temperature_supply'] = StateParameter('wall_temperature_supply',
                                                            'Initial temperature of supply pipe wall',
@@ -451,14 +443,14 @@ class NodeMethod(Pipe):
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
 
-    def compile(self, model):
+    def compile(self, model, start_time):
         """
 
 
         :return:
         """
+        self.update_time(start_time)
 
-        self.check_data()
         self.history_length = len(self.params['mass_flow_history'].v())
 
         dn = self.params['pipe_type'].v()

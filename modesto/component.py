@@ -21,13 +21,12 @@ def str_to_comp(string):
 
 
 class Component(object):
-    def __init__(self, name=None, start_time=None, horizon=None, time_step=None, params=None, direction=None,
+    def __init__(self, name=None, horizon=None, time_step=None, params=None, direction=None,
                  temperature_driven=False):
         """
         Base class for components
 
         :param name: Name of the component
-        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param params: Required parameters to set up the model (dict)
@@ -37,7 +36,6 @@ class Component(object):
         self.logger.info('Initializing Component {}'.format(name))
 
         self.name = name
-        self.start_time = start_time
         assert horizon % time_step == 0, "The horizon of the optimization problem should be multiple of the time step."
         self.horizon = horizon
         self.time_step = time_step
@@ -68,6 +66,16 @@ class Component(object):
         :return: a dictionary, keys are the names of the parameters, values are the Parameter objects
         """
         return {}
+
+    def update_time(self, new_val):
+        """
+        Change the start time of all parameters to ensure correct read out of data
+        
+        :param pd.Timestamp new_val: New start time
+        :return: 
+        """
+        for _, param in self.params.items():
+            param.change_start_time(new_val)
 
     def pprint(self, txtfile=None):
         """
@@ -140,7 +148,7 @@ class Component(object):
     def is_heat_source(self):
         return False
 
-    def get_mflo(self, t, compiled=True):
+    def get_mflo(self, t, compiled=True, start_time=None):
         """
         Return mass_flow variable at time t
 
@@ -150,6 +158,7 @@ class Component(object):
         """
         # TODO Find something better!
         if not compiled:
+            self.update_time(start_time)
             try:
                 return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v() \
                        / self.cp / self.params['delta_T'].v()
@@ -329,19 +338,17 @@ class Component(object):
 
 
 class FixedProfile(Component):
-    def __init__(self, name=None, start_time=None, horizon=None, time_step=None, direction=None,
+    def __init__(self, name=None, horizon=None, time_step=None, direction=None,
                  temperature_driven=False):
         """
         Class for a component with a fixed heating profile
 
         :param name: Name of the building
-        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
         super(FixedProfile, self).__init__(name=name,
-                                           start_time=start_time,
                                            horizon=horizon,
                                            time_step=time_step,
                                            direction=direction,
@@ -367,8 +374,7 @@ class FixedProfile(Component):
                                               'Heat use in one (average) building',
                                               'W',
                                               time_step=self.time_step,
-                                              horizon=self.horizon,
-                                              start_time=self.start_time),
+                                              horizon=self.horizon),
         }
 
         if self.temperature_driven:
@@ -376,8 +382,7 @@ class FixedProfile(Component):
                                                     'Mass flow through one (average) building substation',
                                                     'kg/s',
                                                     time_step=self.time_step,
-                                                    horizon=self.horizon,
-                                                    start_time=self.start_time
+                                                    horizon=self.horizon
                                                     )
             params['temperature_supply'] = StateParameter('temperature_supply',
                                                           'Initial supply temperature at the component',
@@ -397,15 +402,16 @@ class FixedProfile(Component):
 
         return params
 
-    def compile(self, topmodel, parent):
+    def compile(self, topmodel, parent, start_time):
         """
         Build the structure of fixed profile
 
         :param topmodel: The main optimization model
         :param parent: The node model
+        :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-        self.check_data()
+        self.update_time(start_time)
 
         mult = self.params['mult']
         delta_T = self.params['delta_T']
@@ -497,18 +503,16 @@ class FixedProfile(Component):
 class VariableProfile(Component):
     # TODO Assuming that variable profile means State-Space model
 
-    def __init__(self, name, start_time, horizon, time_step, direction, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, direction, temperature_driven=False):
         """
         Class for components with a variable heating profile
 
         :param name: Name of the building
-        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         :param direction: Standard heat and mass flow direction for positive flows. 1 for producer components, -1 for consumer components
         """
         super(VariableProfile, self).__init__(name=name,
-                                              start_time=start_time,
                                               horizon=horizon,
                                               time_step=time_step,
                                               direction=direction,
@@ -516,10 +520,11 @@ class VariableProfile(Component):
 
         self.params = self.create_params()
 
-    def compile(self, parent):
+    def compile(self, parent, start_time):
         """
         Build the structure of a component model
 
+        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param parent: The main optimization model
         :return:
         """
@@ -527,18 +532,17 @@ class VariableProfile(Component):
         self.make_block(parent)
 
 
+
 class BuildingFixed(FixedProfile):
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
         Class for building models with a fixed heating profile
 
         :param name: Name of the building
-        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(BuildingFixed, self).__init__(name=name,
-                                            start_time=start_time,
                                             horizon=horizon,
                                             time_step=time_step,
                                             direction=-1,
@@ -549,17 +553,15 @@ class BuildingVariable(Component):
     # TODO How to implement DHW tank? Separate model from Building or together?
     # TODO Model DHW user without tank? -> set V_tank = 0
 
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
         Class for a building with a variable heating profile
 
         :param name: Name of the building
-        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(BuildingVariable, self).__init__(name=name,
-                                               start_time=start_time,
                                                horizon=horizon,
                                                time_step=time_step,
                                                direction=-1,
@@ -567,17 +569,15 @@ class BuildingVariable(Component):
 
 
 class ProducerFixed(FixedProfile):
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
         Class that describes a fixed producer profile
 
         :param name: Name of the building
-        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
         super(ProducerFixed, self).__init__(name=name,
-                                            start_time=start_time,
                                             horizon=horizon,
                                             time_step=time_step,
                                             direction=1,
@@ -588,18 +588,16 @@ class ProducerFixed(FixedProfile):
 
 
 class ProducerVariable(Component):
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
         Class that describes a variable producer
 
         :param name: Name of the building
-        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
 
         super(ProducerVariable, self).__init__(name=name,
-                                               start_time=start_time,
                                                horizon=horizon,
                                                time_step=time_step,
                                                direction=1,
@@ -628,8 +626,7 @@ class ProducerVariable(Component):
                                            'cost of fuel/electricity to generate heat',
                                            'euro/kWh',
                                            time_step=self.time_step,
-                                           horizon=self.horizon,
-                                           start_time=self.start_time),
+                                           horizon=self.horizon),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
@@ -646,8 +643,7 @@ class ProducerVariable(Component):
                                                     'Flow through the production unit substation',
                                                     'kg/s',
                                                     self.time_step,
-                                                    horizon=self.horizon,
-                                                    start_time=self.start_time)
+                                                    horizon=self.horizon)
             params['temperature_max'] = DesignParameter('temperature_max',
                                                         'Maximum allowed water temperature',
                                                         'K')
@@ -664,13 +660,13 @@ class ProducerVariable(Component):
                                                           'fixedVal')
         return params
 
-    def compile(self, topmodel, parent):
+    def compile(self, topmodel, parent, start_time):
         """
         Build the structure of a producer model
 
         :return:
         """
-        self.check_data()
+        self.update_time(start_time)
 
         self.model = topmodel
         self.make_block(parent)
@@ -823,17 +819,16 @@ class ProducerVariable(Component):
 
 
 class SolarThermalCollector(Component):
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
         Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
 
         :param name: Name of the solar panel
-        :param start_time: Start time of optimization. pd.Timestamp.
         :param horizon: Optimization horizon in seconds
         :param time_step: Time step in seconds
         :param temperature_driven:
         """
-        super(SolarThermalCollector, self).__init__(name=name, start_time=start_time, horizon=horizon,
+        super(SolarThermalCollector, self).__init__(name=name, horizon=horizon,
                                                     time_step=time_step, direction=1,
                                                     temperature_driven=temperature_driven)
 
@@ -853,22 +848,20 @@ class SolarThermalCollector(Component):
                                               description='Maximum heat generation per unit area of the solar panel',
                                               unit='W/m2',
                                               time_step=self.time_step,
-                                              horizon=self.horizon,
-                                              start_time=self.start_time)
+                                              horizon=self.horizon)
         }
         return params
 
-    def compile(self, topmodel, parent):
+    def compile(self, topmodel, parent, start_time):
         """
         Compile this component's equations
 
-        :param self:
         :param topmodel:
         :param parent:
+        :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-
-        self.check_data()
+        self.update_time(start_time)
 
         self.model = topmodel
         self.make_block(parent)
@@ -897,7 +890,7 @@ class SolarThermalCollector(Component):
 
 
 class StorageFixed(FixedProfile):
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven):
+    def __init__(self, name, horizon, time_step, temperature_driven):
         """
         Class that describes a fixed storage
 
@@ -907,7 +900,6 @@ class StorageFixed(FixedProfile):
         :param time_step: Time between two points
         """
         super(StorageFixed, self).__init__(name=name,
-                                           start_time=start_time,
                                            horizon=horizon,
                                            time_step=time_step,
                                            direction=-1,
@@ -915,18 +907,16 @@ class StorageFixed(FixedProfile):
 
 
 class StorageVariable(Component):
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
         Class that describes a variable storage
 
         :param name: Name of the building
-        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
 
         super(StorageVariable, self).__init__(name=name,
-                                              start_time=start_time,
                                               horizon=horizon,
                                               time_step=time_step,
                                               direction=-1,
@@ -985,7 +975,7 @@ class StorageVariable(Component):
 
         return params
 
-    def compile(self, topmodel, parent):
+    def compile(self, topmodel, parent, start_time):
         """
         Compile this model
 
@@ -993,6 +983,8 @@ class StorageVariable(Component):
         :param parent: block above this level
         :return:
         """
+        self.update_time(start_time)
+
         self.max_mflo = self.params['mflo_max'].v()
         self.volume = self.params['volume'].v()
         self.dIns = self.params['dIns'].v()
@@ -1034,8 +1026,6 @@ class StorageVariable(Component):
         def _heat_loss_ct(b, t):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
                    self.UAtb * (self.temp_ret + self.temp_sup - self.model.Te[t])
-
-        # TODO implement varying outdoor temperature
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
 

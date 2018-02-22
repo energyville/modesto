@@ -52,7 +52,7 @@ def construct_model():
 
     nx.draw(G, with_labels=True)
 
-    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step, pipe_model='NodeMethod', graph=G, start_time=start_time)
+    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step, pipe_model='NodeMethod', graph=G)
 
     ##################################
     # Set up data                    #
@@ -192,7 +192,7 @@ def compare_ramping_costs():
 
     for rc in ramp_cost:
         optmodel.change_param(node='ThorPark', comp='plant', param='ramp_cost', val=rc)
-        optmodel.compile()
+        optmodel.compile(start_time)
         optmodel.set_objective('cost_ramp')
 
         optmodel.solve(tee=False)
@@ -222,7 +222,7 @@ if __name__ == '__main__':
     # compare_ramping_costs()
 
     optmodel.opt_settings(allow_flow_reversal=False)
-    optmodel.compile()
+    optmodel.compile(start_time)
     optmodel.set_objective('cost')
 
     optmodel.solve(tee=False, mipgap=0.01)
