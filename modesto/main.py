@@ -329,10 +329,14 @@ class Modesto:
                 all_comps.append(comp_obj)
         return all_comps
 
-    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi', warmstart=False):
+    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi', warmstart=False, probe=False):
         """
         Solve a new optimization
 
+        :param probe: Use extra aggressive probing settings. Only has effect when using CPLEX
+        :param warmstart: Use warmstart if possible
+        :param mipfocus: Set MIP focus
+        :param solver: Choose solver
         :param tee: If True, print the optimization model
         :param mipgap: Set mip optimality gap. Default 10%
         :param verbose: True to print extra diagnostic information
@@ -352,8 +356,8 @@ class Modesto:
                 opt.options["MIPFocus"] = mipfocus
         elif solver == 'cplex':
             opt.options['mip display'] = 3
-            # opt.options[
-            #     'mip strategy probe'] = 3
+            if probe:
+                opt.options['mip strategy probe'] = 3
             # https://www.ibm.com/support/knowledgecenter/SSSA5P_12.5.1/ilog.odms.cplex.help/CPLEX/Parameters/topics/Probe.html
             #opt.options['emphasis mip'] = 1
             #opt.options['mip cuts all'] = 2
