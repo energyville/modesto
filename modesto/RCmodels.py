@@ -31,15 +31,14 @@ def str_to_comp(string):
 
 class RCmodel(Component):
 
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
 
         :param name: Name of the component
-        :param pd.Timestamp start_time: Start time of optimization horizon.
         :param horizon: Horizon of the optimization problem, in seconds
         :param time_step: Time between two points
         """
-        Component.__init__(self, name, start_time, horizon, time_step,
+        Component.__init__(self, name, horizon, time_step,
                            direction=-1,
                            temperature_driven=temperature_driven)
         self.model_types = ['SFH_D_1_2zone_TAB', 'SFH_D_1_2zone_REF1', 'SFH_D_1_2zone_REF2', 'SFH_D_2_2zone_TAB',
@@ -198,14 +197,15 @@ class RCmodel(Component):
         self.structure = G
         self.controlVariables += ['Q_hea_D', 'Q_hea_N']
 
-    def compile(self, topmodel, parent):
+    def compile(self, topmodel, parent, start_time):
         """
         Build the RC model
 
         :return:
         """
 
-        self.check_data()
+        self.update_time(start_time)
+
         self.model = topmodel
         self.make_block(parent)
 
@@ -485,111 +485,95 @@ class RCmodel(Component):
                                                      'Maximum temperature for day zones',
                                                      'K',
                                                      self.time_step,
-                                                     self.horizon,
-                                                     self.start_time
+                                                     self.horizon
                                                      ),
             'day_min_temperature': UserDataParameter('day_min_temperature',
                                                      'Minimum temperature for day zones',
                                                      'K',
                                                      self.time_step,
-                                                     self.horizon,
-                                                     self.start_time
+                                                     self.horizon
                                                      ),
             'night_max_temperature': UserDataParameter('night_max_temperature',
                                                      'Maximum temperature for night zones',
                                                      'K',
                                                      self.time_step,
-                                                     self.horizon,
-                                                     self.start_time
+                                                     self.horizon
                                                      ),
             'night_min_temperature': UserDataParameter('night_min_temperature',
                                                      'Minimum temperature for night zones',
                                                      'K',
                                                      self.time_step,
-                                                     self.horizon,
-                                                     self.start_time
+                                                     self.horizon
                                                      ),
             'bathroom_max_temperature': UserDataParameter('bathroom_max_temperature',
                                                      'Minimum temperature for bathroom zones',
                                                      'K',
                                                      self.time_step,
-                                                     self.horizon,
-                                                     self.start_time
+                                                     self.horizon
                                                      ),
             'bathroom_min_temperature': UserDataParameter('bathroom_min_temperature',
                                                      'Minimum temperature for bathroom zones',
                                                      'K',
                                                      self.time_step,
-                                                     self.horizon,
-                                                     self.start_time
+                                                     self.horizon
                                                      ),
             'floor_max_temperature': UserDataParameter('bathroom_max_temperature',
                                                           'Minimum temperature for bathroom zones',
                                                           'K',
                                                           self.time_step,
-                                                          self.horizon,
-                                                          self.start_time
+                                                          self.horizon
                                                           ),
             'floor_min_temperature': UserDataParameter('bathroom_min_temperature',
                                                           'Minimum temperature for bathroom zones',
                                                           'K',
                                                           self.time_step,
-                                                          self.horizon,
-                                                          self.start_time
+                                                          self.horizon
                                                           ),
             'Q_sol_E': WeatherDataParameter('Q_sol_E',
                                             'Eastern solar radiation',
                                             'W',
                                             self.time_step,
-                                            self.horizon,
-                                            self.start_time
+                                            self.horizon
                                             ),
             'Q_sol_S': WeatherDataParameter('Q_sol_S',
                                             'Southern solar radiation',
                                             'W',
                                             self.time_step,
-                                            self.horizon,
-                                            self.start_time
+                                            self.horizon
                                             ),
             'Q_sol_W': WeatherDataParameter('Q_sol_W',
                                             'Western solar radiation',
                                             'W',
                                             self.time_step,
-                                            self.horizon,
-                                            self.start_time
+                                            self.horizon
                                             ),
             'Q_sol_N': WeatherDataParameter('Q_sol_N',
                                             'Northern solar radiation',
                                             'W',
                                             self.time_step,
-                                            self.horizon,
-                                            self.start_time),
+                                            self.horizon),
             'Q_int_D': UserDataParameter('Q_int_D',
                                          'Internal heat gains, day zones',
                                          'W',
                                          self.time_step,
-                                         self.horizon,
-                                         self.start_time
+                                         self.horizon
                                          ),
             'Q_int_N': UserDataParameter('Q_int_N',
                                          'Internal heat gains, night zones',
                                          'W',
                                          self.time_step,
-                                         self.horizon,
-                                         self.start_time
+                                         self.horizon
                                          ),
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
                                        'K',
                                        time_step=self.time_step,
-                                       horizon=self.horizon,
-                                       start_time=self.start_time),
+                                       horizon=self.horizon),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
                                        'K',
                                        time_step=self.time_step,
-                                       horizon=self.horizon,
-                                       start_time=self.start_time)
+                                       horizon=self.horizon)
         }
         # TODO Te, Tg and Q_sol als global parameters?
         return params
