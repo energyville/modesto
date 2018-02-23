@@ -175,7 +175,7 @@ def setup_opt():
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': 50e6,
+                   'Qmax': 17.5e6,
                    'ramp_cost': 0.01,
                    'ramp': 1e6 / 3600}
 
@@ -275,7 +275,7 @@ def setup_opt():
 
 if __name__ == '__main__':
     optmodel = setup_opt()
-    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=60)
+    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=120)
 
     # ## Collecting results
 
