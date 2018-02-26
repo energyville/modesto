@@ -397,7 +397,7 @@ class Modesto:
             self.logger.warning('Model is infeasible')
         else:
             status = 1
-            self.logger.error('Solver status: {}'.format(self.results.solver.status))
+            self.logger.warning('Solver status: {}'.format(self.results.solver.status))
 
         return status
 
