@@ -71,16 +71,16 @@ def setup_opt():
     G.add_edge('p2', 'TermienEast', name='servBox')
     G.add_edge('Production', 'p2', name='servPro')
 
-    pos = {}
-    for node in G:
-        # print node
-        pos[node] = (G.nodes[node]['x'], G.nodes[node]['y'])
+    # pos = {}
+    # for node in G:
+    #     # print node
+    #     pos[node] = (G.nodes[node]['x'], G.nodes[node]['y'])
+    #
+    # fig, ax = plt.subplots()
+    # nx.draw_networkx(G, with_labels=True, pos=pos, ax=ax)
+    # ax.set_xlim(-1500, 7000)
 
-    fig, ax = plt.subplots()
-    nx.draw_networkx(G, with_labels=True, pos=pos, ax=ax)
-    ax.set_xlim(-1500, 7000)
-
-    fig.savefig('img/NetworkLayout.svg')  # , dpi=150)
+    # fig.savefig('img/NetworkLayout.svg')  # , dpi=150)
 
     # # Setting up modesto
 
@@ -275,7 +275,7 @@ def setup_opt():
 
 if __name__ == '__main__':
     optmodel = setup_opt()
-    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=120)
+    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=10)
 
     # ## Collecting results
 
@@ -305,26 +305,30 @@ if __name__ == '__main__':
 
     # Creating plots:
 
-    fig, ax = plt.subplots(2, 1, sharex=True)
+    fig, ax = plt.subplots(1, 1, sharex=True)
 
-    ax[0].plot(heat_flows)
-    ax[0].set_ylabel('Heat Flow [W]')
-    ax[0].legend(heat_flows.columns, loc='best')
+    ax.plot(inputs['Solar'], label='STC')
+    ax.plot(inputs['Production'], label='Backup')
+    ax.set_ylabel('Heat Flow [W]')
+    ax.legend(loc='best')
 
-    ax[1].plot(inputs)
-    ax[1].set_ylabel('Heat Flow [W]')
-    ax[1].legend(inputs.columns, loc='best')
+    ax.set_title('Heat injection, future scenario')
 
-    for a in ax:
-        a.grid(linewidth=0.5, alpha=0.3)
 
-    ax[-1].set_xlabel('Time')
+    ax.grid(linewidth=0.5, alpha=0.3)
 
-    fig, ax = plt.subplots(1, 1)
-    df = optmodel.get_result('heat_flow_curt', node='SolarArray', comp='solar')
-    ax.plot(df)
-
+    ax.set_xlabel('Time')
+    ax.xaxis.set_major_formatter(DateFormatter('%b'))
     fig.autofmt_xdate()
+
+    fig.tight_layout()
+    fig.savefig('img/Future/HeatInput.png', dpi=300)
+
+    # fig, ax = plt.subplots(1, 1)
+    # df = optmodel.get_result('heat_flow_curt', node='SolarArray', comp='solar')
+    # ax.plot(df)
+    #
+    # fig.autofmt_xdate()
 
 
     # Sum of heat flows
