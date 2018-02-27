@@ -104,11 +104,13 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
+        'mflo_min': -110,
         'volume': 2e4,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': 0
+        'heat_stor': 0,
+        'mflo_use': pd.Series(0, index=t_amb.index)
     }
 
     optmodel.change_params(dict=stor_design, node='waterscheiGarden',
@@ -131,7 +133,7 @@ def construct_model():
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 1.5e7,
+                   'Qmax': 1.5e8,
                    'ramp_cost': 0.01,
                    'ramp': 1e6 / 3600}
 
