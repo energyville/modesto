@@ -720,11 +720,32 @@ class ProducerVariable(Component):
 
             self.block.temperatures = Var(self.model.lines, self.model.TIME)
 
-            def _limit_temperatures(b, t):
-                return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
-                    'temperature_max'].v()
+            # def _limit_temperatures(b, t):
+            #     return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
+            #         'temperature_max'].v()
+            #
+            # self.block.limit_temperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
 
-            self.block.limit_temperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
+            uslack = self.make_slack('temperature_max_uslack', self.model.TIME)
+            lslack = self.make_slack('temperature_max_lslack', self.model.TIME)
+
+            ub = self.params['temperature_max'].v()
+            lb = self.params['temperature_min'].v()
+
+            def _max_temp(b, t):
+                return self.constrain_value(b.temperatures['supply', t],
+                                            ub,
+                                            ub=True,
+                                            slack_variable=uslack[t])
+
+            def _min_temp(b, t):
+                return self.constrain_value(b.temperatures['supply', t],
+                                            lb,
+                                            ub=False,
+                                            slack_variable=lslack[t])
+
+            self.block.max_temp = Constraint(self.model.TIME, rule=_max_temp)
+            self.block.min_temp = Constraint(self.model.TIME, rule=_min_temp)
 
             def _decl_temperatures(b, t):
                 if t == 0:
