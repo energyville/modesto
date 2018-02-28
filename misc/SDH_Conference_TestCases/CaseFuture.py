@@ -15,6 +15,7 @@ import logging
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
+from matplotlib.dates import DateFormatter
 
 import modesto.utils as ut
 from modesto.main import Modesto
@@ -153,7 +154,7 @@ def setup_opt():
         'mult': 1
     }
 
-    heat_profile = ut.read_time_data(datapath, name='HeatDemand/Initialized/HeatDemandFiltered.csv')
+    heat_profile = ut.read_time_data(datapath, name='HeatDemand/HeatDemandFiltered.csv')
 
     print '#######################'
     print '# Sum of heat demands #'
@@ -275,7 +276,7 @@ def setup_opt():
 
 if __name__ == '__main__':
     optmodel = setup_opt()
-    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=10)
+    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=15)
 
     # ## Collecting results
 
@@ -307,13 +308,12 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(1, 1, sharex=True)
 
-    ax.plot(inputs['Solar'], label='STC')
-    ax.plot(inputs['Production'], label='Backup')
-    ax.set_ylabel('Heat Flow [W]')
+    ax.plot(inputs['Solar']/1e6, label='STC', color='orange')
+    ax.plot(inputs['Production']/1e6, label='Backup', color='red', linewidth=1.5)
+    ax.set_ylabel('Heat Flow [MW]')
     ax.legend(loc='best')
 
     ax.set_title('Heat injection, future scenario')
-
 
     ax.grid(linewidth=0.5, alpha=0.3)
 
@@ -392,7 +392,7 @@ if __name__ == '__main__':
     stor = pd.DataFrame()
     soc = pd.DataFrame()
 
-    for node in ['SolarArray', 'TermienWest', 'WaterscheiGarden']:
+    for node in ['SolarArray', 'TermienWest', 'WaterscheiGarden', 'Production']:
         stor[node] = optmodel.get_result('heat_stor', state=True, node=node, comp='tank')
         soc[node] = optmodel.get_result('soc', state=True, node=node, comp='tank')
 
@@ -400,15 +400,32 @@ if __name__ == '__main__':
 
     ls = {
         'SolarArray': 'r--',
-        'TermienWest': 'b',
+        'TermienWest': 'b-.',
         'WaterscheiGarden': 'g'
     }
 
-    for node in stor:
-        axs[0].plot(stor[node], ls[node], label=node)
-        axs[1].plot(soc[node], ls[node])
+    for node in ['SolarArray', 'TermienWest', 'WaterscheiGarden']:
+        axs[0].plot(stor[node]/1e6, ls[node], label=node, linewidth=1.5)
+        axs[1].plot(soc[node], ls[node], linewidth=1.5)
+    axs[0].plot(stor['Production']/1e6, ls=':', color='black')
+    axs[0].legend(['STC Node', 'Termien W', 'Waterschei GC', 'Production'], loc='best', ncol=2)
+    axs[0].set_title('Stored energy')
+    axs[0].set_ylabel('Energy [GWh]')
 
-    axs[0].legend(loc='best')
+    axs[1].plot(soc['Production'], ls=':', color='black', lw=0.5)
+    axs[1].set_title('State of charge')
+    axs[1].set_ylabel('SoC [%]')
+    axs[1].set_ylim(0, 100)
+    axs[-1].xaxis.set_major_formatter(DateFormatter('%b'))
+
+    for ax in axs:
+        ax.grid(alpha=0.4, linewidth=0.5)
+
     fig.autofmt_xdate()
+
+    fig.tight_layout()
+
+
+    fig.savefig('img/Future/StoragePlot.png', dpi=300)
 
     plt.show()
