@@ -1076,8 +1076,8 @@ class StorageVariable(Component):
 
         # State equation
         def _state_eq(b, t):   # in kWh
-            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step/3600 * (b.heat_flow[t] - b.heat_loss[t])/1000 \
-                    - (self.mflo_use[t]*self.cp*(self.temp_sup-self.temp_ret))/1000/3600
+            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step/3600/1000 * \
+                   (b.heat_flow[t] - b.heat_loss[t] - self.mflo_use[t]*self.cp*(self.temp_sup-self.temp_ret))
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
