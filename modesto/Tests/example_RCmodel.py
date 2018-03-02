@@ -113,6 +113,7 @@ def construct_model():
                           'TiN0': 20 + 273.15,
                           'TwiN0': 20 + 273.15,
                           'TwN0': 20 + 273.15,
+                          'max_heat': 3000
                           }
 
     ws_building_params = zw_building_params.copy()
