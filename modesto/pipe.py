@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set, Binary, Block
+from pyomo.core.base import Param, Var, Constraint, Set, Block
 
 from component import Component
 from parameter import DesignParameter, StateParameter, UserDataParameter
@@ -26,8 +26,8 @@ def str_to_pipe(string):
 
 
 class Pipe(Component):
-    def __init__(self, name, horizon, time_step, start_node, end_node, length, temp_sup=70 + 273.15,
-                 temp_ret=50 + 273.15, allow_flow_reversal=False, temperature_driven=False, direction=1):
+    def __init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal=False,
+                 temperature_driven=False, direction=1):
         """
         Class that sets up an optimization model for a DHC pipe
 
@@ -56,8 +56,8 @@ class Pipe(Component):
         self.length = length
         self.allow_flow_reversal = allow_flow_reversal
 
-        self.temp_sup = temp_sup
-        self.temp_ret = temp_ret
+        self.temp_sup = None
+        self.temp_ret = None
 
     @staticmethod
     def get_pipe_catalog():
@@ -67,9 +67,9 @@ class Pipe(Component):
 
     def create_params(self):
         params = {
-            'pipe_type': DesignParameter('pipe_type',
-                                         'Type of pipe (IsoPlus Double Standard)',
-                                         'DN')
+            'diameter': DesignParameter('diameter',
+                                        'Pipe diameter',
+                                        'DN (mm)')
         }
 
         return params
@@ -196,6 +196,9 @@ class ExtensivePipe(Pipe):
         self.allow_flow_reversal = allow_flow_reversal
         self.dn = None
 
+        self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K')
+        self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K')
+
     def compile(self, model, start_time):
         """
         Build the structure of the optimization model
@@ -204,7 +207,7 @@ class ExtensivePipe(Pipe):
         """
         self.update_time(start_time)
 
-        self.dn = self.params['pipe_type'].v()
+        self.dn = self.params['diameter'].v()
         if self.dn is None:
             self.logger.info('No dn set. Optimizing diameter.')
         self.make_block(model)
@@ -244,6 +247,9 @@ class ExtensivePipe(Pipe):
 
         Rs = self.Rs[self.dn]
         self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
+
+        self.temp_sup = self.params['temperature_supply'].v()
+        self.temp_ret = self.params['temperature_return'].v()
 
         # Maximal heat loss per unit length
         def _heat_loss(b, t):
@@ -319,8 +325,6 @@ class ExtensivePipe(Pipe):
 
         self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
                                                  rule=_eq_heat_loss_tot)
-
-
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
@@ -453,7 +457,7 @@ class NodeMethod(Pipe):
 
         self.history_length = len(self.params['mass_flow_history'].v())
 
-        dn = self.params['pipe_type'].v()
+        dn = self.params['diameter'].v()
         self.make_block(model)
 
         self.block.all_time = Set(initialize=range(self.history_length + self.n_steps), ordered=True)
@@ -587,7 +591,7 @@ class NodeMethod(Pipe):
         # Pipe wall heat capacity ######################################################################################
 
         # Eq. 3.4.20
-        self.block.K = 1 / self.Rs[self.params['pipe_type'].v()]
+        self.block.K = 1 / self.Rs[self.params['diameter'].v()]
 
         # Eq. 3.4.14
 
@@ -692,7 +696,7 @@ class NodeMethod(Pipe):
         self.block.def_temp_out = Constraint(self.model.TIME, self.model.lines, rule=_temp_out)
 
     def get_diameter(self):
-        return self.Di[self.params['pipe_type'].v()]
+        return self.Di[self.params['diameter'].v()]
 
     def get_length(self):
         return self.length

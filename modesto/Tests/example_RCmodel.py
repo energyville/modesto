@@ -128,11 +128,13 @@ def construct_model():
     optmodel.change_init_type(node='zwartbergNE', comp='buildingD',
                               state='TiD0', new_type='cyclic')
 
-    bbThor_params = {'pipe_type': 500}
+    bbThor_params = {'diameter': 500,
+                     'temperature_supply': 80 + 273.15,
+                     'temperature_return': 60 + 273.15}
     spWaterschei_params = bbThor_params.copy()
-    spWaterschei_params['pipe_type'] = 500
+    spWaterschei_params['diameter'] = 500
     spZwartbergNE_params = bbThor_params.copy()
-    spZwartbergNE_params['pipe_type'] = 500
+    spZwartbergNE_params['diameter'] = 500
 
     optmodel.change_params(bbThor_params, comp='bbThor')
     optmodel.change_params(spWaterschei_params, comp='spWaterschei')
