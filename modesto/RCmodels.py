@@ -89,8 +89,7 @@ class RCmodel(Component):
 
         G = nx.Graph()
 
-        file = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..',
-                                            'misc', 'BuildingModels', 'buildParamSummary.csv'))
+        file = os.path.join(resource_filename('modesto', 'Data'), 'BuildingModels', 'buildParamSummary.csv')
         model_params = pd.read_csv(file, sep=';', index_col=0)
 
         bp = model_params[model_type]
