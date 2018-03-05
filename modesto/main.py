@@ -774,6 +774,7 @@ class Modesto:
             edges.append(dict[tuple])
         return edges
 
+    # TODO these pipe parameter getters should be defined in the relevant pipe classes.
     def get_pipe_diameter(self, pipe):
         """
         Get the diameter of a certain pipe
