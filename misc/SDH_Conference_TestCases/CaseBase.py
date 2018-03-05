@@ -13,14 +13,13 @@ from __future__ import division
 import logging
 
 import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
 import networkx as nx
 import pandas as pd
-from matplotlib.dates import DateFormatter
 
 import modesto.utils as ut
 from modesto.main import Modesto
 
-plt.style.use('classic')
 
 logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -85,7 +84,6 @@ def setup_opt():
 
     horizon = 365 * 24 * 3600
     time_step = 6 * 3600
-    start_time = pd.Timestamp('20140101')
     pipe_model = 'ExtensivePipe'
 
     # And create the modesto object
@@ -93,8 +91,7 @@ def setup_opt():
     model = Modesto(horizon=horizon,
                     time_step=time_step,
                     pipe_model=pipe_model,
-                    graph=G,
-                    start_time=start_time)
+                    graph=G)
 
     # # Adding data
 
@@ -178,6 +175,8 @@ def setup_opt():
         'Thi': 70 + 273.15,
         'Tlo': 30 + 273.15,
         'mflo_max': 1100,
+        'mflo_min': -1100,
+        'mflo_use': pd.Series(0, index=t_amb.index),
         'volume': 3e3,
         'ar': 1,
         'dIns': 0.3,
@@ -198,16 +197,18 @@ def setup_opt():
     }
 
     for pipe, DN in pipeDiam.iteritems():
-        model.change_param(node=None, comp=pipe, param='pipe_type', val=DN)
+        model.change_param(node=None, comp=pipe, param='diameter', val=DN)
+        model.change_param(node=None, comp=pipe, param='temperature_supply', val=70 + 273.15)
+        model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
 
-    model.compile()
-    model.set_objective('cost')
-    model.opt_settings(allow_flow_reversal=True)
     return model
-
 
 if __name__ == '__main__':
     optmodel = setup_opt()
+    start_time = pd.Timestamp('20140101')
+    optmodel.compile(start_time=start_time)
+    optmodel.set_objective('cost')
+    optmodel.opt_settings(allow_flow_reversal=True)
     optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=15)
 
     # ## Collecting results
