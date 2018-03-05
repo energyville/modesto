@@ -1,4 +1,4 @@
-cfrom __future__ import division
+from __future__ import division
 
 import os
 import sys
@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set, Block
+from pyomo.core.base import Param, Var, Constraint, Set, Block, Binary
 
 from component import Component
 from parameter import DesignParameter, StateParameter, UserDataParameter

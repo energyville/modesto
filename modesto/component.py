@@ -516,7 +516,7 @@ class VariableProfile(Component):
 
         self.params = self.create_params()
 
-    def compile(self, parent, start_time):
+    def compile(self, topmodel, parent, start_time):
         """
         Build the structure of a component model
 
@@ -524,7 +524,8 @@ class VariableProfile(Component):
         :param parent: The main optimization model
         :return:
         """
-
+        self.model = topmodel
+        self.update_time(start_time)
         self.make_block(parent)
 
 
@@ -579,6 +580,9 @@ class ProducerFixed(FixedProfile):
                                             direction=1,
                                             temperature_driven=temperature_driven)
 
+    def is_heat_source(self):
+        return True
+
 
 class ProducerVariable(Component):
     def __init__(self, name, horizon, time_step, temperature_driven=False):
@@ -600,6 +604,10 @@ class ProducerVariable(Component):
 
         self.logger = logging.getLogger('modesto.components.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
+
+    def is_heat_source(self):
+        return True
+
 
     def create_params(self):
         params = {
@@ -973,7 +981,7 @@ class StorageVariable(Component):
 
         return params
 
-    def calculate_static_parameters(self):
+    def calculate_static_parameters(self, start_time):
         """
         Calculate static parameters and assign them to this object for later use in equations.
 
@@ -1050,7 +1058,7 @@ class StorageVariable(Component):
         if self.temperature_driven:
             self.block.supply_temperature = Var(self.model.TIME)
 
-    def compile(self, topmodel, parent):
+    def compile(self, topmodel, parent, start_time):
         """
         Compile this model
 
@@ -1058,7 +1066,7 @@ class StorageVariable(Component):
         :param parent: block above this level
         :return:
         """
-        self.calculate_static_parameters()
+        self.calculate_static_parameters(start_time)
         self.initial_compilation(topmodel, parent)
 
         # Internal
@@ -1197,7 +1205,7 @@ class StorageCondensed(StorageVariable):
 
         self.heat_loss_coeff = None
 
-    def compile(self, topmodel, parent):
+    def compile(self, topmodel, parent, start_time):
         """
         Compile this unit. Equations calculate the final state after the specified number of repetitions.
 
@@ -1206,7 +1214,7 @@ class StorageCondensed(StorageVariable):
         :return:
         """
         self.calculate_static_parameters()
-        self.initial_compilation(topmodel, parent)
+        self.initial_compilation(topmodel, parent, start_time)
 
         self.heat_loss_coeff = exp(-self.time_step / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
         print 'zeta H is:', str(self.heat_loss_coeff)
