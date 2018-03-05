@@ -973,11 +973,7 @@ class StorageVariable(Component):
 
         return params
 
-<<<<<<< HEAD
     def calculate_static_parameters(self):
-=======
-    def compile(self, topmodel, parent, start_time):
->>>>>>> master
         """
         Calculate static parameters and assign them to this object for later use in equations.
 
@@ -1031,11 +1027,8 @@ class StorageVariable(Component):
 
         def _heat_loss_ct(b, t):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
-<<<<<<< HEAD
                    self.UAtb * (self.temp_ret + self.temp_sup - 2 * self.model.Te[t])
-=======
-                   self.UAtb * (self.temp_ret + self.temp_sup - self.model.Te[t])
->>>>>>> master
+
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
 
