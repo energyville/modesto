@@ -261,12 +261,13 @@ class TimeSeriesParameter(Parameter):
         self.value = new_val
 
     def change_start_time(self, val):
-        if not isinstance(val, pd.Timestamp):
-            raise TypeError('New start time should be pandas timestamp')
+        if isinstance(val, pd.Timestamp):
+            self.start_time = val
+        elif isinstance(val, str):
+            self.start_time = pd.Timestamp(val)
+        else:
+            raise TypeError('New start time should be pandas timestamp or string representation of a timestamp')
 
-        self.start_time = val
-
-        self.start_time = val
 
 
 class UserDataParameter(TimeSeriesParameter):
