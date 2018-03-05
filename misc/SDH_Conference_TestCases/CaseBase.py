@@ -44,28 +44,20 @@ logger = logging.getLogger('SDH')
 def setup_opt():
     G = nx.DiGraph()
 
-    G.add_node('SolarArray', x=0, y=5000, z=0,
-               comps={'solar': 'SolarThermalCollector',
-                      'tank': 'StorageVariable'
-                      })
-
     G.add_node('WaterscheiGarden', x=0, y=0, z=0,
-               comps={'neighb': 'BuildingFixed',
-                      'tank': 'StorageVariable'})
+               comps={'neighb': 'BuildingFixed'})
 
     G.add_node('p1', x=1000, y=2400, z=0, comps={})
 
     G.add_node('p2', x=4000, y=2800, z=0, comps={})
 
     G.add_node('TermienWest', x=4200, z=0, y=4600,
-               comps={'neighb': 'BuildingFixed',
-                      'tank': 'StorageVariable'})
+               comps={'neighb': 'BuildingFixed'})
 
     G.add_node('Production', x=6000, y=4000, z=0, comps={'backup': 'ProducerVariable',
                                                          'tank': 'StorageVariable'})
     G.add_node('TermienEast', x=5400, y=200, z=0, comps={'neighb': 'BuildingFixed'})
 
-    G.add_edge('SolarArray', 'p1', name='servSol')
     G.add_edge('p1', 'WaterscheiGarden', name='servWat')
     G.add_edge('p1', 'p2', name='backBone')
     G.add_edge('p2', 'TermienWest', name='servTer')
@@ -176,9 +168,9 @@ def setup_opt():
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': 15e6,
+                   'Qmax': 65e6,
                    'ramp_cost': 0.01,
-                   'ramp': 1e6 / 3600}
+                   'ramp': 120e6 / 3600}
 
     model.change_params(prod_design, 'Production', 'backup')
 
@@ -195,54 +187,6 @@ def setup_opt():
     model.change_params(prod_stor_design, node='Production', comp='tank')
     model.change_init_type('heat_stor', 'cyclic', node='Production', comp='tank')
 
-    # ### Storage Unit
-
-
-    stor_design = {
-        'Thi': 70 + 273.15,
-        'Tlo': 30 + 273.15,
-        'mflo_max': 1100,
-        'volume': 1500e3,
-        'ar': 1,
-        'dIns': 1,
-        'kIns': 0.024,
-        'heat_stor': 0
-    }
-
-    model.change_params(stor_design, node='SolarArray',
-                        comp='tank')
-    model.change_init_type('heat_stor', new_type='cyclic', comp='tank', node='SolarArray')
-
-    stor_design = {
-        'TermienWest':
-            {
-                'Thi': 70 + 273.15,
-                'Tlo': 30 + 273.15,
-                'mflo_max': 1100,
-                'volume': 200e3,
-                'ar': 1,
-                'dIns': 1,
-                'kIns': 0.024,
-                'heat_stor': 0
-            },
-        'WaterscheiGarden':
-            {
-                'Thi': 70 + 273.15,
-                'Tlo': 30 + 273.15,
-                'mflo_max': 1100,
-                'volume': 600e3,
-                'ar': 1,
-                'dIns': 1,
-                'kIns': 0.024,
-                'heat_stor': 0
-            }
-    }
-
-    for node in ['TermienWest', 'WaterscheiGarden']:
-        model.change_params(stor_design[node], node=node,
-                            comp='tank')
-        model.change_init_type('heat_stor', new_type='cyclic', comp='tank', node=node)
-
     # ### Pipes
 
     pipeDiam = {
@@ -250,23 +194,11 @@ def setup_opt():
         'servWat': 400,
         'servTer': 250,
         'servPro': 500,
-        'servSol': 500,
         'servBox': 250
     }
 
     for pipe, DN in pipeDiam.iteritems():
         model.change_param(node=None, comp=pipe, param='pipe_type', val=DN)
-
-    # ### Solar collector
-    solData = ut.read_time_data(datapath, name='RenewableProduction/SolarThermal.csv')
-
-    solParam = {
-        'delta_T': 40,
-        'heat_profile': solData['0_40'],
-        'area': 300000
-    }
-
-    model.change_params(solParam, node='SolarArray', comp='solar')
 
     model.compile()
     model.set_objective('cost')
@@ -276,7 +208,7 @@ def setup_opt():
 
 if __name__ == '__main__':
     optmodel = setup_opt()
-    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=60)
+    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=15)
 
     # ## Collecting results
 
@@ -302,18 +234,16 @@ if __name__ == '__main__':
     inputs = pd.DataFrame()
 
     inputs['Production'] = optmodel.get_result('heat_flow', node='Production', comp='backup')
-    inputs['Solar'] = optmodel.get_result('heat_flow', node='SolarArray', comp='solar')
 
     # Creating plots:
 
-    fig, ax = plt.subplots(1, 1, sharex=True)
+    fig, ax = plt.subplots(1, 1, sharex=True, figsize=(8, 3))
 
-    ax.plot(inputs['Solar']/1e6, label='STC', color='orange')
-    ax.plot(inputs['Production']/1e6, label='Backup', color='red', linewidth=1.5)
+    ax.plot(inputs['Production'] / 1e6, label='Backup', color='red', linewidth=1.5)
     ax.set_ylabel('Heat Flow [MW]')
     ax.legend(loc='best')
 
-    ax.set_title('Heat injection, future scenario')
+    ax.set_title('Heat injection, base scenario')
 
     ax.grid(linewidth=0.5, alpha=0.3)
 
@@ -322,36 +252,32 @@ if __name__ == '__main__':
     fig.autofmt_xdate()
 
     fig.tight_layout()
-    fig.savefig('img/Future/HeatInput.png', dpi=300)
+    fig.savefig('img/Base/HeatInput.png', dpi=300)
 
-    fig, ax = plt.subplots(1, 1)
-    df = optmodel.get_result('heat_flow_curt', node='SolarArray', comp='solar')
-    ax.plot(df)
+    # fig, ax = plt.subplots(1, 1)
+    # df = optmodel.get_result('heat_flow_curt', node='SolarArray', comp='solar')
+    # ax.plot(df)
     #
     # fig.autofmt_xdate()
 
 
     # Sum of heat flows
     prod_e = sum(inputs['Production'])
-    prod_s = sum(inputs['Solar'])
     waterschei_e = sum(heat_flows['WaterscheiGarden'])
     termieneast_e = sum(heat_flows['TermienEast'])
     termienwest_e = sum(heat_flows['TermienWest'])
 
     # Efficiency
-    print '\nNetwork efficiency', (termieneast_e + waterschei_e + termienwest_e) / (prod_e + prod_s) * 100, '%'
-
-    print sum(optmodel.get_result('heat_flow_max', node='SolarArray', comp='solar')) * 200000
-    print sum(optmodel.get_result('heat_flow', node='SolarArray', comp='solar'))
+    print '\nNetwork efficiency', (termieneast_e + waterschei_e + termienwest_e) / (prod_e) * 100, '%'
 
     fig, axs = plt.subplots(2, 1, sharex=True)
-    for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servSol', 'servWat']:
+    for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servWat']:
         print pipe
         axs[0].plot(optmodel.get_result('heat_loss_tot', comp=pipe), label=pipe)
         axs[1].plot(optmodel.get_result('mass_flow', comp=pipe), label=pipe)
     axs[1].legend()
 
-    for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servSol', 'servWat']:
+    for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servWat']:
         print pipe, str(round(sum(optmodel.get_result('heat_loss_tot', comp=pipe)) / 1e6, 2)), 'MWh'
     fig.autofmt_xdate()
 
@@ -392,27 +318,23 @@ if __name__ == '__main__':
     stor = pd.DataFrame()
     soc = pd.DataFrame()
 
-    for node in ['SolarArray', 'TermienWest', 'WaterscheiGarden', 'Production']:
+    for node in ['Production']:
         stor[node] = optmodel.get_result('heat_stor', state=True, node=node, comp='tank')
         soc[node] = optmodel.get_result('soc', state=True, node=node, comp='tank')
 
     fig, axs = plt.subplots(2, 1, sharex=True)
 
     ls = {
-        'SolarArray': 'r--',
         'TermienWest': 'b-.',
         'WaterscheiGarden': 'g'
     }
 
-    for node in ['SolarArray', 'TermienWest', 'WaterscheiGarden']:
-        axs[0].plot(stor[node]/1e6, ls[node], label=node, linewidth=1.5)
-        axs[1].plot(soc[node], ls[node], linewidth=1.5)
-    axs[0].plot(stor['Production']/1e6, ls=':', color='black')
-    axs[0].legend(['STC Node', 'Termien W', 'Waterschei GC', 'Production'], loc='best', ncol=2)
+    axs[0].plot(stor['Production'] / 1e6, color='black')
+    axs[0].legend(['Production'], loc='best', ncol=2)
     axs[0].set_title('Stored energy')
     axs[0].set_ylabel('Energy [GWh]')
 
-    axs[1].plot(soc['Production'], ls=':', color='black', lw=0.5)
+    axs[1].plot(soc['Production'], color='black', lw=0.5)
     axs[1].set_title('State of charge')
     axs[1].set_ylabel('SoC [%]')
     axs[1].set_ylim(0, 100)
@@ -425,7 +347,6 @@ if __name__ == '__main__':
 
     fig.tight_layout()
 
-
-    fig.savefig('img/Future/StoragePlot.png', dpi=300)
+    # fig.savefig('img/Future/StoragePlot.png', dpi=300)
 
     plt.show()
