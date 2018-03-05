@@ -87,11 +87,11 @@ def construct_model():
     optmodel.change_params(ws_building_params, node='waterscheiGarden',
                            comp='buildingD')
 
-    bbThor_params = {'pipe_type': 500}
+    bbThor_params = {'diameter': 500, 'temperature_supply': 273.15+80, 'temperature_return': 273.15+60}
     spWaterschei_params = bbThor_params.copy()
-    spWaterschei_params['pipe_type'] = 500
+    spWaterschei_params['diameter'] = 500
     spZwartbergNE_params = bbThor_params.copy()
-    spZwartbergNE_params['pipe_type'] = 500
+    spZwartbergNE_params['diameter'] = 500
 
     optmodel.change_params(bbThor_params, comp='bbThor')
     optmodel.change_params(spWaterschei_params, comp='spWaterschei')

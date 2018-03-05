@@ -49,8 +49,8 @@ def setup_modesto(graph):
     optmodel = Modesto(horizon=horizon,
                        time_step=time_step,
                        pipe_model=pipe_model,
-                       graph=graph,
-                       start_time=start_time)
+                       graph=graph
+                       )
 
     from pkg_resources import resource_filename
     datapath = resource_filename('modesto', 'Data')
@@ -70,7 +70,7 @@ def setup_modesto(graph):
     building_params = {
         'delta_T': 40,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 0.01, 0.01, 1, 1, 0.1]*4*numdays) * Pnom
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 0.01, 0.01, 1, 1, 0.1] * 4 * numdays) * Pnom
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
 
@@ -86,9 +86,14 @@ def setup_modesto(graph):
     optmodel.change_params(prod_design, 'prod', 'prod')
 
     # Pipe parameters
-    optmodel.change_param(node=None, comp='pipe', param='pipe_type', val=150)
+    params = {
+        'diameter': 150,
+        'temperature_supply': 60 + 273.15,
+        'temperature_return': 20 + 273.15
+    }
+    optmodel.change_params(params, node=None, comp='pipe')
 
-    optmodel.compile()
+    optmodel.compile(start_time=start_time)
 
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
@@ -124,9 +129,8 @@ if __name__ == '__main__':
         axs[0].plot(opt.get_result('heat_flow', node='cons', comp='cons'), linestyle='--', label='cons_' + name)
         axs[0].plot(opt.get_result('heat_flow', node='prod', comp='prod'), label='prod_' + name)
         axs[1].plot(opt.get_result('heat_loss', comp='pipe'), label=name)
-        axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name+'_in')
-        axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name+'_out')
-
+        axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name + '_in')
+        axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name + '_out')
 
     axs[0].legend()
     axs[1].legend()
