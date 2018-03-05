@@ -328,7 +328,6 @@ class ExtensivePipe(Pipe):
         self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
                                                  rule=_eq_heat_loss_tot)
 
-<<<<<<< HEAD
         def _ineq_nonzero_flow_for(b, t):
             return b.mass_flow[t] <= b.nonzero_flow[t] * b.mass_flow_max
 
@@ -340,8 +339,6 @@ class ExtensivePipe(Pipe):
 
             self.block.ineq_nonzero_flow_rev = Constraint(self.model.TIME, rule=_ineq_nonzero_flow_rev)
 
-=======
->>>>>>> master
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
 
