@@ -414,11 +414,11 @@ if __name__ == '__main__':
         'WaterscheiGarden': 'g'
     }
 
-    for node in ['SolarArray', 'TermienWest', 'WaterscheiGarden']:
+    for node in ['SolarArray', 'WaterscheiGarden', 'TermienWest']:
         axs[0].plot(stor[node]/1e6, ls[node], label=node, linewidth=1.5)
         axs[1].plot(soc[node], ls[node], linewidth=1.5)
-    axs[0].plot(stor['Production']/1e6, ls=':', color='black')
-    axs[0].legend(['STC Node', 'Termien W', 'Waterschei GC', 'Production'], loc='best', ncol=2)
+    axs[0].plot(stor['Production']/1e6, ls=':', color='black', lw=0.5)
+    axs[0].legend(['STC Node', 'B', 'C', 'Production'], loc='best', ncol=2)
     axs[0].set_title('Stored energy')
     axs[0].set_ylabel('Energy [GWh]')
 
