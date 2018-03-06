@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='modesto',
-    version='0.1',
+    version='0.2',
     packages=['modesto'],
     package_dir={'modesto': 'modesto'},
     package_data={'modesto': ['Data/*']},

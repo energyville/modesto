@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 path = resource_filename('modesto', 'Data/RenewableProduction')
-test = ut.read_time_data(path, 'SolarThermal.txt')
+test = ut.read_time_data(path, 'SolarThermal.csv')
 
 print test.head()
 
@@ -21,7 +21,7 @@ test[:'20140104'].plot(subplots=True)
 
 start_time = pd.Timestamp('20140501')
 
-test_period = ut.read_period_data(path, 'SolarThermal.txt', time_step=3600,
+test_period = ut.read_period_data(path, 'SolarThermal.csv', time_step=3600,
                                   horizon=24 * 3600, start_time=start_time)
 
 print test_period.head()
