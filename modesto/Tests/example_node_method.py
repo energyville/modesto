@@ -135,7 +135,7 @@ def construct_model():
 
     # pipe parameters
 
-    bbThor_params = {'pipe_type': 200,
+    bbThor_params = {'diameter': 200,
                      'mass_flow_history': mass_flow_history,
                      'temperature_history_return': temp_history_return,
                      'temperature_history_supply': temp_history_supply,
@@ -144,9 +144,9 @@ def construct_model():
                      'temperature_out_supply': supply_temp,
                      'temperature_out_return': return_temp}
     spWaterschei_params = bbThor_params.copy()
-    spWaterschei_params['pipe_type'] = 150
+    spWaterschei_params['diameter'] = 150
     spZwartbergNE_params = bbThor_params.copy()
-    spZwartbergNE_params['pipe_type'] = 150
+    spZwartbergNE_params['diameter'] = 150
 
     optmodel.change_params(spWaterschei_params, comp='spWaterschei')
     optmodel.change_params(spZwartbergNE_params, comp='spZwartbergNE')

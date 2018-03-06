@@ -720,11 +720,32 @@ class ProducerVariable(Component):
 
             self.block.temperatures = Var(self.model.lines, self.model.TIME)
 
-            def _limit_temperatures(b, t):
-                return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
-                    'temperature_max'].v()
+            # def _limit_temperatures(b, t):
+            #     return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
+            #         'temperature_max'].v()
+            #
+            # self.block.limit_temperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
 
-            self.block.limit_temperatures = Constraint(self.model.TIME, rule=_limit_temperatures)
+            uslack = self.make_slack('temperature_max_uslack', self.model.TIME)
+            lslack = self.make_slack('temperature_max_lslack', self.model.TIME)
+
+            ub = self.params['temperature_max'].v()
+            lb = self.params['temperature_min'].v()
+
+            def _max_temp(b, t):
+                return self.constrain_value(b.temperatures['supply', t],
+                                            ub,
+                                            ub=True,
+                                            slack_variable=uslack[t])
+
+            def _min_temp(b, t):
+                return self.constrain_value(b.temperatures['supply', t],
+                                            lb,
+                                            ub=False,
+                                            slack_variable=lslack[t])
+
+            self.block.max_temp = Constraint(self.model.TIME, rule=_max_temp)
+            self.block.min_temp = Constraint(self.model.TIME, rule=_min_temp)
 
             def _decl_temperatures(b, t):
                 if t == 0:
@@ -925,6 +946,8 @@ class StorageVariable(Component):
         # TODO choose between stored heat or state of charge as state (which one is easier for initialization?)
 
         self.max_mflo = None
+        self.min_mflo = None
+        self.mflo_use = None
         self.volume = None
         self.dIns = None
         self.kIns = None
@@ -951,6 +974,9 @@ class StorageVariable(Component):
             'mflo_max': DesignParameter('mflo_max',
                                         'Maximal mass flow rate to and from storage vessel',
                                         'kg/s'),
+            'mflo_min': DesignParameter('mflo_min',
+                                        'Minimal mass flow rate to and from storage vessel',
+                                        'kg/s'),
             'volume': DesignParameter('volume',
                                       'Storage volume',
                                       'm3'),
@@ -967,7 +993,12 @@ class StorageVariable(Component):
                                         description='Heat stored in the thermal storage unit',
                                         unit='kWh',
                                         init_type='fixedVal',
-                                        slack=False)
+                                        slack=False),
+            'mflo_use': UserDataParameter(name='mflo_use',
+                                          description='Use of warm water stored in the tank, replaced by cold water, e.g. DHW. standard is 0',
+                                          unit='kg/s',
+                                          horizon=self.horizon,
+                                          time_step=self.time_step)
         }
 
         return params
@@ -983,6 +1014,8 @@ class StorageVariable(Component):
         self.update_time(start_time)
 
         self.max_mflo = self.params['mflo_max'].v()
+        self.min_mflo = self.params['mflo_min'].v()
+        self.mflo_use = self.params['mflo_use'].v()
         self.volume = self.params['volume'].v()
         self.dIns = self.params['dIns'].v()
         self.kIns = self.params['kIns'].v()
@@ -1031,10 +1064,10 @@ class StorageVariable(Component):
         #       with upper and lower bounds
 
         mflo_bounds = (
-            -self.max_mflo, self.max_mflo) if self.max_mflo is not None else (
+            self.min_mflo, self.max_mflo) if self.max_mflo is not None else (
             None, None)
         heat_bounds = (
-            (-self.max_mflo * self.temp_diff * self.cp,
+            (self.min_mflo * self.temp_diff * self.cp,
              self.max_mflo * self.temp_diff * self.cp) if self.max_mflo is not None else (
                 None, None))
 
@@ -1064,7 +1097,8 @@ class StorageVariable(Component):
 
         # State equation
         def _state_eq(b, t):   # in kWh
-            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step/3600 * (b.heat_flow[t] - b.heat_loss[t])/1000
+            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step/3600 * (b.heat_flow[t] - b.heat_loss[t])/1000 \
+                    - (self.mflo_use[t]*self.cp*(self.temp_sup-self.temp_ret))/1000/3600
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1153,3 +1187,4 @@ class StorageVariable(Component):
         :return:
         """
         return self.block.heat_stor[self.model.X_TIME[-1]]
+

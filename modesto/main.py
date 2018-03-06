@@ -730,7 +730,6 @@ class Modesto:
             for comp in self.nodes[prod_nodes[0]].get_components():
                 result[prod_nodes[0]][comp].append(mf_nodes[prod_nodes[0]][-1])
 
-
         return result
 
     def find_producer_nodes(self):
@@ -774,6 +773,7 @@ class Modesto:
             edges.append(dict[tuple])
         return edges
 
+    # TODO these pipe parameter getters should be defined in the relevant pipe classes.
     def get_pipe_diameter(self, pipe):
         """
         Get the diameter of a certain pipe
