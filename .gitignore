@@ -6,3 +6,4 @@ doc/build/html/
 modesto.egg-info/
 *checkpoint.ipynb
 *.log
+*.rej
