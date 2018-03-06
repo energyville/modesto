@@ -23,7 +23,7 @@ Settings
 """
 
 n_buildings = 10
-horizon = 24*1*3600
+horizon = 24*7*3600
 start_time = pd.Timestamp('20140101')
 
 time_index = pd.date_range(start=start_time, periods=int(horizon/3600)+1, freq='H')
@@ -86,8 +86,9 @@ districts = []
 pipe_models = {'Ideal': 'SimplePipe',
                'StSt': 'ExtensivePipe',
                'Dynamic': 'NodeMethod'}
-price_profiles = {'constant': pd.Series(1, time_index),
-                  'step': pd.Series([1]*int(len(time_index)*0.7) + [2]*int(len(time_index)-len(time_index)*0.7))}
+price_profiles = {'constant': pd.Series(1, index=time_index),
+                  'step': pd.Series([1]*int(len(time_index)*0.7) + [2]*(len(time_index)-int(len(time_index)*0.7)),
+                                    index=time_index)}
 building_models = {'RCmodel': 'RCmodel',
                    'Fixed': 'BuildingFixed'}
 time_steps = {'StSt': 300,
@@ -171,7 +172,7 @@ Running cases
 
 """
 
-selected_flex_cases = ['Reference']
+selected_flex_cases = ['Reference', 'Flexibility']
 selected_model_cases = ['Ideal', 'Building', 'Pipe']
 selected_street_cases = ['MixedStreet']
 selected_district_cases = []
@@ -214,7 +215,7 @@ for case in selected_model_cases:
                 # Introducing bypass to increase robustness
                 for j, val in enumerate(heat_profile):
                     if val <= 0.1:
-                        heat_profile[j] = 10
+                        heat_profile[j] = 100
 
                 b_params = parameters.get_building_params(flag_nm,
                                                           heat_profile=heat_profile)
@@ -247,8 +248,8 @@ for case in selected_model_cases:
             optmodel.solve()
 
             print 'Slack: ', optmodel.model.Slack.value
-            print 'Energy:', optmodel.get_objective('energy')
-            print 'Cost:  ', optmodel.get_objective('cost')
+            print 'Energy:', optmodel.get_objective('energy'), ' kWh'
+            print 'Cost:  ', optmodel.get_objective('cost'), ' euro'
             print 'Active:', optmodel.get_objective()
 
             Building_temperatures[case][street][flex_case]['TiD'] = {}

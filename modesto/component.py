@@ -796,6 +796,7 @@ class ProducerVariable(Component):
         """
         cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
+
         return sum(cost[t] / eta * self.get_heat(t) / 3600 * self.time_step / 1000 for t in range(self.n_steps))
 
     def obj_cost_ramp(self):
