@@ -730,7 +730,6 @@ class Modesto:
             for comp in self.nodes[prod_nodes[0]].get_components():
                 result[prod_nodes[0]][comp].append(mf_nodes[prod_nodes[0]][-1])
 
-
         return result
 
     def find_producer_nodes(self):

@@ -152,7 +152,7 @@ producer_params = {'efficiency': 1,
                    'temperature_supply': supply_temp,
                    'temperature_return': return_temp,
                    'temperature_max': 373.15,
-                   'temperature_min': 273.15}
+                   'temperature_min': supply_temp}
 
 
 def get_producer_params(node_method, cost):
@@ -179,9 +179,9 @@ Pipe parameters
 pipe_params = {'diameter': None,
                'temperature_supply': supply_temp,
                'temperature_return': return_temp,
-               'temperature_history_return': pd.Series(return_temp, index=range(20)),
-               'temperature_history_supply': pd.Series(supply_temp, index=range(20)),
-               'mass_flow_history': pd.Series(0.1, index=range(20)),
+               'temperature_history_return': pd.Series(return_temp, index=range(10)),
+               'temperature_history_supply': pd.Series(supply_temp, index=range(10)),
+               'mass_flow_history': pd.Series(0.1, index=range(10)),
                'wall_temperature_supply': supply_temp,
                'wall_temperature_return': return_temp,
                'temperature_out_supply': supply_temp,
@@ -195,7 +195,7 @@ def get_pipe_params(model_type, diameter):
     elif model_type == 'SimplePipe':
         key_list = ['diameter']
     elif model_type == 'NodeMethod':
-        key_list =['diameter', 'temperature_history_supply', 'temperature_history_return', 'mass_flow_history',
+        key_list = ['diameter', 'temperature_history_supply', 'temperature_history_return', 'mass_flow_history',
                    'wall_temperature_supply', 'wall_temperature_return', 'temperature_out_supply',
                    'temperature_out_return']
 
