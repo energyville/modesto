@@ -7,3 +7,5 @@ modesto.egg-info/
 *checkpoint.ipynb
 *.log
 *.rej
+build/
+dist/
