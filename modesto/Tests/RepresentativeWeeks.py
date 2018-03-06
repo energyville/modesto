@@ -71,7 +71,7 @@ DATAPATH = resource_filename('modesto', 'Data')
 # In[8]:
 
 dem = ut.read_time_data(path=DATAPATH,
-                        name='HeatDemand/Initialized/HeatDemandFiltered.csv',
+                        name='HeatDemand/HeatDemandFiltered.csv',
                         expand=True)
 
 dem = dem['TermienWest']
@@ -118,7 +118,7 @@ optimizers = {}
 epoch = pd.Timestamp('20140101')
 for start_day, duration in selection.iteritems():
     start_time = epoch + pd.Timedelta(days=start_day)
-    optmodel = Modesto(horizon=duration_repr * unit_sec, time_step=3600, start_time=start_time,
+    optmodel = Modesto(horizon=duration_repr * unit_sec, time_step=3600,
                        graph=netGraph, pipe_model='SimplePipe')
     topmodel.add_component(name='repr_' + str(start_day), val=optmodel.model)
 
@@ -137,6 +137,8 @@ for start_day, duration in selection.iteritems():
         'Thi': 80 + 273.15,
         'Tlo': 40 + 273.15,
         'mflo_max': 11000000,
+        'mflo_min': -11000000,
+        'mflo_use': pd.Series(0, index=t_amb.index),
         'volume': storVol,
         'ar': 0.18,
         'dIns': 0.15,
@@ -162,7 +164,7 @@ for start_day, duration in selection.iteritems():
     # Compile problems #
     ####################
 
-    optmodel.compile()
+    optmodel.compile(start_time=start_time)
     # optmodel.set_objective('energy')
 
     optimizers[start_day] = optmodel

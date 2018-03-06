@@ -58,7 +58,7 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    heat_profile = ut.read_time_data('../Data/HeatDemand/Initialized', name='HeatDemandFiltered.csv')
+    heat_profile = ut.read_time_data('../Data/HeatDemand', name='HeatDemandFiltered.csv')
     t_amb = ut.read_time_data('../Data/Weather', name='extT.csv')['Te']
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
