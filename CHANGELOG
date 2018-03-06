@@ -1,3 +1,11 @@
+VERSION 0.2.1
+=============
+
+* Added simulation files under misc for the SDH Conference in Graz
+* Bug fixes in node method
+* ExtensivePipe temperatures are now defined as a parameter
+* ExtensivePipe model now uses only 1 binary variable, and bugs were fixed.
+
 VERSION 0.2
 ===========
 
