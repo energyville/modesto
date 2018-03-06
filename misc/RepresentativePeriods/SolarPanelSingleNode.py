@@ -56,7 +56,7 @@ def fullyear(storVol, solArea, backupPow):
     # In[6]:
 
     optmodel = modesto.main.Modesto(horizon=horizon, time_step=time_step,
-                                    start_time=start_date, graph=netGraph,
+                                    graph=netGraph,
                                     pipe_model='SimplePipe')
 
     # ## Read demand and production profiles
@@ -108,6 +108,8 @@ def fullyear(storVol, solArea, backupPow):
             'Thi': 80 + 273.15,
             'Tlo': 40 + 273.15,
             'mflo_max': 11000000,
+            'mflo_min': -11000000,
+            'mflo_use': pd.Series(0, index=t_amb.index),
             'volume': storVol,
             'ar': 0.18,
             'dIns': 0.15,
@@ -143,7 +145,7 @@ def fullyear(storVol, solArea, backupPow):
 
     # In[18]:
 
-    optmodel.compile()
+    optmodel.compile(start_time=start_date)
 
     # In[ ]:
 

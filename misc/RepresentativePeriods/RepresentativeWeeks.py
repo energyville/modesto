@@ -71,9 +71,6 @@ def representative(duration_repr, selection, storVol=75000,
     Thi = 80
     Tlo = 40
 
-    max_en = 1000 * storVol * (Thi - Tlo) * 4180
-    min_en = 0
-
     # #### External data
 
     # In[6]:
@@ -130,7 +127,6 @@ def representative(duration_repr, selection, storVol=75000,
     for start_day, duration in selection.iteritems():
         start_time = epoch + pd.Timedelta(days=start_day)
         optmodel = Modesto(horizon=duration_repr * unit_sec, time_step=3600,
-                           start_time=start_time,
                            graph=netGraph, pipe_model='SimplePipe')
         topmodel.add_component(name='repr_' + str(start_day),
                                val=optmodel.model)
@@ -179,8 +175,8 @@ def representative(duration_repr, selection, storVol=75000,
         ####################
         # Compile problems #
         ####################
-
-        optmodel.compile()
+        # TODO Start time needs to be an input for the subproblems
+        optmodel.compile(start_time=start_time)
         # optmodel.set_objective('energy')
 
         optimizers[start_day] = optmodel
