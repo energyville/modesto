@@ -39,7 +39,9 @@ def setup_modesto(graph):
     :param graph: nx.DiGraph object specifying network lay-out
     :return:
     """
-    horizon = 6 * 3600
+
+    numdays = 1
+    horizon = numdays * 24 * 3600
     time_step = 3600
     start_time = pd.Timestamp('20140101')
     pipe_model = 'ExtensivePipe'
@@ -47,8 +49,8 @@ def setup_modesto(graph):
     optmodel = Modesto(horizon=horizon,
                        time_step=time_step,
                        pipe_model=pipe_model,
-                       graph=graph,
-                       start_time=start_time)
+                       graph=graph
+                       )
 
     from pkg_resources import resource_filename
     datapath = resource_filename('modesto', 'Data')
@@ -68,7 +70,8 @@ def setup_modesto(graph):
     building_params = {
         'delta_T': 40,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 0.01, 0.01, 1, 1, 0.1]) * Pnom
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 1, 0, 1]*4*numdays) * Pnom
+
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
 
@@ -84,9 +87,14 @@ def setup_modesto(graph):
     optmodel.change_params(prod_design, 'prod', 'prod')
 
     # Pipe parameters
-    optmodel.change_param(node=None, comp='pipe', param='pipe_type', val=150)
+    params = {
+        'diameter': 150,
+        'temperature_supply': 60 + 273.15,
+        'temperature_return': 20 + 273.15
+    }
+    optmodel.change_params(params, node=None, comp='pipe')
 
-    optmodel.compile()
+    optmodel.compile(start_time=start_time)
 
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
@@ -95,6 +103,9 @@ def setup_modesto(graph):
 
 
 if __name__ == '__main__':
+    import logging
+
+    logging.getLogger()
     G_for = setup_graph(True)
     G_rev = setup_graph(False)
 
@@ -106,7 +117,7 @@ if __name__ == '__main__':
     print opts
 
     for name, opt in opts.iteritems():
-        res = opt.solve(tee=True, mipgap=0.001, solver='cplex')
+        res = opt.solve(tee=True, mipgap=0.000001, solver='gurobi')
         if not res == 0:
             raise Exception('Optimization {} failed to solve.'.format(name))
 
@@ -121,9 +132,15 @@ if __name__ == '__main__':
     for name, opt in opts.iteritems():
         axs[0].plot(opt.get_result('heat_flow', node='cons', comp='cons'), linestyle='--', label='cons_' + name)
         axs[0].plot(opt.get_result('heat_flow', node='prod', comp='prod'), label='prod_' + name)
-        axs[1].plot(opt.get_result('heat_loss', comp='pipe'), label=name)
+
+        axs[0].set_ylabel('Heat flow [W]')
+
+        axs[1].plot(opt.get_result('heat_loss_tot', comp='pipe'), label=name)
+        axs[1].set_ylabel('Heat loss [W]')
+
         axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name+'_in')
         axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name+'_out')
+        axs[2].set_ylabel('Heat flow in/out [W]')
 
 
     axs[0].legend()

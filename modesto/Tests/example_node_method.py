@@ -52,7 +52,7 @@ def construct_model():
 
     nx.draw(G, with_labels=True)
 
-    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step, pipe_model='NodeMethod', graph=G, start_time=start_time)
+    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step, pipe_model='NodeMethod', graph=G)
 
     ##################################
     # Set up data                    #
@@ -135,7 +135,7 @@ def construct_model():
 
     # pipe parameters
 
-    bbThor_params = {'pipe_type': 200,
+    bbThor_params = {'diameter': 200,
                      'mass_flow_history': mass_flow_history,
                      'temperature_history_return': temp_history_return,
                      'temperature_history_supply': temp_history_supply,
@@ -144,9 +144,9 @@ def construct_model():
                      'temperature_out_supply': supply_temp,
                      'temperature_out_return': return_temp}
     spWaterschei_params = bbThor_params.copy()
-    spWaterschei_params['pipe_type'] = 150
+    spWaterschei_params['diameter'] = 150
     spZwartbergNE_params = bbThor_params.copy()
-    spZwartbergNE_params['pipe_type'] = 150
+    spZwartbergNE_params['diameter'] = 150
 
     optmodel.change_params(spWaterschei_params, comp='spWaterschei')
     optmodel.change_params(spZwartbergNE_params, comp='spZwartbergNE')
@@ -192,7 +192,7 @@ def compare_ramping_costs():
 
     for rc in ramp_cost:
         optmodel.change_param(node='ThorPark', comp='plant', param='ramp_cost', val=rc)
-        optmodel.compile()
+        optmodel.compile(start_time)
         optmodel.set_objective('cost_ramp')
 
         optmodel.solve(tee=False)
@@ -222,7 +222,7 @@ if __name__ == '__main__':
     # compare_ramping_costs()
 
     optmodel.opt_settings(allow_flow_reversal=False)
-    optmodel.compile()
+    optmodel.compile(start_time)
     optmodel.set_objective('cost')
 
     optmodel.solve(tee=True, mipgap=0.01, solver='ipopt')

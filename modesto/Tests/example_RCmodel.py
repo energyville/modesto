@@ -19,7 +19,7 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 
-n_steps = 24 * 7
+n_steps = 24 * 4
 time_step = 3600
 start_time = pd.Timestamp('20140104')
 
@@ -51,8 +51,7 @@ def construct_model():
     ###################################
 
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='ExtensivePipe', graph=G,
-                       start_time=start_time)
+                       pipe_model='ExtensivePipe', graph=G)
 
     ##################################
     # Fill in the parameters         #
@@ -114,6 +113,7 @@ def construct_model():
                           'TiN0': 20 + 273.15,
                           'TwiN0': 20 + 273.15,
                           'TwN0': 20 + 273.15,
+                          'max_heat': 6000
                           }
 
     ws_building_params = zw_building_params.copy()
@@ -128,11 +128,13 @@ def construct_model():
     optmodel.change_init_type(node='zwartbergNE', comp='buildingD',
                               state='TiD0', new_type='cyclic')
 
-    bbThor_params = {'pipe_type': 500}
+    bbThor_params = {'diameter': 500,
+                     'temperature_supply': 80 + 273.15,
+                     'temperature_return': 60 + 273.15}
     spWaterschei_params = bbThor_params.copy()
-    spWaterschei_params['pipe_type'] = 500
+    spWaterschei_params['diameter'] = 500
     spZwartbergNE_params = bbThor_params.copy()
-    spZwartbergNE_params['pipe_type'] = 500
+    spZwartbergNE_params['diameter'] = 500
 
     optmodel.change_params(bbThor_params, comp='bbThor')
     optmodel.change_params(spWaterschei_params, comp='spWaterschei')
@@ -145,11 +147,13 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
+        'mflo_min': -110,
         'volume': 2e4,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': 0
+        'heat_stor': 0,
+        'mflo_use': pd.Series(0, index=t_amb.index)
     }
 
     optmodel.change_params(dict=stor_design, node='waterscheiGarden',
@@ -198,14 +202,14 @@ def construct_model():
 
 if __name__ == '__main__':
     optmodel = construct_model()
-    optmodel.compile()
+    optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
 
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
     optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='cplex')
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi')
 
     ##################################
     # Collect result                 #

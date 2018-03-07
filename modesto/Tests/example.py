@@ -13,6 +13,13 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
 
+###########################
+#     Main Settings       #
+###########################
+
+n_steps = 24 * 7
+time_step = 3600
+start_time = pd.Timestamp('20140604')
 
 ###########################
 # Set up Graph of network #
@@ -44,19 +51,14 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    n_steps = 24*7
-    time_step = 3600
-    start_time = pd.Timestamp('20140604')
-
     optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='ExtensivePipe', graph=G,
-                       start_time=start_time)
+                       pipe_model='ExtensivePipe', graph=G)
 
     ##################################
     # Fill in the parameters         #
     ##################################
 
-    heat_profile = ut.read_time_data('../Data/HeatDemand/Initialized', name='HeatDemandFiltered.csv')
+    heat_profile = ut.read_time_data('../Data/HeatDemand', name='HeatDemandFiltered.csv')
     t_amb = ut.read_time_data('../Data/Weather', name='extT.csv')['Te']
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
@@ -85,11 +87,11 @@ def construct_model():
     optmodel.change_params(ws_building_params, node='waterscheiGarden',
                            comp='buildingD')
 
-    bbThor_params = {'pipe_type': 500}
+    bbThor_params = {'diameter': 500, 'temperature_supply': 273.15+80, 'temperature_return': 273.15+60}
     spWaterschei_params = bbThor_params.copy()
-    spWaterschei_params['pipe_type'] = 500
+    spWaterschei_params['diameter'] = 500
     spZwartbergNE_params = bbThor_params.copy()
-    spZwartbergNE_params['pipe_type'] = 500
+    spZwartbergNE_params['diameter'] = 500
 
     optmodel.change_params(bbThor_params, comp='bbThor')
     optmodel.change_params(spWaterschei_params, comp='spWaterschei')
@@ -102,11 +104,13 @@ def construct_model():
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
+        'mflo_min': -110,
         'volume': 2e4,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': 0
+        'heat_stor': 0,
+        'mflo_use': pd.Series(0, index=t_amb.index)
     }
 
     optmodel.change_params(dict=stor_design, node='waterscheiGarden',
@@ -129,7 +133,7 @@ def construct_model():
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 1.5e7,
+                   'Qmax': 1.5e8,
                    'ramp_cost': 0.01,
                    'ramp': 1e6 / 3600}
 
@@ -154,7 +158,7 @@ def construct_model():
 
 if __name__ == '__main__':
     optmodel = construct_model()
-    optmodel.compile()
+    optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
 
     optmodel.model.OBJ_ENERGY.pprint()
