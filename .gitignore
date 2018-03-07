@@ -9,3 +9,5 @@ modesto.egg-info/
 *.rej
 build/
 dist/
+.pytest_cache/
+.eggs/

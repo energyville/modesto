@@ -529,7 +529,6 @@ class VariableProfile(Component):
         self.make_block(parent)
 
 
-
 class BuildingFixed(FixedProfile):
     def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
@@ -607,7 +606,6 @@ class ProducerVariable(Component):
 
     def is_heat_source(self):
         return True
-
 
     def create_params(self):
         params = {
@@ -1036,7 +1034,6 @@ class StorageVariable(Component):
             return self.UAw * (self.temp_ret - self.model.Te[t]) + \
                    self.UAtb * (self.temp_ret + self.temp_sup - 2 * self.model.Te[t])
 
-
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
 
         ############################################################################################
@@ -1089,9 +1086,10 @@ class StorageVariable(Component):
         self.block.eq_heat_loss = Constraint(self.model.TIME, rule=_eq_heat_loss)
 
         # State equation
-        def _state_eq(b, t):   # in kWh
-            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step/3600 * (b.heat_flow[t] - b.heat_loss[t])/1000 \
-                    - (self.mflo_use[t]*self.cp*(self.temp_sup-self.temp_ret))/1000/3600
+        def _state_eq(b, t):  # in kWh
+            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step / 3600 * (
+            b.heat_flow[t] - b.heat_loss[t]) / 1000 \
+                                         - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1179,19 +1177,21 @@ class StorageVariable(Component):
 class StorageCondensed(StorageVariable):
     def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
         """
-        Variable storage model. In this model, the state equation are condensed into one single equation. Only the initial
-            and final state remain as a parameter. This component is also compatible with a representative period
-            presentation, in which the control actions are repeated for a given number of iterations, while the storage
-            state can change.
+        Variable storage model. In this model, the state equation are condensed into one single equation. Only the
+            initial and final state remain as a parameter. This component is also compatible with a representative
+            period presentation, in which the control actions are repeated for a given number of iterations, while the
+            storage state can change.
+
         The heat losses are taken into account exactly in this model.
 
         :param name: name of the component
         :param start_time: start time of optimization horizon
-        :param horizon: horizon of optimization problem in seconds. The horizon should be that of a single representative
-            period.
+        :param horizon: horizon of optimization problem in seconds. The horizon should be that of a single
+            representative period.
         :param time_step: time step of optimization problem in seconds.
         :param temperature_driven: Parameter that defines if component is temperature driven. This component can only be
             used in non-temperature-driven optimizations.
+
         """
         StorageVariable.__init__(self, name=name, start_time=start_time, horizon=horizon, time_step=time_step,
                                  temperature_driven=temperature_driven)
@@ -1267,7 +1267,7 @@ class StorageCondensed(StorageVariable):
                     self.params['heat_stor'].get_upper_boundary())
 
         def _limit_final_repetition(b, t):
-            return (self.params['heat_stor'].get_lower_boundary(), b.heat_stor[t, R-1],
+            return (self.params['heat_stor'].get_lower_boundary(), b.heat_stor[t, R - 1],
                     self.params['heat_stor'].get_upper_boundary())
 
         self.block.limit_init = Constraint(self.model.X_TIME, rule=_limit_initial_repetition)

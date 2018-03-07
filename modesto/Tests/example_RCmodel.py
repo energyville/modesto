@@ -5,6 +5,7 @@ import logging
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
+from pkg_resources import resource_filename
 
 import modesto.utils as ut
 from modesto.main import Modesto
@@ -57,22 +58,25 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    t_amb = ut.read_time_data('../Data/Weather', name='weatherData.csv')['Te']
-    t_g = ut.read_time_data('../Data/Weather', name='weatherData.csv')['Tg']
-    QsolN = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolN']
-    QsolE = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolS']
-    QsolS = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolN']
-    QsolW = ut.read_time_data('../Data/Weather', name='weatherData.csv')['QsolW']
-    day_max = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['day_max']
-    day_min = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['day_min']
-    night_max = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['night_max']
-    night_min = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['night_min']
-    bathroom_max = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['bathroom_max']
-    bathroom_min = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['bathroom_min']
-    floor_max = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['floor_max']
-    floor_min = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['floor_min']
-    Q_int_D = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['Q_int_D']
-    Q_int_N = ut.read_time_data('../Data/UserBehaviour', name='ISO13790.csv')['Q_int_N']
+    df_weather=ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
+    df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv')
+
+    t_amb = df_weather['Te']
+    t_g = df_weather['Tg']
+    QsolN = df_weather['QsolN']
+    QsolE = df_weather['QsolS']
+    QsolS = df_weather['QsolN']
+    QsolW = df_weather['QsolW']
+    day_max = df_userbehaviour['day_max']
+    day_min = df_userbehaviour['day_min']
+    night_max = df_userbehaviour['night_max']
+    night_min = df_userbehaviour['night_min']
+    bathroom_max = df_userbehaviour['bathroom_max']
+    bathroom_min = df_userbehaviour['bathroom_min']
+    floor_max = df_userbehaviour['floor_max']
+    floor_min = df_userbehaviour['floor_min']
+    Q_int_D = df_userbehaviour['Q_int_D']
+    Q_int_N = df_userbehaviour['Q_int_N']
 
     optmodel.opt_settings(allow_flow_reversal=True)
 
@@ -168,7 +172,7 @@ def construct_model():
 
     # Production parameters
 
-    c_f = ut.read_time_data(path='../Data/ElectricityPrices',
+    c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
                             name='DAM_electricity_prices-2014_BE.csv')['price_BE']
     # cf = pd.Series(0.5, index=t_amb.index)
 
@@ -325,7 +329,7 @@ if __name__ == '__main__':
     ax.set_title('Heat flows [W]')
     ax.legend()
 
-    c_f = ut.read_period_data(path='../Data/ElectricityPrices',
+    c_f = ut.read_period_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
                               name='DAM_electricity_prices-2014_BE.csv',
                               time_step=time_step, horizon=n_steps * time_step,
                               start_time=start_time)['price_BE']
@@ -361,16 +365,12 @@ if __name__ == '__main__':
 
     fig4 = plt.figure()
 
-    day_max = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
-                                  time_step=time_step, horizon=n_steps * time_step, start_time=start_time)['day_max']
-    day_min = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
-                                  time_step=time_step, horizon=n_steps * time_step, start_time=start_time)['day_min']
-    night_max = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
-                                    time_step=time_step, horizon=n_steps * time_step, start_time=start_time)[
-        'night_max']
-    night_min = ut.read_period_data('../Data/UserBehaviour', name='ISO13790.csv',
-                                    time_step=time_step, horizon=n_steps * time_step, start_time=start_time)[
-        'night_min']
+    df_userbehaviour = ut.read_period_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv', time_step=time_step, horizon=n_steps * time_step, start_time=start_time)
+
+    day_max = df_userbehaviour['day_max']
+    day_min = df_userbehaviour['day_min']
+    night_max = df_userbehaviour['night_max']
+    night_min = df_userbehaviour['night_min']
 
     ax4 = fig4.add_subplot(221)
     ax4.plot(day_max, label='maximum', linestyle='--', color='k')
