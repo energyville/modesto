@@ -29,7 +29,6 @@ def fullyear(storVol, solArea, backupPow):
     n_steps = 365 * 24
     time_step = 3600
     horizon = n_steps * time_step
-    start_date = pd.Timestamp('20140101')
 
     # ## Design parameters
     # Storage size, solar thermal panel size,...
@@ -64,7 +63,7 @@ def fullyear(storVol, solArea, backupPow):
     # In[7]:
 
     dem = ut.read_time_data(path=DATAPATH,
-                            name='HeatDemand/Initialized/HeatDemandFiltered.csv')
+                            name='HeatDemand/HeatDemandFiltered.csv')
 
     # In[8]:
 
@@ -144,7 +143,7 @@ def fullyear(storVol, solArea, backupPow):
     optmodel.check_data()
 
     # In[18]:
-
+    start_date = pd.Timestamp('20140101')
     optmodel.compile(start_time=start_date)
 
     # In[ ]:

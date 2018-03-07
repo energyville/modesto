@@ -12,3 +12,4 @@ dist/
 .pytest_cache/
 .eggs/
 misc/RepresentativePeriods/logs/
+misc/RepresentativePeriods/comparison/

@@ -81,9 +81,9 @@ if __name__ == '__main__':
                          'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr'])
             selection = sels[num]
 
-            for V in [50000, 75000, 100000, 125000]:
-                for A in [20000, 40000, 60000, 80000]:
-                    for P in [3.6e6, 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
+            for V in [50000, 75000]: #, #100000, 125000]:
+                for A in [20000]:#, 40000, 60000, 80000]:
+                    for P in [3.6e6, 3.85e6]: #, 4.1e6, 4.35e6, 4.6e6]:
                         print 'A:', str(A)
                         print 'V:', str(V)
                         print 'P:', str(P)
