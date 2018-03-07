@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 # noinspection PyUnresolvedReferences
 import pyomo.environ
+from pkg_resources import resource_filename
 # noinspection PyUnresolvedReferences
 from pyomo.core.base import value
 
@@ -78,7 +79,7 @@ def construct_model():
     heat_profile = heat_profile_sine
 
     # Ambient temperature
-    t_amb = ut.read_time_data(path='../Data/Weather',
+    t_amb = ut.read_time_data(path=resource_filename('modesto', 'Data/Weather'),
                               name='extT.csv')
 
     # Ground temperature
@@ -90,19 +91,10 @@ def construct_model():
     mass_flow_history = pd.Series([10] * 20, index=range(20))
 
     # Fuel costs
-    c_f = ut.read_time_data(path='../Data/ElectricityPrices',
+    c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
                             name='DAM_electricity_prices-2014_BE.csv')
     # Converting to euro per kWh
     c_f = c_f['price_BE'] / 1000
-
-    fig4, ax4 = plt.subplots()
-    plotcf = ut.select_period_data(c_f, start_time=start_time, time_step=time_step, horizon=n_steps * time_step)
-    ax4.plot(plotcf,
-             label='Electricity day-ahead market')
-    # ax3.axhline(y=0, linewidth=2, color='k', linestyle='--')
-    ax4.legend()
-    ax4.set_ylabel('Electricity price [euro/kWh]')
-    # fig3.tight_layout()
 
     # c_f = [0.034] * int(n_steps/2) + [0.034] * int(n_steps/2) # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
 
@@ -230,6 +222,23 @@ if __name__ == '__main__':
     ##################################
     # Collect result s               #
     ##################################
+
+    # Fuel costs
+    c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
+                            name='DAM_electricity_prices-2014_BE.csv')
+    # Converting to euro per kWh
+    c_f = c_f['price_BE'] / 1000
+
+    fig4, ax4 = plt.subplots()
+    plotcf = ut.select_period_data(c_f, start_time=start_time, time_step=time_step, horizon=n_steps * time_step)
+    ax4.plot(plotcf,
+             label='Electricity day-ahead market')
+    # ax3.axhline(y=0, linewidth=2, color='k', lines tyle='--')
+    ax4.legend()
+    ax4.set_ylabel('Electricity price [euro/kWh]')
+    # fig3.tight_layout()
+
+    # c_f = [0.034] * int(n_steps/2) + [0.034] * int(n_steps/2) # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
 
     # Heat flows
     prod_hf = optmodel.get_result(node='ThorPark', comp='plant', name='heat_flow')

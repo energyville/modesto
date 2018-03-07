@@ -70,7 +70,7 @@ def setup_modesto(graph):
     building_params = {
         'delta_T': 40,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 1, 0, 1]*4*numdays) * Pnom
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 1, 0, 1] * 4 * numdays) * Pnom
 
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
@@ -100,6 +100,31 @@ def setup_modesto(graph):
     optmodel.opt_settings(allow_flow_reversal=True)
 
     return optmodel
+
+
+def run():
+    G_for = setup_graph(True)
+    G_rev = setup_graph(False)
+
+    opt_for = setup_modesto(G_for)
+    opt_rev = setup_modesto(G_rev)
+
+    res1 = opt_for.solve(tee=True, mipgap=0.000001, solver='gurobi')
+    res2 = opt_rev.solve(tee=True, mipgap=0.000001, solver='gurobi')
+
+    return opt_for, opt_rev
+
+
+def test_pipe():
+    opt_for, opt_rev = run()
+
+    res1 = opt_for.get_result('heat_flow', node='cons', comp='cons')
+    res2 = opt_rev.get_result('heat_flow', node='cons', comp='cons')
+
+    print res1
+    print res2
+
+    assert res1.equals(res2)
 
 
 if __name__ == '__main__':
@@ -138,10 +163,9 @@ if __name__ == '__main__':
         axs[1].plot(opt.get_result('heat_loss_tot', comp='pipe'), label=name)
         axs[1].set_ylabel('Heat loss [W]')
 
-        axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name+'_in')
-        axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name+'_out')
+        axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name + '_in')
+        axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name + '_out')
         axs[2].set_ylabel('Heat flow in/out [W]')
-
 
     axs[0].legend()
     axs[1].legend()
