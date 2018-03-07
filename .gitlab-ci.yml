@@ -1,4 +1,0 @@
-test:
-  script: 
-  - python setup.py install
-  - pytest
