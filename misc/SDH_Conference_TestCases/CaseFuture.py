@@ -277,7 +277,6 @@ def setup_opt():
 
     return model
 
-
 if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
