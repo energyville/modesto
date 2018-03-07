@@ -1,0 +1,15 @@
+image: python:2.7
+
+before_script:
+  - python -V                                   # Print out python version for debugging
+
+test:
+  script:
+  - python setup.py test
+
+#pages:
+#  script:
+#  - pip install sphinx sphinx-rtd-theme
+#  - cd doc ; make html
+#  - mv build/html/ ../public/
+
