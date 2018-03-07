@@ -2,8 +2,8 @@ import logging
 
 import matplotlib.pyplot as plt
 import networkx as nx
-import numpy as np
 import pandas as pd
+from pkg_resources import resource_filename
 
 import modesto.utils as ut
 from modesto.main import Modesto
@@ -20,6 +20,7 @@ logger = logging.getLogger('Main.py')
 n_steps = 24 * 7
 time_step = 3600
 start_time = pd.Timestamp('20140604')
+
 
 ###########################
 # Set up Graph of network #
@@ -58,8 +59,9 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    heat_profile = ut.read_time_data('../Data/HeatDemand/Initialized', name='HeatDemandFiltered.csv')
-    t_amb = ut.read_time_data('../Data/Weather', name='extT.csv')['Te']
+    heat_profile = ut.read_time_data(resource_filename(
+        'modesto', 'Data/HeatDemand'), name='HeatDemandFiltered.csv')
+    t_amb = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='extT.csv')['Te']
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
     optmodel.opt_settings(allow_flow_reversal=True)
@@ -87,7 +89,7 @@ def construct_model():
     optmodel.change_params(ws_building_params, node='waterscheiGarden',
                            comp='buildingD')
 
-    bbThor_params = {'diameter': 500, 'temperature_supply': 273.15+80, 'temperature_return': 273.15+60}
+    bbThor_params = {'diameter': 500, 'temperature_supply': 273.15 + 80, 'temperature_return': 273.15 + 60}
     spWaterschei_params = bbThor_params.copy()
     spWaterschei_params['diameter'] = 500
     spZwartbergNE_params = bbThor_params.copy()
@@ -99,8 +101,9 @@ def construct_model():
 
     # Storage parameters
 
-    stor_design = {
-        # Thi and Tlo need to be compatible with delta_T of previous
+    stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
+
+
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
@@ -113,11 +116,12 @@ def construct_model():
         'mflo_use': pd.Series(0, index=t_amb.index)
     }
 
+
     optmodel.change_params(dict=stor_design, node='waterscheiGarden',
                            comp='storage')
 
     optmodel.change_state_bounds('heat_stor',
-                                 new_ub=10**12,
+                                 new_ub=10 ** 12,
                                  new_lb=0,
                                  slack=False,
                                  node='waterscheiGarden',
@@ -125,8 +129,8 @@ def construct_model():
 
     # Production parameters
 
-    c_f = ut.read_time_data(path='../Data/ElectricityPrices',
-                              name='DAM_electricity_prices-2014_BE.csv')['price_BE']
+    c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
+                            name='DAM_electricity_prices-2014_BE.csv')['price_BE']
 
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
@@ -149,12 +153,11 @@ def construct_model():
     # optmodel.print_comp_param('waterscheiGarden', 'storage')
     # optmodel.print_comp_param('waterscheiGarden', 'storage', 'kIns', 'volume')
 
+    ##################################
+    # Solve                          #
+    ##################################
+
     return optmodel
-
-
-##################################
-# Solve                          #
-##################################
 
 if __name__ == '__main__':
     optmodel = construct_model()
@@ -264,7 +267,7 @@ if __name__ == '__main__':
     ax2b.legend()
     ax2b.set_ylabel('(dis)charged heat [W]')
     fig2.suptitle('Storage')
-    #ax2.tight_layout()
+    # ax2.tight_layout()
 
     fig3 = plt.figure()
 
@@ -275,6 +278,6 @@ if __name__ == '__main__':
     ax3.axhline(y=0, linewidth=1.5, color='k', linestyle='--')
     ax3.legend()
     ax3.set_ylabel('Heat Flow [W]')
-    #ax3.tight_layout()
+    # ax3.tight_layout()
 
     plt.show()

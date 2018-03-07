@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set, Block
+from pyomo.core.base import Param, Var, Constraint, Set, Block, Binary
 
 from component import Component
 from parameter import DesignParameter, StateParameter, UserDataParameter
@@ -288,11 +288,13 @@ class ExtensivePipe(Pipe):
         mflo_ub = (None, None) if self.allow_flow_reversal else (0, None)
 
         # Real valued
-        self.block.heat_flow_in = Var(self.model.TIME, bounds=mflo_ub)
-        self.block.heat_flow_out = Var(self.model.TIME, bounds=mflo_ub)
-        self.block.mass_flow_dn = Var(self.model.TIME, bounds=mflo_ub)
+        self.block.heat_flow_in = Var(self.model.TIME, bounds=mflo_ub, doc='Heat flow at in-node')
+        self.block.heat_flow_out = Var(self.model.TIME, bounds=mflo_ub, doc='Heat flow at out-node')
         self.block.mass_flow = Var(self.model.TIME, bounds=mflo_ub)
         self.block.heat_loss_tot = Var(self.model.TIME)
+
+        self.block.nonzero_flow = Var(self.model.TIME, within=Binary,
+                                      doc='1 if flow is non-zero. 0 only for standstill in this pipe.')
 
         """
         Pipe model
@@ -321,10 +323,21 @@ class ExtensivePipe(Pipe):
 
         # Eq. (3.6)
         def _eq_heat_loss_tot(b, t):
-            return b.heat_loss_tot[t] == self.length * b.heat_loss[t]
+            return b.heat_loss_tot[t] == self.length * b.heat_loss[t] * b.nonzero_flow[t]
 
         self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
                                                  rule=_eq_heat_loss_tot)
+
+        def _ineq_nonzero_flow_for(b, t):
+            return b.mass_flow[t] <= b.nonzero_flow[t] * b.mass_flow_max
+
+        self.block.ineq_nonzero_flow_for = Constraint(self.model.TIME, rule=_ineq_nonzero_flow_for)
+
+        if self.allow_flow_reversal:
+            def _ineq_nonzero_flow_rev(b, t):
+                return -b.mass_flow[t] <= b.nonzero_flow[t] * b.mass_flow_max
+
+            self.block.ineq_nonzero_flow_rev = Constraint(self.model.TIME, rule=_ineq_nonzero_flow_rev)
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))

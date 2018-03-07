@@ -524,9 +524,9 @@ class VariableProfile(Component):
         :param parent: The main optimization model
         :return:
         """
-        self.model = top
+        self.model = topmodel
+        self.update_time(start_time)
         self.make_block(parent)
-
 
 
 class BuildingFixed(FixedProfile):
@@ -833,9 +833,6 @@ class SolarThermalCollector(Component):
         self.logger = logging.getLogger('modesto.components.SolThermCol')
         self.logger.info('Initializing SolarThermalCollector {}'.format(name))
 
-    def is_heat_source(self):
-        return True
-
     def create_params(self):
         params = {
             'area': DesignParameter('area', 'Surface area of panels', 'm2'),
@@ -1089,9 +1086,10 @@ class StorageVariable(Component):
         self.block.eq_heat_loss = Constraint(self.model.TIME, rule=_eq_heat_loss)
 
         # State equation
-        def _state_eq(b, t):   # in kWh
-            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step/3600 * (b.heat_flow[t] - b.heat_loss[t])/1000 \
-                    - (self.mflo_use[t]*self.cp*(self.temp_sup-self.temp_ret))/1000/3600
+        def _state_eq(b, t):  # in kWh
+            return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step / 3600 * (
+            b.heat_flow[t] - b.heat_loss[t]) / 1000 \
+                                         - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1267,7 +1265,7 @@ class StorageCondensed(StorageVariable):
                     self.params['heat_stor'].get_upper_boundary())
 
         def _limit_final_repetition(b, t):
-            return (self.params['heat_stor'].get_lower_boundary(), b.heat_stor[t, R-1],
+            return (self.params['heat_stor'].get_lower_boundary(), b.heat_stor[t, R - 1],
                     self.params['heat_stor'].get_upper_boundary())
 
         self.block.limit_init = Constraint(self.model.X_TIME, rule=_limit_initial_repetition)
