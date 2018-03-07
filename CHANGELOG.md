@@ -1,3 +1,5 @@
+* Added unit tests
+
 VERSION 0.2.1
 =============
 
