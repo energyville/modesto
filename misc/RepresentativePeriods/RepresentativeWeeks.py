@@ -83,7 +83,7 @@ def representative(duration_repr, selection, storVol=75000,
     # In[8]:
 
     dem = ut.read_time_data(path=DATAPATH,
-                            name='HeatDemand/Initialized/HeatDemandFiltered.csv',
+                            name='HeatDemand/HeatDemandFiltered.csv',
                             expand=True)
 
     dem = dem['TermienWest']
@@ -147,6 +147,8 @@ def representative(duration_repr, selection, storVol=75000,
                 'Thi': Thi + 273.15,
                 'Tlo': Tlo + 273.15,
                 'mflo_max': 11000000,
+                'mflo_min': -11000000,
+                'mflo_use': pd.Series(0, index=t_amb.index),
                 'volume': storVol,
                 'ar': 0.18,
                 'dIns': 0.15,
