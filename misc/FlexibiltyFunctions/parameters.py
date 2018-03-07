@@ -151,7 +151,7 @@ producer_params = {'efficiency': 1,
                    'ramp': 1e6 / 3600,
                    'temperature_supply': supply_temp,
                    'temperature_return': return_temp,
-                   'temperature_max': 373.15,
+                   'temperature_max': 343.15,
                    'temperature_min': supply_temp}
 
 
