@@ -47,7 +47,7 @@ class Modesto:
         self.time = self.state_time[:-1]
 
         self.pipe_model = pipe_model
-        if pipe_model == 'NodeMethod':
+        if pipe_model == 'NodeMethod' or pipe_model=='NodeMethodNonLinear':
             self.temperature_driven = True
         else:
             self.temperature_driven = False
@@ -327,13 +327,9 @@ class Modesto:
                 all_comps.append(comp_obj)
         return all_comps
 
-<<<<<<< HEAD
     def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi',
-              executable='C:\cygwin64\home\u0111619\CoinIpopt/build/bin\ipopt.exe'):
-=======
-    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi', warmstart=False, probe=False,
+              executable='C:\cygwin64\home\u0111619\CoinIpopt/build/bin\ipopt.exe', warmstart=False, probe=False,
               timelim=None):
->>>>>>> master
         """
         Solve a new optimization
 
@@ -351,14 +347,11 @@ class Modesto:
         if verbose:
             self.model.pprint()
 
-<<<<<<< HEAD
         if solver == 'ipopt':
-            opt = SolverFactory(solver, executable=executable)
+            opt = SolverFactory(solver, executable=executable, warmstart=warmstart)
         else:
-            opt = SolverFactory(solver)
-=======
-        opt = SolverFactory(solver, warmstart=warmstart)
->>>>>>> master
+            opt = SolverFactory(solver, warmstart=warmstart)
+
         # opt.options["Threads"] = threads
         if solver == 'gurobi':
             opt.options['ImproveStartTime'] = 10
@@ -1037,19 +1030,19 @@ class Node(object):
                 incoming_pipes = collections.defaultdict(list)
 
                 for name, comp in c.items():
-                    if comp.get_mflo(t) >= 0:
+                    if comp.get_mflo_direction(t) >= 0:
                         incoming_comps['supply'].append(name)
                     else:
                         incoming_comps['return'].append(name)
 
                 for name, pipe in p.items():
-                    if pipe.get_mflo(self.name, t) >= 0:
+                    if pipe.get_mflo_direction(self.name, t) >= 0:
                         incoming_pipes['supply'].append(name)
                     else:
                         incoming_pipes['return'].append(name)
                 # Zero mass flow rate:
-                if sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) + \
-                        sum(p[pipe].get_mflo(self.name, t) for pipe in
+                if sum(c[comp].get_mflo_direction(t) for comp in incoming_comps[l]) + \
+                        sum(p[pipe].get_mflo_direction(self.name, t) for pipe in
                             incoming_pipes[l]) == 0:
                     # mixed temperature is average of all joined pipes, actual value should not matter,
                     # because packages in pipes of this time step will have zero size and components do not take over
@@ -1080,13 +1073,13 @@ class Node(object):
                 outgoing_pipes = collections.defaultdict(list)
 
                 for name, comp_obj in c.items():
-                    if comp_obj.get_mflo(t) >= 0:
+                    if comp_obj.get_mflo_direction(t) >= 0:
                         outgoing_comps['return'].append(name)
                     else:
                         outgoing_comps['supply'].append(name)
 
                 for name, pipe_obj in p.items():
-                    if pipe_obj.get_mflo(self.name, t) >= 0:
+                    if pipe_obj.get_mflo_direction(self.name, t) >= 0:
                         outgoing_pipes['return'].append(name)
                     else:
                         outgoing_pipes['supply'].append(name)

@@ -177,6 +177,9 @@ class Component(object):
         """
         return self.direction
 
+    def get_mflo_direction(self, t):
+        return self.get_mflo(t)
+
     def get_slack(self, slack_name, t):
         """
         Get the calue of a slack variable at a certain time
