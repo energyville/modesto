@@ -20,7 +20,6 @@ from matplotlib.dates import DateFormatter
 import modesto.utils as ut
 from modesto.main import Modesto
 
-
 logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
@@ -40,7 +39,14 @@ logger = logging.getLogger('SDH')
 # For the edges (besides names of the nodes where the edge starts and stops):
 # * **Name of the edge**
 #
-def setup_opt():
+def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
+    """
+    set-up optimization problem
+
+    :param horizon: Horizon in seconds
+    :param time_step: time step in seconds
+    :return:
+    """
     G = nx.DiGraph()
 
     G.add_node('SolarArray', x=0, y=5000, z=0,
@@ -90,8 +96,6 @@ def setup_opt():
     # * **Start time** (should be a pandas TimeStamp). Currently, weather and prixe data for 2014 are available in modesto.
     # * **Pipe model**: The type of model used to model the pipes. Only one type can be selected for the whole optimization problem (unlike the component model types). Possibilities: SimplePipe (= perfect pipe, no losses, no time delays), ExtensivePipe (limited mass flows and heat losses, no time delays) and NodeMethod (heat losses and time delays, but requires mass flow rates to be known in advance)
 
-    horizon = 365 * 24 * 3600
-    time_step = 6 * 3600
     pipe_model = 'ExtensivePipe'
 
     # And create the modesto object
@@ -277,15 +281,16 @@ def setup_opt():
 
     return model
 
+
 if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt()
+    optmodel = setup_opt(time_step=6 * 3600)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
-    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=60)
+    optmodel.solve(tee=True, mipgap=0.001, solver='cplex', probe=True, timelim=60)
 
     # ## Collecting results
 
@@ -317,8 +322,8 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(1, 1, sharex=True)
 
-    ax.plot(inputs['Solar']/1e6, label='STC', color='orange')
-    ax.plot(inputs['Production']/1e6, label='Backup', color='red', linewidth=1.5)
+    ax.plot(inputs['Solar'] / 1e6, label='STC', color='orange')
+    ax.plot(inputs['Production'] / 1e6, label='Backup', color='red', linewidth=1.5)
     ax.set_ylabel('Heat Flow [MW]')
     ax.legend(loc='best')
 
@@ -414,9 +419,9 @@ if __name__ == '__main__':
     }
 
     for node in ['SolarArray', 'WaterscheiGarden', 'TermienWest']:
-        axs[0].plot(stor[node]/1e6, ls[node], label=node, linewidth=1.5)
+        axs[0].plot(stor[node] / 1e6, ls[node], label=node, linewidth=1.5)
         axs[1].plot(soc[node], ls[node], linewidth=1.5)
-    axs[0].plot(stor['Production']/1e6, ls=':', color='black', lw=0.5)
+    axs[0].plot(stor['Production'] / 1e6, ls=':', color='black', lw=0.5)
     axs[0].legend(['STC Node', 'B', 'C', 'Production'], loc='best', ncol=2)
     axs[0].set_title('Stored energy')
     axs[0].set_ylabel('Energy [GWh]')
@@ -433,7 +438,6 @@ if __name__ == '__main__':
     fig.autofmt_xdate()
 
     fig.tight_layout()
-
 
     fig.savefig('img/Future/StoragePlot.png', dpi=300)
 

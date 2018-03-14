@@ -40,6 +40,7 @@ logger = logging.getLogger('SDH')
 # For the edges (besides names of the nodes where the edge starts and stops):
 # * **Name of the edge**
 #
+
 def setup_opt():
     G = nx.DiGraph()
 
