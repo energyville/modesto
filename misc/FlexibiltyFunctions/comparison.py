@@ -101,7 +101,7 @@ service_pipes = {'MixedStreet': [50] * n_buildings,
                  'OldStreet': [50] * n_buildings,
                  'NewStreet': [50] * n_buildings}
 
-districts = []
+districts = ['radial', 'linear']
 
 dhw_use = range(1, n_buildings)
 
@@ -190,6 +190,80 @@ def street_graph(n_buildings, building_model, draw=True):
 
     return G
 
+
+def radial_district_graph(n_streets, building_model, draw=True):
+    """
+    Generate the graph for a street
+
+    :param n_streets: The number of streets to which 2 buildings are connected
+    :return:
+    """
+
+    G = nx.DiGraph()
+
+    G.add_node('Producer', x=0, y=0, z=0,
+               comps={'plant': 'ProducerVariable'})
+
+    angle = 2*np.pi/n_streets
+    distance = 75
+
+    for i in range(n_streets):
+
+        street_angle = i*angle
+        x_coor = np.cos(street_angle)*distance
+        y_coor = np.sin(street_angle)*distance
+        G.add_node('Street' + str(i),  x=x_coor, y=y_coor, z=0,
+                   comps={'building': building_model})
+
+        G.add_edge('Producer', 'Street' + str(i), name='dist_pipe' + str(i + 1))
+
+    if draw:
+
+        coordinates = {}
+        for node in G.nodes:
+            coordinates[node] = (G.nodes[node]['x'], G.nodes[node]['y'])
+
+        nx.draw(G, coordinates, with_labels=True, node_size=0)
+        plt.show()
+
+    return G
+
+def linear_district_graph(n_streets, building_model, draw=True):
+    """
+    Generate the graph for a street
+
+    :param n_streets: The number of streets to which 2 buildings are connected
+    :return:
+    """
+
+    G = nx.DiGraph()
+
+    G.add_node('Producer', x=0, y=0, z=0,
+               comps={'plant': 'ProducerVariable'})
+
+    distance = 75
+
+    for i in range(n_streets):
+
+        G.add_node('Street' + str(i),  x=distance*(i+1), y=0, z=0,
+                   comps={'building': building_model})
+
+
+    G.add_edge('Producer', 'Street0', name='dist_pipe0')
+
+    for i in range(n_streets-1):
+        G.add_edge('Street' + str(i), 'Street' + str(i+1), name='dist_pipe' + str(i+1))
+
+    if draw:
+
+        coordinates = {}
+        for node in G.nodes:
+            coordinates[node] = (G.nodes[node]['x'], G.nodes[node]['y'])
+
+        nx.draw(G, coordinates, with_labels=True, node_size=0)
+        plt.show()
+
+    return G
 
 """
 
