@@ -195,7 +195,7 @@ class RCmodel(Component):
         G.add_edge('TiN', 'Te', U=bp['infN'])
 
         self.structure = G
-        self.controlVariables += ['Q_hea_D', 'Q_hea_N']
+        self.controlVariables = ['Q_hea_D', 'Q_hea_N']
 
     def compile(self, topmodel, parent, start_time):
         """

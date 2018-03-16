@@ -74,7 +74,7 @@ initial_temp = 20+273.15
 # heat_profile and max_heat are left open!
 
 building_params = {'delta_T': delta_T,
-                   'mult': 1,
+                   'mult': None,
                    'heat_profile': None,
                    'temperature_return': return_temp,
                    'temperature_supply': supply_temp,
@@ -110,7 +110,7 @@ building_params = {'delta_T': delta_T,
                    }
 
 
-def get_building_params(node_method, max_heat=None, model_type=None, heat_profile=None):
+def get_building_params(node_method, max_heat=None, model_type=None, heat_profile=None, mult=1):
 
     if node_method:
         if heat_profile is None:
@@ -133,6 +133,8 @@ def get_building_params(node_method, max_heat=None, model_type=None, heat_profil
         output['max_heat'] = max_heat
         output['model_type'] = model_type
 
+    output['mult'] = mult
+
     return output
 
 
@@ -146,9 +148,9 @@ producer_params = {'efficiency': 1,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': None,
-                   'Qmax': 1.5e6,
+                   'Qmax': 1.5e8,
                    'ramp_cost': 0.01,
-                   'ramp': 1e6 / 3600,
+                   'ramp': 1.5e8 / 3600,
                    'temperature_supply': supply_temp,
                    'temperature_return': return_temp,
                    'temperature_max': 343.15,
