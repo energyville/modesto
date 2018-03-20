@@ -432,6 +432,10 @@ class RCmodel(Component):
             # self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
             # self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
 
+    def obj_bui_t(self):
+        return sum(self.block.StateTemperatures['TiD', t] + self.block.StateTemperatures['TiN', t]
+                   for t in self.model.X_TIME)
+
     def create_params(self):
         params = {
             'TiD0': StateParameter('TiD0',

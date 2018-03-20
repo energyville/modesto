@@ -332,6 +332,14 @@ class Component(object):
         """
         return 0
 
+    def obj_bui_t(self):
+        """
+        Yield summation of building temperatures for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
 
 class FixedProfile(Component):
     def __init__(self, name=None, horizon=None, time_step=None, direction=None,
