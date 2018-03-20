@@ -30,9 +30,9 @@ time_index = pd.date_range(start=start_time, periods=int(horizon/3600)+1, freq='
 n_points = int(math.ceil(n_buildings / 2))
 
 selected_flex_cases = ['Reference', 'Flexibility']
-selected_model_cases = ['Building', 'Pipe']
-selected_street_cases = ['OldStreet']
-selected_district_cases = []
+selected_model_cases = ['NoPipes', 'Building', 'Pipe', 'Combined']
+selected_street_cases = ['MixedStreet', 'NewStreet']
+selected_district_cases = ['linear', 'radial']
 
 n_cases = len(selected_flex_cases) * len(selected_model_cases) * len(selected_street_cases + selected_district_cases)
 
@@ -82,25 +82,16 @@ flex_cases = {'Reference':
                   {'price_profile': 'step'}
               }
 
-streets = {'MixedStreet': ['SFH_T_5_ins_TAB', 'SFH_T_5_TAB', 'SFH_T_5_ins_TAB',
-                           'SFH_T_5_TAB', 'SFH_T_5_ins_TAB', 'SFH_T_5_TAB',
-                           'SFH_T_5_ins_TAB', 'SFH_T_5_TAB', 'SFH_T_5_ins_TAB',
-                           'SFH_T_5_TAB'],
-           'OldStreet': ['SFH_T_5_TAB', 'SFH_T_5_TAB', 'SFH_T_5_TAB',
-                          'SFH_T_5_TAB', 'SFH_T_5_TAB', 'SFH_T_5_TAB',
-                          'SFH_T_5_TAB', 'SFH_T_5_TAB', 'SFH_T_5_TAB',
-                          'SFH_T_5_TAB'],
-           'NewStreet': ['SFH_T_5_ins_TAB', 'SFH_T_5_ins_TAB', 'SFH_T_5_ins_TAB',
-                         'SFH_T_5_ins_TAB', 'SFH_T_5_ins_TAB', 'SFH_T_5_ins_TAB',
-                         'SFH_T_5_ins_TAB', 'SFH_T_5_ins_TAB', 'SFH_T_5_ins_TAB',
-                         'SFH_T_5_ins_TAB'],
+streets = {'MixedStreet': ['SFH_T_5_TAB']*n_buildings,
+           'OldStreet': ['SFH_T_1_2zone_TAB']*n_buildings,
+           'NewStreet': ['SFH_T_5_ins_TAB']*n_buildings,
            'linear': ['SFH_T_1_2zone_TAB', 'SFH_T_5_ins_TAB', 'SFH_T_5_ins_TAB'],
 
            'radial': ['SFH_T_5_ins_TAB', 'SFH_T_5_TAB', 'SFH_T_1_2zone_TAB']
 }
 
-distribution_pipes = {'linear': [50, 32, 25],
-                      'radial': [25, 25, 32]}
+distribution_pipes = {'linear': [50, 32, 32],
+                      'radial': [32, 32, 40]}
 
 street_pipes = {'MixedStreet': [25, 25, 20, 20, 20],
                 'OldStreet': [32, 32, 25, 20, 20],
@@ -126,7 +117,7 @@ price_profiles = {'constant': pd.Series(1, index=time_index),
 building_models = {'RCmodel': 'RCmodel',
                    'Fixed': 'BuildingFixed'}
 
-time_steps = {'StSt': 300,
+time_steps = {'StSt': 900,
               'Dynamic': 300}
 
 max_heat = {'SFH_T_5_ins_TAB': 5000,
@@ -156,6 +147,10 @@ ax4 = fig3.add_subplot(111)
 
 fig4 = plt.figure()
 ax5 = fig4.add_subplot(111)
+
+def save_obj(obj, name ):
+    with open('results/'+ name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 """
 
@@ -376,7 +371,7 @@ for n, case in enumerate(selected_model_cases):
             optmodel.compile(start_time)
             optmodel.set_objective('cost')
 
-            optmodel.solve()
+            status = optmodel.solve(tee=False)
 
             print 'Slack: ', optmodel.model.Slack.value
             print 'Energy:', optmodel.get_objective('energy'), ' kWh'
@@ -411,6 +406,10 @@ for n, case in enumerate(selected_model_cases):
                     ax5.plot(Network_temperatures[case][street][flex_case]['return'], label=case + ' ' + street + ' ' + flex_case + ' return')
 
             Heat_injection[case][street][flex_case] = optmodel.get_result('heat_flow', node='Producer', comp='plant')
+
+            heat_injection = sum(Heat_injection[case][street][flex_case])
+            heat_use = sum(sum(Building_heat_use[case][street][flex_case][i]) for i in range(n_buildings))
+            print 'Efficiency: ', heat_use / heat_injection * 100, '%'
 
         Delta_Q[case][street] = Heat_injection[case][street]['Flexibility'] - Heat_injection[case][street]['Reference']
         axarr[n].plot(Delta_Q[case][street], label=' ' + street)
@@ -528,13 +527,11 @@ for n, case in enumerate(selected_model_cases):
                     ax5.plot(Network_temperatures[case][district][flex_case]['return'],
                              label=case + ' ' + district + ' ' + flex_case + ' return')
 
-            heat_use = sum(sum(Building_heat_use[case][district][flex_case][i]) for i in range(n_streets))
-
             Heat_injection[case][district][flex_case] = optmodel.get_result('heat_flow', node='Producer',
                                                                           comp='plant')
 
             heat_injection = sum(Heat_injection[case][district][flex_case])
-
+            heat_use = sum(sum(Building_heat_use[case][district][flex_case][i]) for i in range(n_streets))
             print 'Efficiency: ', heat_use/heat_injection*100, '%'
 
         Delta_Q[case][district] = Heat_injection[case][district]['Flexibility'] - Heat_injection[case][district][
@@ -542,10 +539,6 @@ for n, case in enumerate(selected_model_cases):
         axarr[n].plot(Delta_Q[case][district], label=' ' + district)
         axarr[n].legend()
 
-
-def save_obj(obj, name ):
-    with open('results/'+ name + '.pkl', 'wb') as f:
-        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 save_obj(Delta_Q, 'Energy_difference')
 
