@@ -342,6 +342,8 @@ class RCmodel(Component):
                 lslack[state] = [None] * len(self.model.X_TIME)
 
         def _max_temp(b, s, t):
+            if t == 0 and self.params[s + '0'].get_init_type() == 'fixedVal':
+                return Constraint.Skip
             if max_temp[s] is None:
                 return Constraint.Skip
             return self.constrain_value(b.StateTemperatures[s, t],
@@ -350,6 +352,8 @@ class RCmodel(Component):
                                         slack_variable=uslack[state][t])
 
         def _min_temp(b, s, t):
+            if t == 0 and self.params[s + '0'].get_init_type() == 'fixedVal':
+                return Constraint.Skip
             if min_temp[s] is None:
                 return Constraint.Skip
             return self.constrain_value(b.StateTemperatures[s, t],

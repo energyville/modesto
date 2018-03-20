@@ -39,16 +39,6 @@ QsolN = ut.read_time_data(get_data_path('Weather'), name='weatherData.csv')['Qso
 QsolE = ut.read_time_data(get_data_path('Weather'), name='weatherData.csv')['QsolS']
 QsolS = ut.read_time_data(get_data_path('Weather'), name='weatherData.csv')['QsolN']
 QsolW = ut.read_time_data(get_data_path('Weather'), name='weatherData.csv')['QsolW']
-day_max = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['day_max']
-day_min = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['day_min']
-night_max = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['night_max']
-night_min = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['night_min']
-bathroom_max = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['bathroom_max']
-bathroom_min = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['bathroom_min']
-floor_max = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['floor_max']
-floor_min = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['floor_min']
-Q_int_D = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['Q_int_D']
-Q_int_N = ut.read_time_data(get_data_path('UserBehaviour'), name='ISO13790.csv')['Q_int_N']
 
 
 """
@@ -80,21 +70,21 @@ building_params = {'delta_T': delta_T,
                    'temperature_supply': supply_temp,
                    'temperature_max': supply_temp + 10,
                    'temperature_min': return_temp - 10,
-                   'night_min_temperature': night_min,
-                   'night_max_temperature': night_max,
-                   'day_min_temperature': day_min,
-                   'day_max_temperature': day_max,
-                   'bathroom_min_temperature': bathroom_min,
-                   'bathroom_max_temperature': bathroom_max,
-                   'floor_min_temperature': floor_min,
-                   'floor_max_temperature': floor_max,
+                   'night_min_temperature': None,
+                   'night_max_temperature': None,
+                   'day_min_temperature': None,
+                   'day_max_temperature': None,
+                   'bathroom_min_temperature': None,
+                   'bathroom_max_temperature': None,
+                   'floor_min_temperature': None,
+                   'floor_max_temperature': None,
                    'model_type': None,
                    'Q_sol_E': QsolE,
                    'Q_sol_W': QsolW,
                    'Q_sol_S': QsolS,
                    'Q_sol_N': QsolN,
-                   'Q_int_D': Q_int_D,
-                   'Q_int_N': Q_int_N,
+                   'Q_int_D': None,
+                   'Q_int_N': None,
                    'Te': t_amb,
                    'Tg': t_g,
                    'TiD0': initial_temp,
@@ -110,7 +100,30 @@ building_params = {'delta_T': delta_T,
                    }
 
 
-def get_building_params(node_method, max_heat=None, model_type=None, heat_profile=None, mult=1):
+def get_building_params(node_method, building_nr,
+                        max_heat=None, model_type=None, heat_profile=None, mult=1):
+
+
+    day_max = ut.read_time_data(get_data_path('UserBehaviour'),
+                                name='ISO13790_stat_profile' + str(building_nr) + '.csv')['day_max']
+    day_min = ut.read_time_data(get_data_path('UserBehaviour'),
+                                name='ISO13790_stat_profile' + str(building_nr) + '.csv')['day_min']
+    night_max = ut.read_time_data(get_data_path('UserBehaviour'),
+                                  name='ISO13790_stat_profile' + str(building_nr) + '.csv')['night_max']
+    night_min = ut.read_time_data(get_data_path('UserBehaviour'),
+                                  name='ISO13790_stat_profile' + str(building_nr) + '.csv')['night_min']
+    bathroom_max = ut.read_time_data(get_data_path('UserBehaviour'),
+                                     name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_max']
+    bathroom_min = ut.read_time_data(get_data_path('UserBehaviour'),
+                                     name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_min']
+    floor_max = ut.read_time_data(get_data_path('UserBehaviour'),
+                                  name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_max']
+    floor_min = ut.read_time_data(get_data_path('UserBehaviour'),
+                                  name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_min']
+    Q_int_D = ut.read_time_data(get_data_path('UserBehaviour'),
+                                name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_D']
+    Q_int_N = ut.read_time_data(get_data_path('UserBehaviour'),
+                                name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_N']
 
     if node_method:
         if heat_profile is None:
@@ -125,6 +138,7 @@ def get_building_params(node_method, max_heat=None, model_type=None, heat_profil
                     'Q_int_D', 'Q_int_N', 'Te', 'Tg', 'TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0',
                     'TfiN0', 'TiN0', 'TwiN0', 'TwN0', 'max_heat']
 
+
     output = {key: building_params[key] for key in key_list}
 
     if node_method:
@@ -132,6 +146,16 @@ def get_building_params(node_method, max_heat=None, model_type=None, heat_profil
     else:
         output['max_heat'] = max_heat
         output['model_type'] = model_type
+        output['night_min_temperature'] = night_min
+        output['night_max_temperature'] = night_max
+        output['day_min_temperature'] = day_min
+        output['day_max_temperature'] = day_max
+        output['bathroom_min_temperature'] = bathroom_min
+        output['bathroom_max_temperature'] = bathroom_max
+        output['floor_min_temperature'] = floor_min
+        output['floor_max_temperature'] = floor_max
+        output['Q_int_D'] = Q_int_D
+        output['Q_int_N'] = Q_int_N
 
     output['mult'] = mult
 

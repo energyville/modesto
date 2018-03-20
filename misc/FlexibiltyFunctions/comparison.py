@@ -29,10 +29,10 @@ start_time = pd.Timestamp('20140101')
 time_index = pd.date_range(start=start_time, periods=int(horizon/3600)+1, freq='H')
 n_points = int(math.ceil(n_buildings / 2))
 
-selected_flex_cases = ['Reference', 'Flexibility']
+selected_flex_cases = ['Reference',  'Flexibility']
 selected_model_cases = ['NoPipes', 'Building', 'Pipe', 'Combined']
-selected_street_cases = ['MixedStreet', 'NewStreet']
-selected_district_cases = ['linear', 'radial']
+selected_street_cases = ['NewStreet']
+selected_district_cases = []
 
 n_cases = len(selected_flex_cases) * len(selected_model_cases) * len(selected_street_cases + selected_district_cases)
 
@@ -122,7 +122,7 @@ time_steps = {'StSt': 900,
 
 max_heat = {'SFH_T_5_ins_TAB': 5000,
             'SFH_T_5_TAB': 5000,
-            'SFH_T_1_2zone_TAB': 8000}
+            'SFH_T_1_2zone_TAB': 9000}
 
 """
 
@@ -339,9 +339,11 @@ for n, case in enumerate(selected_model_cases):
                         heat_profile[j] = 100
 
                 b_params = parameters.get_building_params(flag_nm,
+                                                          i,
                                                           heat_profile=heat_profile)
             else:
                 b_params = parameters.get_building_params(flag_nm,
+                                                          i,
                                                           max_heat=max_heat[streets[street][i]],
                                                           model_type=streets[street][i])
 
@@ -371,7 +373,7 @@ for n, case in enumerate(selected_model_cases):
             optmodel.compile(start_time)
             optmodel.set_objective('cost')
 
-            status = optmodel.solve(tee=False)
+            status = optmodel.solve(tee=True)
 
             print 'Slack: ', optmodel.model.Slack.value
             print 'Energy:', optmodel.get_objective('energy'), ' kWh'
@@ -411,8 +413,9 @@ for n, case in enumerate(selected_model_cases):
             heat_use = sum(sum(Building_heat_use[case][street][flex_case][i]) for i in range(n_buildings))
             print 'Efficiency: ', heat_use / heat_injection * 100, '%'
 
-        Delta_Q[case][street] = Heat_injection[case][street]['Flexibility'] - Heat_injection[case][street]['Reference']
-        axarr[n].plot(Delta_Q[case][street], label=' ' + street)
+        if ('Flexibility' in selected_flex_cases) and ('Reference' in selected_flex_cases):
+            Delta_Q[case][street] = Heat_injection[case][street]['Flexibility'] - Heat_injection[case][street]['Reference']
+            axarr[n].plot(Delta_Q[case][street], label=' ' + street)
 
 
     """
@@ -458,9 +461,11 @@ for n, case in enumerate(selected_model_cases):
                         heat_profile[j] = 100
 
                 b_params = parameters.get_building_params(flag_nm,
+                                                          i,
                                                           heat_profile=heat_profile, mult=n_buildings)
             else:
                 b_params = parameters.get_building_params(flag_nm,
+                                                          i,
                                                           max_heat=max_heat[streets[district][i]],
                                                           model_type=streets[district][i],
                                                           mult=n_buildings)
@@ -534,10 +539,11 @@ for n, case in enumerate(selected_model_cases):
             heat_use = sum(sum(Building_heat_use[case][district][flex_case][i]) for i in range(n_streets))
             print 'Efficiency: ', heat_use/heat_injection*100, '%'
 
-        Delta_Q[case][district] = Heat_injection[case][district]['Flexibility'] - Heat_injection[case][district][
-            'Reference']
-        axarr[n].plot(Delta_Q[case][district], label=' ' + district)
-        axarr[n].legend()
+        if ('Flexibility' in selected_flex_cases) and ('Reference' in selected_flex_cases):
+            Delta_Q[case][district] = Heat_injection[case][district]['Flexibility'] - Heat_injection[case][district][
+                'Reference']
+            axarr[n].plot(Delta_Q[case][district], label=' ' + district)
+            axarr[n].legend()
 
 
 save_obj(Delta_Q, 'Energy_difference')
