@@ -18,8 +18,8 @@ Network parameters
 
 """
 
-supply_temp = 323.15
-return_temp = 293.15
+supply_temp = 333.15
+return_temp = 303.15
 delta_T = supply_temp - return_temp
 
 """
@@ -68,8 +68,8 @@ building_params = {'delta_T': delta_T,
                    'heat_profile': None,
                    'temperature_return': return_temp,
                    'temperature_supply': supply_temp,
-                   'temperature_max': supply_temp + 10,
-                   'temperature_min': return_temp - 10,
+                   'temperature_max': supply_temp + 20,
+                   'temperature_min': return_temp - 20,
                    'night_min_temperature': None,
                    'night_max_temperature': None,
                    'day_min_temperature': None,
@@ -237,16 +237,19 @@ DHW parameters
 
 """
 
+heat_profile = ut.read_time_data(get_data_path('UserBehaviour'),
+                            name='QDHW.csv')
+
 dhw_params = {'delta_T': delta_T,
               'mult': 1,
               'heat_profile': None,
               'temperature_return': return_temp,
               'temperature_supply': supply_temp,
-              'temperature_max': supply_temp + 10,
-              'temperature_min': return_temp - 10}
+              'temperature_max': supply_temp + 20,
+              'temperature_min': return_temp - 20}
 
 
-def get_dhw_params(node_method, heat_profile):
+def get_dhw_params(node_method, building_nr, mult=1):
     if node_method:
         key_list = ['delta_T', 'mult', 'heat_profile', 'temperature_return',
                     'temperature_supply', 'temperature_max', 'temperature_min']
@@ -254,6 +257,7 @@ def get_dhw_params(node_method, heat_profile):
         key_list = ['delta_T', 'mult', 'heat_profile']
 
     output = {key: dhw_params[key] for key in key_list}
-    output['heat_profile'] = heat_profile
+    output['heat_profile'] = heat_profile[str(building_nr+1)]
+    output['mult'] = mult
 
     return output
