@@ -867,7 +867,8 @@ class SolarThermalCollector(Component):
                                         description='Investment cost in function of installed area',
                                         unit='EUR',
                                         unit_index='m2',
-                                        val=0)
+                                        val=250)  # Average cost/m2 from SDH fact sheet, Sorensen et al., 2012
+            # see http://solar-district-heating.eu/Portals/0/Factsheets/SDH-WP3-D31-D32_August2012.pdf
         }
         return params
 

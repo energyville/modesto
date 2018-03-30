@@ -103,9 +103,10 @@ class StateParameter(Parameter):
         :param description: Description of the parameter (str)
         :param unit: Unit of the parameter (e.g. K, W, m...) (str)
         :param init_type: Type of initialization constraint (str):
-        Possibilities are: fixedVal: A value is chosen by te user
-                           cyclic: Begin and end state must be equel
-                           free: Begin state can be freely chosen by optimization
+            Possibilities are:
+            * fixedVal: A value is chosen by te user
+            * cyclic: Begin and end state must be equel
+            * free: Begin state can be freely chosen by optimization
         :param val: Value of the parameter, if not given, it becomes None
         """
 
@@ -224,15 +225,18 @@ class SeriesParameter(Parameter):
 
     def get_value(self, index):
         """
-        Returns the value of the dependent variable this parameter for a certain independent variable value
+        Returns the value of the dependent variable this parameter for a certain independent variable value.
+        If the parameter has a single value, this is assumed to be the cost per unit as indicated in 'unit_index'. The
+        index (input) is multiplied by this unit price to get the final value. If the cost is indicated in table format,
+        the cost is returned as-is.
 
-        :param ind_list:   independent variable value. Cannot be None.
+        :param index:   independent variable value. Cannot be None.
         :return:
         """
         if self.value is None:
             raise Exception('Parameter {} has no value yet'.format(name))
         elif isinstance(self.value, (int, float)):
-            return self.value
+            return self.value*index
         else:
             f = interpolate.interp1d(self.value.index.values, self.value.values, fill_value='extrapolate')
             return f(index)

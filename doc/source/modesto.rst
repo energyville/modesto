@@ -44,6 +44,13 @@ modesto\.utils module
     :undoc-members:
     :show-inheritance:
 
+modesto\.parameter module
+-------------------------
+
+.. automodule:: modesto.parameter
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 Module contents
 ---------------

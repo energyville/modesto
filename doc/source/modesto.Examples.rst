@@ -1,5 +1,5 @@
-modesto\.Tests package
-======================
+modesto\.Examples package
+=========================
 
 Module containing all examples written for modesto.
 
