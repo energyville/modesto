@@ -645,7 +645,8 @@ class ProducerVariable(Component):
             'cost_inv': SeriesParameter('cost_inv',
                                         description='Investment cost as a function of Qmax',
                                         unit='EUR',
-                                        unit_index='W')
+                                        unit_index='W',
+                                        val=0)
         }
 
         if self.temperature_driven:
@@ -865,7 +866,8 @@ class SolarThermalCollector(Component):
             'cost_inv': SeriesParameter(name='cost_inv',
                                         description='Investment cost in function of installed area',
                                         unit='EUR',
-                                        unit_index='m2')
+                                        unit_index='m2',
+                                        val=0)
         }
         return params
 
@@ -1010,7 +1012,8 @@ class StorageVariable(Component):
             'cost_inv': SeriesParameter(name='cost_inv',
                                         description='Investment cost as a function of storage volume',
                                         unit='EUR',
-                                        unit_index='m3')
+                                        unit_index='m3',
+                                        val=0)
         }
 
         return params

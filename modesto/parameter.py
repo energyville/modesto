@@ -208,13 +208,10 @@ class SeriesParameter(Parameter):
         Parameter.__init__(self, name, description, unit, val)
 
         self.unit_index = unit_index
-        if self.value is not None:
-            self.value.index = self.value.index.astype('float')
-            # Necessary to have a correct value checking when interpolating
 
     def change_value(self, new_val):
         """
-        Change value of this SeriesParameter or derived class.
+        Change value of this SeriesParameter or derived class to a lookup table.
 
         :param new_val: pd.Series object with lookup table
         :return:
@@ -234,10 +231,11 @@ class SeriesParameter(Parameter):
         """
         if self.value is None:
             raise Exception('Parameter {} has no value yet'.format(name))
-
-        f = interpolate.interp1d(self.value.index.values, self.value.values, fill_value='extrapolate')
-
-        return f(index)
+        elif isinstance(self.value, (int, float)):
+            return self.value
+        else:
+            f = interpolate.interp1d(self.value.index.values, self.value.values, fill_value='extrapolate')
+            return f(index)
 
     def v(self, index):
         """

@@ -80,11 +80,12 @@ class Pipe(Component):
                                         'Pipe diameter',
                                         'DN (mm)'),
             'cost_inv': SeriesParameter(name='cost_inv',
-                                        description='Investment cost per length as a function of diameter',
+                                        description='Investment cost per length as a function of diameter.' 
+                                                    'Default value supplied.',
                                         unit='EUR/m',
                                         unit_index='DN (mm)',
                                         val=utils.read_xlsx_data(
-                                            resource_filename('modesto', 'Data/Investment/Pipe.xslx')))
+                                            resource_filename('modesto', 'Data/Investment/Pipe.xlsx')))
         }
 
         return params

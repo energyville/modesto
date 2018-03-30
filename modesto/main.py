@@ -315,6 +315,11 @@ class Modesto:
 
         self.logger.debug('{} objective set'.format(objtype))
 
+    def get_investment_cost(self):
+        cost = 0
+        for comp in self.iter_components():
+            comp.get_investment_cost()
+
     def iter_components(self):
         """
         Function that generates a list of all components in all nodes of model
@@ -1267,3 +1272,5 @@ class Edge(object):
             sumsq += (self.start_node.get_loc()[i] - self.end_node.get_loc()[
                 i]) ** 2
         return sqrt(sumsq)
+
+
