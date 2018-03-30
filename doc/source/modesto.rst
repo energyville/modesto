@@ -7,6 +7,7 @@ Subpackages
 .. toctree::
 
     modesto.Tests
+    modesto.Examples
 
 Submodules
 ----------

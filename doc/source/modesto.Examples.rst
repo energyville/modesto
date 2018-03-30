@@ -1,12 +1,12 @@
 modesto\.Tests package
 ======================
 
-Module containing all tests written for modesto.
+Module containing all examples written for modesto.
 
 Module contents
 ---------------
 
-.. automodule:: modesto.Tests
+.. automodule:: modesto.Examples
     :members:
     :undoc-members:
     :show-inheritance:

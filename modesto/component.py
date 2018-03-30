@@ -6,7 +6,7 @@ from math import pi, log, exp
 
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value, Set
 
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, SeriesParameter
 
 
 def str_to_comp(string):
@@ -179,7 +179,7 @@ class Component(object):
 
     def get_slack(self, slack_name, t):
         """
-        Get the calue of a slack variable at a certain time
+        Get the value of a slack variable at a certain time
 
         :param slack_name: Name of the slack variable
         :param t: Time
@@ -187,6 +187,16 @@ class Component(object):
         """
 
         return self.block.find_component(slack_name)[t]
+
+    def get_investment_cost(self):
+        """
+        Get the investment cost of this component. For a generic component, this is currently 0, but as components with price data are added, the cost parameter is used to get this value.
+
+        :return: Cost in EUR
+        """
+        # TODO: express cost with respect to economic lifetime
+
+        return 0
 
     def make_block(self, parent):
         """
@@ -631,7 +641,11 @@ class ProducerVariable(Component):
                                     'W/s'),
             'ramp_cost': DesignParameter('ramp_cost',
                                          'Ramping cost',
-                                         'euro/(W/s)')
+                                         'euro/(W/s)'),
+            'cost_inv': SeriesParameter('cost_inv',
+                                        description='Investment cost as a function of Qmax',
+                                        unit='EUR',
+                                        unit_index='W')
         }
 
         if self.temperature_driven:
@@ -750,7 +764,13 @@ class ProducerVariable(Component):
     def get_ramp_cost(self, t):
         return self.block.ramping_cost[t]
 
-    # TODO Objectives are all the same, only difference is the value of the weight...
+    def get_investment_cost(self):
+        """
+        Get investment cost of variable producer as a function of the nominal power rating.
+
+        :return: Cost in EUR
+        """
+        return self.params['cost_inv'].v(self.params['Qmax'].v())
 
     def obj_energy(self):
         """
@@ -841,7 +861,11 @@ class SolarThermalCollector(Component):
                                               description='Maximum heat generation per unit area of the solar panel',
                                               unit='W/m2',
                                               time_step=self.time_step,
-                                              horizon=self.horizon)
+                                              horizon=self.horizon),
+            'cost_inv': SeriesParameter(name='cost_inv',
+                                        description='Investment cost in function of installed area',
+                                        unit='EUR',
+                                        unit_index='m2')
         }
         return params
 
@@ -880,6 +904,15 @@ class SolarThermalCollector(Component):
 
         self.block.eq_heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
         self.block.eq_ener_bal = Constraint(self.model.TIME, rule=_ener_bal)
+
+    def get_investment_cost(self):
+        """
+        Return investment cost of solar thermal collector for the installed area.
+
+        :return: Investment cost in EUR
+        """
+
+        return params['cost_inv'].v(params['area'].v())
 
 
 class StorageFixed(FixedProfile):
@@ -973,7 +1006,11 @@ class StorageVariable(Component):
                                           description='Use of warm water stored in the tank, replaced by cold water, e.g. DHW. standard is 0',
                                           unit='kg/s',
                                           horizon=self.horizon,
-                                          time_step=self.time_step)
+                                          time_step=self.time_step),
+            'cost_inv': SeriesParameter(name='cost_inv',
+                                        description='Investment cost as a function of storage volume',
+                                        unit='EUR',
+                                        unit_index='m3')
         }
 
         return params
@@ -1088,7 +1125,7 @@ class StorageVariable(Component):
         # State equation
         def _state_eq(b, t):  # in kWh
             return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step / 3600 * (
-            b.heat_flow[t] - b.heat_loss[t]) / 1000 \
+                b.heat_flow[t] - b.heat_loss[t]) / 1000 \
                                          - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
@@ -1172,6 +1209,15 @@ class StorageVariable(Component):
         :return:
         """
         return self.block.heat_stor
+
+    def get_investment_cost(self):
+        """
+        Return investment cost of the storage unit, expressed in terms of equivalent water volume.
+
+        :return: Investment cost in EUR
+        """
+
+        return params['cost_inv'].v(self.volume)
 
 
 class StorageCondensed(StorageVariable):
