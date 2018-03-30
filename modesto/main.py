@@ -4,7 +4,6 @@ import collections
 from math import sqrt
 
 import networkx as nx
-import numpy as np
 # noinspection PyUnresolvedReferences
 import pyomo.environ
 from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var
@@ -318,7 +317,9 @@ class Modesto:
     def get_investment_cost(self):
         cost = 0
         for comp in self.iter_components():
-            comp.get_investment_cost()
+            cost += comp.get_investment_cost()
+
+        return cost
 
     def iter_components(self):
         """
@@ -1048,8 +1049,9 @@ class Node(object):
                     # because packages in pipes of this time step will have zero size and components do not take over
                     # mixed temperature in case there is no mass flow
 
-                    return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t,l) for comp in c) +
-                            sum(p[pipe].get_temperature(self.name, t, l) for pipe in p)) / (len(p) + len(c))
+                    return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t, l) for comp in c) +
+                                                sum(p[pipe].get_temperature(self.name, t, l) for pipe in p)) / (
+                                               len(p) + len(c))
 
 
                 else:  # mass flow rate through the node
@@ -1057,7 +1059,7 @@ class Node(object):
                         c[comp].get_mflo(t) for comp in incoming_comps[l]) +
                             sum(p[pipe].get_mflo(self.name, t) for pipe in
                                 incoming_pipes[l])) * b.mix_temp[t, l] == \
-                           sum(c[comp].get_mflo(t) * c[comp].get_temperature(t,l)
+                           sum(c[comp].get_mflo(t) * c[comp].get_temperature(t, l)
                                for comp in incoming_comps[l]) + \
                            sum(p[pipe].get_mflo(self.name, t) * p[
                                pipe].get_temperature(self.name, t, l)
@@ -1272,5 +1274,3 @@ class Edge(object):
             sumsq += (self.start_node.get_loc()[i] - self.end_node.get_loc()[
                 i]) ** 2
         return sqrt(sumsq)
-
-
