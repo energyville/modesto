@@ -10,7 +10,8 @@ from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, Set, Block, Binary
 
 from component import Component
-from parameter import DesignParameter, StateParameter, UserDataParameter
+from modesto import utils
+from parameter import DesignParameter, StateParameter, UserDataParameter, SeriesParameter
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
@@ -65,11 +66,25 @@ class Pipe(Component):
                          index_col='DN')
         return df
 
+    def get_investment_cost(self):
+        """
+        Get total investment of this pipe based on the installed diameter and length.
+
+        :return: Cost in EUR
+        """
+        return self.length * params['cost_inv'].v(params['diameter'].v())
+
     def create_params(self):
         params = {
             'diameter': DesignParameter('diameter',
                                         'Pipe diameter',
-                                        'DN (mm)')
+                                        'DN (mm)'),
+            'cost_inv': SeriesParameter(name='cost_inv',
+                                        description='Investment cost per length as a function of diameter',
+                                        unit='EUR/m',
+                                        unit_index='DN (mm)',
+                                        val=utils.read_xlsx_data(
+                                            resource_filename('modesto', 'Data/Investment/Pipe.xslx')))
         }
 
         return params
