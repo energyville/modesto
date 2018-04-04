@@ -915,7 +915,7 @@ class SolarThermalCollector(Component):
         :return: Investment cost in EUR
         """
 
-        return params['cost_inv'].v(params['area'].v())
+        return self.params['cost_inv'].v(self.params['area'].v())
 
 
 class StorageFixed(FixedProfile):
@@ -1221,7 +1221,7 @@ class StorageVariable(Component):
         :return: Investment cost in EUR
         """
 
-        return params['cost_inv'].v(self.volume)
+        return self.params['cost_inv'].v(self.volume)
 
 
 class StorageCondensed(StorageVariable):

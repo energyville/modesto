@@ -72,7 +72,7 @@ class Pipe(Component):
 
         :return: Cost in EUR
         """
-        return self.length * params['cost_inv'].v(params['diameter'].v())
+        return self.length * self.params['cost_inv'].v(self.params['diameter'].v())
 
     def create_params(self):
         params = {
@@ -85,7 +85,7 @@ class Pipe(Component):
                                         unit='EUR/m',
                                         unit_index='DN (mm)',
                                         val=utils.read_xlsx_data(
-                                            resource_filename('modesto', 'Data/Investment/Pipe.xlsx')))
+                                            resource_filename('modesto', 'Data/Investment/Pipe.xlsx'))['Cost_m'])
         }
 
         return params
