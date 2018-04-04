@@ -79,6 +79,9 @@ class Parameter(object):
     def v(self, time=None):
         return self.get_value(time)
 
+    def __str__(self):
+        return str(self.value)
+
 
 class DesignParameter(Parameter):
     def __init__(self, name, description, unit, val=None):
@@ -207,7 +210,8 @@ class SeriesParameter(Parameter):
         """
 
         Parameter.__init__(self, name, description, unit, val)
-
+        if isinstance(self.value, pd.Series):
+            self.value = self.value.astype('float')
         self.unit_index = unit_index
 
     def change_value(self, new_val):
