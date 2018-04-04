@@ -387,18 +387,21 @@ class Modesto:
 
         if verbose:
             print self.results
+            print self.results.solver.status
+            print self.results.solver.termination_condition
 
         if (self.results.solver.status == SolverStatus.ok) and (
                     self.results.solver.termination_condition == TerminationCondition.optimal):
             status = 0
             self.logger.info('Model solved.')
-        elif self.results.solver.status == SolverStatus.ok:
+        elif (self.results.solver.status == SolverStatus.ok) and not (
+            self.results.solver.termination_condition == TerminationCondition.infeasible):
             status = 2
             self.logger.info('Model solved but termination condition not optimal.')
             self.logger.info('Termination condition: {}'.format(self.results.solver.termination_condition))
         elif self.results.solver.termination_condition == TerminationCondition.infeasible:
             status = -1
-            self.logger.warning('Model is infeasible')
+            self.logger.info('Model is infeasible')
         else:
             status = 1
             self.logger.warning('Solver status: {}'.format(self.results.solver.status))
@@ -1051,7 +1054,7 @@ class Node(object):
 
                     return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t, l) for comp in c) +
                                                 sum(p[pipe].get_temperature(self.name, t, l) for pipe in p)) / (
-                                               len(p) + len(c))
+                                                   len(p) + len(c))
 
 
                 else:  # mass flow rate through the node
