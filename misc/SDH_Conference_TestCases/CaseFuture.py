@@ -17,7 +17,7 @@ import networkx as nx
 import pandas as pd
 from matplotlib.dates import DateFormatter
 
-import modesto.utils as ut
+from modesto import utils
 from modesto.main import Modesto
 
 logging.basicConfig(level=logging.WARNING,
@@ -39,7 +39,7 @@ logger = logging.getLogger('SDH')
 # For the edges (besides names of the nodes where the edge starts and stops):
 # * **Name of the edge**
 #
-def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
+def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     """
     set-up optimization problem
 
@@ -96,7 +96,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
     # * **Start time** (should be a pandas TimeStamp). Currently, weather and prixe data for 2014 are available in modesto.
     # * **Pipe model**: The type of model used to model the pipes. Only one type can be selected for the whole optimization problem (unlike the component model types). Possibilities: SimplePipe (= perfect pipe, no losses, no time delays), ExtensivePipe (limited mass flows and heat losses, no time delays) and NodeMethod (heat losses and time delays, but requires mass flow rates to be known in advance)
 
-    pipe_model = 'ExtensivePipe'
+    pipe_model = 'SimplePipe'
 
     # And create the modesto object
 
@@ -122,7 +122,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
 
     datapath = resource_filename('modesto', 'Data')
 
-    wd = ut.read_time_data(datapath, name='Weather/weatherData.csv')
+    wd = utils.read_time_data(datapath, name='Weather/weatherData.csv')
     t_amb = wd['Te']
     t_g = wd['Tg']
 
@@ -131,7 +131,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
     # In[11]:
 
 
-    c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+    c_f = utils.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
 
     # ## Changing parameters
 
@@ -155,18 +155,20 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
         'mult': 1
     }
 
-    heat_profile = ut.read_time_data(datapath, name='HeatDemand/HeatDemandFiltered.csv')
+    heat_profile = utils.read_time_data(datapath, name='HeatDemand/HeatDemandFiltered.csv')
 
-    print '#######################'
-    print '# Sum of heat demands #'
-    print '#######################'
-    print ''
+    if verbose:
+        print '#######################'
+        print '# Sum of heat demands #'
+        print '#######################'
+        print ''
     for name in ['WaterscheiGarden', 'TermienWest',
                  'TermienEast']:  # ['Boxbergheide', 'TermienWest', 'WaterscheiGarden']:
         build_param = building_params_common
         build_param['heat_profile'] = heat_profile[name]
 
-        print name, ':', str(sum(heat_profile[name]['2014']) / 1e9)  # Quarterly data
+        if verbose:
+            print name, ':', str(sum(heat_profile[name]['2014']) / 1e9)  # Quarterly data
 
         model.change_params(build_param, node=name, comp='neighb')
 
@@ -177,12 +179,14 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': 15e6,
+                   'Qmax': 15e7,
                    'ramp_cost': 0.01,
                    'ramp': 1e6 / 3600}
 
     model.change_params(prod_design, 'Production', 'backup')
-
+    STOR_COST = resource_filename('modesto', 'Data/Investment/Storage.xlsx')
+    pit_cost = utils.read_xlsx_data(STOR_COST, use_sheet='Pit')['Cost']
+    tank_cost = utils.read_xlsx_data(STOR_COST, use_sheet='Tank')['Cost']
     prod_stor_design = {
         'Thi': 70 + 273.15,
         'Tlo': 30 + 273.15,
@@ -193,7 +197,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': 0
+        'heat_stor': 0,
+        'cost_inv': tank_cost
     }
     model.change_params(prod_stor_design, node='Production', comp='tank')
     model.change_init_type('heat_stor', 'cyclic', node='Production', comp='tank')
@@ -211,7 +216,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
         'ar': 1,
         'dIns': 1,
         'kIns': 0.024,
-        'heat_stor': 0
+        'heat_stor': 0,
+        'cost_inv': pit_cost
     }
 
     model.change_params(stor_design, node='SolarArray',
@@ -230,7 +236,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
                 'ar': 1,
                 'dIns': 1,
                 'kIns': 0.024,
-                'heat_stor': 0
+                'heat_stor': 0,
+                'cost_inv': pit_cost
             },
         'WaterscheiGarden':
             {
@@ -243,7 +250,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
                 'ar': 1,
                 'dIns': 1,
                 'kIns': 0.024,
-                'heat_stor': 0
+                'heat_stor': 0,
+                'cost_inv': pit_cost
             }
     }
 
@@ -265,11 +273,11 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
 
     for pipe, DN in pipeDiam.iteritems():
         model.change_param(node=None, comp=pipe, param='diameter', val=DN)
-        model.change_param(node=None, comp=pipe, param='temperature_supply', val=70 + 273.15)
-        model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
+        # model.change_param(node=None, comp=pipe, param='temperature_supply', val=70 + 273.15)
+        # model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
 
     # ### Solar collector
-    solData = ut.read_time_data(datapath, name='RenewableProduction/SolarThermal.csv')
+    solData = utils.read_time_data(datapath, name='RenewableProduction/SolarThermal.csv')
 
     solParam = {
         'delta_T': 40,
@@ -286,11 +294,11 @@ if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=6 * 3600)
+    optmodel = setup_opt(time_step=3600, horizon=3600*6)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
-    optmodel.solve(tee=True, mipgap=0.001, solver='cplex', probe=True, timelim=60)
+    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=60)
 
     # ## Collecting results
 
@@ -301,6 +309,11 @@ if __name__ == '__main__':
     print 'Active:', optmodel.get_objective()
     print 'Energy:', optmodel.get_objective('energy')
     print 'Cost:  ', optmodel.get_objective('cost')
+
+    # print optmodel.get_investment_cost()
+
+
+    exit(1)
 
     # modesto has the get_result method, which allows to get the optimal values of the optimization variables:
 
