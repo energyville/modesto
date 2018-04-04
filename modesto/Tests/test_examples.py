@@ -3,6 +3,7 @@
 Description
 """
 
+
 def test_example():
     from modesto.Examples import example
 
@@ -11,6 +12,7 @@ def test_example():
     model.set_objective('cost')
 
     assert model.solve(tee=True, mipgap=0.01) == 0
+
 
 def test_example_node_method():
     from modesto.Examples import example_node_method
@@ -21,6 +23,7 @@ def test_example_node_method():
     model.set_objective('cost')
 
     assert model.solve(tee=True, mipgap=0.01) == 0
+
 
 def test_example_RCmodel():
     from modesto.Examples import example_RCmodel

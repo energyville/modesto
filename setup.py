@@ -14,6 +14,6 @@ setup(
     author_email='',
     description='Multi-Objective District Energy Systems Toolbox for Optimization',
     install_requires=['pyomo', 'pandas', 'networkx>=2.0', 'numpy', 'setuptools-git', 'sphinx', 'sphinx_rtd_theme',
-                      'jupyter'],
+                      'jupyter', 'xlrd>=0.9.0'],
     include_package_data=True
 )
