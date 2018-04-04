@@ -42,7 +42,7 @@ def set_up_series_param():
 
 def set_up_cost_data_param():
     filepath = resource_filename('modesto', 'Data/Investment/Storage.xlsx')
-    df = utils.read_xlsx_data(filepath, use_sheet='Tank')
+    df = utils.read_xlsx_data(filepath, use_sheet='Pit')
     param = SeriesParameter('cost', 'cost in function of volume', 'EUR', 'm3', val=df['Cost'])
 
     return param
@@ -56,3 +56,7 @@ def test_cost_data_interp():
 def test_cost_data_extrap():
     param = set_up_cost_data_param()
     assert param.v(220000) == 5900000
+
+def test_fixed_cost():
+    param = SeriesParameter('cost', 'cost in function of volume', 'EUR', 'm3', val=10)
+    assert param.v(1000) == 10000
