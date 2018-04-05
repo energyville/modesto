@@ -443,7 +443,7 @@ class FixedProfile(Component):
                     return b.temperatures['supply', t] == b.temperatures['return', t]
                 else:
                     return b.temperatures['supply', t] - b.temperatures['return', t] == \
-                           b.heat_flow[t] / b.mass_flow[t] / self.cp
+                           delta_T.v()
 
             def _init_temperatures(b, l):
                 return b.temperatures[l, 0] == self.params['temperature_' + l].v()

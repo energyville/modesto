@@ -38,9 +38,9 @@ Optimization setting
 
 """
 
-horizon = 24*3600*7  # Time period for which average temperature is required
+horizon = 24*3600*7 + 900  # Time period for which average temperature is required
 time_step = 900  # Time step between different points in the aggregated profile
-n_buildings = 10  # Number of buildings to be aggergated
+n_buildings = 30  # Number of buildings to be aggergated
 start_time = '20140101'  # Start time
 
 """
@@ -111,7 +111,7 @@ Calculating lowest possible temperatures in all buildings
 
 """
 
-def calc_min_temp(n_buildings, building_model):
+def calc_min_temp(start_building, end_building, building_model):
 
     G = nx.DiGraph()
 
@@ -152,7 +152,10 @@ def calc_min_temp(n_buildings, building_model):
     Q_hea_D = pd.DataFrame(index=time_index, columns=range(n_buildings))
     Q_hea_N = pd.DataFrame(index=time_index, columns=range(n_buildings))
 
-    for bui_nr in range(n_buildings):
+    for bui_nr in range(start_building, end_building):
+
+        print bui_nr
+
         building_params = {'delta_T': 20,
                            'mult': 1,
                            'night_min_temperature': night_min[bui_nr],
@@ -205,9 +208,10 @@ def calc_min_temp(n_buildings, building_model):
 
     return day_t, night_t
 
+n_buildings = 10
+for i, building_model in enumerate(['SFH_T_5_ins_TAB', 'SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2']):
+    print building_model
+    day_t, night_t = calc_min_temp(i*n_buildings, (i+1)*n_buildings, building_model)
 
-day_t, night_t = calc_min_temp(10, 'SFH_T_5_TAB')
-
-
-day_t.to_csv('day_t.csv', sep=';')
-night_t.to_csv('night_t.csv', sep=';')
+    day_t.to_csv('day_t_' + building_model + '.csv', sep=';')
+    night_t.to_csv('night_t_' + building_model + '.csv', sep=';')

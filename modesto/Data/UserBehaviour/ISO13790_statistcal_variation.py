@@ -11,7 +11,7 @@ import pandas as pd
 import random
 import datetime
 
-n_buildings = 10
+n_buildings = 30
 
 start_time = pd.Timestamp('20140101')
 end_time = pd.Timestamp('20150101')
@@ -95,9 +95,9 @@ for bui_nr in range(n_buildings):
             df['floor_min'][i] = 21 + 273.15
 
         # Maximum temperature day zone
-        df['day_max'][i] = 24 + 273.15
-        df['night_max'][i] = 24 + 273.15
-        df['bathroom_max'][i] = 27 + 273.15
+        df['day_max'][i] = 22 + 273.15
+        df['night_max'][i] = 21 + 273.15
+        df['bathroom_max'][i] = 24 + 273.15
         df['floor_max'][i] = 29 + 273.15
 
 

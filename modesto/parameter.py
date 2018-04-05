@@ -216,7 +216,6 @@ class TimeSeriesParameter(Parameter):
         :param time:
         :return:
         """
-
         if self.start_time is None:
             raise Exception('No start time has been given to parameter {} yet'.format(self.name))
 

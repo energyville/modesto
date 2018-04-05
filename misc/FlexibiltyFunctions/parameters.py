@@ -1,6 +1,7 @@
 import modesto.utils as ut
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
 
 """
 
@@ -101,29 +102,56 @@ building_params = {'delta_T': delta_T,
 
 
 def get_building_params(node_method, building_nr,
-                        max_heat=None, model_type=None, heat_profile=None, mult=1):
+                        max_heat=None, model_type=None, heat_profile=None, mult=1, aggregated=False):
 
+    if not aggregated:
+        day_max = ut.read_time_data(get_data_path('UserBehaviour'),
+                                    name='ISO13790_stat_profile' + str(building_nr) + '.csv')['day_max']
+        day_min = ut.read_time_data(get_data_path('UserBehaviour'),
+                                    name='ISO13790_stat_profile' + str(building_nr) + '.csv')['day_min']
+        night_max = ut.read_time_data(get_data_path('UserBehaviour'),
+                                      name='ISO13790_stat_profile' + str(building_nr) + '.csv')['night_max']
+        night_min = ut.read_time_data(get_data_path('UserBehaviour'),
+                                      name='ISO13790_stat_profile' + str(building_nr) + '.csv')['night_min']
+        bathroom_max = ut.read_time_data(get_data_path('UserBehaviour'),
+                                         name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_max']
+        bathroom_min = ut.read_time_data(get_data_path('UserBehaviour'),
+                                         name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_min']
+        floor_max = ut.read_time_data(get_data_path('UserBehaviour'),
+                                      name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_max']
+        floor_min = ut.read_time_data(get_data_path('UserBehaviour'),
+                                      name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_min']
+        Q_int_D = ut.read_time_data(get_data_path('UserBehaviour'),
+                                    name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_D']
+        Q_int_N = ut.read_time_data(get_data_path('UserBehaviour'),
+                                    name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_N']
+    else:
+        def aggregate(name, street_nr, n_buildings):
+            df = pd.DataFrame(index=t_amb.index, columns=range(n_buildings))
+            for i in range(n_buildings):
+                profile_nr = street_nr*(n_buildings) + i
+                df[i] = ut.read_time_data(get_data_path('UserBehaviour'),
+                                          name='ISO13790_stat_profile' + str(profile_nr) + '.csv')[name]
 
-    day_max = ut.read_time_data(get_data_path('UserBehaviour'),
-                                name='ISO13790_stat_profile' + str(building_nr) + '.csv')['day_max']
-    day_min = ut.read_time_data(get_data_path('UserBehaviour'),
-                                name='ISO13790_stat_profile' + str(building_nr) + '.csv')['day_min']
-    night_max = ut.read_time_data(get_data_path('UserBehaviour'),
-                                  name='ISO13790_stat_profile' + str(building_nr) + '.csv')['night_max']
-    night_min = ut.read_time_data(get_data_path('UserBehaviour'),
-                                  name='ISO13790_stat_profile' + str(building_nr) + '.csv')['night_min']
-    bathroom_max = ut.read_time_data(get_data_path('UserBehaviour'),
-                                     name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_max']
-    bathroom_min = ut.read_time_data(get_data_path('UserBehaviour'),
-                                     name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_min']
-    floor_max = ut.read_time_data(get_data_path('UserBehaviour'),
-                                  name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_max']
-    floor_min = ut.read_time_data(get_data_path('UserBehaviour'),
-                                  name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_min']
-    Q_int_D = ut.read_time_data(get_data_path('UserBehaviour'),
-                                name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_D']
-    Q_int_N = ut.read_time_data(get_data_path('UserBehaviour'),
-                                name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_N']
+            return ut.aggregate_columns(df)
+
+        def aggregate_min_temp(name, building_model, street_nr, n_buildings):
+            df = ut.read_time_data(os.path.join(modesto_path, 'misc', 'aggregation_methods')
+                                   , name=name + '_t_' + building_model + '.csv') \
+                     .ix[:, 0: n_buildings]
+            df.index = t_amb.index[0: len(df.index)]
+            return ut.aggregate_columns(df)
+
+        day_max = aggregate('day_max', building_nr, mult)
+        day_min = aggregate('day_min', building_nr, mult)
+        night_max = aggregate('night_max', building_nr, mult)
+        night_min = aggregate('night_min', building_nr, mult)
+        bathroom_max = aggregate('bathroom_max', building_nr, mult)
+        bathroom_min = aggregate('bathroom_min', building_nr, mult)
+        floor_max = aggregate('floor_max', building_nr, mult)
+        floor_min = aggregate('floor_min', building_nr, mult)
+        Q_int_D = aggregate('Q_int_D', building_nr, mult)
+        Q_int_N = aggregate('Q_int_N', building_nr, mult)
 
     if node_method:
         if heat_profile is None:
@@ -137,7 +165,6 @@ def get_building_params(node_method, building_nr,
                     'model_type', 'Q_sol_E', 'Q_sol_W', 'Q_sol_S', 'Q_sol_N',
                     'Q_int_D', 'Q_int_N', 'Te', 'Tg', 'TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0',
                     'TfiN0', 'TiN0', 'TwiN0', 'TwN0', 'max_heat']
-
 
     output = {key: building_params[key] for key in key_list}
 

@@ -24,17 +24,21 @@ Settings
 n_buildings = 10
 n_streets = 3
 horizon = 24*7*3600
-start_time = pd.Timestamp('20140301')
+start_time = pd.Timestamp('20140101')
 
 time_index = pd.date_range(start=start_time, periods=int(horizon/3600)+1, freq='H')
 n_points = int(math.ceil(n_buildings / 2))
 
 selected_flex_cases = ['Reference',  'Flexibility']
 selected_model_cases = ['NoPipes', 'Building', 'Pipe', 'Combined']
-selected_street_cases = ['NewStreet', 'MixedStreet', 'OldStreet']
+selected_street_cases = ['NewStreet', 'OldStreet', 'MixedStreet']
 selected_district_cases = ['linear', 'radial']
 
 n_cases = len(selected_flex_cases) * len(selected_model_cases) * len(selected_street_cases + selected_district_cases)
+
+dist_pipe_length = 75
+street_pipe_length = 30
+service_pipe_length = 30
 
 """
 
@@ -82,20 +86,19 @@ flex_cases = {'Reference':
                   {'price_profile': 'step'}
               }
 
-streets = {'MixedStreet': ['SFH_T_5_TAB']*n_buildings,
-           'OldStreet': ['SFH_T_1_2zone_TAB']*n_buildings,
+streets = {'MixedStreet': ['SFH_T_5_ins_TAB', 'SFH_D_1_2zone_REF2']*int(n_buildings/2),
+           'OldStreet': ['SFH_D_1_2zone_REF2']*n_buildings,
            'NewStreet': ['SFH_T_5_ins_TAB']*n_buildings,
-           'linear': ['SFH_T_1_2zone_TAB', 'SFH_T_5_ins_TAB', 'SFH_T_5_TAB'],
-
-           'radial': ['SFH_T_1_2zone_TAB', 'SFH_T_5_ins_TAB', 'SFH_T_5_TAB']
+           'linear': ['SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2', 'SFH_T_5_ins_TAB'],
+           'radial': ['SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2', 'SFH_T_5_ins_TAB']
 }
 
-distribution_pipes = {'linear': [50, 32, 32],
-                      'radial': [32, 32, 40]}
+distribution_pipes = {'linear': [40, 32, 20],
+                      'radial': [25, 25, 20]}
 
-street_pipes = {'MixedStreet': [25, 25, 20, 20, 20],
-                'OldStreet': [32, 32, 25, 20, 20],
-                'NewStreet': [25, 25, 20, 20, 20]}
+street_pipes = {'MixedStreet': [25, 20, 20, 20, 20],
+                'OldStreet': [25, 25, 20, 20, 20],
+                'NewStreet': [20, 20, 20, 20, 20]}
 
 service_pipes = {'MixedStreet': [20] * n_buildings,
                  'OldStreet': [20] * n_buildings,
@@ -110,7 +113,7 @@ pipe_models = {'NoPipes': 'SimplePipe',
                'StSt': 'ExtensivePipe',
                'Dynamic': 'NodeMethod'}
 
-pos = 0.2
+pos = 3.5/7
 price_profiles = {'constant': pd.Series(1, index=time_index),
                   'step': pd.Series([1]*int(len(time_index)*pos) + [2]*(len(time_index)-int(len(time_index)*pos)),
                                     index=time_index)}
@@ -121,9 +124,9 @@ building_models = {'RCmodel': 'RCmodel',
 time_steps = {'StSt': 900,
               'Dynamic': 300}
 
-max_heat = {'SFH_T_5_ins_TAB': 10000,
-            'SFH_T_5_TAB': 10000,
-            'SFH_T_1_2zone_TAB': 20000}
+max_heat = {'SFH_T_5_ins_TAB': 7000,
+            'SFH_D_3_2zone_REF2': 9000,
+            'SFH_D_1_2zone_REF2': 10000}
 
 """
 
@@ -196,9 +199,9 @@ def street_graph(n_buildings, building_model, draw=True):
                comps={'plant': 'ProducerVariable'})
 
     for i in range(n_points):
-        G.add_node('p' + str(i), x=30 * (i + 1), y=0, z=0,
+        G.add_node('p' + str(i), x=street_pipe_length * (i + 1), y=0, z=0,
                    comps={})
-        G.add_node('Building' + str(i), x=30 * (i + 1), y=30, z=0,
+        G.add_node('Building' + str(i), x=street_pipe_length * (i + 1), y=service_pipe_length, z=0,
                    comps={'building': building_model,})
                               # 'DHW': 'BuildingFixed'})
 
@@ -245,7 +248,7 @@ def radial_district_graph(n_streets, building_model, draw=True):
                comps={'plant': 'ProducerVariable'})
 
     angle = 2*np.pi/n_streets
-    distance = 75
+    distance = dist_pipe_length
 
     for i in range(n_streets):
 
@@ -283,7 +286,7 @@ def linear_district_graph(n_streets, building_model, draw=True):
     G.add_node('Producer', x=0, y=0, z=0,
                comps={'plant': 'ProducerVariable'})
 
-    distance = 75
+    distance = dist_pipe_length
 
     for i in range(n_streets):
 
@@ -345,7 +348,7 @@ for n, case in enumerate(selected_model_cases):
         Mass_flow_rates[case][street] = {}
         objectives[case][street] = {}
 
-        graph = street_graph(n_buildings, building_model, draw=True)
+        graph = street_graph(n_buildings, building_model, draw=False)
 
         if pipe_model == 'NodeMethod':
             optmodel = Modesto(horizon, time_step, pipe_model, graph)
@@ -369,7 +372,7 @@ for n, case in enumerate(selected_model_cases):
                 # Introducing bypass to increase robustness
                 for j, val in enumerate(heat_profile):
                     if val <= 0.1:
-                        heat_profile[j] = 100
+                        heat_profile[j] = 10
 
                 b_params = parameters.get_building_params(flag_nm,
                                                           i,
@@ -469,7 +472,7 @@ for n, case in enumerate(selected_model_cases):
             axarr6[0].legend()
             axarr4[0].set_ylabel('Temperature[K] [W]')
 
-            Mass_flow_rates[case][street][flex_case] = optmodel.get_result('mass_flow', node='Producer', comp='plant')
+            Mass_flow_rates[case][street][flex_case] = optmodel.get_result('mass_flow', node=None, comp='dist_pipe0')
 
             if case == 'Building':
                 axarr8.plot(Mass_flow_rates[case][street][flex_case], label=case + ' ' + street + ' ' + flex_case)
@@ -534,13 +537,15 @@ for n, case in enumerate(selected_model_cases):
                 b_params = parameters.get_building_params(flag_nm,
                                                           i,
                                                           heat_profile=heat_profile,
-                                                          mult=1)  # heat_profile gives heat use for entire street, not one building!
+                                                          mult=1,
+                                                          aggregated=True)  # heat_profile gives heat use for entire street, not one building!
             else:
                 b_params = parameters.get_building_params(flag_nm,
                                                           i,
                                                           max_heat=max_heat[streets[district][i]],
                                                           model_type=streets[district][i],
-                                                          mult=n_buildings)
+                                                          mult=n_buildings,
+                                                          aggregated=True)
 
             optmodel.change_params(b_params, 'Street' + str(i), 'building')
 
