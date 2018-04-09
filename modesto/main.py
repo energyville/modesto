@@ -394,6 +394,9 @@ class Modesto:
                     self.results.solver.termination_condition == TerminationCondition.optimal):
             status = 0
             self.logger.info('Model solved.')
+        elif (self.results.solver.status == SolverStatus.aborted):
+            status = -3
+            self.logger.info('Solver aborted.')
         elif (self.results.solver.status == SolverStatus.ok) and not (
             self.results.solver.termination_condition == TerminationCondition.infeasible):
             status = 2
