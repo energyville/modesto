@@ -1,3 +1,6 @@
+* Added unit tests
+* Added investment cost parameter (without discounting for now) and getter method to calculate total system cost 
+
 VERSION 0.2.1
 =============
 

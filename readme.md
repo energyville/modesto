@@ -25,6 +25,11 @@ Tests can be run by using the command
 ```commandline
 python setup.py test
 ```
+or even more simply with the command
+```commandline
+pytest
+```
+in the top directory.
 
 You can build and view the documentation by running
 ```commandline
