@@ -313,7 +313,6 @@ if __name__ == '__main__':
     # print optmodel.get_investment_cost()
 
 
-    exit(1)
 
     # modesto has the get_result method, which allows to get the optimal values of the optimization variables:
 
