@@ -45,7 +45,8 @@ for path in ['longrunnoduration']:
 
             sns.set_context("paper")
 
-            g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='Storage volume', col='Solar coll. area', col_wrap=2, size=3,
+            g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='Storage volume',
+                           col='Solar coll. area', col_wrap=2, size=3,
                            sharex=False,
                            sharey=False, legend=False, markers=['s', 'o', '^', '+'],
                            hue_order=[50000, 75000, 100000, 125000])
@@ -65,7 +66,8 @@ for path in ['longrunnoduration']:
                 # now plot both limits against eachother
                 g.axes[axnum].plot([limmin, limmax], [limmin, limmax], 'w-', linewidth=2, alpha=0.75, zorder=0)
                 z = g.axes[axnum].fill_between([limmin, limmax], [(1 - acc) * limmin, (1 - acc) * limmax],
-                                               [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.15, color='b',
+                                               [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.15,
+                                               color='b',
                                                label='$\pm$' + str(100 * acc) + '%')
 
             g.add_legend(title='Storage volume', bbox_to_anchor=(1.15, 0.5))

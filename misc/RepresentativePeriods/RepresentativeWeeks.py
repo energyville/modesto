@@ -289,7 +289,7 @@ def solve_repr(model):
     # In[ ]:
 
     if (results.solver.status == SolverStatus.ok) and (
-                results.solver.termination_condition == TerminationCondition.optimal):
+            results.solver.termination_condition == TerminationCondition.optimal):
         return 0
     elif results.solver.termination_condition == TerminationCondition.infeasible:
         print 'Model is infeasible'
@@ -375,6 +375,7 @@ def plot_representative(opt, sel, duration_repr=7):
     fig_out.subplots_adjust(wspace=0.1, hspace=0.1)
 
     return fig_out
+
 
 # In[ ]:
 if __name__ == '__main__':
