@@ -1264,7 +1264,7 @@ class StorageCondensed(StorageVariable):
         self.initial_compilation(topmodel, parent)
 
         self.heat_loss_coeff = exp(-self.time_step / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
-        print 'zeta H is:', str(self.heat_loss_coeff)
+        # print 'zeta H is:', str(self.heat_loss_coeff)
         self.block.heat_stor_init = Var(domain=NonNegativeReals)
         self.block.heat_stor_final = Var(domain=NonNegativeReals)
 

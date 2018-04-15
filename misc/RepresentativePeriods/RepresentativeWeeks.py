@@ -18,7 +18,7 @@ from pyomo.opt import SolverFactory, SolverStatus, TerminationCondition
 import modesto.utils as ut
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 
@@ -208,9 +208,9 @@ def representative(duration_repr, selection, storVol=75000,
             topmodel.add_component(
                 name='_'.join([component_id, str(current), 'eq']),
                 val=Constraint(rule=_link_stor))
-            print 'State equation added for storage {} in representative week starting on day {}'.format(
-                component_id,
-                current)
+            # print 'State equation added for storage {} in representative week starting on day {}'.format(
+            #     component_id,
+            #     current)
 
     # In[ ]:
 
@@ -274,7 +274,6 @@ def get_demand_energy(optimizers, sel):
 
 
 def solve_repr(model):
-    begin = time.time()
     opt = SolverFactory("gurobi")
 
     opt.options["NumericFocus"] = 1
@@ -282,21 +281,19 @@ def solve_repr(model):
     # opt.options["MIPGap"] = mipgap
     results = opt.solve(model, tee=True, warmstart=True)
 
-    end = time.time()
-
-    print 'Solving time:', str(end - begin)
-
     # In[ ]:
 
-    if (results.solver.status == SolverStatus.ok) and (
-            results.solver.termination_condition == TerminationCondition.optimal):
-        return 0
-    elif results.solver.termination_condition == TerminationCondition.infeasible:
-        print 'Model is infeasible'
-        return -1
-    else:
-        print 'Solver status: ', results.solver.status
-        return 1
+    # if (results.solver.status == SolverStatus.ok) and (
+    #         results.solver.termination_condition == TerminationCondition.optimal):
+    #     return 0
+    # elif results.solver.termination_condition == TerminationCondition.infeasible:
+    #     print 'Model is infeasible'
+    #     return -1
+    # else:
+    #     print 'Solver status: ', results.solver.status
+    #     return 1
+
+    return results
 
 
 def construct_heat_flow(name, node, comp, optimizer, reps, start_date):
