@@ -836,6 +836,80 @@ class ProducerVariable(Component):
 
         return sum(self.get_temperature(t, 'supply') for t in self.model.TIME)
 
+class RenewableEnergySource(Component):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
+        """
+        A renewable energy source (e.g. wind, solar) with known energy generation profile and possible curtailment
+
+        :param name: Name of the solar panel
+        :param horizon: Optimization horizon in seconds
+        :param time_step: Time step in seconds
+        :param temperature_driven: Indicates whether temperatures should be variables
+        """
+
+        super(RenewableEnergySource, self).__init__(name=name, horizon=horizon,
+                                                    time_step=time_step, direction=1,
+                                                    temperature_driven=temperature_driven)
+
+        self.params = self.create_params()
+
+        self.logger = logging.getLogger('modesto.components.RES')
+        self.logger.info('Initializing RES {}'.format(name))
+
+    def compile(self, topmodel, parent, start_time):
+        """
+        Compile this component's equations
+
+        :param topmodel:
+        :param parent:
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :return:
+        """
+        self.update_time(start_time)
+
+        self.model = topmodel
+        self.make_block(parent)
+
+        heat_profile = self.params['heat_profile'].v()
+
+        def _heat_flow_max(m, t):
+            return heat_profile[t]
+
+        self.block.heat_flow_max = Param(self.model.TIME, rule=_heat_flow_max)
+        self.block.heat_flow = Var(self.model.TIME, within=NonNegativeReals)
+        self.block.heat_flow_curt = Var(self.model.TIME, within=NonNegativeReals)
+
+        self.block.mass_flow = Var(self.model.TIME)
+
+        # Equations
+
+        def _heat_bal(m, t):
+            return m.heat_flow[t] + m.heat_flow_curt[t] == m.heat_flow_max[t]
+
+        def _ener_bal(m, t):
+            return m.mass_flow[t] == m.heat_flow[t] / self.cp / self.params['delta_T'].v()
+
+        self.block.eq_heat_bal = Constraint(self.model.TIME, rule=_heat_bal)
+        self.block.eq_ener_bal = Constraint(self.model.TIME, rule=_ener_bal)
+
+    def create_params(self):
+        params = {
+            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K'),
+            'heat_profile': UserDataParameter(name='heat_profile',
+                                              description='Maximum heat generation per unit area of the solar panel',
+                                              unit='W/m2',
+                                              time_step=self.time_step,
+                                              horizon=self.horizon),
+            # 'cost_inv': SeriesParameter(name='cost_inv',
+            #                             description='Investment cost in function of installed area',
+            #                             unit='EUR',
+            #                             unit_index='m2',
+            #                             val=250)  # Average cost/m2 from SDH fact sheet, Sorensen et al., 2012
+            # see http://solar-district-heating.eu/Portals/0/Factsheets/SDH-WP3-D31-D32_August2012.pdf
+        }
+        return params
+
+
 
 class SolarThermalCollector(Component):
     def __init__(self, name, horizon, time_step, temperature_driven=False):
@@ -845,7 +919,7 @@ class SolarThermalCollector(Component):
         :param name: Name of the solar panel
         :param horizon: Optimization horizon in seconds
         :param time_step: Time step in seconds
-        :param temperature_driven:
+        :param temperature_driven: Indicates whether temperatures should be variables
         """
         super(SolarThermalCollector, self).__init__(name=name, horizon=horizon,
                                                     time_step=time_step, direction=1,
