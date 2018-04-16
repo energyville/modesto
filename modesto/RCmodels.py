@@ -374,10 +374,11 @@ class RCmodel(Component):
 
         mult = self.params['mult'].v()
         delta_T = self.params['delta_T'].v()
+        cop = self.params['COP'].v()
 
         def decl_heat_flow(b, t):
             # TODO Find good way to find control inputs
-            return b.heat_flow[t] == mult*sum(b.ControlHeatFlows[i, t] for i in b.control_variables)
+            return b.heat_flow[t] == mult/cop*sum(b.ControlHeatFlows[i, t] for i in b.control_variables)
 
         self.block.decl_heat_flow = Constraint(self.model.TIME, rule=decl_heat_flow)
 
@@ -579,7 +580,11 @@ class RCmodel(Component):
                                        horizon=self.horizon),
             'max_heat': DesignParameter('max_heat',
                                         'Maximum heating power through substation',
-                                        'W')
+                                        'W'),
+            'COP': DesignParameter('COP',
+                                   description='COP of the local heat pump, default value is 1 (i.e. no heat pump)',
+                                   unit='-',
+                                   val=1)
         }
         # TODO Te, Tg and Q_sol als global parameters?
         return params
