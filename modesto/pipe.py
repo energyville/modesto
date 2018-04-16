@@ -160,7 +160,7 @@ class SimplePipe(Pipe):
                       allow_flow_reversal=allow_flow_reversal,
                       temperature_driven=temperature_driven)
 
-        self.params['diameter'] = 20
+        self.params['diameter'].change_value(20)
 
     def compile(self, model, start_time):
         """
