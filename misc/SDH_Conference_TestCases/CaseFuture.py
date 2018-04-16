@@ -20,6 +20,8 @@ from matplotlib.dates import DateFormatter
 from modesto import utils
 from modesto.main import Modesto
 
+from pyomo.util.timing import report_timing
+
 logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
@@ -96,7 +98,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     # * **Start time** (should be a pandas TimeStamp). Currently, weather and prixe data for 2014 are available in modesto.
     # * **Pipe model**: The type of model used to model the pipes. Only one type can be selected for the whole optimization problem (unlike the component model types). Possibilities: SimplePipe (= perfect pipe, no losses, no time delays), ExtensivePipe (limited mass flows and heat losses, no time delays) and NodeMethod (heat losses and time delays, but requires mass flow rates to be known in advance)
 
-    pipe_model = 'SimplePipe'
+    pipe_model = 'ExtensivePipe'
 
     # And create the modesto object
 
@@ -273,8 +275,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     for pipe, DN in pipeDiam.iteritems():
         model.change_param(node=None, comp=pipe, param='diameter', val=DN)
-        # model.change_param(node=None, comp=pipe, param='temperature_supply', val=70 + 273.15)
-        # model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
+        model.change_param(node=None, comp=pipe, param='temperature_supply', val=70 + 273.15)
+        model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
 
     # ### Solar collector
     solData = utils.read_time_data(datapath, name='RenewableProduction/SolarThermal.csv')
@@ -292,14 +294,16 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
 if __name__ == '__main__':
 
+    report_timing()
+
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=3600*6)
+    optmodel = setup_opt(time_step=3600, horizon=6*3600)#*24*365)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
-    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=60)
-
+    sol = optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=1)
+    print 'Status: {}'.format(sol)
     # ## Collecting results
 
     # ### The objective(s)
@@ -313,7 +317,6 @@ if __name__ == '__main__':
     # print optmodel.get_investment_cost()
 
 
-    exit(1)
 
     # modesto has the get_result method, which allows to get the optimal values of the optimization variables:
 
