@@ -408,7 +408,7 @@ class FixedProfile(Component):
 
         return params
 
-    def compile(self, topmodel, parent, start_time):
+    def partial_compile(self, topmodel, parent, start_time, heat_profile=None):
         """
         Build the structure of fixed profile
 
@@ -421,16 +421,18 @@ class FixedProfile(Component):
 
         mult = self.params['mult']
         delta_T = self.params['delta_T']
-        heat_profile = self.params['heat_profile']
+
+        if heat_profile is None:
+            heat_profile = self.params['heat_profile'].v()
 
         self.model = topmodel
         self.make_block(parent)
 
         def _mass_flow(b, t):
-            return mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
+            return mult.v() * heat_profile[t] / self.cp / delta_T.v()
 
         def _heat_flow(b, t):
-            return mult.v() * heat_profile.v(t)
+            return mult.v() * heat_profile[t]
 
         self.block.mass_flow = Param(self.model.TIME, rule=_mass_flow)
         self.block.heat_flow = Param(self.model.TIME, rule=_heat_flow)
@@ -476,34 +478,6 @@ class FixedProfile(Component):
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
-
-        # def fill_opt(self):
-        #     """
-        #     Add the parameters to the model
-        #
-        #     :return:
-        #     """
-        #
-        #     param_list = ""
-        #
-        #     assert set(self.needed_design_param) >= set(self.design_param.keys()), \
-        #         "Design parameters for %s are missing: %s" \
-        #         % (self.name, str(list(set(self.design_param.keys()) - set(self.needed_design_param))))
-        #
-        #     assert set(self.needed_user_data) >= set(self.user_data.keys()), \
-        #         "User data for %s are missing: %s" \
-        #         % (self.name, str(list(set(self.user_data.keys()) - set(self.needed_user_data))))
-        #
-        #     for d_param in self.needed_design_param:
-        #         param_list += "param %s := \n%s\n;\n" % (self.name + "_" + d_param, self.design_param[d_param])
-        #
-        #     for u_param in self.needed_user_data:
-        #         param_list += "param %s := \n" % (self.name + "_" + u_param)
-        #         for i in range(self.n_steps):
-        #             param_list += str(i + 1) + ' ' + str(self.user_data[u_param].loc[i][0]) + "\n"
-        #         param_list += ';\n'
-        #
-        #     return param_list
 
 
 class VariableProfile(Component):
@@ -554,6 +528,22 @@ class BuildingFixed(FixedProfile):
                                             direction=-1,
                                             temperature_driven=temperature_driven)
 
+    def create_params(self):
+        params = FixedProfile.create_params(self)
+
+        params['COP'] = DesignParameter('COP',
+                                        description='COP of the local heat pump',
+                                        unit='-',
+                                        val=1)
+
+        return params
+
+    def compile(self, topmodel, parent, start_time):
+        self.update_time(start_time)
+
+        FixedProfile.partial_compile(self, topmodel, parent, start_time,
+                                     heat_profile=self.params['heat_profile'].v()/self.params['COP'].v())
+
 
 class BuildingVariable(Component):
     # TODO How to implement DHW tank? Separate model from Building or together?
@@ -593,6 +583,10 @@ class ProducerFixed(FixedProfile):
 
     def is_heat_source(self):
         return True
+
+    def compile(self, topmodel, parent, start_time):
+
+        FixedProfile.partial_compile(self, topmodel, parent, start_time)
 
 
 class ProducerVariable(Component):
