@@ -894,8 +894,8 @@ class RenewableEnergySource(Component):
         params = {
             'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K'),
             'heat_profile': UserDataParameter(name='heat_profile',
-                                              description='Maximum heat generation per unit area of the solar panel',
-                                              unit='W/m2',
+                                              description='Maximum heat generation of the RES source',
+                                              unit='W',
                                               time_step=self.time_step,
                                               horizon=self.horizon),
             # 'cost_inv': SeriesParameter(name='cost_inv',
