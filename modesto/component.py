@@ -589,6 +589,8 @@ class ProducerFixed(FixedProfile):
                                             direction=1,
                                             temperature_driven=temperature_driven)
 
+        self.params['mult'] = 1
+
     def is_heat_source(self):
         return True
 
