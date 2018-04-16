@@ -1010,7 +1010,11 @@ class StorageVariable(Component):
                                         description='Investment cost as a function of storage volume',
                                         unit='EUR',
                                         unit_index='m3',
-                                        val=0)
+                                        val=0),
+            'COP': DesignParameter(name='COP',
+                                   description='COP of the local heat pump. Default value is 1 (i.e. no heat pump',
+                                   unit='-',
+                                   val=1)
         }
 
         return params
@@ -1091,6 +1095,11 @@ class StorageVariable(Component):
         if self.temperature_driven:
             self.block.supply_temperature = Var(self.model.TIME)
 
+        if (not self.params['mflo_min'].v() == 0) and (not self.params['COP'].v() == 1):
+            raise Exception('The model is not (yet) suitable for a two way heat pump operation. '
+                            'Change this mflo_min parameter to 0 to make it a one way operation, or '
+                            'change the COP to 1 to remove the heat pump.')
+
     def compile(self, topmodel, parent, start_time):
         """
         Compile this model
@@ -1125,7 +1134,7 @@ class StorageVariable(Component):
         # State equation
         def _state_eq(b, t):  # in kWh
             return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step / 3600 * (
-                b.heat_flow[t] - b.heat_loss[t]) / 1000 \
+                b.heat_flow[t]*self.params['COP'].v() - b.heat_loss[t]) / 1000 \
                                          - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
@@ -1195,6 +1204,7 @@ class StorageVariable(Component):
         # print 1 / 2 * self.vol * 1000 * self.temp_diff * self.cp
 
         ## Mass flow and heat flow link
+
         def _heat_bal(b, t):
             return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
 
