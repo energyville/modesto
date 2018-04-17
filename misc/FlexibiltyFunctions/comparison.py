@@ -86,11 +86,11 @@ flex_cases = {'Reference':
                   {'price_profile': 'step'}
               }
 
-streets = {'MixedStreet': ['SFH_T_5_ins_TAB', 'SFH_D_1_2zone_REF2']*int(n_buildings/2),
-           'OldStreet': ['SFH_D_1_2zone_REF2']*n_buildings,
+streets = {'MixedStreet': ['SFH_T_5_ins_TAB', 'SFH_T_1_2zone_REF2']*int(n_buildings/2),
+           'OldStreet': ['SFH_T_1_2zone_REF2']*n_buildings,
            'NewStreet': ['SFH_T_5_ins_TAB']*n_buildings,
-           'linear': ['SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2', 'SFH_T_5_ins_TAB'],
-           'radial': ['SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2', 'SFH_T_5_ins_TAB']
+           'linear': ['SFH_T_1_2zone_REF2', 'SFH_T_3_2zone_REF2', 'SFH_T_5_ins_TAB'],
+           'radial': ['SFH_T_1_2zone_REF2', 'SFH_T_3_2zone_REF2', 'SFH_T_5_ins_TAB']
 }
 
 distribution_pipes = {'linear': [40, 32, 20],
@@ -124,9 +124,9 @@ building_models = {'RCmodel': 'RCmodel',
 time_steps = {'StSt': 900,
               'Dynamic': 300}
 
-max_heat = {'SFH_T_5_ins_TAB': 7000,
-            'SFH_D_3_2zone_REF2': 9000,
-            'SFH_D_1_2zone_REF2': 10000}
+max_heat = {'SFH_T_5_ins_TAB': 9000,
+            'SFH_T_3_2zone_REF2': 9000,
+            'SFH_T_1_2zone_REF2': 10000}
 
 """
 
