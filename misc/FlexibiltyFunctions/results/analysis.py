@@ -87,6 +87,7 @@ Calculating energy content
 """
 
 capacitances = pd.DataFrame(index=streets, columns=['Network', 'Buildings', 'Combined'])
+UAvalues = pd.DataFrame(index=streets, columns=['Network'])
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 modesto_path = os.path.dirname(os.path.dirname(os.path.dirname(dir_path)))
@@ -107,6 +108,14 @@ def calculate_water_capacitance(list_diams, list_lengths):
         cap += rho * cp * (np.pi * Di**2 / 4) * list_lengths[i] / 1000 / 3600 * 2
     return cap
 
+def calculate_pipe_UA(list_diams, list_lengths):
+    ua= 0
+    for i, diam in enumerate(list_diams):
+        rs = pipe_data['Rs'][diam]
+
+        ua += list_lengths[i]/rs
+    return ua
+
 
 capacitances['Network']['NewStreet'] = calculate_water_capacitance(street_pipes['NewStreet']+service_pipes['NewStreet'],
                                                        [street_pipe_length]*int(np.ceil(n_buildings / 2)) +
@@ -120,6 +129,21 @@ capacitances['Network']['OldStreet'] = calculate_water_capacitance(street_pipes[
 capacitances['Network']['radial'] = calculate_water_capacitance(distribution_pipes['radial'],
                                                     [dist_pipe_length] * n_streets)
 capacitances['Network']['linear'] = calculate_water_capacitance(distribution_pipes['linear'],
+                                                    [dist_pipe_length] * n_streets)
+
+
+UAvalues['Network']['NewStreet'] = calculate_pipe_UA(street_pipes['NewStreet']+service_pipes['NewStreet'],
+                                                       [street_pipe_length]*int(np.ceil(n_buildings / 2)) +
+                                                       [service_pipe_length] * n_buildings)
+UAvalues['Network']['MixedStreet']= calculate_pipe_UA(street_pipes['MixedStreet'] + service_pipes['MixedStreet'],
+                                                       [street_pipe_length] * int(np.ceil(n_buildings / 2)) +
+                                                       [service_pipe_length] * n_buildings)
+UAvalues['Network']['OldStreet'] = calculate_pipe_UA(street_pipes['OldStreet'] + service_pipes['OldStreet'],
+                                                       [street_pipe_length] * int(np.ceil(n_buildings / 2)) +
+                                                       [service_pipe_length] * n_buildings)
+UAvalues['Network']['radial'] = calculate_pipe_UA(distribution_pipes['radial'],
+                                                    [dist_pipe_length] * n_streets)
+UAvalues['Network']['linear'] = calculate_pipe_UA(distribution_pipes['linear'],
                                                     [dist_pipe_length] * n_streets)
 
 
@@ -270,6 +294,9 @@ print downward_energy
 print '\nCapacitance of the different systems'
 print capacitances
 
+print '\nUA values of the networks'
+print UAvalues
+
 print '\nUsed stored energy vs total capacitance system'
 print capacitance_used
 
@@ -304,7 +331,7 @@ Figure describing the calculation of the step responses
 """
 
 
-fig0, axarr0 = plt.subplots(2, 2, sharex=True, figsize=(9, 6))
+fig0, axarr0 = plt.subplots(2, 2, sharex=True, figsize=(12, 4))
 
 axarr0[0, 0].plot(heat_injection['Building']['OldStreet']['Reference'], label='Reference')
 axarr0[0, 0].plot(heat_injection['Building']['OldStreet']['Flexibility'], label='Step', linestyle=':')
