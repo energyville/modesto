@@ -90,11 +90,14 @@ if __name__ == '__main__':
                         print '========================='
                         print ''
                         # Solve representative weeks
-                        begin = time.time()
+                        start = time.clock()
+
                         repr_model, optimizers = RepresentativeWeeks.representative(
                             duration_repr=duration_repr,
                             selection=selection, solArea=A, storVol=V,
                             backupPow=P)
+
+                        compilation_time = time.clock() - start
 
                         energy_sol_repr = None
                         energy_backup_repr = None
@@ -106,9 +109,9 @@ if __name__ == '__main__':
                         energy_stor_loss_full = None
                         energy_backup_full = None
 
+                        start = time.clock()
                         status = RepresentativeWeeks.solve_repr(repr_model)
-                        end = time.time()
-                        calc_repr = end - begin
+                        repr_solution_and_comm = time.clock() - start
 
                         if status == 0:
                             energy_backup_repr = RepresentativeWeeks.get_backup_energy(
@@ -167,7 +170,7 @@ if __name__ == '__main__':
                                         'E_sol_full': float(
                                             result_full['E_sol_full']),
                                         'E_sol_repr': energy_sol_repr,
-                                        't_repr': calc_repr},
+                                        't_repr': repr_solution_and_comm+compilation_time},
                                        ignore_index=True)
                         path = os.path.join('results', time_duration)
                         if not os.path.isdir(path):
