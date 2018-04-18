@@ -61,9 +61,6 @@ for path in ['3dnewsol', '7dnewsol']:
                 ax.set_xlim(limmin, limmax)
                 ax.set_ylim(limmin, limmax)
 
-                ax.set_xlabel('Full year {} AEU [kWh]'.format(resultname))
-                ax.set_ylabel('Representative {} AEU [kWh]'.format(resultname))
-
                 #
                 # now plot both limits against eachother
                 g.axes[axnum].plot([limmin, limmax], [limmin, limmax], 'w-', linewidth=2, alpha=0.75, zorder=0)
@@ -74,9 +71,12 @@ for path in ['3dnewsol', '7dnewsol']:
 
             g.add_legend(title='Storage volume', bbox_to_anchor=(1, 0.5))
 
-            g.axes[-1].legend([z], ['$\pm$' + str(100*acc) + '%'], loc='lower right')
+            g.axes[-1].legend([z], ['$\pm$' + str(100 * acc) + '%'], loc='lower right')
+
+            g.set_axis_labels('Full year {} AEU [kWh]'.format(resultname),
+                              'Representative {} AEU [kWh]'.format(resultname))
 
             if not os.path.isdir(os.path.join('img', path, resultname)):
                 os.makedirs(os.path.join('img', path, resultname))
-            g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.png'), dpi=600)
+            g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.png'), dpi=1200)
             plt.close()

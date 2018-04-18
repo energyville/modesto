@@ -288,7 +288,7 @@ if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=24*365 * 3600)  # *24*365)
+    optmodel = setup_opt(time_step=3600, horizon=6 * 3600)  # *24*365)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)

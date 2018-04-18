@@ -16,7 +16,7 @@ storVol = 75000
 backupPow = 4.85e6
 solArea = 60000
 
-num_reps = 100
+num_reps = 20
 
 if __name__ == '__main__':
     result_df = pd.DataFrame(columns=['days', 'compilation', 'solution', 'communication'])
@@ -41,7 +41,7 @@ if __name__ == '__main__':
         }
     }
 
-    for i in range(num_reps+1):
+    for i in range(num_reps + 1):
         for time_duration in ['7dnewsol', '3dnewsol']:  # ['time_duration', 'nocorr']:
             sels = input_data[time_duration]['sel']
             duration_repr = input_data[time_duration]['dur']
@@ -61,13 +61,17 @@ if __name__ == '__main__':
                 results = repr.solve_repr(model_repr)
                 repr_solution_and_comm = time.clock() - start
 
+                constraints = results['Problem'][0]['Number of constraints']
+                variables = results['Problem'][0]['Number of variables']
+
                 repr_solver_time = float(results['Solver'][0]['Wall time'])
                 repr_solver_comm.append((len(selection) * duration_repr, repr_solution_and_comm - repr_solver_time))
                 repr_solution.append((len(selection) * duration_repr, repr_solver_time))
 
                 result_df = result_df.append(dict(days=len(selection) * duration_repr, solution=repr_solver_time,
                                                   communication=repr_solution_and_comm - repr_solver_time,
-                                                  compilation=compilation_time), ignore_index=True)
+                                                  compilation=compilation_time, constraints=constraints,
+                                                  variables=variables), ignore_index=True)
 
         start = time.clock()
         model_full = full.fullyear(storVol=storVol, backupPow=backupPow, solArea=solArea)
@@ -82,9 +86,13 @@ if __name__ == '__main__':
         full_solver_comm.append((365, full_solution_and_comm - full_solver_time))
         full_solution.append((365, full_solver_time))
 
+        constraints = model_full.results['Problem'][0]['Number of constraints']
+        variables = model_full.results['Problem'][0]['Number of variables']
+
         result_df = result_df.append(dict(days=365, solution=full_solver_time,
                                           communication=full_solution_and_comm - full_solver_time,
-                                          compilation=full_compilation_time), ignore_index=True)
+                                          compilation=full_compilation_time, constraints=constraints,
+                                          variables=variables), ignore_index=True)
 
         result_df.to_pickle('timing_df.pkl')
 
