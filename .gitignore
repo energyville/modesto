@@ -13,3 +13,4 @@ dist/
 .eggs/
 misc/RepresentativePeriods/logs/
 misc/RepresentativePeriods/comparison/
+misc/RepresentativePeriodsMILP/comparison/

@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 from matplotlib.dates import DateFormatter
-from pyomo.util.timing import report_timing
 
 from modesto import utils
 from modesto.main import Modesto
@@ -40,24 +39,22 @@ logger = logging.getLogger('SDH')
 # For the edges (besides names of the nodes where the edge starts and stops):
 # * **Name of the edge**
 #
-def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
-    """
-    set-up optimization problem
-
-    :param horizon: Horizon in seconds
-    :param time_step: time step in seconds
-    :return:
-    """
+def make_graph(repr=False):
     G = nx.DiGraph()
+
+    if repr:
+        tank_type = 'StorageCondensed'
+    else:
+        tank_type = 'StorageVariable'
 
     G.add_node('SolarArray', x=0, y=5000, z=0,
                comps={'solar': 'SolarThermalCollector',
-                      'tank': 'StorageVariable'
+                      'tank': tank_type
                       })
 
     G.add_node('WaterscheiGarden', x=0, y=0, z=0,
                comps={'neighb': 'BuildingFixed',
-                      'tank': 'StorageVariable'})
+                      'tank': tank_type})
 
     G.add_node('p1', x=1000, y=2400, z=0, comps={})
 
@@ -65,10 +62,10 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     G.add_node('TermienWest', x=4200, z=0, y=4600,
                comps={'neighb': 'BuildingFixed',
-                      'tank': 'StorageVariable'})
+                      'tank': tank_type})
 
     G.add_node('Production', x=6000, y=4000, z=0, comps={'backup': 'ProducerVariable',
-                                                         'tank': 'StorageVariable'})
+                                                         'tank': tank_type})
     G.add_node('TermienEast', x=5400, y=200, z=0, comps={'neighb': 'BuildingFixed'})
 
     G.add_edge('SolarArray', 'p1', name='servSol')
@@ -97,26 +94,17 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     # * **Start time** (should be a pandas TimeStamp). Currently, weather and prixe data for 2014 are available in modesto.
     # * **Pipe model**: The type of model used to model the pipes. Only one type can be selected for the whole optimization problem (unlike the component model types). Possibilities: SimplePipe (= perfect pipe, no losses, no time delays), ExtensivePipe (limited mass flows and heat losses, no time delays) and NodeMethod (heat losses and time delays, but requires mass flow rates to be known in advance)
 
-    pipe_model = 'SimplePipe'
+    return G
 
-    # And create the modesto object
 
-    model = Modesto(horizon=horizon,
-                    time_step=time_step,
-                    pipe_model=pipe_model,
-                    graph=G)
+def set_params(model, pipe_model, verbose=False):
+    """
+    Set all necessary parameters (can still be changed before compilation).
 
-    # # Adding data
-
-    # modesto is now aware of the position and interconnections between components, nodes and edges, but still needs information rergarding, weather, prices, customer demands, component sizing, etc.
-    #
-
-    # ## Collect data
-
-    # modesto provides some useful data handling methods (found in modesto.utils). Most notable is read_time_data, that can load time-variable data from a csv file. In this example, the data that is available in the folder modesto/Data is used.
-
-    # #### Weather data:
-
+    :param model: Model in which parameters are to be set
+    :param pipe_model: Type of pipe model.
+    :return:
+    """
     from pkg_resources import resource_filename
 
     datapath = resource_filename('modesto', 'Data')
@@ -265,8 +253,9 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     for pipe, DN in pipeDiam.iteritems():
         model.change_param(node=None, comp=pipe, param='diameter', val=DN)
-        # model.change_param(node=None, comp=pipe, param='temperature_supply', val=70 + 273.15)
-        # model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
+        if pipe_model == 'ExtensivePipe':
+            model.change_param(node=None, comp=pipe, param='temperature_supply', val=70 + 273.15)
+            model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
 
     # ### Solar collector
     solData = utils.read_time_data(datapath, name='RenewableProduction/SolarThermal.csv')
@@ -280,6 +269,66 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     model.change_params(solParam, node='SolarArray', comp='solar')
 
     return model
+
+
+def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
+    """
+    set-up optimization problem
+
+    :param horizon: Horizon in seconds
+    :param time_step: time step in seconds
+    :return:
+    """
+    G = make_graph()
+
+    pipe_model = 'ExtensivePipe'
+
+    # And create the modesto object
+
+    model = Modesto(horizon=horizon,
+                    time_step=time_step,
+                    pipe_model=pipe_model,
+                    graph=G)
+
+    # # Adding data
+
+    # modesto is now aware of the position and interconnections between components, nodes and edges, but still needs information rergarding, weather, prices, customer demands, component sizing, etc.
+    #
+
+    # ## Collect data
+
+    # modesto provides some useful data handling methods (found in modesto.utils). Most notable is read_time_data, that can load time-variable data from a csv file. In this example, the data that is available in the folder modesto/Data is used.
+
+    # #### Weather data:
+
+    model = set_params(model, pipe_model)
+
+    return model
+
+
+def get_backup_energy(optmodel):
+    return optmodel.get_result('heat_flow', node='Production', comp='backup').sum() / 1000
+
+
+def get_curt_energy(optmodel):
+    return optmodel.get_result('heat_flow_curt', node='SolarArray',
+                               comp='solar').sum() / 1000
+
+
+def get_sol_energy(optmodel):
+    return optmodel.get_result('heat_flow', node='SolarArray',
+                               comp='solar').sum() / 1000
+
+
+def get_stor_loss(optmodel):
+    return sum(optmodel.get_result('heat_flow', node=node,
+                                   comp='tank').sum() / 1000 for node in
+               ['SolarArray', 'TermienWest', 'WaterscheiGarden'])
+
+
+def get_demand_energy(optmodel):
+    return optmodel.get_result('heat_flow', node='Node',
+                               comp='demand').sum() / 1000
 
 
 if __name__ == '__main__':
@@ -297,8 +346,10 @@ if __name__ == '__main__':
     end = time.clock()
     print 'Status: {}'.format(sol)
 
-    print 'Time: {} - Wall time: {}'.format(float(optmodel.results['Solver'][0]['Time']), float(optmodel.results['Solver'][0]['Wall time']), optmodel.results.solver.wallclock_time)
-    print end-start
+    print 'Time: {} - Wall time: {}'.format(float(optmodel.results['Solver'][0]['Time']),
+                                            float(optmodel.results['Solver'][0]['Wall time']),
+                                            optmodel.results.solver.wallclock_time)
+    print end - start
 
     # ## Collecting results
 

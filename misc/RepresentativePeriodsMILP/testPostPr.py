@@ -7,7 +7,7 @@ import seaborn as sns
 
 sns.set_style('darkgrid')
 
-for path in ['3dnewsol', '7dnewsol']:
+for path in ['7dnewsol']:
     filepath = os.path.join('../RepresentativePeriodsMILP/results', path)
     for filename in os.listdir(filepath):
         if not filename == 'summary.txt':
@@ -36,8 +36,8 @@ for path in ['3dnewsol', '7dnewsol']:
 
             data = data.dropna()
 
-            data[list('APV')] = data[list('APV')].astype(int)
-            data = data.rename(columns={'A': 'Solar coll. area', 'V': 'Storage volume'})
+            data[['A', 'VWat', 'VSTC']] = data[[ 'A', 'VWat', 'VSTC']].astype(int)
+            data = data.rename(columns={'A': 'Solar coll. area', 'VWat': 'Storage Wat.', 'VSTC': 'Storage STC'})
 
             resultname = 'backup'
             fullname = 'E_{}_full'.format(resultname)
@@ -47,7 +47,7 @@ for path in ['3dnewsol', '7dnewsol']:
 
             sns.set_context("paper")
 
-            g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='Storage volume',
+            g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='Storage Wat.',
                            col='Solar coll. area', col_wrap=2, size=3,
                            sharex=False,
                            sharey=False, legend=False, markers=['s', 'o', '^', '+'],
