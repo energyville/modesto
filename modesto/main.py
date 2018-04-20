@@ -334,7 +334,7 @@ class Modesto:
         return all_comps
 
     def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi', warmstart=False, probe=False,
-              timelim=None):
+              timelim=None, lpmethod=None):
         """
         Solve a new optimization
 
@@ -377,6 +377,8 @@ class Modesto:
 
             if timelim is not None:
                 opt.options['timelimit'] = timelim
+            if lpmethod is not None:
+                opt.options['lpmethod'] = lpmethod
             opt.options['mip strategy fpheur'] = 2  # Feasibility pump heuristics
 
         try:
