@@ -274,26 +274,24 @@ def get_demand_energy(optimizers, sel):
 
 
 def solve_repr(model):
-    opt = SolverFactory("gurobi")
+    opt = SolverFactory("cplex")
 
-    opt.options["NumericFocus"] = 1
+    # opt.options["NumericFocus"] = 1
     # opt.options["Threads"] = threads
     # opt.options["MIPGap"] = mipgap
     results = opt.solve(model, tee=True, warmstart=True)
 
     # In[ ]:
 
-    # if (results.solver.status == SolverStatus.ok) and (
-    #         results.solver.termination_condition == TerminationCondition.optimal):
-    #     return 0
-    # elif results.solver.termination_condition == TerminationCondition.infeasible:
-    #     print 'Model is infeasible'
-    #     return -1
-    # else:
-    #     print 'Solver status: ', results.solver.status
-    #     return 1
-
-    return results
+    if (results.solver.status == SolverStatus.ok) and (
+            results.solver.termination_condition == TerminationCondition.optimal):
+        return 0
+    elif results.solver.termination_condition == TerminationCondition.infeasible:
+        print 'Model is infeasible'
+        return -1
+    else:
+        print 'Solver status: ', results.solver.status
+        return 1
 
 
 def construct_heat_flow(name, node, comp, optimizer, reps, start_date):

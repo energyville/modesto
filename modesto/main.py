@@ -377,6 +377,7 @@ class Modesto:
 
             if timelim is not None:
                 opt.options['timelimit'] = timelim
+            opt.options['parallel'] = -1
             opt.options['mip strategy fpheur'] = 2  # Feasibility pump heuristics
 
         try:

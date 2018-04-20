@@ -113,7 +113,7 @@ if __name__ == '__main__':
                         status = RepresentativeWeeks.solve_repr(repr_model)
                         repr_solution_and_comm = time.clock() - start
 
-                        if status == 0:
+                        if status >= 0:
                             energy_backup_repr = RepresentativeWeeks.get_backup_energy(
                                 optimizers, selection)
                             energy_stor_loss_repr = RepresentativeWeeks.get_stor_loss(

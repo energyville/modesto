@@ -47,7 +47,7 @@ from collections import OrderedDict
 # In[3]:
 
 def representative(duration_repr, selection, VWat=75000,
-                   solArea=2 * (18300 + 15000), VSTC=75000, pipe_model='ExtensivePipe', time_step=6 * 3600):
+                   solArea=2 * (18300 + 15000), VSTC=75000, pipe_model='ExtensivePipe', time_step=3600):
     unit_sec = 3600 * 24  # Seconds per unit time of duration (seconds per day)
 
     netGraph = CaseFuture.make_graph(repr=True)
@@ -173,16 +173,38 @@ def get_demand_energy(optimizers, sel):
                    )) for node in ['TermienEast', 'TermienWest', 'WaterscheiGarden']) / 1000
 
 
-def solve_repr(model, solver='cplex', mipgap=0.1):
+def solve_repr(model, solver='cplex', mipgap=0.1, probe=False, mipfocus=None, timelim=None):
     opt = SolverFactory(solver)
 
     # opt.options["NumericFocus"] = 1
     # opt.options["Threads"] = threads
-    if solver == 'cplex':
-        opt.options["mip tolerances mipgap"] = mipgap
-    else:
-        opt.options['MIPGAP'] = mipgap
-    results = opt.solve(model, tee=True, warmstart=True)
+    if solver == 'gurobi':
+        opt.options['ImproveStartTime'] = 10
+        # opt.options['PumpPasses'] = 2
+        if mipgap is not None:
+            opt.options["MIPGap"] = mipgap
+
+        if mipfocus is not None:
+            opt.options["MIPFocus"] = mipfocus
+
+        if timelim is not None:
+            opt.options["TimeLimit"] = timelim
+    elif solver == 'cplex':
+        opt.options['mip display'] = 3
+        if probe:
+            opt.options['mip strategy probe'] = 3
+        # https://www.ibm.com/support/knowledgecenter/SSSA5P_12.5.1/ilog.odms.cplex.help/CPLEX/Parameters/topics/Probe.html
+        if mipfocus is not None:
+            ipopt.options['emphasis mip'] = mipfocus
+        # opt.options['mip cuts all'] = 2
+        if mipgap is not None:
+            opt.options['mip tolerances mipgap'] = mipgap
+
+        if timelim is not None:
+            opt.options['timelimit'] = timelim
+        opt.options['mip strategy fpheur'] = 2
+        opt.options['parallel'] = -1
+    results = opt.solve(model, tee=True)
 
     # In[ ]:
 
@@ -373,6 +395,8 @@ if __name__ == '__main__':
     ax.legend()
     plt.gcf().autofmt_xdate()
 
+    fig1 = plot_representative(
+        optimizers, selection, duration_repr=duration_repr)
     # In[ ]:
 
     # optimizers[9].get_result('heat_stor', node='Node', comp='storage', check_results=False)

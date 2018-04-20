@@ -38,13 +38,13 @@ for VWat in [50000, 75000, 100000, 125000]:
             energy_stor_loss_full = None
             energy_backup_full = None
 
-            full_model = CaseFuture.setup_opt()
+            full_model = CaseFuture.setup_opt(time_step=3600)
             full_model.change_param(node='SolarArray', comp='solar', param='area', val=A)
             full_model.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
             full_model.change_param(node='WaterscheiGarden', comp='tank', param='volume', val=VWat)
-
             full_model.compile('20140101')
             full_model.set_objective('energy')
+            print 'Writing time: {}'.format(time.clock() - begin)
 
             full_model.solve(tee=True, mipgap=0.1, solver='cplex')
 
@@ -59,7 +59,7 @@ for VWat in [50000, 75000, 100000, 125000]:
                 energy_sol_full = CaseFuture.get_sol_energy(full_model)
             end = time.clock()
             calc_full = end - begin
-
+            print 'Full time: {}'.format(calc_full)
             df = df.append({'A': A, 'VWat': VWat, 'VSTC': VSTC,
                             'E_backup_full': energy_backup_full,
                             'E_loss_stor_full': energy_stor_loss_full,

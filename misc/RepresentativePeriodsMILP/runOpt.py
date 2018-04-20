@@ -93,7 +93,7 @@ if __name__ == '__main__':
                         start = time.clock()
 
                         repr_model, optimizers = RepresentativeWeeks.representative(
-                            duration_repr=duration_repr,
+                            duration_repr=duration_repr, time_step=3600,
                             selection=selection, solArea=A, VWat=VWat,
                             VSTC=VSTC)
 
@@ -110,7 +110,8 @@ if __name__ == '__main__':
                         energy_backup_full = None
 
                         start = time.clock()
-                        status = RepresentativeWeeks.solve_repr(repr_model)
+                        status = RepresentativeWeeks.solve_repr(repr_model, solver='cplex', mipgap=0.1, timelim=120,
+                                                                probe=True)
                         repr_solution_and_comm = time.clock() - start
 
                         if status >= 0:
@@ -128,7 +129,7 @@ if __name__ == '__main__':
                                     os.path.join('comparison', time_duration)):
                                 os.makedirs(os.path.join('comparison', time_duration))
                             fig1.savefig(os.path.join('comparison', time_duration,
-                                                      '{}p_{}A_{}V_{}P_repr.png'.format(
+                                                      '{}p_{}A_{}VWat_{}VSTC_repr.png'.format(
                                                           num, A, VWat, VSTC)),
                                          dpi=100, figsize=(8, 6))
                             plt.close()
@@ -170,7 +171,7 @@ if __name__ == '__main__':
                                         'E_sol_full': float(
                                             result_full['E_sol_full']),
                                         'E_sol_repr': energy_sol_repr,
-                                        't_repr': repr_solution_and_comm+compilation_time},
+                                        't_repr': repr_solution_and_comm + compilation_time},
                                        ignore_index=True)
                         path = os.path.join('results', time_duration)
                         if not os.path.isdir(path):
