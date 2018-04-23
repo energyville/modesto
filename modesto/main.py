@@ -4,7 +4,6 @@ import collections
 from math import sqrt
 
 import networkx as nx
-import numpy as np
 # noinspection PyUnresolvedReferences
 import pyomo.environ
 from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var
@@ -315,6 +314,13 @@ class Modesto:
 
         self.logger.debug('{} objective set'.format(objtype))
 
+    def get_investment_cost(self):
+        cost = 0
+        for comp in self.iter_components():
+            cost += comp.get_investment_cost()
+
+        return cost
+
     def iter_components(self):
         """
         Function that generates a list of all components in all nodes of model
@@ -327,51 +333,81 @@ class Modesto:
                 all_comps.append(comp_obj)
         return all_comps
 
-    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi'):
+    def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi', warmstart=False, probe=False,
+              timelim=None):
         """
         Solve a new optimization
 
+        :param probe: Use extra aggressive probing settings. Only has effect when using CPLEX
+        :param warmstart: Use warmstart if possible
+        :param mipfocus: Set MIP focus
+        :param solver: Choose solver
         :param tee: If True, print the optimization model
         :param mipgap: Set mip optimality gap. Default 10%
         :param verbose: True to print extra diagnostic information
+        :param timelim: Time limit for solver in seconds. Default: no time limit.
         :return:
         """
 
         if verbose:
             self.model.pprint()
 
-        opt = SolverFactory(solver)
+        opt = SolverFactory(solver, warmstart=warmstart)
         # opt.options["Threads"] = threads
         if solver == 'gurobi':
+            opt.options['ImproveStartTime'] = 10
+            # opt.options['PumpPasses'] = 2
             if mipgap is not None:
                 opt.options["MIPGap"] = mipgap
 
             if mipfocus is not None:
                 opt.options["MIPFocus"] = mipfocus
+
+            if timelim is not None:
+                opt.options["TimeLimit"] = timelim
         elif solver == 'cplex':
             opt.options['mip display'] = 3
-            # opt.options[
-            #     'mip strategy probe'] = 3
+            if probe:
+                opt.options['mip strategy probe'] = 3
             # https://www.ibm.com/support/knowledgecenter/SSSA5P_12.5.1/ilog.odms.cplex.help/CPLEX/Parameters/topics/Probe.html
-            opt.options['emphasis mip'] = 1
-            opt.options['mip cuts all'] = 2
+            # opt.options['emphasis mip'] = 1
+            # opt.options['mip cuts all'] = 2
             if mipgap is not None:
                 opt.options['mip tolerances mipgap'] = mipgap
 
-        self.results = opt.solve(self.model, tee=tee)
+            if timelim is not None:
+                opt.options['timelimit'] = timelim
+            opt.options['mip strategy fpheur'] = 2  # Feasibility pump heuristics
+
+        try:
+            self.results = opt.solve(self.model, tee=tee)
+        except ValueError:
+            # self.logger.warning('No solution found before time limit.')
+            return -2
 
         if verbose:
             print self.results
+            print self.results.solver.status
+            print self.results.solver.termination_condition
 
         if (self.results.solver.status == SolverStatus.ok) and (
                     self.results.solver.termination_condition == TerminationCondition.optimal):
             status = 0
+            self.logger.info('Model solved.')
+        elif (self.results.solver.status == SolverStatus.aborted):
+            status = -3
+            self.logger.info('Solver aborted.')
+        elif (self.results.solver.status == SolverStatus.ok) and not (
+            self.results.solver.termination_condition == TerminationCondition.infeasible):
+            status = 2
+            self.logger.info('Model solved but termination condition not optimal.')
+            self.logger.info('Termination condition: {}'.format(self.results.solver.termination_condition))
         elif self.results.solver.termination_condition == TerminationCondition.infeasible:
-            status = 1
-            self.logger.warning('Model is infeasible')
-        else:
             status = -1
-            self.logger.error('Solver status: ', self.results.solver.status)
+            self.logger.info('Model is infeasible')
+        else:
+            status = 1
+            self.logger.warning('Solver status: {}'.format(self.results.solver.status))
 
         return status
 
@@ -525,7 +561,7 @@ class Modesto:
                 for i in opt_obj:
                     result.append(value(opt_obj[i]))
 
-                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step)+'S',
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step) + 'S',
                                              periods=len(result))
 
                 result = pd.Series(data=result, index=timeindex, name=resname)
@@ -537,7 +573,7 @@ class Modesto:
                     time = self.model.TIME
                 for i in time:
                     result.append(opt_obj[(index, i)].value)
-                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step)+'S',
+                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step) + 'S',
                                              periods=len(result))
                 result = pd.Series(data=result, index=timeindex, name=resname + '_' + str(index))
 
@@ -546,7 +582,7 @@ class Modesto:
         elif isinstance(opt_obj, IndexedParam):
             result = opt_obj.values()
 
-            timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step)+'S',
+            timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step) + 'S',
                                          periods=len(result))
             result = pd.Series(data=result, index=timeindex, name=resname)
 
@@ -636,7 +672,7 @@ class Modesto:
             list = {}
 
             for name in self.params:
-                list[name] =  self.params[name].get_description()
+                list[name] = self.params[name].get_description()
 
             self._print_params({None: {'general': list}})
         else:
@@ -730,7 +766,6 @@ class Modesto:
             for comp in self.nodes[prod_nodes[0]].get_components():
                 result[prod_nodes[0]][comp].append(mf_nodes[prod_nodes[0]][-1])
 
-
         return result
 
     def find_producer_nodes(self):
@@ -774,6 +809,7 @@ class Modesto:
             edges.append(dict[tuple])
         return edges
 
+    # TODO these pipe parameter getters should be defined in the relevant pipe classes.
     def get_pipe_diameter(self, pipe):
         """
         Get the diameter of a certain pipe
@@ -1019,8 +1055,9 @@ class Node(object):
                     # because packages in pipes of this time step will have zero size and components do not take over
                     # mixed temperature in case there is no mass flow
 
-                    return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t,l) for comp in c) +
-                            sum(p[pipe].get_temperature(self.name, t, l) for pipe in p)) / (len(p) + len(c))
+                    return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t, l) for comp in c) +
+                                                sum(p[pipe].get_temperature(self.name, t, l) for pipe in p)) / (
+                                                   len(p) + len(c))
 
 
                 else:  # mass flow rate through the node
@@ -1028,7 +1065,7 @@ class Node(object):
                         c[comp].get_mflo(t) for comp in incoming_comps[l]) +
                             sum(p[pipe].get_mflo(self.name, t) for pipe in
                                 incoming_pipes[l])) * b.mix_temp[t, l] == \
-                           sum(c[comp].get_mflo(t) * c[comp].get_temperature(t,l)
+                           sum(c[comp].get_mflo(t) * c[comp].get_temperature(t, l)
                                for comp in incoming_comps[l]) + \
                            sum(p[pipe].get_mflo(self.name, t) * p[
                                pipe].get_temperature(self.name, t, l)

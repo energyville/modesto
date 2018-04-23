@@ -11,6 +11,8 @@ Welcome to modesto's documentation!
    :caption: Contents:
 
    modesto
+   modesto.Examples
+   modesto.Tests
 
 
 

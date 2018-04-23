@@ -6,3 +6,8 @@ doc/build/html/
 modesto.egg-info/
 *checkpoint.ipynb
 *.log
+*.rej
+build/
+dist/
+.pytest_cache/
+.eggs/

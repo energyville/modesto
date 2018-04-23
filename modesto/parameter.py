@@ -3,6 +3,8 @@ from __future__ import division
 import logging
 
 import pandas as pd
+import numpy as np
+from scipy import interpolate
 
 import modesto.utils as ut
 
@@ -29,6 +31,7 @@ class Parameter(object):
 
     def change_start_time(self, val):
         pass
+        # TODO change start time is only relevant for time indexed parameters
 
     def change_value(self, new_val):
         """
@@ -76,6 +79,9 @@ class Parameter(object):
     def v(self, time=None):
         return self.get_value(time)
 
+    def __str__(self):
+        return str(self.value)
+
 
 class DesignParameter(Parameter):
     def __init__(self, name, description, unit, val=None):
@@ -100,9 +106,10 @@ class StateParameter(Parameter):
         :param description: Description of the parameter (str)
         :param unit: Unit of the parameter (e.g. K, W, m...) (str)
         :param init_type: Type of initialization constraint (str):
-        Possibilities are: fixedVal: A value is chosen by te user
-                           cyclic: Begin and end state must be equel
-                           free: Begin state can be freely chosen by optimization
+            Possibilities are:
+            * fixedVal: A value is chosen by te user
+            * cyclic: Begin and end state must be equel
+            * free: Begin state can be freely chosen by optimization
         :param val: Value of the parameter, if not given, it becomes None
         """
 
@@ -189,25 +196,86 @@ class StateParameter(Parameter):
 
 # TODO maybe we should distinguish between DataFrameParameter (can be a table) and SeriesParameter (only single columns allowed)
 
+class SeriesParameter(Parameter):
+    def __init__(self, name, description, unit, unit_index, val=None):
+        """
+        Parameter class that contains a look-up table. Independent variables are assumed to be sorted ascending. Piecewise linear interpolation is used for data points that do not appear in the table. Extrapolation is linear from the two extreme independent variable values.
+
+        :param name:        Name of the parameter
+        :param description: Description of the parameter (str)
+        :param unit:        Unit of the dependent variable of the table
+        :param unit_index:  Unit of the independent variable of the table
+        :param val:         pandas Series containing the independent variable as index and the dependent variable as
+                            values. Becomes None if not specified.
+        """
+
+        Parameter.__init__(self, name, description, unit, val)
+        if isinstance(self.value, pd.Series):
+            self.value = self.value.astype('float')
+        self.unit_index = unit_index
+
+    def change_value(self, new_val):
+        """
+        Change value of this SeriesParameter or derived class to a lookup table.
+
+        :param new_val: pd.Series object with lookup table
+        :return:
+        """
+
+        assert isinstance(new_val, pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(type(new_val))
+
+        self.value = new_val
+        self.value.index = self.value.index.astype('float')
+
+    def get_value(self, index):
+        """
+        Returns the value of the dependent variable this parameter for a certain independent variable value.
+        If the parameter has a single value, this is assumed to be the cost per unit as indicated in 'unit_index'. The
+        index (input) is multiplied by this unit price to get the final value. If the cost is indicated in table format,
+        the cost is returned as-is.
+
+        :param index:   independent variable value. Cannot be None.
+        :return:
+        """
+        if self.value is None:
+            raise Exception('Parameter {} has no value yet'.format(name))
+        elif isinstance(self.value, (int, float)):
+            return self.value*index
+        else:
+            f = interpolate.interp1d(self.value.index.values, self.value.values, fill_value='extrapolate')
+            return f(index)
+
+    def v(self, index):
+        """
+        Short for get_value
+
+        :param index: index at which value should be gotten
+        :return:
+        """
+        return self.get_value(index)
+
+
 class TimeSeriesParameter(Parameter):
     def __init__(self, name, description, unit, time_step, horizon, val=None):
         """
         Class that describes a parameter with a value consisting of a dataframe
 
-        :param name: Name of the parameter (str)
+        :param name:        Name of the parameter (str)
         :param description: Description of the parameter (str)
-        :param unit: Unit of the parameter (e.g. K, W, m...) (str)
-        :param time_step: Sampling time of the optimization problem
-        :param val: Value of the parameter, if not given, it becomes None
+        :param unit:        Unit of the parameter (e.g. K, W, m...) (str)
+        :param time_step:   Sampling time of the optimization problem
+        :param val:         Value of the parameter, if not given, it becomes None
         """
         if isinstance(val, pd.Series):
             raise TypeError('The value of this parameter (user/weather data)should be a pandas Series')
 
-        self.time_data = False  # Does the dataframe have a timeData index?
+        self.time_data = False  # Does the dataframe have a timeData index? TODO this would become obsolete
         self.time_step = time_step
         self.horizon = horizon
         self.start_time = None
         Parameter.__init__(self, name, description, unit, val)
+
+    # todo indexed time variables (such as return/supply temperature profile could use two or more columns to distinguish between indexes instead of using multiple indexes. These parameters would become real TimeDataFrameParameters. Just an idea ;)
 
     def get_value(self, time=None):
         """
@@ -221,7 +289,7 @@ class TimeSeriesParameter(Parameter):
             raise Exception('No start time has been given to parameter {} yet'.format(self.name))
 
         if time is None:
-            if self.time_data: # Data has a pd.DatetimeIndex
+            if self.time_data:  # Data has a pd.DatetimeIndex
                 return ut.select_period_data(self.value, time_step=self.time_step, horizon=self.horizon,
                                              start_time=self.start_time).values
             else:  # Data has a numbered index
@@ -261,12 +329,12 @@ class TimeSeriesParameter(Parameter):
         self.value = new_val
 
     def change_start_time(self, val):
-        if not isinstance(val, pd.Timestamp):
-            raise TypeError('New start time should be pandas timestamp')
-
-        self.start_time = val
-
-        self.start_time = val
+        if isinstance(val, pd.Timestamp):
+            self.start_time = val
+        elif isinstance(val, str):
+            self.start_time = pd.Timestamp(val)
+        else:
+            raise TypeError('New start time should be pandas timestamp or string representation of a timestamp')
 
 
 class UserDataParameter(TimeSeriesParameter):
