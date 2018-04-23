@@ -380,6 +380,7 @@ class Modesto:
             if lpmethod is not None:
                 opt.options['lpmethod'] = lpmethod
             opt.options['mip strategy fpheur'] = 2  # Feasibility pump heuristics
+            opt.options['parallel'] = -1
 
         try:
             self.results = opt.solve(self.model, tee=tee)
