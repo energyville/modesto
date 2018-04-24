@@ -7,10 +7,11 @@ import warnings
 import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set, Binary, Block
+from pyomo.core.base import Param, Var, Constraint, Set, Block, Binary
 
 from component import Component
-from parameter import DesignParameter, StateParameter, UserDataParameter
+from modesto import utils
+from parameter import DesignParameter, StateParameter, UserDataParameter, SeriesParameter
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
@@ -26,8 +27,8 @@ def str_to_pipe(string):
 
 
 class Pipe(Component):
-    def __init__(self, name, horizon, time_step, start_node, end_node, length, temp_sup=70 + 273.15,
-                 temp_ret=50 + 273.15, allow_flow_reversal=False, temperature_driven=False, direction=1):
+    def __init__(self, name, horizon, time_step, start_node, end_node, length, allow_flow_reversal=False,
+                 temperature_driven=False, direction=1):
         """
         Class that sets up an optimization model for a DHC pipe
 
@@ -56,8 +57,8 @@ class Pipe(Component):
         self.length = length
         self.allow_flow_reversal = allow_flow_reversal
 
-        self.temp_sup = temp_sup
-        self.temp_ret = temp_ret
+        self.temp_sup = None
+        self.temp_ret = None
 
     @staticmethod
     def get_pipe_catalog():
@@ -65,11 +66,26 @@ class Pipe(Component):
                          index_col='DN')
         return df
 
+    def get_investment_cost(self):
+        """
+        Get total investment of this pipe based on the installed diameter and length.
+
+        :return: Cost in EUR
+        """
+        return self.length * self.params['cost_inv'].v(self.params['diameter'].v())
+
     def create_params(self):
         params = {
-            'pipe_type': DesignParameter('pipe_type',
-                                         'Type of pipe (IsoPlus Double Standard)',
-                                         'DN')
+            'diameter': DesignParameter('diameter',
+                                        'Pipe diameter',
+                                        'DN (mm)'),
+            'cost_inv': SeriesParameter(name='cost_inv',
+                                        description='Investment cost per length as a function of diameter.' 
+                                                    'Default value supplied.',
+                                        unit='EUR/m',
+                                        unit_index='DN (mm)',
+                                        val=utils.read_xlsx_data(
+                                            resource_filename('modesto', 'Data/Investment/Pipe.xlsx'))['Cost_m'])
         }
 
         return params
@@ -144,6 +160,8 @@ class SimplePipe(Pipe):
                       allow_flow_reversal=allow_flow_reversal,
                       temperature_driven=temperature_driven)
 
+        self.params['diameter'].change_value(20)
+
     def compile(self, model, start_time):
         """
         Compile the optimization model
@@ -196,6 +214,9 @@ class ExtensivePipe(Pipe):
         self.allow_flow_reversal = allow_flow_reversal
         self.dn = None
 
+        self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K')
+        self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K')
+
     def compile(self, model, start_time):
         """
         Build the structure of the optimization model
@@ -204,7 +225,7 @@ class ExtensivePipe(Pipe):
         """
         self.update_time(start_time)
 
-        self.dn = self.params['pipe_type'].v()
+        self.dn = self.params['diameter'].v()
         if self.dn is None:
             self.logger.info('No dn set. Optimizing diameter.')
         self.make_block(model)
@@ -245,6 +266,9 @@ class ExtensivePipe(Pipe):
         Rs = self.Rs[self.dn]
         self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
 
+        self.temp_sup = self.params['temperature_supply'].v()
+        self.temp_ret = self.params['temperature_return'].v()
+
         # Maximal heat loss per unit length
         def _heat_loss(b, t):
             """
@@ -282,11 +306,13 @@ class ExtensivePipe(Pipe):
         mflo_ub = (None, None) if self.allow_flow_reversal else (0, None)
 
         # Real valued
-        self.block.heat_flow_in = Var(self.model.TIME, bounds=mflo_ub)
-        self.block.heat_flow_out = Var(self.model.TIME, bounds=mflo_ub)
-        self.block.mass_flow_dn = Var(self.model.TIME, bounds=mflo_ub)
+        self.block.heat_flow_in = Var(self.model.TIME, bounds=mflo_ub, doc='Heat flow at in-node')
+        self.block.heat_flow_out = Var(self.model.TIME, bounds=mflo_ub, doc='Heat flow at out-node')
         self.block.mass_flow = Var(self.model.TIME, bounds=mflo_ub)
         self.block.heat_loss_tot = Var(self.model.TIME)
+
+        self.block.nonzero_flow = Var(self.model.TIME, within=Binary,
+                                      doc='1 if flow is non-zero. 0 only for standstill in this pipe.')
 
         """
         Pipe model
@@ -315,12 +341,21 @@ class ExtensivePipe(Pipe):
 
         # Eq. (3.6)
         def _eq_heat_loss_tot(b, t):
-            return b.heat_loss_tot[t] == self.length * b.heat_loss[t]
+            return b.heat_loss_tot[t] == self.length * b.heat_loss[t] * b.nonzero_flow[t]
 
         self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
                                                  rule=_eq_heat_loss_tot)
 
+        def _ineq_nonzero_flow_for(b, t):
+            return b.mass_flow[t] <= b.nonzero_flow[t] * b.mass_flow_max
 
+        self.block.ineq_nonzero_flow_for = Constraint(self.model.TIME, rule=_ineq_nonzero_flow_for)
+
+        if self.allow_flow_reversal:
+            def _ineq_nonzero_flow_rev(b, t):
+                return -b.mass_flow[t] <= b.nonzero_flow[t] * b.mass_flow_max
+
+            self.block.ineq_nonzero_flow_rev = Constraint(self.model.TIME, rule=_ineq_nonzero_flow_rev)
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
@@ -453,7 +488,7 @@ class NodeMethod(Pipe):
 
         self.history_length = len(self.params['mass_flow_history'].v())
 
-        dn = self.params['pipe_type'].v()
+        dn = self.params['diameter'].v()
         self.make_block(model)
 
         self.block.all_time = Set(initialize=range(self.history_length + self.n_steps), ordered=True)
@@ -587,7 +622,7 @@ class NodeMethod(Pipe):
         # Pipe wall heat capacity ######################################################################################
 
         # Eq. 3.4.20
-        self.block.K = 1 / self.Rs[self.params['pipe_type'].v()]
+        self.block.K = 1 / self.Rs[self.params['diameter'].v()]
 
         # Eq. 3.4.14
 
@@ -692,7 +727,7 @@ class NodeMethod(Pipe):
         self.block.def_temp_out = Constraint(self.model.TIME, self.model.lines, rule=_temp_out)
 
     def get_diameter(self):
-        return self.Di[self.params['pipe_type'].v()]
+        return self.Di[self.params['diameter'].v()]
 
     def get_length(self):
         return self.length

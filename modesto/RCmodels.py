@@ -89,8 +89,7 @@ class RCmodel(Component):
 
         G = nx.Graph()
 
-        file = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..',
-                                            'misc', 'BuildingModels', 'buildParamSummary.csv'))
+        file = os.path.join(resource_filename('modesto', 'Data'), 'BuildingModels', 'buildParamSummary.csv')
         model_params = pd.read_csv(file, sep=';', index_col=0)
 
         bp = model_params[model_type]
@@ -362,10 +361,14 @@ class RCmodel(Component):
 
         ##### Limit heat flows
 
-        def _limit_heat_flows(b, i, t):
-            return 0 <= b.ControlHeatFlows[i, t] <= 100000
+        def _max_heat_flows(b, t):
+            return sum(b.ControlHeatFlows[i, t] for i in self.block.control_variables) <= self.params['max_heat'].v()
 
-        self.block.limit_heat_flows = Constraint(self.block.control_variables, self.model.TIME, rule=_limit_heat_flows)
+        def _min_heat_flows(b, i, t):
+            return 0 <= b.ControlHeatFlows[i, t]
+
+        self.block.max_heat_flows = Constraint(self.model.TIME, rule=_max_heat_flows)
+        self.block.min_heat_flows = Constraint(self.block.control_variables, self.model.TIME, rule=_min_heat_flows)
 
         ##### Substation model
 
@@ -573,7 +576,10 @@ class RCmodel(Component):
                                        'Undisturbed ground temperature',
                                        'K',
                                        time_step=self.time_step,
-                                       horizon=self.horizon)
+                                       horizon=self.horizon),
+            'max_heat': DesignParameter('max_heat',
+                                        'Maximum heating power through substation',
+                                        'W')
         }
         # TODO Te, Tg and Q_sol als global parameters?
         return params
