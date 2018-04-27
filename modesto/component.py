@@ -696,7 +696,7 @@ class ProducerVariable(Component):
             def _decl_init_heat_flow(b):
                 return b.heat_flow[0] == (self.params['temperature_supply'].v() -
                                           self.params['temperature_return'].v()) * \
-                                         self.cp * b.mass_flow[0]
+                       self.cp * b.mass_flow[0]
 
             self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
 
@@ -1131,8 +1131,8 @@ class StorageVariable(Component):
         # State equation
         def _state_eq(b, t):  # in kWh
             return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step / 3600 * (
-                b.heat_flow[t] - b.heat_loss[t]) / 1000 \
-                                         - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
+                    b.heat_flow[t] - b.heat_loss[t]) / 1000 \
+                   - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1251,8 +1251,17 @@ class StorageCondensed(StorageVariable):
         self.params['reps'] = DesignParameter(name='reps',
                                               description='Number of times the representative period should be repeated. Default 1.',
                                               unit='-', val=1)
-
+        self.params['heat_stor'].change_init_type('free')
         self.heat_loss_coeff = None
+
+    def set_reps(self, num_reps):
+        """
+        Set number of repetitions
+
+        :param num_reps:
+        :return:
+        """
+        self.params['reps'].change_value(num_reps)
 
     def compile(self, topmodel, parent, start_time):
         """
@@ -1342,7 +1351,7 @@ class StorageCondensed(StorageVariable):
 
         self.logger.info('Optimization model StorageCondensed {} compiled'.format(self.name))
 
-    def get_heat_stor(self, repetition=None, time=None):
+    def get_heat_stor(self):
         """
         Calculate stored heat during repetition r and time step n. These parameters are zero-based, so the first time
         step of the first repetition has identifiers r=0 and n=0. If no parameters are specified, the state trajectory
@@ -1374,10 +1383,12 @@ class StorageCondensed(StorageVariable):
 
         return zH ** (r * N + n) * self.block.heat_stor_init + sum(zH ** (i * R + n) for i in range(r)) * sum(
             zH ** (N - j - 1) * (
-                self.block.heat_flow[j] * self.time_step - self.block.heat_loss_ct[j] * self.time_step) / 3.6e6 for j in
+                    self.block.heat_flow[j] * self.time_step - self.block.heat_loss_ct[j] * self.time_step) / 3.6e6 for
+            j in
             range(N)) + sum(
             zH ** (n - i - 1) * (
-                self.block.heat_flow[i] * self.time_step - self.block.heat_loss_ct[i] * self.time_step) / 3.6e6 for i in
+                    self.block.heat_flow[i] * self.time_step - self.block.heat_loss_ct[i] * self.time_step) / 3.6e6 for
+            i in
             range(n))
 
     def get_heat_stor_init(self):

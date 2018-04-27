@@ -57,7 +57,7 @@ if __name__ == '__main__':
     # logging.basicConfig(level=logging.WARNING,
     #                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
     #                     datefmt='%m-%d %H:%M')
-
+    time_step = 3600
     input_data = {
         '7dnewsol': {
             'dur': 7,
@@ -93,7 +93,7 @@ if __name__ == '__main__':
                         start = time.clock()
 
                         repr_model, optimizers = RepresentativeWeeks.representative(
-                            duration_repr=duration_repr, time_step=3600,
+                            duration_repr=duration_repr, time_step=time_step,
                             selection=selection, solArea=A, VWat=VWat,
                             VSTC=VSTC)
 
@@ -110,7 +110,7 @@ if __name__ == '__main__':
                         energy_backup_full = None
 
                         start = time.clock()
-                        status = RepresentativeWeeks.solve_repr(repr_model, solver='cplex', mipgap=0.1, timelim=120,
+                        status = RepresentativeWeeks.solve_repr(repr_model, solver='gurobi', mipgap=0.1,
                                                                 probe=True)
                         repr_solution_and_comm = time.clock() - start
 
@@ -124,7 +124,7 @@ if __name__ == '__main__':
                             energy_sol_repr = RepresentativeWeeks.get_sol_energy(
                                 optimizers, selection)
                             fig1 = RepresentativeWeeks.plot_representative(
-                                optimizers, selection, duration_repr=duration_repr)
+                                optimizers, selection, duration_repr=duration_repr, time_step=time_step)
                             if not os.path.isdir(
                                     os.path.join('comparison', time_duration)):
                                 os.makedirs(os.path.join('comparison', time_duration))

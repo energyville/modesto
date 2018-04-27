@@ -24,27 +24,6 @@ logging.basicConfig(level=logging.INFO,
 
 DATAPATH = resource_filename('modesto', 'Data')
 
-# ## Select representative periods
-
-# How many? How long?
-
-# Integrate season and period selection into this script on longer term. For now, suffise with solution dictionary from separate script for debugging.
-
-# In[2]:
-
-from collections import OrderedDict
-
-
-# Select 7 weeks
-
-# Select 5 weeks
-# selection = OrderedDict([(40, 10.0), (102, 12.0), (231, 17.0), (314, 11.0), (364, 2.0)])
-
-# ## Set up optimization
-
-# ### Duration parameters
-
-# In[3]:
 
 def representative(duration_repr, selection, VWat=75000,
                    solArea=2 * (18300 + 15000), VSTC=75000, pipe_model='ExtensivePipe', time_step=3600):
@@ -66,6 +45,8 @@ def representative(duration_repr, selection, VWat=75000,
         start_time = epoch + pd.Timedelta(days=start_day)
         optmodel = Modesto(horizon=duration_repr * unit_sec, time_step=time_step,
                            graph=netGraph, pipe_model=pipe_model)
+        for comp in optmodel.get_node_components(filter_type='StorageCondensed').values():
+            comp.set_reps(num_reps=int(duration))
         topmodel.add_component(name='repr_' + str(start_day),
                                val=optmodel.model)
 
@@ -73,7 +54,7 @@ def representative(duration_repr, selection, VWat=75000,
         # Assign parameters #
         #####################
 
-        optmodel = CaseFuture.set_params(optmodel, pipe_model)
+        optmodel = CaseFuture.set_params(optmodel, pipe_model, repr=True)
         optmodel.change_param(node='SolarArray', comp='solar', param='area', val=solArea)
         optmodel.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
         optmodel.change_param(node='WaterscheiGarden', comp='tank', param='volume', val=VWat)
@@ -195,7 +176,7 @@ def solve_repr(model, solver='cplex', mipgap=0.1, probe=False, mipfocus=None, ti
             opt.options['mip strategy probe'] = 3
         # https://www.ibm.com/support/knowledgecenter/SSSA5P_12.5.1/ilog.odms.cplex.help/CPLEX/Parameters/topics/Probe.html
         if mipfocus is not None:
-            ipopt.options['emphasis mip'] = mipfocus
+            opt.options['emphasis mip'] = mipfocus
         # opt.options['mip cuts all'] = 2
         if mipgap is not None:
             opt.options['mip tolerances mipgap'] = mipgap
@@ -233,7 +214,7 @@ def construct_heat_flow(name, node, comp, optimizer, reps, start_date):
     return pd.Series(data=vals, index=date_index, name=name)
 
 
-def plot_representative(opt, sel, duration_repr=7):
+def plot_representative(opt, sel, duration_repr=7, time_step=3600):
     import matplotlib.pyplot as plt
     fig_out, axs = plt.subplots(3, 1, sharex=True,
                                 gridspec_kw=dict(height_ratios=[2, 1, 1]))
@@ -265,7 +246,7 @@ def plot_representative(opt, sel, duration_repr=7):
         for node in ['SolarArray', 'WaterscheiGarden', 'TermienWest']:
             results = opt[startD].get_component(name='tank',
                                                 node=node).get_soc()
-            date_ind = pd.DatetimeIndex(start=next_d, freq='1H',
+            date_ind = pd.DatetimeIndex(start=next_d, freq=pd.Timedelta(seconds=time_step),
                                         periods=len(results))
             series.append(pd.Series(index=date_ind, data=results, name=node))
         axs[1].plot(sum(series), color='r', label=str(startD))
@@ -304,19 +285,18 @@ def plot_representative(opt, sel, duration_repr=7):
 
 # In[ ]:
 if __name__ == '__main__':
-    selection = OrderedDict(
-        [(13, 4.0), (19, 11.0), (76, 17.0), (156, 4.0), (214, 8.0), (223, 17.0),
-         (227, 3.0), (270, 11.0), (324, 7.0),
-         (341, 9.0)])
+    from runOpt import get_json
+
+    sellist = get_json('C:/Users/u0094934/Research/TimeSliceSelection/Scripts/solutions7.txt')
+    selection = sellist[8]
 
     # selection = OrderedDict([(10, 2.0), (48, 12.0), (74, 2.0), (100, 10.0),
     # (180, 5.0), (188, 7.0), (224, 5.0), (326, 9.0)])
-
-    duration_repr = 4
+    time_step = 3600*6
+    duration_repr = 7
     model, optimizers = representative(duration_repr=duration_repr,
-                                       selection=selection)
-
-    solve_repr(model)
+                                       selection=selection, VWat=150000, solArea=200000, VSTC=50000, time_step=time_step)
+    solve_repr(model, probe=False, solver='cplex')
 
     # ## Post-processing
 
@@ -357,11 +337,10 @@ if __name__ == '__main__':
 
         print 'start_day:', str(startday)
         res = optimizers[startday].get_component(name='tank',
-                                                 node='SolarArray').get_heat_stor(
-            repetition=0)
+                                                 node='SolarArray').get_heat_stor()
         start = pd.Timestamp('20140101') + pd.Timedelta(days=startday)
         print start
-        index = pd.DatetimeIndex(start=start, freq='1H', periods=len(res))
+        index = pd.DatetimeIndex(start=start, freq=pd.Timedelta(seconds=time_step), periods=len(res))
         ax2.plot(index, res, color=colors[coli],
                  label='S {} R {}'.format(startday, reps))
 
@@ -387,7 +366,7 @@ if __name__ == '__main__':
     for startday, reps in selection.iteritems():
         res = optimizers[startday].get_component(name='tank',
                                                  node='SolarArray').get_soc()
-        index = pd.DatetimeIndex(start=nextdate, freq='1H', periods=len(res))
+        index = pd.DatetimeIndex(start=nextdate, freq=pd.Timedelta(seconds=time_step), periods=len(res))
         ax.plot(index, res, color=colors[coli], label=str(startday))
         nextdate = nextdate + pd.Timedelta(days=duration_repr * reps)
         coli += 1
@@ -396,7 +375,7 @@ if __name__ == '__main__':
     plt.gcf().autofmt_xdate()
 
     fig1 = plot_representative(
-        optimizers, selection, duration_repr=duration_repr)
+        optimizers, selection, duration_repr=duration_repr, time_step=time_step)
     # In[ ]:
 
     # optimizers[9].get_result('heat_stor', node='Node', comp='storage', check_results=False)

@@ -428,7 +428,7 @@ if __name__ == '__main__':
                                                  node='Node').get_heat_stor(
             repetition=0)
         start = pd.Timestamp('20140101') + pd.Timedelta(days=startday)
-        print start
+        # print start
         index = pd.DatetimeIndex(start=start, freq='1H', periods=len(res))
         ax2.plot(index, res, color=colors[coli],
                  label='S {} R {}'.format(startday, reps))

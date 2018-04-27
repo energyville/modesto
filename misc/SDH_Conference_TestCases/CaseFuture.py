@@ -97,7 +97,7 @@ def make_graph(repr=False):
     return G
 
 
-def set_params(model, pipe_model, verbose=False):
+def set_params(model, pipe_model, verbose=False, repr=False):
     """
     Set all necessary parameters (can still be changed before compilation).
 
@@ -182,7 +182,11 @@ def set_params(model, pipe_model, verbose=False):
         'cost_inv': tank_cost
     }
     model.change_params(prod_stor_design, node='Production', comp='tank')
-    model.change_init_type('heat_stor', 'cyclic', node='Production', comp='tank')
+    for node in ['Production', 'SolarArray', 'TermienWest', 'WaterscheiGarden']:
+        if repr:
+            model.change_init_type('heat_stor', 'free', node=node, comp='tank')
+        else:
+            model.change_init_type('heat_stor', 'cyclic', node=node, comp='tank')
 
     # ### Storage Unit
 
@@ -202,8 +206,6 @@ def set_params(model, pipe_model, verbose=False):
 
     model.change_params(stor_design, node='SolarArray',
                         comp='tank')
-    model.change_init_type('heat_stor', new_type='cyclic', comp='tank', node='SolarArray')
-
     stor_design = {
         'TermienWest':
             {
@@ -238,7 +240,12 @@ def set_params(model, pipe_model, verbose=False):
     for node in ['TermienWest', 'WaterscheiGarden']:
         model.change_params(stor_design[node], node=node,
                             comp='tank')
-        model.change_init_type('heat_stor', new_type='cyclic', comp='tank', node=node)
+
+    for node in ['Production', 'SolarArray', 'TermienWest', 'WaterscheiGarden']:
+        if repr:
+            model.change_init_type('heat_stor', 'free', node=node, comp='tank')
+        else:
+            model.change_init_type('heat_stor', 'cyclic', node=node, comp='tank')
 
     # ### Pipes
 

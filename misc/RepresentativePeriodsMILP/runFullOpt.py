@@ -2,14 +2,13 @@
 """
 Run full optimization in order to get reference results and reference run time.
 """
+import logging
 import time
 
 import pandas as pd
 from pyomo.opt import TerminationCondition, SolverStatus
 
 from misc.SDH_Conference_TestCases import CaseFuture
-
-import logging
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -21,7 +20,7 @@ df = pd.DataFrame(
              'E_loss_stor_full', 'E_loss_stor_repr',
              'E_curt_full',
              'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr'])
-duration_repr = 7
+
 for VWat in [50000, 75000, 100000, 125000]:
     for A in [50000, 100000, 150000]:  # , 60000, 80000]:
         for VSTC in [50000, 100000, 125000]:  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
@@ -67,7 +66,7 @@ for VWat in [50000, 75000, 100000, 125000]:
                             'E_sol_full': energy_sol_full,
                             't_full': calc_full},
                            ignore_index=True)
-            df.to_csv('refresult.txt', sep=' ')
+            #df.to_csv('refresult.txt', sep=' ')
 
 print df
 
