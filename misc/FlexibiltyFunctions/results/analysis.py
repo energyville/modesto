@@ -18,34 +18,34 @@ Settings
 
 """
 
-streets = ['NewStreet', 'MixedStreet', 'OldStreet', 'linear', 'radial']
+streets = ['New street', 'Mixed street', 'Old street', 'Series', 'Parallel']
 cases = ['NoPipes', 'Building', 'Pipe', 'Combined']
 
 n_buildings = 10
 n_streets = 3
-dist_pipe_length = 75
+dist_pipe_length = 150
 street_pipe_length = 30
 service_pipe_length = 30
 
-distribution_pipes = {'linear': [50, 32, 32],
-                      'radial': [32, 32, 40]}
+distribution_pipes = {'Series': [50, 32, 32],
+                      'Parallel': [32, 32, 40]}
 
-street_pipes = {'MixedStreet': [25, 25, 20, 20, 20],
-                'OldStreet': [32, 32, 25, 20, 20],
-                'NewStreet': [25, 25, 20, 20, 20]}
+street_pipes = {'Mixed street': [25, 25, 20, 20, 20],
+                'Old street': [32, 32, 25, 20, 20],
+                'New street': [25, 25, 20, 20, 20]}
 
-service_pipes = {'MixedStreet': [20] * 10,
-                 'OldStreet': [20] * 10,
-                 'NewStreet': [20] * 10}
+service_pipes = {'Mixed street': [20] * 10,
+                 'Old street': [20] * 10,
+                 'New street': [20] * 10}
 
-building_types = {'MixedStreet': ['SFH_T_5_ins_TAB', 'SFH_D_1_2zone_REF1']*int(n_buildings/2),
-                  'OldStreet': ['SFH_D_1_2zone_REF1']*n_buildings,
-                  'NewStreet': ['SFH_T_5_ins_TAB']*n_buildings,
-                  'linear': ['SFH_T_1_2zone_TAB', 'SFH_D_3_2zone_REF2', 'SFH_T_5_ins_TAB'],
-                  'radial': ['SFH_T_1_2zone_TAB', 'SFH_D_3_2zone_REF2', 'SFH_T_5_ins_TAB']
+building_types = {'Mixed street': ['SFH_T_5_ins_TAB', 'SFH_D_1_2zone_REF1']*int(n_buildings/2),
+                  'Old street': ['SFH_D_1_2zone_REF1']*n_buildings,
+                  'New street': ['SFH_T_5_ins_TAB']*n_buildings,
+                  'Series': ['SFH_T_1_2zone_TAB', 'SFH_D_3_2zone_REF2', 'SFH_T_5_ins_TAB'],
+                  'Parallel': ['SFH_T_1_2zone_TAB', 'SFH_D_3_2zone_REF2', 'SFH_T_5_ins_TAB']
 }
 
-date = '010114'
+date = 'different_pos_cost_increase'
 
 """
 
@@ -117,33 +117,33 @@ def calculate_pipe_UA(list_diams, list_lengths):
     return ua
 
 
-capacitances['Network']['NewStreet'] = calculate_water_capacitance(street_pipes['NewStreet']+service_pipes['NewStreet'],
+capacitances['Network']['New street'] = calculate_water_capacitance(street_pipes['New street']+service_pipes['New street'],
                                                        [street_pipe_length]*int(np.ceil(n_buildings / 2)) +
                                                        [service_pipe_length] * n_buildings)
-capacitances['Network']['MixedStreet']= calculate_water_capacitance(street_pipes['MixedStreet'] + service_pipes['MixedStreet'],
+capacitances['Network']['Mixed street']= calculate_water_capacitance(street_pipes['Mixed street'] + service_pipes['Mixed street'],
                                                        [street_pipe_length] * int(np.ceil(n_buildings / 2)) +
                                                        [service_pipe_length] * n_buildings)
-capacitances['Network']['OldStreet'] = calculate_water_capacitance(street_pipes['OldStreet'] + service_pipes['OldStreet'],
+capacitances['Network']['Old street'] = calculate_water_capacitance(street_pipes['Old street'] + service_pipes['Old street'],
                                                        [street_pipe_length] * int(np.ceil(n_buildings / 2)) +
                                                        [service_pipe_length] * n_buildings)
-capacitances['Network']['radial'] = calculate_water_capacitance(distribution_pipes['radial'],
+capacitances['Network']['Series'] = calculate_water_capacitance(distribution_pipes['Series'],
                                                     [dist_pipe_length] * n_streets)
-capacitances['Network']['linear'] = calculate_water_capacitance(distribution_pipes['linear'],
+capacitances['Network']['Parallel'] = calculate_water_capacitance(distribution_pipes['Parallel'],
                                                     [dist_pipe_length] * n_streets)
 
 
-UAvalues['Network']['NewStreet'] = calculate_pipe_UA(street_pipes['NewStreet']+service_pipes['NewStreet'],
+UAvalues['Network']['New street'] = calculate_pipe_UA(street_pipes['New street']+service_pipes['New street'],
                                                        [street_pipe_length]*int(np.ceil(n_buildings / 2)) +
                                                        [service_pipe_length] * n_buildings)
-UAvalues['Network']['MixedStreet']= calculate_pipe_UA(street_pipes['MixedStreet'] + service_pipes['MixedStreet'],
+UAvalues['Network']['Mixed street']= calculate_pipe_UA(street_pipes['Mixed street'] + service_pipes['Mixed street'],
                                                        [street_pipe_length] * int(np.ceil(n_buildings / 2)) +
                                                        [service_pipe_length] * n_buildings)
-UAvalues['Network']['OldStreet'] = calculate_pipe_UA(street_pipes['OldStreet'] + service_pipes['OldStreet'],
+UAvalues['Network']['Old street'] = calculate_pipe_UA(street_pipes['Old street'] + service_pipes['Old street'],
                                                        [street_pipe_length] * int(np.ceil(n_buildings / 2)) +
                                                        [service_pipe_length] * n_buildings)
-UAvalues['Network']['radial'] = calculate_pipe_UA(distribution_pipes['radial'],
+UAvalues['Network']['Parallel'] = calculate_pipe_UA(distribution_pipes['Parallel'],
                                                     [dist_pipe_length] * n_streets)
-UAvalues['Network']['linear'] = calculate_pipe_UA(distribution_pipes['linear'],
+UAvalues['Network']['Series'] = calculate_pipe_UA(distribution_pipes['Series'],
                                                     [dist_pipe_length] * n_streets)
 
 
@@ -164,7 +164,7 @@ def calculate_building_capacitance(building_types, mult=1):
 
 
 for network, data in building_types.items():
-    if 'radial' in network or 'linear' in network:
+    if 'Parallel' in network or 'Series' in network:
         mult = 10
     else:
         mult = 1
@@ -243,7 +243,6 @@ def sum_building_pipes(building_data, pipe_data):
 
     return resampled_b_data + pipe_data
 
-
 for street in streets:
     power_difference[case][street] = sum_building_pipes(power_difference['Building'][street], power_difference['Combined'][street])
     energy_difference[case][street] = energy_difference['Building'][street] + energy_difference['Combined'][street]
@@ -317,11 +316,11 @@ case_names = {'NoPipes': 'Buildings - Ideal Network',
               'Building': 'Buildings',
               'Pipe': 'Network',
               'Combined total': 'Combined - LP'}
-street_names = {'MixedStreet': 'Mixed street',
-                'OldStreet': 'Old street',
-                'NewStreet': 'New street',
-                'linear': 'Linear district',
-                'radial': 'Radial district'}
+street_names = {'Mixed street': 'Mixed street',
+                'Old street': 'Old street',
+                'New street': 'New street',
+                'Series': 'Series district',
+                'Parallel': 'Parallel district'}
 
 
 """
@@ -333,16 +332,16 @@ Figure describing the calculation of the step responses
 
 fig0, axarr0 = plt.subplots(2, 2, sharex=True, figsize=(12, 4))
 
-axarr0[0, 0].plot(heat_injection['Building']['OldStreet']['Reference'], label='Reference')
-axarr0[0, 0].plot(heat_injection['Building']['OldStreet']['Flexibility'], label='Step', linestyle=':')
+axarr0[0, 0].plot(heat_injection['Building']['Old street']['Reference'], label='Reference')
+axarr0[0, 0].plot(heat_injection['Building']['Old street']['Flexibility'], label='Step', linestyle=':')
 axarr0[0, 0].axvline(x=price_increase_time, color='k', linestyle=':')
-axarr0[1, 0].plot(power_difference['Building']['OldStreet'], label='Difference')
+axarr0[1, 0].plot(power_difference['Building']['Old street'], label='Difference')
 axarr0[1, 0].axvline(x=price_increase_time, color='k', linestyle=':')
 
-axarr0[0, 1].plot(heat_injection['Pipe']['OldStreet']['Reference'])
-axarr0[0, 1].plot(heat_injection['Pipe']['OldStreet']['Flexibility'], linestyle=':')
+axarr0[0, 1].plot(heat_injection['Pipe']['Old street']['Reference'])
+axarr0[0, 1].plot(heat_injection['Pipe']['Old street']['Flexibility'], linestyle=':')
 axarr0[0, 1].axvline(x=price_increase_time, color='k', linestyle=':')
-axarr0[1, 1].plot(power_difference['Pipe']['OldStreet'])
+axarr0[1, 1].plot(power_difference['Pipe']['Old street'])
 axarr0[1, 1].axvline(x=price_increase_time, color='k', linestyle=':')
 axarr0[0,0].legend()
 axarr0[1,0].set_xlabel('Time')
@@ -397,9 +396,9 @@ Comparison of streets and districts - WATCH OUT - Mixed Street is not the same i
 fig1c, axarr1c = plt.subplots(len(cases), sharex=True)
 fig1c.suptitle('Comparison streets - districts')
 for i, case in enumerate(cases):
-    axarr1c[i].plot(power_difference[case]['OldStreet']+power_difference[case]['NewStreet']+power_difference[case]['MixedStreet'], label='Sum of streets')
-    axarr1c[i].plot(power_difference[case]['linear'], label='linear')
-    axarr1c[i].plot(power_difference[case]['radial'], label='radial', linestyle=':')
+    axarr1c[i].plot(power_difference[case]['Old street']+power_difference[case]['New street']+power_difference[case]['Mixed street'], label='Sum of streets')
+    axarr1c[i].plot(power_difference[case]['Series'], label='Series district')
+    axarr1c[i].plot(power_difference[case]['Parallel'], label='Parallel district', linestyle=':')
 
     axarr1c[i].set_title(case)
 
@@ -421,11 +420,11 @@ fig1b.suptitle('Heat injection - linear')
 for i, case in enumerate(cases):
     if case == 'Combined total':
         case_name = 'Combined'
-        axarr1b[i].plot(heat_injection['Building']['linear']['Reference'], label='Reference')
-        axarr1b[i].plot(heat_injection['Combined']['linear']['Flexibility'], label='Reference')
+        axarr1b[i].plot(heat_injection['Building']['Series']['Reference'], label='Reference')
+        axarr1b[i].plot(heat_injection['Combined']['Series']['Flexibility'], label='Reference')
     else:
-        axarr1b[i].plot(heat_injection[case]['linear']['Reference'], label='Reference')
-        axarr1b[i].plot(heat_injection[case]['linear']['Flexibility'], label='Flexibility', linestyle=':')
+        axarr1b[i].plot(heat_injection[case]['Series']['Reference'], label='Reference')
+        axarr1b[i].plot(heat_injection[case]['Series']['Flexibility'], label='Flexibility', linestyle=':')
 
     axarr1b[i].set_title(case)
 
@@ -442,7 +441,7 @@ fig1b.savefig('../img/heat_injection.svg')
 Step responses of each building separately in Mixed street
 
 """
-street = 'MixedStreet'
+street = 'Mixed street'
 i = 4
 power_difference_old = 0
 power_difference_old_con = 0
@@ -488,43 +487,43 @@ axarr1d[1].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
 fig1d.tight_layout()
 fig1d.savefig('../img/detail_mixed_street.svg')
 
-# street = 'linear'
-# power_difference_old = building_heat_use['NoPipes'][street]['Flexibility'][0] - \
-#                       building_heat_use['NoPipes'][street]['Reference'][0]
-# power_difference_old_con = building_heat_use['Building'][street]['Flexibility'][0] - \
-#                       building_heat_use['Building'][street]['Reference'][0]
-# power_difference_mixed = building_heat_use['NoPipes'][street]['Flexibility'][1] - \
-#                       building_heat_use['NoPipes'][street]['Reference'][1]
-# power_difference_mixed_con = building_heat_use['Building'][street]['Flexibility'][1] - \
-#                       building_heat_use['Building'][street]['Reference'][1]
-# power_difference_new = building_heat_use['NoPipes'][street]['Flexibility'][2] - \
-#                       building_heat_use['NoPipes'][street]['Reference'][2]
-# power_difference_new_con = building_heat_use['Building'][street]['Flexibility'][2] - \
-#                       building_heat_use['Building'][street]['Reference'][2]
-#
-# fig1d, axarr1d = plt.subplots(3, sharex=True)
-# case = 'Building'
-# axarr1d[0].plot(power_difference_old, label='Ideal network')
-# axarr1d[0].plot(power_difference_old_con, label='Non-ideal network', linestyle=':')
-# axarr1d[1].plot(power_difference_mixed, label='Ideal network')
-# axarr1d[1].plot(power_difference_mixed_con, label='Ideal network', linestyle=':')
-# axarr1d[2].plot(power_difference_new, label='Ideal network')
-# axarr1d[2].plot(power_difference_new_con, label='Ideal network', linestyle=':')
-#
-# axarr1d[0].set_title('Old street')
-# axarr1d[1].set_title('Mixed street')
-# axarr1d[2].set_title('New street')
-#
-# axarr1d[0].legend()
-#
-# axarr1d[1].set_xlabel('Time')
-# axarr1d[0].set_ylabel('Heat [W]')
-# axarr1d[1].set_ylabel('Heat [W]')
-# axarr1d[2].set_ylabel('Heat [W]')
-#
-# axarr1d[2].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-# fig1d.tight_layout()
-# fig1d.savefig('../img/detail_mixed_street.svg')
+street = 'Series'
+power_difference_old = building_heat_use['NoPipes'][street]['Flexibility'][0] - \
+                      building_heat_use['NoPipes'][street]['Reference'][0]
+power_difference_old_con = building_heat_use['Building'][street]['Flexibility'][0] - \
+                      building_heat_use['Building'][street]['Reference'][0]
+power_difference_mixed = building_heat_use['NoPipes'][street]['Flexibility'][1] - \
+                      building_heat_use['NoPipes'][street]['Reference'][1]
+power_difference_mixed_con = building_heat_use['Building'][street]['Flexibility'][1] - \
+                      building_heat_use['Building'][street]['Reference'][1]
+power_difference_new = building_heat_use['NoPipes'][street]['Flexibility'][2] - \
+                      building_heat_use['NoPipes'][street]['Reference'][2]
+power_difference_new_con = building_heat_use['Building'][street]['Flexibility'][2] - \
+                      building_heat_use['Building'][street]['Reference'][2]
+
+fig1d, axarr1d = plt.subplots(3, sharex=True)
+case = 'Building'
+axarr1d[0].plot(power_difference_old, label='Ideal network')
+axarr1d[0].plot(power_difference_old_con, label='Non-ideal network', linestyle=':')
+axarr1d[1].plot(power_difference_mixed, label='Ideal network')
+axarr1d[1].plot(power_difference_mixed_con, label='Ideal network', linestyle=':')
+axarr1d[2].plot(power_difference_new, label='Ideal network')
+axarr1d[2].plot(power_difference_new_con, label='Ideal network', linestyle=':')
+
+axarr1d[0].set_title('Old street')
+axarr1d[1].set_title('Mixed street')
+axarr1d[2].set_title('New street')
+
+axarr1d[0].legend()
+
+axarr1d[1].set_xlabel('Time')
+axarr1d[0].set_ylabel('Heat [W]')
+axarr1d[1].set_ylabel('Heat [W]')
+axarr1d[2].set_ylabel('Heat [W]')
+
+axarr1d[2].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+fig1d.tight_layout()
+fig1d.savefig('../img/detail_mixed_street.svg')
 
 """
 
@@ -561,40 +560,40 @@ for i, street in enumerate(streets):
 axarr3[0].legend()
 
 
-# streets = ['NewStreet', 'OldStreet']
-# cases = ['Building']
-#
-# fig4, axarr4 = plt.subplots(len(streets), 1)
-# fig4.suptitle('Day zone temperatures')
-#
-# for i, street in enumerate(streets):
-#     axarr4[i].set_title(street)
-#     for case in cases:
-#         axarr4[i].plot(building_temp[case][street]['Reference']['TiD'][0], label=case)
-#         axarr4[i].plot(building_temp[case][street]['Flexibility']['TiD'][0], label=case)
-#
-# fig5, axarr5 = plt.subplots(len(streets), 1)
-# fig5.suptitle('Night zone temperatures')
-#
-# for i, street in enumerate(streets):
-#     axarr5[i].set_title(street)
-#     for case in cases:
-#         axarr5[i].plot(building_temp[case][street]['Reference']['TiN'][0], label=case)
-#         axarr5[i].plot(building_temp[case][street]['Flexibility']['TiN'][0], label=case)
-#
-# streets = ['linear']
-# case = 'Building'
-#
-# fig6, axarr6 = plt.subplots(n_streets, 2)
-# fig6.suptitle('Temperatures - districts')
-#
-# for i in range(n_streets):
-#     axarr6[i, 0].set_title(i)
-#     for n in building_temp[case][street]['Reference']['TiN']:
-#         axarr6[i,0].plot(building_temp[case][street]['Reference']['TiD'][i], label=n)
-#         axarr6[i,0].plot(building_temp[case][street]['Flexibility']['TiD'][i], label=n)
-#         axarr6[i,1].plot(building_temp[case][street]['Reference']['TiN'][i], label=n)
-#         axarr6[i,1].plot(building_temp[case][street]['Flexibility']['TiN'][i], label=n)
-#
-#
+streets = ['New street', 'Old street']
+cases = ['Building']
+
+fig4, axarr4 = plt.subplots(len(streets), 1)
+fig4.suptitle('Day zone temperatures')
+
+for i, street in enumerate(streets):
+    axarr4[i].set_title(street)
+    for case in cases:
+        axarr4[i].plot(building_temp[case][street]['Reference']['TiD'][0], label=case)
+        axarr4[i].plot(building_temp[case][street]['Flexibility']['TiD'][0], label=case)
+
+fig5, axarr5 = plt.subplots(len(streets), 1)
+fig5.suptitle('Night zone temperatures')
+
+for i, street in enumerate(streets):
+    axarr5[i].set_title(street)
+    for case in cases:
+        axarr5[i].plot(building_temp[case][street]['Reference']['TiN'][0], label=case)
+        axarr5[i].plot(building_temp[case][street]['Flexibility']['TiN'][0], label=case)
+
+streets = ['linear']
+case = 'Building'
+
+fig6, axarr6 = plt.subplots(n_streets, 2)
+fig6.suptitle('Temperatures - districts')
+
+for i in range(n_streets):
+    axarr6[i, 0].set_title(i)
+    for n in building_temp[case][street]['Reference']['TiN']:
+        axarr6[i,0].plot(building_temp[case][street]['Reference']['TiD'][i], label=n)
+        axarr6[i,0].plot(building_temp[case][street]['Flexibility']['TiD'][i], label=n)
+        axarr6[i,1].plot(building_temp[case][street]['Reference']['TiN'][i], label=n)
+        axarr6[i,1].plot(building_temp[case][street]['Flexibility']['TiN'][i], label=n)
+
+
 plt.show()

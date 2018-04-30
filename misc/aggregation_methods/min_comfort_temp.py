@@ -20,7 +20,7 @@ import logging
 
 General settings
 """
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
@@ -40,7 +40,7 @@ Optimization setting
 
 horizon = 24*3600*7 + 900  # Time period for which average temperature is required
 time_step = 900  # Time step between different points in the aggregated profile
-n_buildings = 30  # Number of buildings to be aggergated
+n_buildings = 50  # Number of buildings to be aggergated
 start_time = '20140101'  # Start time
 
 """
@@ -82,34 +82,68 @@ Collecting user behaviour
 
 """
 
+folder = 'C:\Users\u0111619\Documents\Python\StROBe\Example\\results'
+
+file_name = 'sh_day.csv'
+sh_day = ut.read_period_data(folder,
+                             name=file_name,
+                             time_step=time_step,
+                             horizon=horizon,
+                             start_time=pd.Timestamp(start_time)
+                             )
+
+file_name = 'sh_night.csv'
+sh_night = ut.read_period_data(folder,
+                             name=file_name,
+                             time_step=time_step,
+                             horizon=horizon,
+                             start_time=pd.Timestamp(start_time)
+                             )
+
+file_name = 'QCon.csv'
+QCon = ut.read_period_data(folder,
+                             name=file_name,
+                             time_step=time_step,
+                             horizon=horizon,
+                             start_time=pd.Timestamp(start_time)
+                             )
+
+file_name = 'QRad.csv'
+QRad = ut.read_period_data(folder,
+                             name=file_name,
+                             time_step=time_step,
+                             horizon=horizon,
+                             start_time=pd.Timestamp(start_time)
+                             )
+
+folder = get_data_path('UserBehaviour')
+file_name = 'ISO13790_stat_profile0.csv'
+
+df_userbehaviour = ut.read_period_data(folder,
+                                       name=file_name,
+                                       time_step=time_step,
+                                       horizon=horizon,
+                                       start_time=pd.Timestamp(start_time)
+                                       )
+
 for bui_nr in range(n_buildings):
-
-    folder = get_data_path('UserBehaviour')
-    file_name = 'ISO13790_stat_profile' + str(bui_nr) + '.csv'
-
-    df_userbehaviour = ut.read_period_data(folder,
-                                           name=file_name,
-                                           time_step=time_step,
-                                           horizon=horizon,
-                                           start_time=pd.Timestamp(start_time)
-                                           )
-
-    day_max[bui_nr] = df_userbehaviour['day_max']
-    day_min[bui_nr] = df_userbehaviour['day_min']
-    night_max[bui_nr] = df_userbehaviour['night_max']
-    night_min[bui_nr] = df_userbehaviour['night_min']
-    bathroom_max[bui_nr] = df_userbehaviour['bathroom_max']
-    bathroom_min[bui_nr] = df_userbehaviour['bathroom_min']
-    floor_max[bui_nr] = df_userbehaviour['floor_max']
-    floor_min[bui_nr] = df_userbehaviour['floor_min']
-    Q_int_D[bui_nr] = df_userbehaviour['Q_int_D']
-    Q_int_N[bui_nr] = df_userbehaviour['Q_int_N']
+    day_max[bui_nr] = df_userbehaviour['day_max']+10
+    day_min[bui_nr] = sh_day.iloc[:, bui_nr]+273.15
+    night_max[bui_nr] = df_userbehaviour['night_max']+10
+    night_min[bui_nr] = sh_night.iloc[:, bui_nr]+273.15
+    bathroom_max[bui_nr] = df_userbehaviour['bathroom_max']+10
+    bathroom_min[bui_nr] = sh_day.iloc[:, bui_nr]+273.15
+    floor_max[bui_nr] = df_userbehaviour['floor_max']+10
+    floor_min[bui_nr] = sh_day.iloc[:, bui_nr]+273.15
+    Q_int_D[bui_nr] = (QCon.iloc[:, bui_nr] + QRad.iloc[:, bui_nr])*0.5
+    Q_int_N[bui_nr] = (QCon.iloc[:, bui_nr] + QRad.iloc[:, bui_nr])*0.5
 
 """
 
 Calculating lowest possible temperatures in all buildings
 
 """
+
 
 def calc_min_temp(start_building, end_building, building_model):
 
@@ -191,7 +225,14 @@ def calc_min_temp(start_building, end_building, building_model):
                                comp='building')
 
         optmodel.change_init_type('TiD0', 'free', 'Building', 'building')
+        optmodel.change_init_type('TflD0', 'free', 'Building', 'building')
+        optmodel.change_init_type('TwiD0', 'free', 'Building', 'building')
+        optmodel.change_init_type('TwD0', 'free', 'Building', 'building')
+        optmodel.change_init_type('TfiD0', 'free', 'Building', 'building')
+        optmodel.change_init_type('TfiN0', 'free', 'Building', 'building')
         optmodel.change_init_type('TiN0', 'free', 'Building', 'building')
+        optmodel.change_init_type('TwiN0', 'free', 'Building', 'building')
+        optmodel.change_init_type('TwN0', 'free', 'Building', 'building')
 
         optmodel.compile(start_time)
         optmodel.set_objective('building_temp')
@@ -208,10 +249,11 @@ def calc_min_temp(start_building, end_building, building_model):
 
     return day_t, night_t
 
-n_buildings = 10
-for i, building_model in enumerate(['SFH_T_5_ins_TAB', 'SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2']):
+
+n_buildings = 50
+for i, building_model in enumerate(['SFH_D_5_ins_TAB', 'SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2']):
     print building_model
-    day_t, night_t = calc_min_temp(i*n_buildings, (i+1)*n_buildings, building_model)
+    day_t, night_t = calc_min_temp(0, n_buildings, building_model)
 
     day_t.to_csv('day_t_' + building_model + '.csv', sep=';')
     night_t.to_csv('night_t_' + building_model + '.csv', sep=';')

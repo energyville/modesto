@@ -31,12 +31,12 @@ n_points = int(math.ceil(n_buildings / 2))
 
 selected_flex_cases = ['Reference',  'Flexibility']
 selected_model_cases = ['NoPipes', 'Building', 'Pipe', 'Combined']
-selected_street_cases = ['NewStreet', 'OldStreet', 'MixedStreet']
-selected_district_cases = ['linear', 'radial']
+selected_street_cases = ['New street', 'Old street', 'Mixed street']
+selected_district_cases = ['Series', 'Parallel']
 
 n_cases = len(selected_flex_cases) * len(selected_model_cases) * len(selected_street_cases + selected_district_cases)
 
-dist_pipe_length = 75
+dist_pipe_length = 150
 street_pipe_length = 30
 service_pipe_length = 30
 
@@ -86,25 +86,23 @@ flex_cases = {'Reference':
                   {'price_profile': 'step'}
               }
 
-streets = {'MixedStreet': ['SFH_T_5_ins_TAB', 'SFH_T_1_2zone_REF2']*int(n_buildings/2),
-           'OldStreet': ['SFH_T_1_2zone_REF2']*n_buildings,
-           'NewStreet': ['SFH_T_5_ins_TAB']*n_buildings,
-           'linear': ['SFH_T_1_2zone_REF2', 'SFH_T_3_2zone_REF2', 'SFH_T_5_ins_TAB'],
-           'radial': ['SFH_T_1_2zone_REF2', 'SFH_T_3_2zone_REF2', 'SFH_T_5_ins_TAB']
+streets = {'Mixed street': ['SFH_D_5_ins_TAB', 'SFH_D_1_2zone_REF2']*int(n_buildings/2),
+           'Old street': ['SFH_D_1_2zone_REF2']*n_buildings,
+           'New street': ['SFH_D_5_ins_TAB']*n_buildings,
+           'Series': ['SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2', 'SFH_D_5_ins_TAB'],
+           'Parallel': ['SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2', 'SFH_D_5_ins_TAB']
 }
 
-distribution_pipes = {'linear': [40, 32, 20],
-                      'radial': [25, 25, 20]}
+distribution_pipes = {'Series': [65, 50, 32],
+                      'Parallel': [32, 32, 32]}
 
-street_pipes = {'MixedStreet': [25, 20, 20, 20, 20],
-                'OldStreet': [25, 25, 20, 20, 20],
-                'NewStreet': [20, 20, 20, 20, 20]}
+street_pipes = {'Mixed street': [32, 32, 25, 20, 20],
+                'Old street': [32, 32, 25, 20, 20],
+                'New street': [32, 32, 25, 20, 20]}
 
-service_pipes = {'MixedStreet': [20] * n_buildings,
-                 'OldStreet': [20] * n_buildings,
-                 'NewStreet': [20] * n_buildings}
-
-districts = ['radial', 'linear']
+service_pipes = {'Mixed street': [20] * n_buildings,
+                 'Old street': [20] * n_buildings,
+                 'New street': [20] * n_buildings}
 
 
 # dhw_use = range(1, n_buildings)
@@ -113,7 +111,7 @@ pipe_models = {'NoPipes': 'SimplePipe',
                'StSt': 'ExtensivePipe',
                'Dynamic': 'NodeMethod'}
 
-pos = 3.5/7
+pos = 3/7
 price_profiles = {'constant': pd.Series(1, index=time_index),
                   'step': pd.Series([1]*int(len(time_index)*pos) + [2]*(len(time_index)-int(len(time_index)*pos)),
                                     index=time_index)}
@@ -124,9 +122,9 @@ building_models = {'RCmodel': 'RCmodel',
 time_steps = {'StSt': 900,
               'Dynamic': 300}
 
-max_heat = {'SFH_T_5_ins_TAB': 9000,
-            'SFH_T_3_2zone_REF2': 9000,
-            'SFH_T_1_2zone_REF2': 10000}
+max_heat = {'SFH_D_5_ins_TAB': 12000,
+            'SFH_D_3_2zone_REF2': 12000,
+            'SFH_D_1_2zone_REF2': 12000}
 
 """
 
@@ -415,7 +413,7 @@ for n, case in enumerate(selected_model_cases):
             optmodel.compile(start_time)
             optmodel.set_objective('cost')
 
-            status = optmodel.solve(tee=False)
+            status = optmodel.solve(tee=True)
 
             objectives[case][street][flex_case]['Slack'] = optmodel.model.Slack.value
             objectives[case][street][flex_case]['energy'] = optmodel.get_objective('energy')
@@ -505,9 +503,9 @@ for n, case in enumerate(selected_model_cases):
         Mass_flow_rates[case][district] = {}
         objectives[case][district] = {}
 
-        if district == 'linear':
+        if district == 'Series':
             graph = linear_district_graph(n_streets, building_model, draw=False)
-        elif district == 'radial':
+        elif district == 'Parallel':
             graph = radial_district_graph(n_streets, building_model, draw=False)
 
         if pipe_model == 'NodeMethod':
@@ -572,7 +570,7 @@ for n, case in enumerate(selected_model_cases):
             optmodel.compile(start_time)
             optmodel.set_objective('cost')
 
-            optmodel.solve(solver='cplex')
+            optmodel.solve(solver='cplex', tee=True)
 
             objectives[case][district][flex_case]['Slack'] = optmodel.model.Slack.value
             objectives[case][district][flex_case]['energy'] = optmodel.get_objective('energy')
