@@ -7,7 +7,7 @@ import seaborn as sns
 
 sns.set_style('darkgrid')
 
-for path in ['7dnewsol']:
+for path in ['3dnewsol']:
     filepath = os.path.join('../RepresentativePeriodsMILP/results', path)
     for filename in os.listdir(filepath):
         if not filename == 'summary.txt':

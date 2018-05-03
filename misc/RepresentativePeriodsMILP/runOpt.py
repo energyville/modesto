@@ -57,7 +57,7 @@ if __name__ == '__main__':
     # logging.basicConfig(level=logging.WARNING,
     #                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
     #                     datefmt='%m-%d %H:%M')
-    time_step = 3600
+    time_step = 6 * 3600
     input_data = {
         '7dnewsol': {
             'dur': 7,
@@ -69,7 +69,7 @@ if __name__ == '__main__':
         }
     }
 
-    for time_duration in ['7dnewsol', '3dnewsol']:  # ['time_duration', 'nocorr']:
+    for time_duration in ['3dnewsol']:  # ['time_duration', 'nocorr']:
         sels = input_data[time_duration]['sel']
         duration_repr = input_data[time_duration]['dur']
 
@@ -78,26 +78,26 @@ if __name__ == '__main__':
                 columns=['A', 'VSTC', 'VWat', 'E_backup_full', 'E_backup_repr',
                          'E_loss_stor_full', 'E_loss_stor_repr',
                          'E_curt_full',
-                         'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr'])
+                         'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr', 't_comp'])
             selection = sels[num]
 
-            for VWat in [50000, 75000, 100000, 125000]:
+            for VWat in [75000, 100000, 125000]:
                 for A in [50000, 100000, 150000]:  # , 60000, 80000]:
-                    for VSTC in [50000, 100000, 125000]:  # , 4.1e6, 4.35e6, 4.6e6]:
+                    for VSTC in [100000, 150000, 200000]:  # , 4.1e6, 4.35e6, 4.6e6]:
                         print 'A:', str(A)
                         print 'VWat:', str(VWat)
                         print 'VSTC:', str(VSTC)
                         print '========================='
                         print ''
                         # Solve representative weeks
-                        start = time.clock()
+                        start_full = time.clock()
 
                         repr_model, optimizers = RepresentativeWeeks.representative(
                             duration_repr=duration_repr, time_step=time_step,
                             selection=selection, solArea=A, VWat=VWat,
                             VSTC=VSTC)
 
-                        compilation_time = time.clock() - start
+                        compilation_time = time.clock() - start_full
 
                         energy_sol_repr = None
                         energy_backup_repr = None
@@ -110,7 +110,7 @@ if __name__ == '__main__':
                         energy_backup_full = None
 
                         start = time.clock()
-                        status = RepresentativeWeeks.solve_repr(repr_model, solver='gurobi', mipgap=0.1,
+                        status = RepresentativeWeeks.solve_repr(repr_model, solver='cplex', mipgap=0.1,
                                                                 probe=True)
                         repr_solution_and_comm = time.clock() - start
 
@@ -157,7 +157,7 @@ if __name__ == '__main__':
                         #                               '{}w_{}A_{}V_{}P_full.png'.format(
                         #                                   num, A, V, P)),
                         #                  dpi=100, figsize=(8, 6))
-
+                        print 'Full time:', str(repr_solution_and_comm+compilation_time)
                         df = df.append({'A': A, 'VSTC': VSTC, 'VWat': VWat,
                                         'E_backup_full': float(
                                             result_full['E_backup_full']),
@@ -171,7 +171,8 @@ if __name__ == '__main__':
                                         'E_sol_full': float(
                                             result_full['E_sol_full']),
                                         'E_sol_repr': energy_sol_repr,
-                                        't_repr': repr_solution_and_comm + compilation_time},
+                                        't_repr': repr_solution_and_comm + compilation_time,
+                                        't_comp': compilation_time},
                                        ignore_index=True)
                         path = os.path.join('results', time_duration)
                         if not os.path.isdir(path):

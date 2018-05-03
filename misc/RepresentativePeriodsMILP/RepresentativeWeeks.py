@@ -27,6 +27,20 @@ DATAPATH = resource_filename('modesto', 'Data')
 
 def representative(duration_repr, selection, VWat=75000,
                    solArea=2 * (18300 + 15000), VSTC=75000, pipe_model='ExtensivePipe', time_step=3600):
+    """
+
+    Args:
+        duration_repr:
+        selection:
+        VWat:
+        solArea:
+        VSTC:
+        pipe_model:
+        time_step:
+
+    Returns:
+
+    """
     unit_sec = 3600 * 24  # Seconds per unit time of duration (seconds per day)
 
     netGraph = CaseFuture.make_graph(repr=True)
@@ -59,6 +73,9 @@ def representative(duration_repr, selection, VWat=75000,
         optmodel.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
         optmodel.change_param(node='WaterscheiGarden', comp='tank', param='volume', val=VWat)
 
+        optmodel.change_param(node='Production', comp='backup', param='ramp', val=0)
+        optmodel.change_param(node='Production', comp='backup', param='ramp_cost', val=0)
+
         optmodel.compile(start_time=start_time)
         # optmodel.set_objective('energy')
 
@@ -83,6 +100,14 @@ def representative(duration_repr, selection, VWat=75000,
         for component_id in next_heat:
             # Link begin and end of representative periods
             def _link_stor(m):
+                """
+
+                Args:
+                    m:
+
+                Returns:
+
+                """
                 return next_heat[component_id].get_heat_stor_init() == \
                        current_heat[component_id].get_heat_stor_final()
 
@@ -96,6 +121,14 @@ def representative(duration_repr, selection, VWat=75000,
     # In[ ]:
 
     def _top_objective(m):
+        """
+
+        Args:
+            m:
+
+        Returns:
+
+        """
         return 365 / (duration_repr * (365 // duration_repr)) * sum(
             repetitions * optimizers[start_day].get_objective(
                 objtype='energy', get_value=False) for start_day, repetitions in
@@ -115,6 +148,15 @@ def representative(duration_repr, selection, VWat=75000,
 
 
 def get_backup_energy(optimizers, sel):
+    """
+
+    Args:
+        optimizers:
+        sel:
+
+    Returns:
+
+    """
     return sum(sel[startday] * optmodel.get_result('heat_flow', node='Production',
                                                    comp='backup',
                                                    check_results=False).sum()
@@ -122,6 +164,15 @@ def get_backup_energy(optimizers, sel):
 
 
 def get_curt_energy(optimizers, sel):
+    """
+
+    Args:
+        optimizers:
+        sel:
+
+    Returns:
+
+    """
     return sum(sel[startday] * optmodel.get_result('heat_flow_curt', node='SolarArray',
                                                    comp='solar',
                                                    check_results=False).sum()
@@ -129,6 +180,15 @@ def get_curt_energy(optimizers, sel):
 
 
 def get_sol_energy(optimizers, sel):
+    """
+
+    Args:
+        optimizers:
+        sel:
+
+    Returns:
+
+    """
     return sum(sel[startday] *
                optmodel.get_result('heat_flow', node='SolarArray', comp='solar',
                                    check_results=False).sum() for startday, optmodel in
@@ -138,6 +198,15 @@ def get_sol_energy(optimizers, sel):
 
 
 def get_stor_loss(optimizers, sel):
+    """
+
+    Args:
+        optimizers:
+        sel:
+
+    Returns:
+
+    """
     # TODO make better calculation for this
     return sum(sum(sel[startday] *
                    optmodel.get_result('heat_flow', node=node, comp='tank',
@@ -146,6 +215,15 @@ def get_stor_loss(optimizers, sel):
 
 
 def get_demand_energy(optimizers, sel):
+    """
+
+    Args:
+        optimizers:
+        sel:
+
+    Returns:
+
+    """
     return sum(sum(sel[startday] *
                    optmodel.get_result('heat_flow', node=node, comp='neighb',
                                        check_results=False).sum() for startday, optmodel in
@@ -155,6 +233,19 @@ def get_demand_energy(optimizers, sel):
 
 
 def solve_repr(model, solver='cplex', mipgap=0.1, probe=False, mipfocus=None, timelim=None):
+    """
+
+    Args:
+        model:
+        solver:
+        mipgap:
+        probe:
+        mipfocus:
+        timelim:
+
+    Returns:
+
+    """
     opt = SolverFactory(solver)
 
     # opt.options["NumericFocus"] = 1
@@ -203,6 +294,19 @@ def solve_repr(model, solver='cplex', mipgap=0.1, probe=False, mipfocus=None, ti
 
 
 def construct_heat_flow(name, node, comp, optimizer, reps, start_date):
+    """
+
+    Args:
+        name:
+        node:
+        comp:
+        optimizer:
+        reps:
+        start_date:
+
+    Returns:
+
+    """
     import numpy as np
     data = optimizer.get_result(name, node=node, comp=comp, check_results=False)
     vals = np.tile(data.values, int(reps))
@@ -215,6 +319,17 @@ def construct_heat_flow(name, node, comp, optimizer, reps, start_date):
 
 
 def plot_representative(opt, sel, duration_repr=7, time_step=3600):
+    """
+
+    Args:
+        opt:
+        sel:
+        duration_repr:
+        time_step:
+
+    Returns:
+
+    """
     import matplotlib.pyplot as plt
     fig_out, axs = plt.subplots(3, 1, sharex=True,
                                 gridspec_kw=dict(height_ratios=[2, 1, 1]))
@@ -243,13 +358,14 @@ def plot_representative(opt, sel, duration_repr=7, time_step=3600):
 
         # Storage state
         series = []
-        for node in ['SolarArray', 'WaterscheiGarden', 'TermienWest']:
+        cols= ['r', 'g', 'b']
+        for i, node in enumerate(['SolarArray', 'WaterscheiGarden', 'TermienWest']):
             results = opt[startD].get_component(name='tank',
                                                 node=node).get_soc()
             date_ind = pd.DatetimeIndex(start=next_d, freq=pd.Timedelta(seconds=time_step),
                                         periods=len(results))
-            series.append(pd.Series(index=date_ind, data=results, name=node))
-        axs[1].plot(sum(series), color='r', label=str(startD))
+            axs[1].plot(pd.Series(index=date_ind, data=results, name=node), color=cols[i])
+
 
         # Heat curtailment
         heat_curt = prev_curt + construct_heat_flow(optimizer=opt[startD],
@@ -264,6 +380,8 @@ def plot_representative(opt, sel, duration_repr=7, time_step=3600):
 
     axs[0].legend(['Solar', 'Backup', 'Demand'])
     axs[0].set_title('Representative')
+
+    axs[1].legend(['SolarArray', 'WaterscheiGarden', 'TermienWest'])
 
     axs[0].set_ylabel('Heat [W]')
     axs[1].set_ylabel('SoC [%]')
@@ -295,7 +413,7 @@ if __name__ == '__main__':
     time_step = 3600*6
     duration_repr = 7
     model, optimizers = representative(duration_repr=duration_repr,
-                                       selection=selection, VWat=150000, solArea=200000, VSTC=50000, time_step=time_step)
+                                       selection=selection, VWat=75000, solArea=50000, VSTC=100000, time_step=time_step)
     solve_repr(model, probe=False, solver='cplex')
 
     # ## Post-processing

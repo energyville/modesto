@@ -16,14 +16,13 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger('runFullOpt.py')
 
 df = pd.DataFrame(
-    columns=['A', 'VWat', 'VSTC', 'E_backup_full', 'E_backup_repr',
-             'E_loss_stor_full', 'E_loss_stor_repr',
-             'E_curt_full',
-             'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr'])
+    columns=['A', 'VWat', 'VSTC', 'E_backup_full',
+             'E_loss_stor_full',
+             'E_curt_full', 'E_sol_full', 't_full'])
 
-for VWat in [50000, 75000, 100000, 125000]:
+for VWat in [75000, 100000, 125000]:
     for A in [50000, 100000, 150000]:  # , 60000, 80000]:
-        for VSTC in [50000, 100000, 125000]:  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
+        for VSTC in [100000, 150000, 200000]:  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
             print 'A:', str(A)
             print 'VWat:', str(VWat)
             print 'VSTC:', str(VSTC)
@@ -37,15 +36,19 @@ for VWat in [50000, 75000, 100000, 125000]:
             energy_stor_loss_full = None
             energy_backup_full = None
 
-            full_model = CaseFuture.setup_opt(time_step=3600)
+            full_model = CaseFuture.setup_opt(time_step=6*3600)
             full_model.change_param(node='SolarArray', comp='solar', param='area', val=A)
             full_model.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
             full_model.change_param(node='WaterscheiGarden', comp='tank', param='volume', val=VWat)
+
+            full_model.change_param(node='Production', comp='backup', param='ramp', val=0)
+            full_model.change_param(node='Production', comp='backup', param='ramp_cost', val=0)
+
             full_model.compile('20140101')
             full_model.set_objective('energy')
             print 'Writing time: {}'.format(time.clock() - begin)
 
-            full_model.solve(tee=True, mipgap=0.1, solver='cplex')
+            full_model.solve(tee=True, mipgap=0.1, solver='cplex', probe=True)
 
             if (full_model.results.solver.status == SolverStatus.ok) and not (
                     full_model.results.solver.termination_condition == TerminationCondition.infeasible):
@@ -66,7 +69,7 @@ for VWat in [50000, 75000, 100000, 125000]:
                             'E_sol_full': energy_sol_full,
                             't_full': calc_full},
                            ignore_index=True)
-            #df.to_csv('refresult.txt', sep=' ')
+            df.to_csv('refresult.txt', sep=' ')
 
 print df
 

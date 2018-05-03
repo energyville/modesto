@@ -160,9 +160,9 @@ def set_params(model, pipe_model, verbose=False, repr=False):
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': 15e7,
+                   'Qmax': 6e7,
                    'ramp_cost': 0.01,
-                   'ramp': 1e6 / 3600}
+                   'ramp': 15e7}
 
     model.change_params(prod_design, 'Production', 'backup')
     STOR_COST = resource_filename('modesto', 'Data/Investment/Storage.xlsx')
