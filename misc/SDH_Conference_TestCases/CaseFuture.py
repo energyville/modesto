@@ -109,7 +109,7 @@ def set_params(model, pipe_model, verbose=False, repr=False):
 
     datapath = resource_filename('modesto', 'Data')
 
-    wd = utils.read_time_data(datapath, name='Weather/weatherData.csv')
+    wd = utils.read_time_data(datapath, name='Weather/weatherData.csv', expand=repr)
     t_amb = wd['Te']
     t_g = wd['Tg']
 
@@ -117,7 +117,7 @@ def set_params(model, pipe_model, verbose=False, repr=False):
 
     # In[11]:
 
-    c_f = utils.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+    c_f = utils.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv', expand=repr)['price_BE']
 
     # ## Changing parameters
 
@@ -265,7 +265,7 @@ def set_params(model, pipe_model, verbose=False, repr=False):
             model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
 
     # ### Solar collector
-    solData = utils.read_time_data(datapath, name='RenewableProduction/SolarThermal.csv')
+    solData = utils.read_time_data(datapath, name='RenewableProduction/SolarThermal.csv', expand=repr)
 
     solParam = {
         'delta_T': 40,
