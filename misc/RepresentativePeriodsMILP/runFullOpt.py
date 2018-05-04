@@ -18,7 +18,7 @@ logger = logging.getLogger('runFullOpt.py')
 df = pd.DataFrame(
     columns=['A', 'VWat', 'VSTC', 'E_backup_full',
              'E_loss_stor_full',
-             'E_curt_full', 'E_sol_full', 't_full'])
+             'E_curt_full', 'E_sol_full', 'E_net_loss_full', 't_full'])
 
 for VWat in [75000, 100000, 125000]:
     for A in [50000, 100000, 150000]:  # , 60000, 80000]:
@@ -35,6 +35,7 @@ for VWat in [75000, 100000, 125000]:
             energy_curt_full = None
             energy_stor_loss_full = None
             energy_backup_full = None
+            energy_net_loss_full = None
 
             full_model = CaseFuture.setup_opt(time_step=6*3600)
             full_model.change_param(node='SolarArray', comp='solar', param='area', val=A)
@@ -48,7 +49,8 @@ for VWat in [75000, 100000, 125000]:
             full_model.set_objective('energy')
             print 'Writing time: {}'.format(time.clock() - begin)
 
-            full_model.solve(tee=True, mipgap=0.1, solver='cplex', probe=True)
+            full_model.solve(tee=True, mipgap=0.02, solver='cplex'
+                                                           '', probe=True)
 
             if (full_model.results.solver.status == SolverStatus.ok) and not (
                     full_model.results.solver.termination_condition == TerminationCondition.infeasible):
@@ -59,6 +61,7 @@ for VWat in [75000, 100000, 125000]:
                 energy_curt_full = CaseFuture.get_curt_energy(
                     full_model)
                 energy_sol_full = CaseFuture.get_sol_energy(full_model)
+                energy_net_loss_full = CaseFuture.get_network_loss(full_model)
             end = time.clock()
             calc_full = end - begin
             print 'Full time: {}'.format(calc_full)
@@ -67,6 +70,7 @@ for VWat in [75000, 100000, 125000]:
                             'E_loss_stor_full': energy_stor_loss_full,
                             'E_curt_full': energy_curt_full,
                             'E_sol_full': energy_sol_full,
+                            'E_net_loss_full': energy_net_loss_full,
                             't_full': calc_full},
                            ignore_index=True)
             df.to_csv('refresult.txt', sep=' ')

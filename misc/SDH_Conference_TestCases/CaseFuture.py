@@ -65,7 +65,7 @@ def make_graph(repr=False):
                       'tank': tank_type})
 
     G.add_node('Production', x=6000, y=4000, z=0, comps={'backup': 'ProducerVariable',
-                                                         'tank': tank_type})
+                                                         'tank': 'StorageVariable'})
     G.add_node('TermienEast', x=5400, y=200, z=0, comps={'neighb': 'BuildingFixed'})
 
     G.add_edge('SolarArray', 'p1', name='servSol')
@@ -117,7 +117,8 @@ def set_params(model, pipe_model, verbose=False, repr=False):
 
     # In[11]:
 
-    c_f = utils.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv', expand=repr)['price_BE']
+    c_f = utils.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv', expand=repr)[
+        'price_BE']
 
     # ## Changing parameters
 
@@ -137,7 +138,7 @@ def set_params(model, pipe_model, verbose=False, repr=False):
         'mult': 1
     }
 
-    heat_profile = utils.read_time_data(datapath, name='HeatDemand/HeatDemandFiltered.csv')
+    heat_profile = utils.read_time_data(datapath, name='HeatDemand/HeatDemandFiltered.csv', expand=repr)
 
     if verbose:
         print '#######################'
@@ -181,8 +182,10 @@ def set_params(model, pipe_model, verbose=False, repr=False):
         'heat_stor': 0,
         'cost_inv': tank_cost
     }
+
+    model.change_init_type('heat_stor', 'cyclic', node='Production', comp='tank')
     model.change_params(prod_stor_design, node='Production', comp='tank')
-    for node in ['Production', 'SolarArray', 'TermienWest', 'WaterscheiGarden']:
+    for node in ['SolarArray', 'TermienWest', 'WaterscheiGarden']:
         if repr:
             model.change_init_type('heat_stor', 'free', node=node, comp='tank')
         else:
@@ -331,6 +334,21 @@ def get_stor_loss(optmodel):
     return sum(optmodel.get_result('heat_flow', node=node,
                                    comp='tank').sum() / 1000 for node in
                ['SolarArray', 'TermienWest', 'WaterscheiGarden'])
+
+
+def get_network_loss(optmodel):
+    """
+    Return total heat lost during optimization period
+
+    :param optmodel:
+    :return:
+    """
+
+    return sum(optmodel.get_result('heat_loss_tot', node=None, comp=pip).sum() / 1000 for pip in ['backBone', 'servWat',
+                                                                                                  'servTer',
+                                                                                                  'servPro',
+                                                                                                  'servSol',
+                                                                                                  'servBox'])
 
 
 def get_demand_energy(optmodel):

@@ -1413,3 +1413,15 @@ class StorageCondensed(StorageVariable):
                     out.append(value(self.block.soc[n, r]))
 
         return out
+
+    def get_heat_loss(self):
+        """
+        Return heat losses
+
+        :return:
+        """
+        out = []
+        for r in self.block.reps:
+            for n in self.model.TIME:
+                out.append(value(self.block.heat_loss[n, r]))
+        return out

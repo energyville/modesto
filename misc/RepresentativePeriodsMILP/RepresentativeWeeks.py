@@ -179,6 +179,23 @@ def get_curt_energy(optimizers, sel):
                for startday, optmodel in optimizers.iteritems()) / 1000
 
 
+def get_network_loss(optimizers, sel):
+    """
+    Get network heat losses for the optimized period
+    
+    :param optimizers: 
+    :param sel: 
+    :return: 
+    """
+    return sum(sel[startday] * sum(
+        optmodel.get_result('heat_loss_tot', node=None, comp=pip, check_results=False).sum() / 1000 for pip in
+        ['backBone', 'servWat',
+         'servTer',
+         'servPro',
+         'servSol',
+         'servBox']) for startday, optmodel in optimizers.iteritems())
+
+
 def get_sol_energy(optimizers, sel):
     """
 
@@ -191,7 +208,7 @@ def get_sol_energy(optimizers, sel):
     """
     return sum(sel[startday] *
                optmodel.get_result('heat_flow', node='SolarArray', comp='solar',
-                                   check_results=False).sum() for startday, optmodel in
+                                   check_results=False).sum() / 1000 for startday, optmodel in
                optimizers.iteritems(
 
                )) / 1000
@@ -199,15 +216,13 @@ def get_sol_energy(optimizers, sel):
 
 def get_stor_loss(optimizers, sel):
     """
+    Calculates the total heat loss for a cyclic storage (seen over a year) by summing up all heat flows to and from the
+    storage tank.
 
-    Args:
-        optimizers:
-        sel:
-
-    Returns:
+    :param optimizers: dictionary of all modesto instances for representative optimization
+    :param sel: ordered dict with starting days of the year as keys and number of repetitions as values
 
     """
-    # TODO make better calculation for this
     return sum(sum(sel[startday] *
                    optmodel.get_result('heat_flow', node=node, comp='tank',
                                        check_results=False).sum() for startday, optmodel in
@@ -274,7 +289,7 @@ def solve_repr(model, solver='cplex', mipgap=0.1, probe=False, mipfocus=None, ti
 
         if timelim is not None:
             opt.options['timelimit'] = timelim
-        opt.options['mip strategy fpheur'] = 2
+        opt.options['mip strategy fpheur'] = 0
         opt.options['parallel'] = -1
     results = opt.solve(model, tee=True)
 
@@ -358,14 +373,13 @@ def plot_representative(opt, sel, duration_repr=7, time_step=3600):
 
         # Storage state
         series = []
-        cols= ['r', 'g', 'b']
+        cols = ['r', 'g', 'b', 'black']
         for i, node in enumerate(['SolarArray', 'WaterscheiGarden', 'TermienWest']):
             results = opt[startD].get_component(name='tank',
                                                 node=node).get_soc()
             date_ind = pd.DatetimeIndex(start=next_d, freq=pd.Timedelta(seconds=time_step),
                                         periods=len(results))
             axs[1].plot(pd.Series(index=date_ind, data=results, name=node), color=cols[i])
-
 
         # Heat curtailment
         heat_curt = prev_curt + construct_heat_flow(optimizer=opt[startD],
@@ -381,7 +395,7 @@ def plot_representative(opt, sel, duration_repr=7, time_step=3600):
     axs[0].legend(['Solar', 'Backup', 'Demand'])
     axs[0].set_title('Representative')
 
-    axs[1].legend(['SolarArray', 'WaterscheiGarden', 'TermienWest'])
+    axs[1].legend(['SolarArray', 'WaterscheiGarden', 'TermienWest', 'Production'])
 
     axs[0].set_ylabel('Heat [W]')
     axs[1].set_ylabel('SoC [%]')
@@ -410,7 +424,7 @@ if __name__ == '__main__':
 
     # selection = OrderedDict([(10, 2.0), (48, 12.0), (74, 2.0), (100, 10.0),
     # (180, 5.0), (188, 7.0), (224, 5.0), (326, 9.0)])
-    time_step = 3600*6
+    time_step = 3600 * 6
     duration_repr = 7
     model, optimizers = representative(duration_repr=duration_repr,
                                        selection=selection, VWat=75000, solArea=50000, VSTC=100000, time_step=time_step)

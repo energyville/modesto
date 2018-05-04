@@ -80,7 +80,7 @@ class Pipe(Component):
                                         'Pipe diameter',
                                         'DN (mm)'),
             'cost_inv': SeriesParameter(name='cost_inv',
-                                        description='Investment cost per length as a function of diameter.' 
+                                        description='Investment cost per length as a function of diameter.'
                                                     'Default value supplied.',
                                         unit='EUR/m',
                                         unit_index='DN (mm)',
@@ -295,7 +295,7 @@ class ExtensivePipe(Pipe):
             :return: Mass flow rate in kg/s for given DN
             """
             return b.heat_loss[t] / self.cp / (
-                self.temp_sup - self.temp_ret)
+                    self.temp_sup - self.temp_ret)
 
         self.block.mass_flow_0 = Param(self.model.TIME, rule=_mass_flow_0)
 
@@ -615,7 +615,7 @@ class NodeMethod(Pipe):
                 return b.temperature_out_nhc[l, t] == ((b.R[t] - Z) * b.temperatures[l, self.n_steps - 1 - t + b.n[t]]
                                                        + b.Y[l, t] + (b.mass_flow[t] * self.time_step - b.S[t] + Z) *
                                                        b.temperatures[l, self.n_steps - 1 - t + b.m[t]]) \
-                                                      / b.mass_flow[t] / self.time_step
+                       / b.mass_flow[t] / self.time_step
 
         self.block.def_temp_out_nhc = Constraint(self.model.TIME, self.model.lines, rule=_def_temp_out_nhc)
 
@@ -637,7 +637,7 @@ class NodeMethod(Pipe):
                 return b.temperature_out_nhl[l, t] == (b.temperature_out_nhc[l, t] * b.mass_flow[t]
                                                        * self.cp * self.time_step
                                                        + C * b.wall_temp[l, t - 1]) / \
-                                                      (C + b.mass_flow[t] * self.cp * self.time_step)
+                       (C + b.mass_flow[t] * self.cp * self.time_step)
 
         def _temp_wall(b, t, l):
             if b.mass_flow[t] == 0:
@@ -645,9 +645,9 @@ class NodeMethod(Pipe):
                     return Constraint.Skip
                 else:
                     return b.wall_temp[l, t] == self.model.Tg[t] + (b.wall_temp[l, t - 1] - self.model.Tg[t]) * \
-                                                                   np.exp(-b.K * self.time_step /
-                                                                          (surface * self.rho * self.cp +
-                                                                           C / self.length))
+                           np.exp(-b.K * self.time_step /
+                                  (surface * self.rho * self.cp +
+                                   C / self.length))
             else:
                 return b.wall_temp[l, t] == b.temperature_out_nhl[l, t]
 
@@ -700,7 +700,8 @@ class NodeMethod(Pipe):
             else:
                 delta_time = self.time_step * ((b.R[t] - Z) * b.n[t]
                                                + sum(
-                    b.mf_history[self.n_steps - 1 - t + i] * self.time_step * i for i in range(b.n[t] + 1, b.m[t]))
+                            b.mf_history[self.n_steps - 1 - t + i] * self.time_step * i for i in
+                            range(b.n[t] + 1, b.m[t]))
                                                + (b.mass_flow[t] * self.time_step - b.S[t] + Z) * b.m[t]) \
                              / b.mass_flow[t] / self.time_step
                 return delta_time
@@ -715,14 +716,14 @@ class NodeMethod(Pipe):
                     return b.temperature_out[l, t] == self.params['temperature_out_' + l].v()
                 else:
                     return b.temperature_out[l, t] == (b.temperature_out[l, t - 1] - self.model.Tg[t]) * \
-                                                      np.exp(-b.K * self.time_step /
-                                                             (surface * self.rho * self.cp + C / self.length)) \
-                                                      + self.model.Tg[t]
+                           np.exp(-b.K * self.time_step /
+                                  (surface * self.rho * self.cp + C / self.length)) \
+                           + self.model.Tg[t]
             else:
                 return b.temperature_out[l, t] == self.model.Tg[t] + \
-                                                  (b.temperature_out_nhl[l, t] - self.model.Tg[t]) * \
-                                                  np.exp(-(b.K * b.tk[t]) /
-                                                         (surface * self.rho * self.cp))
+                       (b.temperature_out_nhl[l, t] - self.model.Tg[t]) * \
+                       np.exp(-(b.K * b.tk[t]) /
+                              (surface * self.rho * self.cp))
 
         self.block.def_temp_out = Constraint(self.model.TIME, self.model.lines, rule=_temp_out)
 

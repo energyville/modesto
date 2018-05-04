@@ -69,7 +69,7 @@ if __name__ == '__main__':
         }
     }
 
-    for time_duration in ['3dnewsol']:  # ['time_duration', 'nocorr']:
+    for time_duration in ['7dnewsol', '3dnewsol']:  # ['time_duration', 'nocorr']:
         sels = input_data[time_duration]['sel']
         duration_repr = input_data[time_duration]['dur']
 
@@ -103,14 +103,10 @@ if __name__ == '__main__':
                         energy_backup_repr = None
                         energy_stor_loss_repr = None
                         energy_curt_repr = None
-
-                        energy_sol_full = None
-                        energy_curt_full = None
-                        energy_stor_loss_full = None
-                        energy_backup_full = None
+                        energy_net_loss_repr = None
 
                         start = time.clock()
-                        status = RepresentativeWeeks.solve_repr(repr_model, solver='cplex', mipgap=0.1,
+                        status = RepresentativeWeeks.solve_repr(repr_model, solver='gurobi', mipgap=0.02,
                                                                 probe=True)
                         repr_solution_and_comm = time.clock() - start
 
@@ -123,6 +119,7 @@ if __name__ == '__main__':
                                 optimizers, selection)
                             energy_sol_repr = RepresentativeWeeks.get_sol_energy(
                                 optimizers, selection)
+                            energy_net_loss_repr = RepresentativeWeeks.get_network_loss(optimizers, selection)
                             fig1 = RepresentativeWeeks.plot_representative(
                                 optimizers, selection, duration_repr=duration_repr, time_step=time_step)
                             if not os.path.isdir(
@@ -171,6 +168,8 @@ if __name__ == '__main__':
                                         'E_sol_full': float(
                                             result_full['E_sol_full']),
                                         'E_sol_repr': energy_sol_repr,
+                                        'E_net_loss_full': float(result_full['E_net_loss_full']),
+                                        'E_net_loss_repr': energy_net_loss_repr,
                                         't_repr': repr_solution_and_comm + compilation_time,
                                         't_comp': compilation_time},
                                        ignore_index=True)
