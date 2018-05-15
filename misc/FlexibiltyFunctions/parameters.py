@@ -13,6 +13,64 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 modesto_path = os.path.dirname(os.path.dirname(dir_path))
 data_path = os.path.join(modesto_path, 'modesto', 'Data')
 
+
+"""
+
+Extra methods
+
+"""
+
+
+def aggregate_ISO13790(name, street_nr, n_buildings):
+    df = pd.DataFrame(index=t_amb.index, columns=range(n_buildings))
+    for i in range(n_buildings):
+        profile_nr = street_nr * n_buildings + i
+        df[i] = ut.read_time_data(get_data_path('UserBehaviour\ISO1370_statistic'),
+                                  name='ISO13790_stat_profile' + str(profile_nr) + '.csv')[name]
+
+    return ut.aggregate_columns(df)
+
+
+def aggregate_StROBe(name, start_building, n_buildings):
+    df = ut.read_time_data(get_data_path('UserBehaviour/Strobe_profiles'),
+                           name=name + '.csv').ix[:,
+         n_buildings * start_building: n_buildings * start_building + n_buildings]
+
+    return ut.aggregate_columns(df)
+
+
+def aggregate_min_temp(name, building_model, start_building, n_buildings):
+    df = ut.read_time_data(os.path.join(modesto_path, 'misc', 'aggregation_methods')
+                           , name=name + '_t_' + building_model + '.csv') \
+             .ix[:, n_buildings * start_building: n_buildings * start_building + n_buildings]
+    df.index = t_amb.index[0: len(df.index)]
+    return ut.aggregate_columns(df)
+
+def get_data_path(subfolder):
+    return os.path.join(data_path, subfolder)
+
+class DataReader:
+
+    def __init__(self):
+        self.day_min_df = None
+        self.night_min_df = None
+        self.QCon_df = None
+        self.QRad_df = None
+
+    def read_data(self, horizon, start_time, time_step):
+
+        self.day_min_df = ut.read_period_data(path=get_data_path('UserBehaviour\Strobe_profiles'), name='sh_day.csv',
+                                         horizon=horizon, time_step=time_step, start_time=start_time) + 273.15
+        self.night_min_df = ut.read_period_data(path=get_data_path('UserBehaviour\Strobe_profiles'), name='sh_night.csv',
+                                         horizon=horizon, time_step=time_step, start_time=start_time) + 273.15
+        self.QCon_df = ut.read_period_data(get_data_path('UserBehaviour\Strobe_profiles'), name='QCon.csv',
+                                    horizon=horizon, time_step=time_step, start_time=start_time)
+        self.QRad_df = ut.read_period_data(get_data_path('UserBehaviour\Strobe_profiles'), name='QRad.csv',
+                                      horizon=horizon, time_step=time_step, start_time=start_time)
+
+dr = DataReader()
+# dr.read_data(24*365*3600, pd.Timestamp('20140101'), 900)
+
 """
 
 Network parameters
@@ -28,11 +86,6 @@ delta_T = supply_temp - return_temp
 Weather data and others
 
 """
-
-
-def get_data_path(subfolder):
-    return os.path.join(data_path, subfolder)
-
 
 t_amb = ut.read_time_data(get_data_path('Weather'), name='weatherData.csv')['Te']
 t_g = ut.read_time_data(get_data_path('Weather'), name='weatherData.csv')['Tg']
@@ -101,13 +154,13 @@ building_params = {'delta_T': delta_T,
                    }
 
 
-def get_building_params(node_method, building_nr,
-                        max_heat=None, model_type=None, heat_profile=None, mult=1, aggregated=False):
-
+def get_building_params(node_method, mult, heat_profile=None):
 
     if node_method:
         if heat_profile is None:
             raise Exception('A heat profile should be given in case the node method is used.')
+
+        building_params['heat_profile'] = heat_profile
         key_list = ['delta_T', 'mult', 'heat_profile', 'temperature_return',
                     'temperature_supply', 'temperature_max', 'temperature_min']
     else:
@@ -119,59 +172,41 @@ def get_building_params(node_method, building_nr,
                     'TfiN0', 'TiN0', 'TwiN0', 'TwN0', 'max_heat']
 
     output = {key: building_params[key] for key in key_list}
+    output['mult'] = mult
 
-    if node_method:
-        output['heat_profile'] = heat_profile
-    else:
+    return output
 
-        def aggregate(name, street_nr, n_buildings):
-            df = pd.DataFrame(index=t_amb.index, columns=range(n_buildings))
-            for i in range(n_buildings):
-                profile_nr = street_nr*n_buildings + i
-                df[i] = ut.read_time_data(get_data_path('UserBehaviour'),
-                                          name='ISO13790_stat_profile' + str(profile_nr) + '.csv')[name]
 
-            return ut.aggregate_columns(df)
+def get_single_building_params(node_method, building_nr, mult=1, max_heat=None, model_type=None, heat_profile=None):
 
-        def aggregate_min_temp(name, building_model, start_building, n_buildings):
-            df = ut.read_time_data(os.path.join(modesto_path, 'misc', 'aggregation_methods')
-                                   , name=name + '_t_' + building_model + '.csv') \
-                     .ix[:, n_buildings*start_building: n_buildings*start_building + n_buildings]
-            df.index = t_amb.index[0: len(df.index)]
-            return ut.aggregate_columns(df)
+    output = get_building_params(node_method, mult, heat_profile)
 
-        if not aggregated:
-            day_max = ut.read_time_data(get_data_path('UserBehaviour'),
-                                        name='ISO13790_stat_profile' + str(building_nr) + '.csv')['day_max']
-            day_min = ut.read_time_data(get_data_path('UserBehaviour'),
-                                        name='ISO13790_stat_profile' + str(building_nr) + '.csv')['day_min']
-            night_max = ut.read_time_data(get_data_path('UserBehaviour'),
-                                          name='ISO13790_stat_profile' + str(building_nr) + '.csv')['night_max']
-            night_min = ut.read_time_data(get_data_path('UserBehaviour'),
-                                          name='ISO13790_stat_profile' + str(building_nr) + '.csv')['night_min']
-            bathroom_max = ut.read_time_data(get_data_path('UserBehaviour'),
-                                             name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_max']
-            bathroom_min = ut.read_time_data(get_data_path('UserBehaviour'),
-                                             name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_min']
-            floor_max = ut.read_time_data(get_data_path('UserBehaviour'),
-                                          name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_max']
-            floor_min = ut.read_time_data(get_data_path('UserBehaviour'),
-                                          name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_min']
-            Q_int_D = ut.read_time_data(get_data_path('UserBehaviour'),
-                                        name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_D']
-            Q_int_N = ut.read_time_data(get_data_path('UserBehaviour'),
-                                        name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_N']
-        else:
-            day_max = aggregate('day_max', building_nr, mult)
-            day_min = aggregate_min_temp('day', model_type, building_nr, mult)
-            night_max = aggregate('night_max', building_nr, mult)
-            night_min = aggregate_min_temp('night', model_type, building_nr, mult)
-            bathroom_max = aggregate('bathroom_max', building_nr, mult)
-            bathroom_min = aggregate('bathroom_min', building_nr, mult)
-            floor_max = aggregate('floor_max', building_nr, mult)
-            floor_min = aggregate('floor_min', building_nr, mult)
-            Q_int_D = aggregate('Q_int_D', building_nr, mult)
-            Q_int_N = aggregate('Q_int_N', building_nr, mult)
+    if not node_method:
+
+        day_min = dr.day_min_df.ix[:, building_nr]
+        day_max = pd.Series(max(day_min) + 1, index=day_min.index)
+
+        night_min = dr.night_min_df.ix[:, building_nr]
+        night_max = pd.Series(max(max(day_min) - 3, max(night_min) + 1), index=day_min.index)
+
+        bathroom_max = ut.read_time_data(get_data_path('UserBehaviour\ISO1370_statistic'),
+                                         name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_max']
+        bathroom_min = ut.read_time_data(get_data_path('UserBehaviour\ISO1370_statistic'),
+                                         name='ISO13790_stat_profile' + str(building_nr) + '.csv')['bathroom_min']
+
+        floor_max = ut.read_time_data(get_data_path('UserBehaviour\ISO1370_statistic'),
+                                      name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_max']
+        floor_min = ut.read_time_data(get_data_path('UserBehaviour\ISO1370_statistic'),
+                                      name='ISO13790_stat_profile' + str(building_nr) + '.csv')['floor_min']
+
+        initial_day_temp = day_min[0]
+        initial_night_temp = night_min[0]
+
+        QCon = dr.QCon_df.ix[:, building_nr]
+        QRad = dr.QRad_df.ix[:, building_nr]
+
+        Q_int_D = (QCon + QRad) * 0.5
+        Q_int_N = (QCon + QRad) * 0.5
 
         output['max_heat'] = max_heat
         output['model_type'] = model_type
@@ -186,7 +221,52 @@ def get_building_params(node_method, building_nr,
         output['Q_int_D'] = Q_int_D
         output['Q_int_N'] = Q_int_N
 
-    output['mult'] = mult
+        day_states = ['TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0']
+        night_states = ['TfiN0', 'TiN0', 'TwiN0', 'TwN0']
+
+        for state in day_states:
+            output[state] = initial_day_temp
+        for state in night_states:
+            output[state] = initial_night_temp
+
+    return output
+
+
+def get_aggregated_building_params(node_method, building_nr, mult, max_heat=None, model_type=None, heat_profile=None):
+
+    output = get_building_params(node_method, mult, heat_profile)
+
+    if node_method:
+        day_min = aggregate_min_temp('day', model_type, building_nr, mult)
+        night_min = aggregate_min_temp('night', model_type, building_nr, mult)
+        Q_int_D = aggregate_ISO13790('Q_int_D', building_nr, mult)
+        Q_int_N = aggregate_ISO13790('Q_int_N', building_nr, mult)
+
+        if mult > 30:
+            mult_iso = 29
+            building_nr = 0
+        else:
+            mult_iso = mult
+
+        day_max = aggregate_ISO13790('day_max', building_nr, mult_iso)
+        night_max = aggregate_ISO13790('night_max', building_nr, mult_iso)
+        bathroom_max = aggregate_ISO13790('bathroom_max', building_nr, mult_iso)
+        bathroom_min = aggregate_ISO13790('bathroom_min', building_nr, mult_iso)
+        floor_max = aggregate_ISO13790('floor_max', building_nr, mult_iso)
+        floor_min = aggregate_ISO13790('floor_min', building_nr, mult_iso)
+
+        output['max_heat'] = max_heat
+        output['model_type'] = model_type
+        output['night_min_temperature'] = night_min
+        output['night_max_temperature'] = night_max
+        output['day_min_temperature'] = day_min
+        output['day_max_temperature'] = day_max
+        output['bathroom_min_temperature'] = bathroom_min
+        output['bathroom_max_temperature'] = bathroom_max
+        output['floor_min_temperature'] = floor_min
+        output['floor_max_temperature'] = floor_max
+        output['Q_int_D'] = Q_int_D
+        output['Q_int_N'] = Q_int_N
 
     return output
 
@@ -266,9 +346,6 @@ DHW parameters
 
 """
 
-heat_profile = ut.read_time_data(get_data_path('UserBehaviour'),
-                            name='QDHW.csv')
-
 dhw_params = {'delta_T': delta_T,
               'mult': 1,
               'heat_profile': None,
@@ -278,7 +355,7 @@ dhw_params = {'delta_T': delta_T,
               'temperature_min': return_temp - 20}
 
 
-def get_dhw_params(node_method, building_nr, mult=1):
+def get_dhw_params(node_method, building_nr, mult=1, aggregated=False):
     if node_method:
         key_list = ['delta_T', 'mult', 'heat_profile', 'temperature_return',
                     'temperature_supply', 'temperature_max', 'temperature_min']
@@ -286,7 +363,15 @@ def get_dhw_params(node_method, building_nr, mult=1):
         key_list = ['delta_T', 'mult', 'heat_profile']
 
     output = {key: dhw_params[key] for key in key_list}
-    output['heat_profile'] = heat_profile[str(building_nr+1)]
+
+    if not aggregated:
+        heat_profile = ut.read_time_data(get_data_path('UserBehaviour\Strobe_profiles'),
+                            name='mDHW.csv').iloc[:, building_nr] / 60 * 4186 * (38 - 10)
+
+    else:
+        heat_profile = aggregate_StROBe('mDHW', building_nr, mult) / 60 * 4186 * (38 - 10)
+
+    output['heat_profile'] = heat_profile
     output['mult'] = mult
 
     return output
