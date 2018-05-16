@@ -82,7 +82,7 @@ Collecting user behaviour
 
 """
 
-folder = 'C:\Users\u0111619\Documents\Python\StROBe\Example\\results'
+folder = get_data_path('UserBehaviour/Strobe_profiles')
 
 file_name = 'sh_day.csv'
 sh_day = ut.read_period_data(folder,
@@ -116,7 +116,7 @@ QRad = ut.read_period_data(folder,
                              start_time=pd.Timestamp(start_time)
                              )
 
-folder = get_data_path('UserBehaviour')
+folder = get_data_path('UserBehaviour/ISO1370_statistic')
 file_name = 'ISO13790_stat_profile0.csv'
 
 df_userbehaviour = ut.read_period_data(folder,
@@ -209,15 +209,15 @@ def calc_min_temp(start_building, end_building, building_model):
                            'Q_int_N': Q_int_N[bui_nr],
                            'Te': t_amb,
                            'Tg': t_g,
-                           'TiD0': 18 + 273.15,
-                           'TflD0': 18 + 273.15,
-                           'TwiD0': 18 + 273.15,
-                           'TwD0': 18 + 273.15,
-                           'TfiD0': 18 + 273.15,
-                           'TfiN0': 18 + 273.15,
-                           'TiN0': 18 + 273.15,
-                           'TwiN0': 18 + 273.15,
-                           'TwN0': 18 + 273.15,
+                           'TiD0': day_min[bui_nr][0],
+                           'TflD0': day_min[bui_nr][0],
+                           'TwiD0': day_min[bui_nr][0],
+                           'TwD0': day_min[bui_nr][0],
+                           'TfiD0': day_min[bui_nr][0],
+                           'TfiN0': night_min[bui_nr][0],
+                           'TiN0': night_min[bui_nr][0],
+                           'TwiN0': night_min[bui_nr][0],
+                           'TwN0': night_min[bui_nr][0],
                            'max_heat': 20000
                               }
 
@@ -251,7 +251,7 @@ def calc_min_temp(start_building, end_building, building_model):
 
 
 n_buildings = 50
-for i, building_model in enumerate(['SFH_D_5_ins_TAB', 'SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2']):
+for i, building_model in enumerate(['SFH_D_5_ins_TAB']):
     print building_model
     day_t, night_t = calc_min_temp(0, n_buildings, building_model)
 
