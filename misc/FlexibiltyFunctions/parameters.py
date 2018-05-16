@@ -65,6 +65,8 @@ class DataReader:
                                     horizon=horizon, time_step=time_step, start_time=start_time)
         self.QRad_df = ut.read_period_data(get_data_path('UserBehaviour\Strobe_profiles'), name='QRad.csv',
                                       horizon=horizon, time_step=time_step, start_time=start_time)
+        self.m_DHW_df = ut.read_time_data(get_data_path('UserBehaviour\Strobe_profiles'),
+                                          name='mDHW.csv')
 
 dr = DataReader()
 # dr.read_data(24*365*3600, pd.Timestamp('20140101'), 900)
@@ -374,11 +376,10 @@ def get_dhw_params(node_method, building_nr, mult=1, aggregated=False):
     output = {key: dhw_params[key] for key in key_list}
 
     if not aggregated:
-        heat_profile = ut.read_time_data(get_data_path('UserBehaviour\Strobe_profiles'),
-                            name='mDHW.csv').iloc[:, building_nr] / 60 * 4186 * (38 - 10)
+        heat_profile = dr.m_DHW_df.iloc[:, building_nr] / 60 * 4186 * (38 - 10)
 
     else:
-        heat_profile = aggregate_StROBe('mDHW', building_nr, mult) / 60 * 4186 * (38 - 10)
+        heat_profile = aggregate_StROBe(dr.m_DHW_df, building_nr, mult) / 60 * 4186 * (38 - 10)
 
     output['heat_profile'] = heat_profile
     output['mult'] = mult

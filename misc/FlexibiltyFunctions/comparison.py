@@ -31,14 +31,18 @@ n_points = int(math.ceil(n_buildings / 2))
 
 selected_flex_cases = ['Reference',  'Flexibility']
 selected_model_cases = ['NoPipes', 'Building', 'Pipe', 'Combined']
-selected_street_cases = []
-selected_district_cases = ['Series']
+selected_street_cases = ['New street', 'Old street', 'Mixed street']
+selected_district_cases = ['Series', 'Parallel']
 
 n_cases = len(selected_flex_cases) * len(selected_model_cases) * len(selected_street_cases + selected_district_cases)
 
 dist_pipe_length = 150
 street_pipe_length = 30
 service_pipe_length = 30
+
+old_building = 'SFH_D_4_2zone_REF1'
+mixed_building = 'SFH_D_4_2zone_REF2'
+new_building = 'SFH_D_5_ins_TAB'
 
 """
 
@@ -86,19 +90,19 @@ flex_cases = {'Reference':
                   {'price_profile': 'step'}
               }
 
-streets = {'Mixed street': ['SFH_D_5_ins_TAB', 'SFH_D_1_2zone_REF2']*int(n_buildings/2),
-           'Old street': ['SFH_D_1_2zone_REF2']*n_buildings,
-           'New street': ['SFH_D_5_ins_TAB']*n_buildings,
-           'Series': ['SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2', 'SFH_D_5_ins_TAB'],
-           'Parallel': ['SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2', 'SFH_D_5_ins_TAB']
+streets = {'Mixed street': [new_building, old_building]*int(n_buildings/2),
+           'Old street': [old_building]*n_buildings,
+           'New street': [new_building]*n_buildings,
+           'Series': [old_building, mixed_building, new_building],
+           'Parallel': [old_building, mixed_building, new_building]
 }
 
-distribution_pipes = {'Series': [65, 50, 32],
-                      'Parallel': [32, 32, 32]}
+distribution_pipes = {'Series': [80, 65, 50],
+                      'Parallel': [50, 50, 50]}
 
-street_pipes = {'Mixed street': [32, 32, 25, 20, 20],
-                'Old street': [32, 32, 25, 20, 20],
-                'New street': [32, 32, 25, 20, 20]}
+street_pipes = {'Mixed street': [50, 40, 32, 32, 20],
+                'Old street': [50, 40, 32, 32, 20],
+                'New street': [50, 40, 32, 32, 20]}
 
 service_pipes = {'Mixed street': [20] * n_buildings,
                  'Old street': [20] * n_buildings,
@@ -122,9 +126,9 @@ building_models = {'RCmodel': 'RCmodel',
 time_steps = {'StSt': 900,
               'Dynamic': 300}
 
-max_heat = {'SFH_D_5_ins_TAB': 12000,
-            'SFH_D_3_2zone_REF2': 12000,
-            'SFH_D_1_2zone_REF2': 12000}
+max_heat = {'SFH_D_5_ins_TAB': 7000,
+            'SFH_D_4_2zone_REF1': 28000,
+            'SFH_D_4_2zone_REF2': 17500}
 
 """
 
@@ -202,13 +206,13 @@ def street_graph(n_buildings, building_model, draw=True):
         G.add_node('p' + str(i), x=street_pipe_length * (i + 1), y=0, z=0,
                    comps={})
         G.add_node('Building' + str(i), x=street_pipe_length * (i + 1), y=service_pipe_length, z=0,
-                   comps={'building': building_model,})
-                              # 'DHW': 'BuildingFixed'})
+                   comps={'building': building_model,
+                          'DHW': 'BuildingFixed'})
 
         if n_points + i + 1 <= n_buildings:
             G.add_node('Building' + str(n_points + i), x=30 * (i + 1), y=-30, z=0,
-                       comps={'building': building_model,})
-                              # 'DHW': 'BuildingFixed'})
+                       comps={'building': building_model,
+                              'DHW': 'BuildingFixed'})
 
     G.add_edge('Producer', 'p0', name='dist_pipe0')
     for i in range(n_points - 1):
@@ -292,7 +296,6 @@ def linear_district_graph(n_streets, building_model, draw=True):
 
         G.add_node('Street' + str(i),  x=distance*(i+1), y=0, z=0,
                    comps={'building': building_model})
-
 
     G.add_edge('Producer', 'Street0', name='dist_pipe0')
 
@@ -390,8 +393,8 @@ for n, case in enumerate(selected_model_cases):
 
             optmodel.change_params(b_params, 'Building' + str(i), 'building')
 
-            # dhw_params = parameters.get_dhw_params(flag_nm, i)
-            # optmodel.change_params(dhw_params, 'Building' + str(i), 'DHW')
+            dhw_params = parameters.get_dhw_params(flag_nm, i)
+            optmodel.change_params(dhw_params, 'Building' + str(i), 'DHW')
 
             p_params = parameters.get_pipe_params(pipe_model, service_pipes[street][i])
             optmodel.change_params(p_params, None, 'serv_pipe' + str(i))
