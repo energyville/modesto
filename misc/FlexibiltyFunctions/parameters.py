@@ -31,10 +31,8 @@ def aggregate_ISO13790(name, street_nr, n_buildings):
     return ut.aggregate_columns(df)
 
 
-def aggregate_StROBe(name, start_building, n_buildings):
-    df = ut.read_time_data(get_data_path('UserBehaviour/Strobe_profiles'),
-                           name=name + '.csv').ix[:,
-         n_buildings * start_building: n_buildings * start_building + n_buildings]
+def aggregate_StROBe(data, start_building, n_buildings):
+    df = data.ix[:, n_buildings * start_building: n_buildings * start_building + n_buildings]
 
     return ut.aggregate_columns(df)
 
@@ -236,24 +234,35 @@ def get_aggregated_building_params(node_method, building_nr, mult, max_heat=None
 
     output = get_building_params(node_method, mult, heat_profile)
 
-    if node_method:
+    if not node_method:
         day_min = aggregate_min_temp('day', model_type, building_nr, mult)
         night_min = aggregate_min_temp('night', model_type, building_nr, mult)
-        Q_int_D = aggregate_ISO13790('Q_int_D', building_nr, mult)
-        Q_int_N = aggregate_ISO13790('Q_int_N', building_nr, mult)
+        QCon = aggregate_StROBe(dr.QCon_df, building_nr, mult)
+        QRad = aggregate_StROBe(dr.QRad_df, building_nr, mult)
+
+        Q_int_D = 0.5*(QCon + QRad)
+        Q_int_N = 0.5*(QCon + QRad)
 
         if mult > 30:
-            mult_iso = 29
+            mult= 29
             building_nr = 0
         else:
-            mult_iso = mult
+            mult = mult
 
-        day_max = aggregate_ISO13790('day_max', building_nr, mult_iso)
-        night_max = aggregate_ISO13790('night_max', building_nr, mult_iso)
-        bathroom_max = aggregate_ISO13790('bathroom_max', building_nr, mult_iso)
-        bathroom_min = aggregate_ISO13790('bathroom_min', building_nr, mult_iso)
-        floor_max = aggregate_ISO13790('floor_max', building_nr, mult_iso)
-        floor_min = aggregate_ISO13790('floor_min', building_nr, mult_iso)
+        day_max = pd.Series(max(day_min) + 1, index=day_min.index)
+        night_max = pd.Series(max(max(day_min) - 3, max(night_min) + 1), index=day_min.index)
+        bathroom_max = aggregate_ISO13790('bathroom_max', building_nr, mult)
+        bathroom_min = aggregate_ISO13790('bathroom_min', building_nr, mult)
+        floor_max = aggregate_ISO13790('floor_max', building_nr, mult)
+        floor_min = aggregate_ISO13790('floor_min', building_nr, mult)
+
+        day_states = ['TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0']
+        night_states = ['TfiN0', 'TiN0', 'TwiN0', 'TwN0']
+
+        for state in day_states:
+            output[state] = day_min[0]
+        for state in night_states:
+            output[state] = night_min[0]
 
         output['max_heat'] = max_heat
         output['model_type'] = model_type

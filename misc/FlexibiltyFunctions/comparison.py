@@ -31,8 +31,8 @@ n_points = int(math.ceil(n_buildings / 2))
 
 selected_flex_cases = ['Reference',  'Flexibility']
 selected_model_cases = ['NoPipes', 'Building', 'Pipe', 'Combined']
-selected_street_cases = ['New street', 'Old street', 'Mixed street']
-selected_district_cases = ['Series', 'Parallel']
+selected_street_cases = []
+selected_district_cases = ['Series']
 
 n_cases = len(selected_flex_cases) * len(selected_model_cases) * len(selected_street_cases + selected_district_cases)
 
@@ -111,7 +111,7 @@ pipe_models = {'NoPipes': 'SimplePipe',
                'StSt': 'ExtensivePipe',
                'Dynamic': 'NodeMethod'}
 
-pos = 3/7
+pos = 3.5/7
 price_profiles = {'constant': pd.Series(1, index=time_index),
                   'step': pd.Series([1]*int(len(time_index)*pos) + [2]*(len(time_index)-int(len(time_index)*pos)),
                                     index=time_index)}
@@ -132,6 +132,8 @@ Initializing results
 
 """
 
+parameters.dr.read_data(horizon + 2*time_steps['StSt'], start_time, time_steps['Dynamic'])
+
 Building_heat_use = {}
 Heat_injection = {}
 Building_temperatures = {}
@@ -142,7 +144,7 @@ objectives = {}
 
 # Difference in energy use
 fig1, ax = plt.subplots(1, 1)
-fig1.suptitle('Step response function?')
+fig1.suptitle('Step responses')
 
 if selected_street_cases:
 
@@ -372,14 +374,19 @@ for n, case in enumerate(selected_model_cases):
                     if val <= 0.1:
                         heat_profile[j] = 10
 
-                b_params = parameters.get_building_params(flag_nm,
+                b_params = parameters.get_single_building_params(flag_nm,
                                                           i,
                                                           heat_profile=heat_profile)
             else:
-                b_params = parameters.get_building_params(flag_nm,
-                                                          i,
-                                                          max_heat=max_heat[streets[street][i]],
-                                                          model_type=streets[street][i])
+                b_params = parameters.get_single_building_params(flag_nm,
+                                                                 i,
+                                                                max_heat=max_heat[streets[street][i]],
+                                                                model_type=streets[street][i])
+
+                axarr2[0, i].plot(b_params['day_min_temperature'], color='k', linestyle=':')
+                axarr2[0, i].plot(b_params['day_max_temperature'], color='k', linestyle=':')
+                axarr2[1, i].plot(b_params['night_min_temperature'], color='k', linestyle=':')
+                axarr2[1, i].plot(b_params['night_max_temperature'], color='k', linestyle=':')
 
             optmodel.change_params(b_params, 'Building' + str(i), 'building')
 
@@ -420,9 +427,9 @@ for n, case in enumerate(selected_model_cases):
             objectives[case][street][flex_case]['cost'] = optmodel.get_objective('cost')
 
             print 'Slack: ', optmodel.model.Slack.value
-            print 'Energy:', optmodel.get_objective('energy'), ' kWh'
-            print 'Cost:  ', optmodel.get_objective('cost'), ' euro'
-            print 'Active:', optmodel.get_objective()
+            print 'Energy:', optmodel.get_objective('energy') - optmodel.model.Slack.value, ' kWh'
+            print 'Cost:  ', optmodel.get_objective('cost') - optmodel.model.Slack.value, ' euro'
+            print 'Active:', optmodel.get_objective() - optmodel.model.Slack.value
 
             Building_temperatures[case][street][flex_case]['TiD'] = {}
             Building_temperatures[case][street][flex_case]['TiN'] = {}
@@ -532,18 +539,22 @@ for n, case in enumerate(selected_model_cases):
                     if val <= 0.1:
                         heat_profile[j] = 100
 
-                b_params = parameters.get_building_params(flag_nm,
+                b_params = parameters.get_aggregated_building_params(flag_nm,
                                                           i,
                                                           heat_profile=heat_profile,
-                                                          mult=1,
-                                                          aggregated=True)  # heat_profile gives heat use for entire street, not one building!
+                                                          mult=1
+                                                          )  # heat_profile gives heat use for entire street, not one building!
             else:
-                b_params = parameters.get_building_params(flag_nm,
+                b_params = parameters.get_aggregated_building_params(flag_nm,
                                                           i,
                                                           max_heat=max_heat[streets[district][i]],
                                                           model_type=streets[district][i],
-                                                          mult=n_buildings,
-                                                          aggregated=True)
+                                                          mult=n_buildings)
+
+                axarr3[0, i].plot(b_params['day_min_temperature'], color='k', linestyle=':')
+                axarr3[0, i].plot(b_params['day_max_temperature'], color='k', linestyle=':')
+                axarr3[1, i].plot(b_params['night_min_temperature'], color='k', linestyle=':')
+                axarr3[1, i].plot(b_params['night_max_temperature'], color='k', linestyle=':')
 
             optmodel.change_params(b_params, 'Street' + str(i), 'building')
 
@@ -577,9 +588,9 @@ for n, case in enumerate(selected_model_cases):
             objectives[case][district][flex_case]['cost'] = optmodel.get_objective('cost')
 
             print 'Slack: ', optmodel.model.Slack.value
-            print 'Energy:', optmodel.get_objective('energy'), ' kWh'
-            print 'Cost:  ', optmodel.get_objective('cost'), ' euro'
-            print 'Active:', optmodel.get_objective()
+            print 'Energy:', optmodel.get_objective('energy') - optmodel.model.Slack.value, ' kWh'
+            print 'Cost:  ', optmodel.get_objective('cost') - optmodel.model.Slack.value, ' euro'
+            print 'Active:', optmodel.get_objective() - optmodel.model.Slack.value
 
             Building_temperatures[case][district][flex_case]['TiD'] = {}
             Building_temperatures[case][district][flex_case]['TiN'] = {}
