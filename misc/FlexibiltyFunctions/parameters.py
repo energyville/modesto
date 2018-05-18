@@ -13,6 +13,36 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 modesto_path = os.path.dirname(os.path.dirname(dir_path))
 data_path = os.path.join(modesto_path, 'modesto', 'Data')
 
+
+"""
+
+Extra methods
+
+"""
+
+
+def aggregate_ISO13790(name, street_nr, n_buildings):
+    df = pd.DataFrame(index=t_amb.index, columns=range(n_buildings))
+    for i in range(n_buildings):
+        profile_nr = street_nr * n_buildings + i
+        df[i] = ut.read_time_data(get_data_path('UserBehaviour'),
+                                  name='ISO13790_stat_profile' + str(profile_nr) + '.csv')[name]
+
+    return ut.aggregate_columns(df)
+
+
+def aggregate_min_temp(name, building_model, start_building, n_buildings):
+    df = ut.read_time_data(os.path.join(modesto_path, 'misc', 'aggregation_methods')
+                           , name=name + '_t_' + building_model + '.csv') \
+             .ix[:, n_buildings * start_building: n_buildings * start_building + n_buildings]
+    df.index = t_amb.index[0: len(df.index)]
+    return ut.aggregate_columns(df)
+
+
+def get_data_path(subfolder):
+    return os.path.join(data_path, subfolder)
+
+
 """
 
 Network parameters
@@ -28,10 +58,6 @@ delta_T = supply_temp - return_temp
 Weather data and others
 
 """
-
-
-def get_data_path(subfolder):
-    return os.path.join(data_path, subfolder)
 
 
 t_amb = ut.read_time_data(get_data_path('Weather'), name='weatherData.csv')['Te']
@@ -50,6 +76,7 @@ General parameters
 
 general_params = {'Te': t_amb,
                   'Tg': t_g}
+
 
 def get_general_params():
     return general_params
@@ -101,10 +128,40 @@ building_params = {'delta_T': delta_T,
                    }
 
 
-def get_building_params(node_method, building_nr,
-                        max_heat=None, model_type=None, heat_profile=None, mult=1, aggregated=False):
+def get_building_params(building_nr,
+                        max_heat=None, model_type=None, heat_profile=None, mult=1):
 
-    if not aggregated:
+    if heat_profile is not None:
+        key_list = ['delta_T', 'mult', 'heat_profile', 'temperature_return',
+                    'temperature_supply', 'temperature_max', 'temperature_min']
+
+    else:
+        key_list = ['delta_T', 'mult', 'night_min_temperature', 'night_max_temperature',
+                    'day_min_temperature', 'day_max_temperature', 'bathroom_min_temperature',
+                    'bathroom_max_temperature', 'floor_min_temperature', 'floor_max_temperature',
+                    'model_type', 'Q_sol_E', 'Q_sol_W', 'Q_sol_S', 'Q_sol_N',
+                    'Q_int_D', 'Q_int_N', 'Te', 'Tg', 'TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0',
+                    'TfiN0', 'TiN0', 'TwiN0', 'TwN0', 'max_heat']
+
+    output = {key: building_params[key] for key in key_list}
+
+    if heat_profile is not None:
+        output['heat_profile'] = heat_profile
+    else:
+        output['max_heat'] = max_heat
+        output['model_type'] = model_type
+
+    output['mult'] = mult
+
+    return output
+
+
+def get_single_building_params(building_nr, max_heat=None, model_type=None, heat_profile=None, mult=1):
+
+    output = get_building_params(building_nr, max_heat, model_type, heat_profile, mult)
+
+    if heat_profile is None:
+
         day_max = ut.read_time_data(get_data_path('UserBehaviour'),
                                     name='ISO13790_stat_profile' + str(building_nr) + '.csv')['day_max']
         day_min = ut.read_time_data(get_data_path('UserBehaviour'),
@@ -125,54 +182,7 @@ def get_building_params(node_method, building_nr,
                                     name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_D']
         Q_int_N = ut.read_time_data(get_data_path('UserBehaviour'),
                                     name='ISO13790_stat_profile' + str(building_nr) + '.csv')['Q_int_N']
-    else:
-        def aggregate(name, street_nr, n_buildings):
-            df = pd.DataFrame(index=t_amb.index, columns=range(n_buildings))
-            for i in range(n_buildings):
-                profile_nr = street_nr*(n_buildings) + i
-                df[i] = ut.read_time_data(get_data_path('UserBehaviour'),
-                                          name='ISO13790_stat_profile' + str(profile_nr) + '.csv')[name]
 
-            return ut.aggregate_columns(df)
-
-        def aggregate_min_temp(name, building_model, street_nr, n_buildings):
-            df = ut.read_time_data(os.path.join(modesto_path, 'misc', 'aggregation_methods')
-                                   , name=name + '_t_' + building_model + '.csv') \
-                     .ix[:, 0: n_buildings]
-            df.index = t_amb.index[0: len(df.index)]
-            return ut.aggregate_columns(df)
-
-        day_max = aggregate('day_max', building_nr, mult)
-        day_min = aggregate('day_min', building_nr, mult)
-        night_max = aggregate('night_max', building_nr, mult)
-        night_min = aggregate('night_min', building_nr, mult)
-        bathroom_max = aggregate('bathroom_max', building_nr, mult)
-        bathroom_min = aggregate('bathroom_min', building_nr, mult)
-        floor_max = aggregate('floor_max', building_nr, mult)
-        floor_min = aggregate('floor_min', building_nr, mult)
-        Q_int_D = aggregate('Q_int_D', building_nr, mult)
-        Q_int_N = aggregate('Q_int_N', building_nr, mult)
-
-    if node_method:
-        if heat_profile is None:
-            raise Exception('A heat profile should be given in case the node method is used.')
-        key_list = ['delta_T', 'mult', 'heat_profile', 'temperature_return',
-                    'temperature_supply', 'temperature_max', 'temperature_min']
-    else:
-        key_list = ['delta_T', 'mult', 'night_min_temperature', 'night_max_temperature',
-                    'day_min_temperature', 'day_max_temperature', 'bathroom_min_temperature',
-                    'bathroom_max_temperature', 'floor_min_temperature', 'floor_max_temperature',
-                    'model_type', 'Q_sol_E', 'Q_sol_W', 'Q_sol_S', 'Q_sol_N',
-                    'Q_int_D', 'Q_int_N', 'Te', 'Tg', 'TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0',
-                    'TfiN0', 'TiN0', 'TwiN0', 'TwN0', 'max_heat']
-
-    output = {key: building_params[key] for key in key_list}
-
-    if node_method:
-        output['heat_profile'] = heat_profile
-    else:
-        output['max_heat'] = max_heat
-        output['model_type'] = model_type
         output['night_min_temperature'] = night_min
         output['night_max_temperature'] = night_max
         output['day_min_temperature'] = day_min
@@ -184,7 +194,39 @@ def get_building_params(node_method, building_nr,
         output['Q_int_D'] = Q_int_D
         output['Q_int_N'] = Q_int_N
 
-    output['mult'] = mult
+    return output
+
+
+def get_aggregated_building_params( building_nr, max_heat=None, model_type=None, heat_profile=None, mult=1):
+
+    output = get_building_params(building_nr, max_heat, model_type, heat_profile, mult)
+
+    if heat_profile is None:
+        day_max = aggregate_ISO13790('day_max', building_nr, mult)
+        day_min = aggregate_min_temp('day', model_type, building_nr, mult)
+        night_max = aggregate_ISO13790('night_max', building_nr, mult)
+        night_min = aggregate_min_temp('night', model_type, building_nr, mult)
+        bathroom_max = aggregate_ISO13790('bathroom_max', building_nr, mult)
+        bathroom_min = aggregate_ISO13790('bathroom_min', building_nr, mult)
+        floor_max = aggregate_ISO13790('floor_max', building_nr, mult)
+        floor_min = aggregate_ISO13790('floor_min', building_nr, mult)
+        Q_int_D = aggregate_ISO13790('Q_int_D', building_nr, mult)
+        Q_int_N = aggregate_ISO13790('Q_int_N', building_nr, mult)
+
+        output['night_min_temperature'] = night_min
+        output['night_max_temperature'] = night_max
+        output['day_min_temperature'] = day_min
+        output['day_max_temperature'] = day_max
+        output['bathroom_min_temperature'] = bathroom_min
+        output['bathroom_max_temperature'] = bathroom_max
+        output['floor_min_temperature'] = floor_min
+        output['floor_max_temperature'] = floor_max
+        output['Q_int_D'] = Q_int_D
+        output['Q_int_N'] = Q_int_N
+
+    if heat_profile is not None:
+       output['mult'] = 1
+       # note: heat_profile gives heat use for entire street, not one building!
 
     return output
 

@@ -20,7 +20,7 @@ import logging
 
 General settings
 """
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
@@ -208,10 +208,10 @@ def calc_min_temp(start_building, end_building, building_model):
 
     return day_t, night_t
 
-n_buildings = 10
-for i, building_model in enumerate(['SFH_T_5_ins_TAB', 'SFH_D_1_2zone_REF2', 'SFH_D_3_2zone_REF2']):
+n_buildings = 30
+for i, building_model in enumerate(['SFH_T_5_ins_TAB', 'SFH_SD_5_Ins_TAB', 'SFH_D_5_ins_TAB']):
     print building_model
-    day_t, night_t = calc_min_temp(i*n_buildings, (i+1)*n_buildings, building_model)
+    day_t, night_t = calc_min_temp(0, n_buildings, building_model)
 
-    day_t.to_csv('day_t_' + building_model + '.csv', sep=';')
-    night_t.to_csv('night_t_' + building_model + '.csv', sep=';')
+    day_t.to_csv('day_t_' + building_model + '2.csv', sep=';')
+    night_t.to_csv('night_t_' + building_model + '2.csv', sep=';')

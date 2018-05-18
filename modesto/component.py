@@ -440,7 +440,7 @@ class FixedProfile(Component):
                 if t == 0:
                     return Constraint.Skip
                 elif b.mass_flow[t] == 0:
-                    return b.temperatures['supply', t] == b.temperatures['return', t]
+                    return Constraint.Skip
                 else:
                     return b.temperatures['supply', t] - b.temperatures['return', t] == \
                            delta_T.v()
