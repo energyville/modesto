@@ -1010,7 +1010,8 @@ class Node(object):
         self._make_block(model)
 
         for name, comp in self.components.items():
-            comp.compile(model, self.block, start_time)
+            comp_block = self._make_component_block(name)
+            comp.compile(model, comp_block, start_time)
 
         self._add_bal()
 
@@ -1149,6 +1150,26 @@ class Node(object):
         self.logger.info(
             'Optimization block initialized for {}'.format(self.name))
 
+    def _make_component_block(self, name):
+        """
+        Make a separate block for a component model
+
+        :param name: The name of the component model
+        :return:
+        """
+
+        # If block is already present, remove it
+        if self.block.component(name) is not None:
+            self.block.del_component(self.name)
+
+        self.block.add_component(name, Block())
+        comp_block = self.block.__getattribute__(name)
+
+        self.logger.info(
+            'Optimization block for Component {} initialized'.format(name))
+
+        return comp_block
+
     def get_mflo(self, t, start_time):
         """
         Calculate the mass flow into the network
@@ -1261,6 +1282,25 @@ class Edge(object):
 
         return obj
 
+    def _make_block(self):
+        """
+        Add a block to the optimization model to add the pipe model
+
+        :param model: The optimiztaion model
+        :return:
+        """
+
+        # If block is already present, remove it
+        if self.model.component(self.name) is not None:
+            self.model.del_component(self.name)
+        self.model.add_component(self.name, Block())
+        block = self.model.__getattribute__(self.name)
+
+        self.logger.info(
+            'Optimization block for Pipe {} initialized'.format(self.name))
+
+        return block
+
     def compile(self, model, start_time):
         """
         
@@ -1270,7 +1310,10 @@ class Edge(object):
         :return: 
         """
 
-        self.pipe.compile(model, start_time)
+        self.model = model
+        block = self._make_block()
+
+        self.pipe.compile(model, block, start_time)
 
     def get_length(self):
 

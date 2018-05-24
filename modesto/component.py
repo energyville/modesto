@@ -200,27 +200,6 @@ class Component(object):
 
         return 0
 
-    def make_block(self, parent):
-        """
-        Make a separate block in the parent model.
-        This block is used to add the component model.
-
-        :param parent: The node model to which it should be added
-        :return:
-        """
-
-        self.parent = parent
-        # If block is already present, remove it
-        if self.parent.component(self.name) is not None:
-            self.parent.del_component(self.name)
-            # self.logger.warning('Overwriting block {} in Node {}'.format(self.name, self.parent.name))
-            # TODO this test should be located in node; then no knowledge of parent would be needed
-        self.parent.add_component(self.name, Block())  # TODO this too
-        self.block = self.parent.__getattribute__(self.name)
-
-        self.logger.info(
-            'Optimization block for Component {} initialized'.format(self.name))
-
     def make_slack(self, slack_name, time_axis):
         self.slack_list.append(slack_name)
         self.block.add_component(slack_name, Var(time_axis, within=NonNegativeReals))
@@ -344,6 +323,20 @@ class Component(object):
         """
         return 0
 
+    def compile(self, model, block, start_time):
+        """
+        Compiles the component model
+
+        :param model: The main optimization model
+        :param block: The component block, part of the main optimization
+        :param start_time: STart_tine of the optimization
+        :return:
+        """
+
+        self.model = model
+        self.block = block
+        self.update_time(start_time)
+
 
 class FixedProfile(Component):
     def __init__(self, name=None, horizon=None, time_step=None, direction=None,
@@ -410,23 +403,20 @@ class FixedProfile(Component):
 
         return params
 
-    def compile(self, topmodel, parent, start_time):
+    def compile(self, model, block, start_time):
         """
         Build the structure of fixed profile
 
-        :param topmodel: The main optimization model
-        :param parent: The node model
+        :param model: The main optimization model
+        :param block: The object to which all component equations can be added
         :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-        self.update_time(start_time)
+        Component.compile(self, model, block, start_time)
 
         mult = self.params['mult']
         delta_T = self.params['delta_T']
         heat_profile = self.params['heat_profile']
-
-        self.model = topmodel
-        self.make_block(parent)
 
         def _mass_flow(b, t):
             return mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
@@ -479,34 +469,6 @@ class FixedProfile(Component):
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
 
-        # def fill_opt(self):
-        #     """
-        #     Add the parameters to the model
-        #
-        #     :return:
-        #     """
-        #
-        #     param_list = ""
-        #
-        #     assert set(self.needed_design_param) >= set(self.design_param.keys()), \
-        #         "Design parameters for %s are missing: %s" \
-        #         % (self.name, str(list(set(self.design_param.keys()) - set(self.needed_design_param))))
-        #
-        #     assert set(self.needed_user_data) >= set(self.user_data.keys()), \
-        #         "User data for %s are missing: %s" \
-        #         % (self.name, str(list(set(self.user_data.keys()) - set(self.needed_user_data))))
-        #
-        #     for d_param in self.needed_design_param:
-        #         param_list += "param %s := \n%s\n;\n" % (self.name + "_" + d_param, self.design_param[d_param])
-        #
-        #     for u_param in self.needed_user_data:
-        #         param_list += "param %s := \n" % (self.name + "_" + u_param)
-        #         for i in range(self.n_steps):
-        #             param_list += str(i + 1) + ' ' + str(self.user_data[u_param].loc[i][0]) + "\n"
-        #         param_list += ';\n'
-        #
-        #     return param_list
-
 
 class VariableProfile(Component):
     # TODO Assuming that variable profile means State-Space model
@@ -528,17 +490,17 @@ class VariableProfile(Component):
 
         self.params = self.create_params()
 
-    def compile(self, topmodel, parent, start_time):
+    def compile(self, model, block, start_time):
         """
         Build the structure of a component model
 
+        :param ContreteModel model: The optimization model
+        :param Block block: The Pyomo component model object
         :param pd.Timestamp start_time: Start time of optimization horizon.
-        :param parent: The main optimization model
         :return:
         """
-        self.model = topmodel
-        self.update_time(start_time)
-        self.make_block(parent)
+
+        Component.compile(self, model, block, start_time)
 
 
 class BuildingFixed(FixedProfile):
@@ -558,8 +520,6 @@ class BuildingFixed(FixedProfile):
 
 
 class BuildingVariable(Component):
-    # TODO How to implement DHW tank? Separate model from Building or together?
-    # TODO Model DHW user without tank? -> set V_tank = 0
 
     def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
@@ -577,6 +537,7 @@ class BuildingVariable(Component):
 
 
 class ProducerFixed(FixedProfile):
+
     def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
         Class that describes a fixed producer profile
@@ -675,16 +636,13 @@ class ProducerVariable(Component):
                                                           'fixedVal')
         return params
 
-    def compile(self, topmodel, parent, start_time):
+    def compile(self, model, block, start_time):
         """
         Build the structure of a producer model
 
         :return:
         """
-        self.update_time(start_time)
-
-        self.model = topmodel
-        self.make_block(parent)
+        Component.compile(self, model, block, start_time)
 
         self.block.heat_flow = Var(self.model.TIME, bounds=(0, self.params['Qmax'].v()))
         self.block.ramping_cost = Var(self.model.TIME)
@@ -876,19 +834,16 @@ class SolarThermalCollector(Component):
         }
         return params
 
-    def compile(self, topmodel, parent, start_time):
+    def compile(self, model, block, start_time):
         """
         Compile this component's equations
 
-        :param topmodel:
-        :param parent:
+        :param model: The optimization model
+        :param block: The component model object
         :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-        self.update_time(start_time)
-
-        self.model = topmodel
-        self.make_block(parent)
+        Component.compile(self, model, block, start_time)
 
         heat_profile = self.params['heat_profile'].v()
 
@@ -1023,13 +978,12 @@ class StorageVariable(Component):
 
         return params
 
-    def calculate_static_parameters(self, start_time):
+    def calculate_static_parameters(self):
         """
         Calculate static parameters and assign them to this object for later use in equations.
 
         :return:
         """
-        self.update_time(start_time)
 
         self.max_mflo = self.params['mflo_max'].v()
         self.min_mflo = self.params['mflo_min'].v()
@@ -1061,17 +1015,19 @@ class StorageVariable(Component):
         # Time constant
         self.tau = self.volume * 1000 * self.cp / self.UAw
 
-    def initial_compilation(self, topmodel, parent):
+    def initial_compilation(self, model, block, start_time):
         """
         Common part of compilation for al inheriting classes
 
+        :param model: The optimization model
+        :param block: The compoenent model object
+        :param pd.Timestamp start_time: Start time of the optimization
         :return:
         """
         ############################################################################################
         # Initialize block
 
-        self.model = topmodel
-        self.make_block(parent)
+        Component.compile(self, model, block, start_time)
 
         # Fixed heat loss
 
@@ -1099,16 +1055,18 @@ class StorageVariable(Component):
         if self.temperature_driven:
             self.block.supply_temperature = Var(self.model.TIME)
 
-    def compile(self, topmodel, parent, start_time):
+    def compile(self, model, block, start_time):
         """
         Compile this model
 
-        :param topmodel: top optimization model with TIME and Te variable
-        :param parent: block above this level
+        :param model: top optimization model with TIME and Te variable
+        :param block: the component model object
+        :param start_time: Start time of the optimization
         :return:
         """
-        self.calculate_static_parameters(start_time)
-        self.initial_compilation(topmodel, parent)
+        self.update_time(start_time)
+        self.calculate_static_parameters()
+        self.initial_compilation(model, block, start_time)
 
         # Internal
         self.block.heat_stor = Var(self.model.X_TIME)  # , bounds=(
@@ -1229,7 +1187,7 @@ class StorageVariable(Component):
 
 
 class StorageCondensed(StorageVariable):
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
         Variable storage model. In this model, the state equation are condensed into one single equation. Only the
             initial and final state remain as a parameter. This component is also compatible with a representative
@@ -1239,7 +1197,6 @@ class StorageCondensed(StorageVariable):
         The heat losses are taken into account exactly in this model.
 
         :param name: name of the component
-        :param start_time: start time of optimization horizon
         :param horizon: horizon of optimization problem in seconds. The horizon should be that of a single
             representative period.
         :param time_step: time step of optimization problem in seconds.
@@ -1247,7 +1204,7 @@ class StorageCondensed(StorageVariable):
             used in non-temperature-driven optimizations.
 
         """
-        StorageVariable.__init__(self, name=name, start_time=start_time, horizon=horizon, time_step=time_step,
+        StorageVariable.__init__(self, name=name, horizon=horizon, time_step=time_step,
                                  temperature_driven=temperature_driven)
 
         self.N = None  # Number of flow time steps
@@ -1258,16 +1215,18 @@ class StorageCondensed(StorageVariable):
 
         self.heat_loss_coeff = None
 
-    def compile(self, topmodel, parent, start_time):
+    def compile(self, model, block, start_time):
         """
         Compile this unit. Equations calculate the final state after the specified number of repetitions.
 
-        :param topmodel: Top level model
-        :param parent: Block above current optimization block
+        :param model: Top level model
+        :param block: Component model object
+        :param start_time: Start tim of the optimization
         :return:
         """
+        self.update_time(start_time)
+        self.initial_compilation(model, block, start_time)
         self.calculate_static_parameters()
-        self.initial_compilation(topmodel, parent, start_time)
 
         self.heat_loss_coeff = exp(-self.time_step / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
         print 'zeta H is:', str(self.heat_loss_coeff)

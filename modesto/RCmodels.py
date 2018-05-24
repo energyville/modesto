@@ -196,17 +196,17 @@ class RCmodel(Component):
         self.structure = G
         self.controlVariables += ['Q_hea_D', 'Q_hea_N']
 
-    def compile(self, topmodel, parent, start_time):
+    def compile(self, model, block, start_time):
         """
-        Build the RC model
+        ompiles the RC model
 
+        :param model: The optimization model
+        :param block: The component model block
+        :param start_time: The start time of the optimization
         :return:
         """
 
-        self.update_time(start_time)
-
-        self.model = topmodel
-        self.make_block(parent)
+        Component.compile(self, model, block, start_time)
 
         self.build()
 
