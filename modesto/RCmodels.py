@@ -346,7 +346,7 @@ class RCmodel(Component):
             return self.constrain_value(b.StateTemperatures[s, t],
                                         max_temp[s].v(t),
                                         ub=True,
-                                        slack_variable=uslack[state][t])
+                                        slack_variable=uslack[s][t])
 
         def _min_temp(b, s, t):
             if min_temp[s] is None:
@@ -354,7 +354,7 @@ class RCmodel(Component):
             return self.constrain_value(b.StateTemperatures[s, t],
                                         min_temp[s].v(t),
                                         ub=False,
-                                        slack_variable=lslack[state][t])
+                                        slack_variable=lslack[s][t])
 
         self.block.max_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_max_temp)
         self.block.min_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_min_temp)

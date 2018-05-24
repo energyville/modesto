@@ -35,9 +35,11 @@ class Component(object):
         self.logger.info('Initializing Component {}'.format(name))
 
         self.name = name
-        assert horizon % time_step == 0, "The horizon of the optimization problem should be multiple of the time step."
+
         self.horizon = horizon
         self.time_step = time_step
+        if not horizon % time_step == 0:
+            raise Exception("The horizon should be a multiple of the time step.")
         self.n_steps = int(horizon / time_step)
 
         self.model = None  # The entire optimization model
@@ -442,7 +444,7 @@ class FixedProfile(Component):
                 if t == 0:
                     return Constraint.Skip
                 elif b.mass_flow[t] == 0:
-                    return b.temperatures['supply', t] == b.temperatures['return', t]
+                    return Constraint.Skip
                 else:
                     return b.temperatures['supply', t] - b.temperatures['return', t] == \
                            b.heat_flow[t] / b.mass_flow[t] / self.cp
@@ -588,6 +590,8 @@ class ProducerFixed(FixedProfile):
                                             time_step=time_step,
                                             direction=1,
                                             temperature_driven=temperature_driven)
+
+        self.params['mult'].change_value(1)
 
     def is_heat_source(self):
         return True
