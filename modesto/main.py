@@ -83,7 +83,30 @@ class Modesto:
                                        'Undisturbed ground temperature',
                                        'K',
                                        time_step=self.time_step,
-                                       horizon=self.horizon)
+                                       horizon=self.horizon),
+            'Q_sol_E': WeatherDataParameter('Q_sol_E',
+                                            'Eastern solar radiation',
+                                            'W',
+                                            self.time_step,
+                                            self.horizon
+                                            ),
+            'Q_sol_S': WeatherDataParameter('Q_sol_S',
+                                            'Southern solar radiation',
+                                            'W',
+                                            self.time_step,
+                                            self.horizon
+                                            ),
+            'Q_sol_W': WeatherDataParameter('Q_sol_W',
+                                            'Western solar radiation',
+                                            'W',
+                                            self.time_step,
+                                            self.horizon
+                                            ),
+            'Q_sol_N': WeatherDataParameter('Q_sol_N',
+                                            'Northern solar radiation',
+                                            'W',
+                                            self.time_step,
+                                            self.horizon),
         }
 
         return params
@@ -286,7 +309,14 @@ class Modesto:
         for node, comp_list in self.components.items():
             for comp, comp_obj in comp_list.items():
                 missing_params[node][comp], flag_comp = comp_obj.check_data()
-                if flag_comp:
+
+                # Assign empty component parameters that have a general version:
+                empty_general_params = set(missing_params[node][comp]).intersection(set(self.params))
+                for param in empty_general_params:
+                    comp_obj.change_param_object(param, self.params[param])
+                    del missing_params[node][comp][param]
+
+                if missing_params[node][comp]:
                     flag = True
 
         if flag:

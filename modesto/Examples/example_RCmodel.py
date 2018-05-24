@@ -83,7 +83,11 @@ def construct_model():
     # general parameters
 
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN}
 
     optmodel.change_params(general_params)
 
@@ -100,14 +104,8 @@ def construct_model():
                           'floor_min_temperature': floor_min,
                           'floor_max_temperature': floor_max,
                           'model_type': 'SFH_T_5_ins_TAB',
-                          'Q_sol_E': QsolE,
-                          'Q_sol_W': QsolW,
-                          'Q_sol_S': QsolS,
-                          'Q_sol_N': QsolN,
                           'Q_int_D': Q_int_D,
                           'Q_int_N': Q_int_N,
-                          'Te': t_amb,
-                          'Tg': t_g,
                           'TiD0': 20 + 273.15,
                           'TflD0': 20 + 273.15,
                           'TwiD0': 20 + 273.15,
@@ -206,7 +204,9 @@ def construct_model():
 
 if __name__ == '__main__':
     optmodel = construct_model()
+    print optmodel.params['Te'] == optmodel.get_component(node='zwartbergNE', name='buildingD').params['Te']
     optmodel.compile(start_time=start_time)
+    print optmodel.params['Te'] == optmodel.get_component(node='zwartbergNE', name='buildingD').params['Te']
     optmodel.set_objective('cost')
 
     optmodel.model.OBJ_ENERGY.pprint()
