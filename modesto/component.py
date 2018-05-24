@@ -1227,7 +1227,7 @@ class StorageVariable(Component):
 
 
 class StorageCondensed(StorageVariable):
-    def __init__(self, name, start_time, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, horizon, time_step, temperature_driven=False):
         """
         Variable storage model. In this model, the state equation are condensed into one single equation. Only the
             initial and final state remain as a parameter. This component is also compatible with a representative
@@ -1237,7 +1237,6 @@ class StorageCondensed(StorageVariable):
         The heat losses are taken into account exactly in this model.
 
         :param name: name of the component
-        :param start_time: start time of optimization horizon
         :param horizon: horizon of optimization problem in seconds. The horizon should be that of a single
             representative period.
         :param time_step: time step of optimization problem in seconds.
@@ -1245,16 +1244,24 @@ class StorageCondensed(StorageVariable):
             used in non-temperature-driven optimizations.
 
         """
-        StorageVariable.__init__(self, name=name, start_time=start_time, horizon=horizon, time_step=time_step,
+        StorageVariable.__init__(self, name=name, horizon=horizon, time_step=time_step,
                                  temperature_driven=temperature_driven)
 
         self.N = None  # Number of flow time steps
         self.R = None  # Number of repetitions
-        self.params['reps'] = DesignParameter(name='reps',
-                                              description='Number of times the representative period should be repeated. Default 1.',
-                                              unit='-', val=1)
 
         self.heat_loss_coeff = None
+
+    def create_params(self):
+
+        params = StorageVariable.create_params(self)
+
+        params['reps'] = DesignParameter(name='reps',
+                                          description='Number of times the representative period should be repeated. Default 1.',
+                                           unit='-',
+                                          val=1)
+
+        return params
 
     def compile(self, topmodel, parent, start_time):
         """
@@ -1265,7 +1272,7 @@ class StorageCondensed(StorageVariable):
         :return:
         """
         self.calculate_static_parameters()
-        self.initial_compilation(topmodel, parent, start_time)
+        self.initial_compilation(topmodel, parent)
 
         self.heat_loss_coeff = exp(-self.time_step / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
         print 'zeta H is:', str(self.heat_loss_coeff)
