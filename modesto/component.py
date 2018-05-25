@@ -6,7 +6,7 @@ from math import pi, log, exp
 
 from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value, Set
 
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, SeriesParameter
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, SeriesParameter, WeatherDataParameter
 
 
 def str_to_comp(string):
@@ -990,7 +990,12 @@ class StorageVariable(Component):
                                         description='Investment cost as a function of storage volume',
                                         unit='EUR',
                                         unit_index='m3',
-                                        val=0)
+                                        val=0),
+            'Te': WeatherDataParameter('Te',
+                                       'Ambient temperature',
+                                       'K',
+                                       time_step=self.time_step,
+                                       horizon=self.horizon),
         }
 
         return params
@@ -1041,6 +1046,9 @@ class StorageVariable(Component):
         :param pd.Timestamp start_time: Start time of the optimization
         :return:
         """
+
+        Te = self.params['Te'].v()
+
         ############################################################################################
         # Initialize block
 
@@ -1049,8 +1057,8 @@ class StorageVariable(Component):
         # Fixed heat loss
 
         def _heat_loss_ct(b, t):
-            return self.UAw * (self.temp_ret - self.model.Te[t]) + \
-                   self.UAtb * (self.temp_ret + self.temp_sup - 2 * self.model.Te[t])
+            return self.UAw * (self.temp_ret - Te[t]) + \
+                   self.UAtb * (self.temp_ret + self.temp_sup - 2 * Te[t])
 
         self.block.heat_loss_ct = Param(self.model.TIME, rule=_heat_loss_ct)
 

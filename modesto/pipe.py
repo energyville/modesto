@@ -11,7 +11,7 @@ from pyomo.core.base import Param, Var, Constraint, Set, Block, Binary
 
 from component import Component
 from modesto import utils
-from parameter import DesignParameter, StateParameter, UserDataParameter, SeriesParameter
+from parameter import DesignParameter, StateParameter, UserDataParameter, SeriesParameter, WeatherDataParameter
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
@@ -85,7 +85,12 @@ class Pipe(Component):
                                         unit='EUR/m',
                                         unit_index='DN (mm)',
                                         val=utils.read_xlsx_data(
-                                            resource_filename('modesto', 'Data/Investment/Pipe.xlsx'))['Cost_m'])
+                                            resource_filename('modesto', 'Data/Investment/Pipe.xlsx'))['Cost_m']),
+            'Tg': WeatherDataParameter('Tg',
+                                       'Undisturbed ground temperature',
+                                       'K',
+                                       time_step=self.time_step,
+                                       horizon=self.horizon)
         }
 
         return params
@@ -208,6 +213,8 @@ class ExtensivePipe(Pipe):
         :return:
         """
 
+        Tg = self.params["Tg"].v()
+
         Component.compile(self, model, block, start_time)
 
         self.dn = self.params['diameter'].v()
@@ -263,7 +270,7 @@ class ExtensivePipe(Pipe):
             :param dn: DN index
             :return: Heat loss in W/m
             """
-            dq = (self.temp_sup + self.temp_ret - 2 * self.model.Tg[t]) / \
+            dq = (self.temp_sup + self.temp_ret - 2 * Tg[t]) / \
                  Rs
             return dq
 
@@ -475,6 +482,7 @@ class NodeMethod(Pipe):
         Component.compile(self, model, block, start_time)
 
         self.history_length = len(self.params['mass_flow_history'].v())
+        Tg = self.params['Tg'].v()
 
         dn = self.params['diameter'].v()
 
@@ -631,7 +639,7 @@ class NodeMethod(Pipe):
                 if t == 0:
                     return Constraint.Skip
                 else:
-                    return b.wall_temp[l, t] == self.model.Tg[t] + (b.wall_temp[l, t - 1] - self.model.Tg[t]) * \
+                    return b.wall_temp[l, t] == Tg[t] + (b.wall_temp[l, t - 1] - Tg[t]) * \
                                                                    np.exp(-b.K * self.time_step /
                                                                           (surface * self.rho * self.cp +
                                                                            C / self.length))
@@ -667,7 +675,7 @@ class NodeMethod(Pipe):
         #     if t == 0:
         #         return Constraint.Skip
         #     elif b.mass_flow[t] == 0:
-        #         return b.wall_temp[t, l] == self.model.Tg[t] + (b.wall_temp[t-1, l] - self.model.Tg[t]) * \
+        #         return b.wall_temp[t, l] == Tg[t] + (b.wall_temp[t-1, l] - Tg[t]) * \
         #                                     np.exp(-b.K * self.time_step /
         #                                            (surface * self.rho * self.cp + C/self.length))
         #     else:
@@ -701,13 +709,13 @@ class NodeMethod(Pipe):
                 if t == 0:
                     return b.temperature_out[l, t] == self.params['temperature_out_' + l].v()
                 else:
-                    return b.temperature_out[l, t] == (b.temperature_out[l, t - 1] - self.model.Tg[t]) * \
+                    return b.temperature_out[l, t] == (b.temperature_out[l, t - 1] - Tg[t]) * \
                                                       np.exp(-b.K * self.time_step /
                                                              (surface * self.rho * self.cp + C / self.length)) \
-                                                      + self.model.Tg[t]
+                                                      + Tg[t]
             else:
-                return b.temperature_out[l, t] == self.model.Tg[t] + \
-                                                  (b.temperature_out_nhl[l, t] - self.model.Tg[t]) * \
+                return b.temperature_out[l, t] == Tg[t] + \
+                                                  (b.temperature_out_nhl[l, t] - Tg[t]) * \
                                                   np.exp(-(b.K * b.tk[t]) /
                                                          (surface * self.rho * self.cp))
 

@@ -268,16 +268,6 @@ class Modesto:
                                 ordered=True)  # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
         self.model.lines = Set(initialize=['supply', 'return'])
 
-        def _ambient_temp(b, t):
-            return self.params['Te'].v(t)
-
-        self.model.Te = Param(self.model.TIME, rule=_ambient_temp)
-
-        def _ground_temp(b, t):
-            return self.params['Tg'].v(t)
-
-        self.model.Tg = Param(self.model.TIME, rule=_ground_temp)
-
         # Components
         for name, edge in self.edges.items():
             edge.compile(self.model, start_time)
