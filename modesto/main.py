@@ -115,9 +115,13 @@ class Modesto:
             'horizon':
                 DesignParameter('horizon',
                                 unit='s',
-                                description='Horizon of the optimization problem')
-
-
+                                description='Horizon of the optimization problem'),
+            'lines':
+                DesignParameter('lines',
+                                unit='-',
+                                description='List of names of the lines that can be found in the network, e.g. '
+                                            '\'supply\' and \'return\'',
+                                val=['supply', 'return'])
         }
 
         return params

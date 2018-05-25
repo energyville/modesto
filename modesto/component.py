@@ -76,8 +76,8 @@ class Component(Submodel):
             raise ValueError('The model is not temperature driven, with no supply temperature variables')
         if self.block is None:
             raise Exception("The optimization model for %s has not been compiled" % self.name)
-        if not line in self.model.lines:
-            raise ValueError('The input line can only take the values from {}'.format(self.model.lines.value))
+        if not line in self.params['lines'].v():
+            raise ValueError('The input line can only take the values from {}'.format(self.params['lines'].v()))
 
         return self.block.temperatures[line, t]
 
@@ -310,6 +310,11 @@ class FixedProfile(Component):
             params['temperature_min'] = DesignParameter('temperature_min',
                                                         'Minimum allowed temperature at the component',
                                                         'K')
+            params['lines'] = DesignParameter('lines',
+                                              unit='-',
+                                              description='List of names of the lines that can be found in the network, e.g. '
+                                                          '\'supply\' and \'return\'',
+                                              val=['supply', 'return'])
 
         return params
 
@@ -338,7 +343,8 @@ class FixedProfile(Component):
         self.block.heat_flow = Param(self.TIME, rule=_heat_flow)
 
         if self.temperature_driven:
-            self.block.temperatures = Var(self.model.lines, self.TIME)
+            lines = self.params['lines'].v()
+            self.block.temperatures = Var(lines, self.TIME)
 
             def _decl_temperatures(b, t):
                 if t == 0:
@@ -374,7 +380,7 @@ class FixedProfile(Component):
             self.block.min_temp = Constraint(self.TIME, rule=_min_temp)
 
             self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
-            self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
+            self.block.init_temperatures = Constraint(lines, rule=_init_temperatures)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -551,6 +557,11 @@ class ProducerVariable(Component):
                                                           'Initial return temperature at the component',
                                                           'K',
                                                           'fixedVal')
+            params['lines'] = DesignParameter('lines',
+                                              unit='-',
+                                              description='List of names of the lines that can be found in the network, e.g. '
+                                                          '\'supply\' and \'return\'',
+                                              val=['supply', 'return'])
         return params
 
     def compile(self, model, block, start_time):
@@ -565,6 +576,8 @@ class ProducerVariable(Component):
         self.block.ramping_cost = Var(self.TIME)
 
         if self.temperature_driven:
+
+            lines = self.params['lines'].v()
             def _mass_flow(b, t):
                 return self.params['mass_flow'].v(t)
 
@@ -611,7 +624,7 @@ class ProducerVariable(Component):
 
         if self.temperature_driven:
 
-            self.block.temperatures = Var(self.model.lines, self.TIME)
+            self.block.temperatures = Var(lines, self.TIME)
 
             def _limit_temperatures(b, t):
                 return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
@@ -638,7 +651,7 @@ class ProducerVariable(Component):
                     return Constraint.Skip
 
             self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
-            self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperature)
+            self.block.init_temperatures = Constraint(lines, rule=_init_temperature)
             self.block.dec_temp_mf0 = Constraint(self.TIME, rule=_decl_temp_mf0)
 
     def get_ramp_cost(self, t):

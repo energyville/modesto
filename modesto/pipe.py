@@ -448,6 +448,11 @@ class NodeMethod(Pipe):
                                                           'Initial temperature of outgoing return water',
                                                           'K',
                                                           'fixedVal')
+        params['lines'] = DesignParameter('lines',
+                                          unit='-',
+                                          description='List of names of the lines that can be found in the network, e.g. '
+                                                      '\'supply\' and \'return\'',
+                                          val=['supply', 'return'])
 
         return params
 
@@ -459,14 +464,14 @@ class NodeMethod(Pipe):
             elif line == 'return':
                 return self.block.temperature_out[line, t]
             else:
-                raise ValueError('The input line can only take the values from {}'.format(self.model.lines.values))
+                raise ValueError('The input line can only take the values from {}'.format(self.params['lines'].v()))
         elif node == self.end_node:
             if line == 'supply':
                 return self.block.temperature_out[line, t]
             elif line == 'return':
                 return self.block.temperature_in[line, t]
             else:
-                raise ValueError('The input line can only take the values from {}'.format(self.model.lines.values))
+                raise ValueError('The input line can only take the values from {}'.format(self.params['lines'].v()))
         else:
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
@@ -485,7 +490,7 @@ class NodeMethod(Pipe):
 
         self.history_length = len(self.params['mass_flow_history'].v())
         Tg = self.params['Tg'].v()
-
+        lines = self.params['lines'].v()
         dn = self.params['diameter'].v()
         n_steps = int(self.horizon/self.time_step)
 
@@ -507,11 +512,11 @@ class NodeMethod(Pipe):
 
         # Declare temperature variables ################################################################################
 
-        self.block.temperatures = Var(self.model.lines, self.block.all_time)  # all temperatures (historical and future)
-        self.block.temperature_out_nhc = Var(self.model.lines, self.block.all_time)  # no heat capacity (only future)
-        self.block.temperature_out_nhl = Var(self.model.lines, self.block.all_time)  # no heat losses (only future)
-        self.block.temperature_out = Var(self.model.lines, self.block.all_time)  # no heat losses (only future)
-        self.block.temperature_in = Var(self.model.lines, self.block.all_time)  # incoming temperature (future)
+        self.block.temperatures = Var(lines, self.block.all_time)  # all temperatures (historical and future)
+        self.block.temperature_out_nhc = Var(lines, self.block.all_time)  # no heat capacity (only future)
+        self.block.temperature_out_nhl = Var(lines, self.block.all_time)  # no heat losses (only future)
+        self.block.temperature_out = Var(lines, self.block.all_time)  # no heat losses (only future)
+        self.block.temperature_in = Var(lines, self.block.all_time)  # incoming temperature (future)
 
         # Declare list filled with all previous mass flows and future mass flows #######################################
 
@@ -531,7 +536,7 @@ class NodeMethod(Pipe):
             else:
                 return b.temperatures[l, t] == self.params['temperature_history_' + l].v(t - n_steps)
 
-        self.block.def_temp_history = Constraint(self.block.all_time, self.model.lines, rule=_decl_temp_history)
+        self.block.def_temp_history = Constraint(self.block.all_time, lines, rule=_decl_temp_history)
 
         # Initialize incoming temperature ##############################################################################
 
@@ -539,7 +544,7 @@ class NodeMethod(Pipe):
             return b.temperature_in[l, 0] == self.params['temperature_history_' + l].v(
                 0)  # TODO better initialization??
 
-        self.block.decl_init_temp_in = Constraint(self.model.lines, rule=_decl_init_temp_in)
+        self.block.decl_init_temp_in = Constraint(lines, rule=_decl_init_temp_in)
 
         # Define n #####################################################################################################
 
@@ -582,13 +587,13 @@ class NodeMethod(Pipe):
         # Define Y #####################################################################################################
 
         # Eq. 3.4.9
-        self.block.Y = Var(self.model.lines, self.TIME)
+        self.block.Y = Var(lines, self.TIME)
 
         def _y(b, t, l):
             return b.Y[l, t] == sum(b.mf_history[i] * b.temperatures[l, i] * self.time_step
                                     for i in range(n_steps - 1 - t + b.n[t] + 1, n_steps - 1 - t + b.m[t]))
 
-        self.block.def_Y = Constraint(self.TIME, self.model.lines, rule=_y)
+        self.block.def_Y = Constraint(self.TIME, lines, rule=_y)
 
         # Define S #####################################################################################################
 
@@ -615,7 +620,7 @@ class NodeMethod(Pipe):
                                                        b.temperatures[l, n_steps - 1 - t + b.m[t]]) \
                                                       / b.mass_flow[t] / self.time_step
 
-        self.block.def_temp_out_nhc = Constraint(self.TIME, self.model.lines, rule=_def_temp_out_nhc)
+        self.block.def_temp_out_nhc = Constraint(self.TIME, lines, rule=_def_temp_out_nhc)
 
         # Pipe wall heat capacity ######################################################################################
 
@@ -624,7 +629,7 @@ class NodeMethod(Pipe):
 
         # Eq. 3.4.14
 
-        self.block.wall_temp = Var(self.model.lines, self.TIME)
+        self.block.wall_temp = Var(lines, self.TIME)
 
         def _decl_temp_out_nhl(b, t, l):
             if t == 0:
@@ -649,14 +654,14 @@ class NodeMethod(Pipe):
             else:
                 return b.wall_temp[l, t] == b.temperature_out_nhl[l, t]
 
-        # self.block.temp_wall = Constraint(self.TIME, self.model.lines, rule=_temp_wall)
+        # self.block.temp_wall = Constraint(self.TIME, lines, rule=_temp_wall)
 
         # Eq. 3.4.15
 
         def _init_temp_wall(b, l):
             return b.wall_temp[l, 0] == self.params['wall_temperature_' + l].v()
 
-        self.block.init_temp_wall = Constraint(self.model.lines, rule=_init_temp_wall)
+        self.block.init_temp_wall = Constraint(lines, rule=_init_temp_wall)
 
         # def _decl_temp_out_nhl(b, t, l):
         #     if t == 0:
@@ -670,7 +675,7 @@ class NodeMethod(Pipe):
         #                                                + C * b.wall_temp[t-1, l]) / \
         #                                               (C/2 + b.mass_flow[t] * self.cp * self.time_step)
 
-        self.block.decl_temp_out_nhl = Constraint(self.TIME, self.model.lines, rule=_decl_temp_out_nhl)
+        self.block.decl_temp_out_nhl = Constraint(self.TIME, lines, rule=_decl_temp_out_nhl)
 
         # Eq. 3.4.18
 
@@ -686,7 +691,7 @@ class NodeMethod(Pipe):
         #                             ((b.temperature_out_nhc[t, l] - b.temperature_out_nhl[t, l]) *
         #                              b.mass_flow[t] * self.cp * self.time_step) / C
 
-        self.block.temp_wall = Constraint(self.TIME, self.model.lines, rule=_temp_wall)
+        self.block.temp_wall = Constraint(self.TIME, lines, rule=_temp_wall)
 
         # Heat losses ##################################################################################################
 
@@ -722,7 +727,7 @@ class NodeMethod(Pipe):
                                                   np.exp(-(b.K * b.tk[t]) /
                                                          (surface * self.rho * self.cp))
 
-        self.block.def_temp_out = Constraint(self.TIME, self.model.lines, rule=_temp_out)
+        self.block.def_temp_out = Constraint(self.TIME, lines, rule=_temp_out)
 
     def get_diameter(self):
         return self.Di[self.params['diameter'].v()]
