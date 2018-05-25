@@ -427,8 +427,8 @@ if __name__ == '__main__':
     time_step = 3600 * 6
     duration_repr = 7
     model, optimizers = representative(duration_repr=duration_repr,
-                                       selection=selection, VWat=75000, solArea=50000, VSTC=100000, time_step=time_step)
-    solve_repr(model, probe=False, solver='cplex')
+                                       selection=selection, VWat=75000, solArea=150000, VSTC=100000, time_step=time_step)
+    solve_repr(model, probe=False, solver='gurobi')
 
     # ## Post-processing
 
