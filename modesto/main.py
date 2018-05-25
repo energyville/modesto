@@ -107,6 +107,7 @@ class Modesto:
                                             'W',
                                             self.time_step,
                                             self.horizon),
+
         }
 
         return params

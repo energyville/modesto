@@ -114,6 +114,10 @@ def setup_opt():
     wd = ut.read_time_data(datapath, name='Weather/weatherData.csv')
     t_amb = wd['Te']
     t_g = wd['Tg']
+    QsolN = wd['QsolN']
+    QsolE = wd['QsolS']
+    QsolS = wd['QsolN']
+    QsolW = wd['QsolW']
 
     # #### Electricity price
 
@@ -129,7 +133,11 @@ def setup_opt():
 
 
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN}
 
     model.change_params(general_params)
 

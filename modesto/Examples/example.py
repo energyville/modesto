@@ -64,12 +64,24 @@ def construct_model():
     t_amb = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='extT.csv')['Te']
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
+    # Solar radiation
+    datapath = resource_filename('modesto', 'Data')
+    wd = ut.read_time_data(datapath, name='Weather/weatherData.csv')
+    QsolN = wd['QsolN']
+    QsolE = wd['QsolS']
+    QsolS = wd['QsolN']
+    QsolW = wd['QsolW']
+
     optmodel.opt_settings(allow_flow_reversal=True)
 
     # general parameters
 
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN}
 
     optmodel.change_params(general_params)
 
