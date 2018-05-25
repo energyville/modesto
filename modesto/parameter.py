@@ -62,6 +62,15 @@ class Parameter(object):
         else:
             return 'Description: {}\nUnit: {}\nValue: {}'.format(self.description, self.unit, self.value)
 
+    def get_all_values(self):
+        """
+        :return: All stored values of the parameter, regardless of optimization start or horizon
+        """
+        if self.value is None:
+            self.logger.warning('{} does not have a value yet'.format(self.name))
+
+        return self.value
+
     def get_value(self, time=None):
         """
 

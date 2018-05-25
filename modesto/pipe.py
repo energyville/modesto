@@ -114,25 +114,6 @@ class Pipe(Component):
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
 
-    def make_block(self, model):
-        """
-        Make a separate block in the parent model.
-        This block is used to add the component model.
-
-        :param parent: The node model to which it should be added (AbstractModel.block)
-        :return:
-        """
-
-        self.model = model
-        # If block is already present, remove it
-        if self.model.component(self.name) is not None:
-            self.model.del_component(self.name)
-        self.model.add_component(self.name, Block())
-        self.block = self.model.__getattribute__(self.name)
-
-        self.logger.info(
-            'Optimization block for Pipe {} initialized'.format(self.name))
-
 
 class SimplePipe(Pipe):
     def __init__(self, name, horizon, time_step, start_node, end_node,
@@ -162,17 +143,17 @@ class SimplePipe(Pipe):
 
         self.params['diameter'].change_value(20)
 
-    def compile(self, model, start_time):
+    def compile(self, model, block, start_time):
         """
         Compile the optimization model
 
-        :param parent: The model on the higher level
+        :param model: The entire optimization model
+        :param block: The pipe model object
+        :param start_time: The optimization start_time
 
         :return:
         """
-        self.update_time(start_time)
-
-        self.make_block(model)
+        Component.compile(self, model, block, start_time)
 
         self.block.heat_flow_in = Var(self.model.TIME)
         self.block.heat_flow_out = Var(self.model.TIME)
@@ -217,18 +198,21 @@ class ExtensivePipe(Pipe):
         self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K')
         self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K')
 
-    def compile(self, model, start_time):
+    def compile(self, model, block, start_time):
         """
         Build the structure of the optimization model
 
+        :param model: The entire optimization model
+        :param block:The pipe model object
+        :param start_time: The optimization start time
         :return:
         """
-        self.update_time(start_time)
+
+        Component.compile(self, model, block, start_time)
 
         self.dn = self.params['diameter'].v()
         if self.dn is None:
             self.logger.info('No dn set. Optimizing diameter.')
-        self.make_block(model)
 
         # TODO Leave this here?
         vflomax = {  # Maximal volume flow rate per DN in m3/h
@@ -478,18 +462,21 @@ class NodeMethod(Pipe):
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
 
-    def compile(self, model, start_time):
+    def compile(self, model, block, start_time):
         """
+        Build the structure of the optimization model
 
-
+        :param model: The entire optimization model
+        :param block:The pipe model object
+        :param start_time: The optimization start time
         :return:
         """
-        self.update_time(start_time)
+
+        Component.compile(self, model, block, start_time)
 
         self.history_length = len(self.params['mass_flow_history'].v())
 
         dn = self.params['diameter'].v()
-        self.make_block(model)
 
         self.block.all_time = Set(initialize=range(self.history_length + self.n_steps), ordered=True)
 
