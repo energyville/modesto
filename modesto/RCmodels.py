@@ -331,7 +331,7 @@ class RCmodel(Component):
                 max_temp[state] = self.params['floor_max_temperature']
                 min_temp[state] = self.params['floor_min_temperature']
             else:
-                raise Exception('{} was given as state type which is not valid'.format(s_ob.state_type))
+                raise Exception('{} was given a state type which is not valid'.format(s_ob.state_type))
 
             if (self.params[state + '0'].get_slack()) and (s_ob.state_type is not None):
                 uslack[state] = self.make_slack(state + '_u_slack', self.model.X_TIME)

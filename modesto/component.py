@@ -98,6 +98,23 @@ class Component(object):
 
         return self.params.keys()
 
+    def change_param_object(self, name, new_object):
+        """
+        Change a parameter object (used in case of general parameters that are needed in componenet models)
+
+        :param name:
+        :return:
+        """
+
+        if name not in self.params:
+            raise KeyError('{} is not recognized as a parameter of {}'.format(name, self.name))
+        if not type(self.params[name]) is type(new_object):
+            raise TypeError('When changing the {} parameter object, you should use '
+                            'the same type as the original parameter.'.format(name))
+
+        self.params[name] = new_object
+
+
     def get_param_value(self, name, time=None):
         """
         Gets value of specified design param. Returns "None" if unknown
