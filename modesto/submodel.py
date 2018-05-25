@@ -21,17 +21,17 @@ class Submodel(object):
         """
         self.name = name
 
+        self.temperature_driven = temperature_driven
+
         self.horizon = horizon
         self.time_step = time_step
         if not horizon % time_step == 0:
             raise Exception("The horizon should be a multiple of the time step.")
 
-        self.params = None
+        self.params = self.create_params()
 
         self.cp = 4180
         self.rho = 1000
-
-        self.temperature_driven = temperature_driven
 
 
     def create_params(self):
@@ -159,17 +159,3 @@ class Submodel(object):
         # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
         self.TIME = self.X_TIME[:-1]
 
-    def compile(self, model, block, start_time):
-        """
-        Compiles the component model
-
-        :param model: The main optimization model
-        :param block: The component block, part of the main optimization
-        :param start_time: STart_tine of the optimization
-        :return:
-        """
-
-        self.set_time_axis()
-        self.model = model
-        self.block = block
-        self.update_time(start_time)

@@ -228,12 +228,12 @@ class RCmodel(Component):
 
         ##### Variables
 
-        self.block.StateTemperatures = Var(self.block.control_states, self.model.X_TIME)
-        self.block.StateHeatFlows = Var(self.block.control_states, self.model.TIME)
-        self.block.ControlHeatFlows = Var(self.block.control_variables, self.model.TIME)
-        self.block.EdgeHeatFlows = Var(self.block.edge_names, self.model.TIME)
-        self.block.mass_flow = Var(self.model.TIME)
-        self.block.heat_flow = Var(self.model.TIME)
+        self.block.StateTemperatures = Var(self.block.control_states, self.X_TIME)
+        self.block.StateHeatFlows = Var(self.block.control_states, self.TIME)
+        self.block.ControlHeatFlows = Var(self.block.control_variables, self.TIME)
+        self.block.EdgeHeatFlows = Var(self.block.edge_names, self.TIME)
+        self.block.mass_flow = Var(self.TIME)
+        self.block.heat_flow = Var(self.TIME)
 
         ##### Parameters
 
@@ -247,14 +247,14 @@ class RCmodel(Component):
             incoming_heat_names = obj.input['heat_fix']
             return sum(self.params[i].v(t)*obj.get_q_factor(i) for i in incoming_heat_names)
 
-        self.block.fixed_state_heat = Param(self.block.control_states, self.model.TIME, rule=decl_state_heat)
+        self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat)
 
         def decl_fixed_temperature(b, s, t):
             temp = self.states[s].input['temperature']
             return self.params[temp].v(t)
 
         self.block.FixedTemperatures = Param(self.block.fixed_states,
-                                            self.model.TIME, rule=decl_fixed_temperature)
+                                            self.TIME, rule=decl_fixed_temperature)
 
         ##### State energy balances
 
@@ -265,7 +265,7 @@ class RCmodel(Component):
                    b.StateHeatFlows[s, t]
 
         self.block.energy_balance = Constraint(self.block.control_states,
-                                               self.model.TIME, rule=_energy_balance)
+                                               self.TIME, rule=_energy_balance)
 
 
         ##### Temperature change state
@@ -274,13 +274,13 @@ class RCmodel(Component):
             return b.StateTemperatures[s, t+1] == b.StateTemperatures[s, t] + \
                    b.StateHeatFlows[s, t]/self.states[s].C*self.time_step
 
-        self.block.temp_change = Constraint(self.block.control_states, self.model.TIME, rule=_temp_change)
+        self.block.temp_change = Constraint(self.block.control_states, self.TIME, rule=_temp_change)
 
         def _init_temp(b, s):
             if self.params[s + '0'].get_init_type() == 'fixedVal':
                 return b.StateTemperatures[s, 0] == self.params[s + '0'].v()
             elif self.params[s + '0'].get_init_type() == 'cyclic':
-                return b.StateTemperatures[s, 0] == b.StateTemperatures[s, self.model.X_TIME[-1]]
+                return b.StateTemperatures[s, 0] == b.StateTemperatures[s, self.X_TIME[-1]]
             elif self.params[s + '0'].get_init_type() == 'free':
                 return Constraint.Skip
             else:
@@ -303,7 +303,7 @@ class RCmodel(Component):
                 stop_temp = b.FixedTemperatures[e_ob.stop, t]
             return b.EdgeHeatFlows[e, t] == (start_temp - stop_temp)*e_ob.U
 
-        self.block.edge_heat_flow = Constraint(self.block.edge_names, self.model.TIME, rule=_edge_heat_flow)
+        self.block.edge_heat_flow = Constraint(self.block.edge_names, self.TIME, rule=_edge_heat_flow)
 
         ##### Limit temperatures
 
@@ -334,11 +334,11 @@ class RCmodel(Component):
                 raise Exception('{} was given a state type which is not valid'.format(s_ob.state_type))
 
             if (self.params[state + '0'].get_slack()) and (s_ob.state_type is not None):
-                uslack[state] = self.make_slack(state + '_u_slack', self.model.X_TIME)
-                lslack[state] = self.make_slack(state + '_l_slack', self.model.X_TIME)
+                uslack[state] = self.make_slack(state + '_u_slack', self.X_TIME)
+                lslack[state] = self.make_slack(state + '_l_slack', self.X_TIME)
             else:
-                uslack[state] = [None] * len(self.model.X_TIME)
-                lslack[state] = [None] * len(self.model.X_TIME)
+                uslack[state] = [None] * len(self.X_TIME)
+                lslack[state] = [None] * len(self.X_TIME)
 
         def _max_temp(b, s, t):
             if max_temp[s] is None:
@@ -356,8 +356,8 @@ class RCmodel(Component):
                                         ub=False,
                                         slack_variable=lslack[s][t])
 
-        self.block.max_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_max_temp)
-        self.block.min_temp = Constraint(self.block.control_states, self.model.X_TIME, rule=_min_temp)
+        self.block.max_temp = Constraint(self.block.control_states, self.X_TIME, rule=_max_temp)
+        self.block.min_temp = Constraint(self.block.control_states, self.X_TIME, rule=_min_temp)
 
         ##### Limit heat flows
 
@@ -367,8 +367,8 @@ class RCmodel(Component):
         def _min_heat_flows(b, i, t):
             return 0 <= b.ControlHeatFlows[i, t]
 
-        self.block.max_heat_flows = Constraint(self.model.TIME, rule=_max_heat_flows)
-        self.block.min_heat_flows = Constraint(self.block.control_variables, self.model.TIME, rule=_min_heat_flows)
+        self.block.max_heat_flows = Constraint(self.TIME, rule=_max_heat_flows)
+        self.block.min_heat_flows = Constraint(self.block.control_variables, self.TIME, rule=_min_heat_flows)
 
         ##### Substation model
 
@@ -379,18 +379,18 @@ class RCmodel(Component):
             # TODO Find good way to find control inputs
             return b.heat_flow[t] == mult*sum(b.ControlHeatFlows[i, t] for i in b.control_variables)
 
-        self.block.decl_heat_flow = Constraint(self.model.TIME, rule=decl_heat_flow)
+        self.block.decl_heat_flow = Constraint(self.TIME, rule=decl_heat_flow)
 
         def decl_mass_flow(b, t):
             return b.mass_flow[t] == b.heat_flow[t] / self.cp / delta_T
 
-        self.block.decl_mass_flow = Constraint(self.model.TIME, rule=decl_mass_flow)
+        self.block.decl_mass_flow = Constraint(self.TIME, rule=decl_mass_flow)
 
         # self.block.pprint()
 
         if self.temperature_driven:
             print 'WARNING: No temperature variable model implemented (yet)'
-            # self.block.temperatures = Var(self.model.TIME, self.model.lines)
+            # self.block.temperatures = Var(self.TIME, self.lines)
             #
             # def _decl_temperatures(b, t):
             #     if t == 0:
@@ -404,8 +404,8 @@ class RCmodel(Component):
             # def _init_temperatures(b, l):
             #     return b.temperatures[0, l] == self.params['temperature_' + l].v()
             #
-            # uslack = self.make_slack('temperature_max_uslack', self.model.TIME)
-            # lslack = self.make_slack('temperature_max_l_slack', self.model.TIME)
+            # uslack = self.make_slack('temperature_max_uslack', self.TIME)
+            # lslack = self.make_slack('temperature_max_l_slack', self.TIME)
             #
             # ub = self.params['temperature_max'].v()
             # lb = self.params['temperature_min'].v()
@@ -422,14 +422,17 @@ class RCmodel(Component):
             #                                 ub=False,
             #                                 slack_variable=lslack[t])
             #
-            # self.block.max_temp_ss = Constraint(self.model.TIME, rule=_max_temp_ss)
-            # self.block.min_temp_ss = Constraint(self.model.TIME, rule=_min_temp_ss)
+            # self.block.max_temp_ss = Constraint(self.TIME, rule=_max_temp_ss)
+            # self.block.min_temp_ss = Constraint(self.TIME, rule=_min_temp_ss)
             #
-            # self.block.decl_temperatures = Constraint(self.model.TIME, rule=_decl_temperatures)
-            # self.block.init_temperatures = Constraint(self.model.lines, rule=_init_temperatures)
+            # self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
+            # self.block.init_temperatures = Constraint(self.lines, rule=_init_temperatures)
 
     def create_params(self):
-        params = {
+
+        params = Component.create_params(self)
+
+        params.update({
             'TiD0': StateParameter('TiD0',
                                    'Begin temperature at state TiD',
                                    'K',
@@ -580,8 +583,7 @@ class RCmodel(Component):
             'max_heat': DesignParameter('max_heat',
                                         'Maximum heating power through substation',
                                         'W')
-        }
-        # TODO Te, Tg and Q_sol als global parameters?
+        })
         return params
 
 

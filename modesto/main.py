@@ -15,6 +15,7 @@ from pyomo.opt import SolverStatus, TerminationCondition
 import RCmodels as rc
 import component as co
 import pipe as pip
+from submodel import Submodel
 # noinspection PyUnresolvedReferences
 from parameter import *
 
@@ -42,8 +43,8 @@ class Modesto:
         self.results = None
 
         self.start_time = None
-        self.state_time = range(self.n_steps + 1)
-        self.time = self.state_time[:-1]
+        self.X_TIME = range(self.n_steps + 1)
+        self.TIME = self.X_TIME[:-1]
 
         self.pipe_model = pipe_model
         if pipe_model == 'NodeMethod':
@@ -107,6 +108,15 @@ class Modesto:
                                             'W',
                                             self.time_step,
                                             self.horizon),
+            'time_step':
+                DesignParameter('time_step',
+                                unit='s',
+                                description='Time step with which the component model will be discretized'),
+            'horizon':
+                DesignParameter('horizon',
+                                unit='s',
+                                description='Horizon of the optimization problem')
+
 
         }
 
@@ -263,9 +273,6 @@ class Modesto:
         self.update_time(self.start_time)
 
         # General parameters
-        self.model.TIME = Set(initialize=self.time, ordered=True)
-        self.model.X_TIME = Set(initialize=self.state_time,
-                                ordered=True)  # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
         self.model.lines = Set(initialize=['supply', 'return'])
 
         # Components
@@ -298,6 +305,18 @@ class Modesto:
                 flag = True
 
         for node, comp_list in self.components.items():
+            if node is not None:
+                missing_params[node][None], flag_comp = self.nodes[node].check_data()
+
+                # Assign empty component parameters that have a general version:
+                empty_general_params = set(missing_params[node][None]).intersection(set(self.params))
+                for param in empty_general_params:
+                    self.nodes[node].change_param_object(param, self.params[param])
+                    del missing_params[node][None][param]
+
+                if missing_params[node][None]:
+                    flag = True
+
             for comp, comp_obj in comp_list.items():
                 missing_params[node][comp], flag_comp = comp_obj.check_data()
 
@@ -589,9 +608,10 @@ class Modesto:
 
             else:
                 if state:
-                    time = self.model.X_TIME
+                    time = self.X_TIME
                 else:
-                    time = self.model.TIME
+                    time = self.TIME
+                print time
                 for i in time:
                     result.append(opt_obj[(index, i)].value)
                 timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step) + 'S',
@@ -763,7 +783,7 @@ class Modesto:
         nodes.remove(prod_nodes[0])
         matrix = np.delete(inc_matrix, row_nr, 0)
 
-        for t in self.time:
+        for t in self.TIME:
             vector = []
 
             # Collect known mass flow rates at nodes
@@ -898,7 +918,7 @@ class Modesto:
             param.change_start_time(new_val)
 
 
-class Node(object):
+class Node(Submodel):
     def __init__(self, name, node, horizon, time_step, temperature_driven=False):
         """
         Class that represents a geographical network location,
@@ -910,22 +930,19 @@ class Node(object):
         :param horizon: Horizon of the problem
         :param time_step: Time step between two points of the problem
         """
-        self.horizon = horizon
-        self.time_step = time_step
+        Submodel.__init__(self, name=name, horizon=horizon, time_step=time_step, temperature_driven=temperature_driven)
 
         self.logger = logging.getLogger('modesto.Node')
         self.logger.info('Initializing Node {}'.format(name))
 
-        self.name = name
         self.node = node
-        self.loc = self.get_loc
+        self.loc = self.get_loc()
 
         self.model = None
         self.block = None
+
         self.components = {}
         self.pipes = {}
-
-        self.temperature_driven = temperature_driven
 
         self.build()
 
@@ -1021,6 +1038,24 @@ class Node(object):
 
         self.logger.info('Build of {} finished'.format(self.name))
 
+    def create_params(self):
+        """
+        Create all required parameters to set up the model
+
+        :return: a dictionary, keys are the names of the parameters, values are the Parameter objects
+        """
+
+        params = {'time_step':
+                      DesignParameter('time_step',
+                                       unit='s',
+                                       description='Time step with which the component model will be discretized'),
+                  'horizon':
+                       DesignParameter('horizon',
+                                       unit='s',
+                                       description='Horizon of the optimization problem')}
+        return params
+
+
     def compile(self, model, start_time):
         """
         
@@ -1028,6 +1063,7 @@ class Node(object):
         :param model: 
         :return: 
         """
+        self.set_time_axis()
         self._make_block(model)
 
         for name, comp in self.components.items():
@@ -1051,7 +1087,7 @@ class Node(object):
         # TODO No mass flow reversal yet
         if self.temperature_driven:
 
-            self.block.mix_temp = Var(self.model.TIME, self.model.lines)
+            self.block.mix_temp = Var(self.TIME, self.model.lines)
 
             def _temp_bal_incoming(b, t, l):
 
@@ -1093,7 +1129,7 @@ class Node(object):
                                pipe].get_temperature(self.name, t, l)
                                for pipe in incoming_pipes[l])
 
-            self.block.def_mixed_temp = Constraint(self.model.TIME,
+            self.block.def_mixed_temp = Constraint(self.TIME,
                                                    self.model.lines,
                                                    rule=_temp_bal_incoming)
 
@@ -1124,11 +1160,11 @@ class Node(object):
                 else:
                     return Constraint.Skip
 
-            self.block.outgoing_temp_comps = Constraint(self.model.TIME,
+            self.block.outgoing_temp_comps = Constraint(self.TIME,
                                                         self.model.lines,
                                                         c.keys(),
                                                         rule=_temp_bal_outgoing)
-            self.block.outgoing_temp_pipes = Constraint(self.model.TIME,
+            self.block.outgoing_temp_pipes = Constraint(self.TIME,
                                                         self.model.lines,
                                                         p.keys(),
                                                         rule=_temp_bal_outgoing)
@@ -1141,7 +1177,7 @@ class Node(object):
                             + sum(
                     pipe.get_heat(self.name, t) for pipe in p.values())
 
-            self.block.ineq_heat_bal = Constraint(self.model.TIME,
+            self.block.ineq_heat_bal = Constraint(self.TIME,
                                                   rule=_heat_bal)
 
             def _mass_bal(b, t):
@@ -1150,7 +1186,7 @@ class Node(object):
                             + sum(
                     pipe.get_mflo(self.name, t) for pipe in p.values())
 
-            self.block.ineq_mass_bal = Constraint(self.model.TIME,
+            self.block.ineq_mass_bal = Constraint(self.TIME,
                                                   rule=_mass_bal)
 
     def _make_block(self, model):
