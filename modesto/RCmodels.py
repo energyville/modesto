@@ -196,7 +196,7 @@ class RCmodel(Component):
         self.structure = G
         self.controlVariables += ['Q_hea_D', 'Q_hea_N']
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         ompiles the RC model
 
@@ -206,7 +206,7 @@ class RCmodel(Component):
         :return:
         """
 
-        Component.compile(self, model, block, start_time)
+        Component.compile(self, model, start_time)
 
         self.build()
 

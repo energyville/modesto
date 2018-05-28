@@ -150,7 +150,7 @@ class SimplePipe(Pipe):
 
         self.params['diameter'].change_value(20)
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Compile the optimization model
 
@@ -160,7 +160,7 @@ class SimplePipe(Pipe):
 
         :return:
         """
-        Component.compile(self, model, block, start_time)
+        Component.compile(self, model, start_time)
 
         self.block.heat_flow_in = Var(self.TIME)
         self.block.heat_flow_out = Var(self.TIME)
@@ -205,7 +205,7 @@ class ExtensivePipe(Pipe):
         self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K')
         self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K')
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Build the structure of the optimization model
 
@@ -217,7 +217,7 @@ class ExtensivePipe(Pipe):
 
         Tg = self.params["Tg"].v()
 
-        Component.compile(self, model, block, start_time)
+        Component.compile(self, model, start_time)
 
         self.dn = self.params['diameter'].v()
         if self.dn is None:
@@ -476,7 +476,7 @@ class NodeMethod(Pipe):
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Build the structure of the optimization model
 
@@ -486,7 +486,7 @@ class NodeMethod(Pipe):
         :return:
         """
 
-        Component.compile(self, model, block, start_time)
+        Component.compile(self, model, start_time)
 
         self.history_length = len(self.params['mass_flow_history'].v())
         Tg = self.params['Tg'].v()

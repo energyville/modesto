@@ -36,10 +36,7 @@ class Component(Submodel):
         self.logger = logging.getLogger('modesto.component.Component')
         self.logger.info('Initializing Component {}'.format(name))
 
-        self.model = None  # The entire optimization model
         self.block = None  # The component model
-
-        self.slack_list = []
 
         if direction is None:
             raise ValueError('Set direction either to 1 or -1.')
@@ -128,17 +125,6 @@ class Component(Submodel):
         """
         return self.direction
 
-    def get_slack(self, slack_name, t):
-        """
-        Get the value of a slack variable at a certain time
-
-        :param slack_name: Name of the slack variable
-        :param t: Time
-        :return: Value of slack
-        """
-
-        return self.block.find_component(slack_name)[t]
-
     def get_investment_cost(self):
         """
         Get the investment cost of this component. For a generic component, this is currently 0, but as components with price data are added, the cost parameter is used to get this value.
@@ -149,87 +135,7 @@ class Component(Submodel):
 
         return 0
 
-    def make_slack(self, slack_name, time_axis):
-        self.slack_list.append(slack_name)
-        self.block.add_component(slack_name, Var(time_axis, within=NonNegativeReals))
-        return self.block.find_component(slack_name)
-
-    def constrain_value(self, variable, bound, ub=True, slack_variable=None):
-        """
-
-        :param variable: variable that needs to be constrained, this is only a single value
-        :param bound: The value by which the variable needs to be bounded
-        :param ub: if True, this will impose an upper boundary, if False a lower boundary is imposed
-        :param slack_variable: The variable that describes the slack
-        :return:
-        """
-
-        # TODO make two-sided constraints (with possible double slack?) possible
-
-        if ub is True:
-            f = 1
-        else:
-            f = -1
-
-        if slack_variable is None:
-            return f * variable <= f * bound
-        else:
-            return f * variable <= f * bound + slack_variable
-
-    def obj_slack(self):
-        """
-        Yield summation of all slacks in the componenet
-
-        :return:
-        """
-        slack = 0
-
-        for slack_name in self.slack_list:
-            slack += sum(self.get_slack(slack_name, t) for t in self.TIME)
-
-        return slack
-
-    def obj_energy(self):
-        """
-        Yield summation of energy variables for objective function, but only for relevant component types
-
-        :return:
-        """
-        return 0
-
-    def obj_cost(self):
-        """
-        Yield summation of energy variables for objective function, but only for relevant component types
-
-        :return:
-        """
-        return 0
-
-    def obj_cost_ramp(self):
-        """
-        Yield summation of energy variables for objective function, but only for relevant component types
-
-        :return:
-        """
-        return 0
-
-    def obj_co2(self):
-        """
-        Yield summation of energy variables for objective function, but only for relevant component types
-
-        :return:
-        """
-        return 0
-
-    def obj_temp(self):
-        """
-        Yield summation of temperatures for objective function, but only for relevant component types
-
-        :return:
-        """
-        return 0
-
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Compiles the component model
 
@@ -240,8 +146,7 @@ class Component(Submodel):
         """
 
         self.set_time_axis()
-        self.model = model
-        self.block = block
+        self._make_block(model)
         self.update_time(start_time)
 
 
@@ -318,7 +223,7 @@ class FixedProfile(Component):
 
         return params
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Build the structure of fixed profile
 
@@ -327,7 +232,7 @@ class FixedProfile(Component):
         :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-        Component.compile(self, model, block, start_time)
+        Component.compile(self, model, start_time)
 
         mult = self.params['mult']
         delta_T = self.params['delta_T']
@@ -407,7 +312,7 @@ class VariableProfile(Component):
 
         self.params = self.create_params()
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Build the structure of a component model
 
@@ -417,7 +322,7 @@ class VariableProfile(Component):
         :return:
         """
 
-        Component.compile(self, model, block, start_time)
+        Component.compile(self, model, start_time)
 
 
 class BuildingFixed(FixedProfile):
@@ -564,13 +469,13 @@ class ProducerVariable(Component):
                                               val=['supply', 'return'])
         return params
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Build the structure of a producer model
 
         :return:
         """
-        Component.compile(self, model, block, start_time)
+        Component.compile(self, model, start_time)
 
         self.block.heat_flow = Var(self.TIME, bounds=(0, self.params['Qmax'].v()))
         self.block.ramping_cost = Var(self.TIME)
@@ -767,7 +672,7 @@ class SolarThermalCollector(Component):
         })
         return params
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Compile this component's equations
 
@@ -776,7 +681,7 @@ class SolarThermalCollector(Component):
         :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-        Component.compile(self, model, block, start_time)
+        Component.compile(self, model, start_time)
 
         heat_profile = self.params['heat_profile'].v()
 
@@ -958,7 +863,7 @@ class StorageVariable(Component):
         # Time constant
         self.tau = self.volume * 1000 * self.cp / self.UAw
 
-    def initial_compilation(self, model, block, start_time):
+    def initial_compilation(self, model, start_time):
         """
         Common part of compilation for al inheriting classes
 
@@ -973,7 +878,7 @@ class StorageVariable(Component):
         ############################################################################################
         # Initialize block
 
-        Component.compile(self, model, block, start_time)
+        Component.compile(self, model, start_time)
 
         # Fixed heat loss
 
@@ -1001,7 +906,7 @@ class StorageVariable(Component):
         if self.temperature_driven:
             self.block.supply_temperature = Var(self.TIME)
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Compile this model
 
@@ -1012,7 +917,7 @@ class StorageVariable(Component):
         """
         self.update_time(start_time)
         self.calculate_static_parameters()
-        self.initial_compilation(model, block, start_time)
+        self.initial_compilation(model, start_time)
 
         # Internal
         self.block.heat_stor = Var(self.X_TIME)  # , bounds=(
@@ -1161,7 +1066,7 @@ class StorageCondensed(StorageVariable):
 
         self.heat_loss_coeff = None
 
-    def compile(self, model, block, start_time):
+    def compile(self, model, start_time):
         """
         Compile this unit. Equations calculate the final state after the specified number of repetitions.
 
@@ -1171,7 +1076,7 @@ class StorageCondensed(StorageVariable):
         :return:
         """
         self.update_time(start_time)
-        self.initial_compilation(model, block, start_time)
+        self.initial_compilation(model, start_time)
         self.calculate_static_parameters()
 
         self.heat_loss_coeff = exp(-self.time_step / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1

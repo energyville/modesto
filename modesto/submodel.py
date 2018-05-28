@@ -1,11 +1,6 @@
 from __future__ import division
 
-import logging
-import sys
-
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value, Set
-
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, SeriesParameter, WeatherDataParameter
+from pyomo.core.base import Block,  Var, NonNegativeReals, value
 
 
 class Submodel(object):
@@ -29,6 +24,10 @@ class Submodel(object):
             raise Exception("The horizon should be a multiple of the time step.")
 
         self.params = self.create_params()
+
+        self.slack_list = []
+
+        self.block = None
 
         self.cp = 4180
         self.rho = 1000
@@ -150,6 +149,8 @@ class Submodel(object):
             return self.params[name].get_description()
 
     def set_time_axis(self):
+        print self.name
+        print self.params['horizon'].v()
         horizon = self.params['horizon'].v()
         time_step = self.params['time_step'].v()
         assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
@@ -158,4 +159,116 @@ class Submodel(object):
         self.X_TIME = range(n_steps + 1)
         # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
         self.TIME = self.X_TIME[:-1]
+
+    def _make_block(self, model):
+        """
+        Make a seperate block in the pyomo Concrete model for the Node
+        :param model: The model to which it should be added
+        :return:
+        """
+        if model is None:
+            raise Exception('Top level model must be initialized first')
+
+        # If block is already present, remove it
+        # if model.component(self.name) is not None:
+        #     model.del_component(self.name)
+        model.add_component(self.name, Block())
+        self.block = model.__getattribute__(self.name)
+
+        self.logger.info(
+            'Optimization block initialized for {}'.format(self.name))
+
+
+
+    def obj_slack(self):
+        """
+        Yield summation of all slacks in the componenet
+
+        :return:
+        """
+        slack = 0
+
+        for slack_name in self.slack_list:
+            slack += sum(self.get_slack(slack_name, t) for t in self.TIME)
+
+        return slack
+
+    def obj_energy(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_cost(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_cost_ramp(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_co2(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_temp(self):
+        """
+        Yield summation of temperatures for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def get_slack(self, slack_name, t):
+        """
+        Get the value of a slack variable at a certain time
+
+        :param slack_name: Name of the slack variable
+        :param t: Time
+        :return: Value of slack
+        """
+
+        return self.block.find_component(slack_name)[t]
+
+    def make_slack(self, slack_name, time_axis):
+        self.slack_list.append(slack_name)
+        self.block.add_component(slack_name, Var(time_axis, within=NonNegativeReals))
+        return self.block.find_component(slack_name)
+
+    def constrain_value(self, variable, bound, ub=True, slack_variable=None):
+        """
+
+        :param variable: variable that needs to be constrained, this is only a single value
+        :param bound: The value by which the variable needs to be bounded
+        :param ub: if True, this will impose an upper boundary, if False a lower boundary is imposed
+        :param slack_variable: The variable that describes the slack
+        :return:
+        """
+
+        # TODO make two-sided constraints (with possible double slack?) possible
+
+        if ub is True:
+            f = 1
+        else:
+            f = -1
+
+        if slack_variable is None:
+            return f * variable <= f * bound
+        else:
+            return f * variable <= f * bound + slack_variable
+
 

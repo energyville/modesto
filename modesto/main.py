@@ -161,7 +161,8 @@ class Modesto:
                                      temperature_driven=self.temperature_driven))
 
             # Add the new components
-            self.components[node] = self.nodes[node].get_components()
+            self.components[node] = self.nodes[node]
+            self.components.update(self.nodes[node].get_components())
 
     def __build_edges(self):
         """
@@ -172,7 +173,6 @@ class Modesto:
         """
 
         self.edges = {}
-        self.components[None] = {}
 
         for edge_tuple in self.graph.edges:
             edge = self.graph[edge_tuple[0]][edge_tuple[1]]
@@ -182,8 +182,7 @@ class Modesto:
 
             assert name not in self.edges, "An edge with name %s already exists" % \
                                            edge['name']
-            assert name not in self.components[
-                None], "A pipe with name %s already exists" % edge['name']
+            assert name not in self.components, "A pipe with name %s already exists" % edge['name']
 
             # Create the modesto.Edge object
             self.edges[name] = Edge(name=name,
@@ -198,7 +197,7 @@ class Modesto:
 
             start_node.add_pipe(self.edges[name].pipe)
             end_node.add_pipe(self.edges[name].pipe)
-            self.components[None][name] = self.edges[name].pipe
+            self.components[name] = self.edges[name].pipe
 
     def __build_objectives(self):
         """
@@ -276,9 +275,6 @@ class Modesto:
         self.check_data(self.start_time)
         self.update_time(self.start_time)
 
-        # General parameters
-        self.model.lines = Set(initialize=['supply', 'return'])
-
         # Components
         for name, edge in self.edges.items():
             edge.compile(self.model, start_time)
@@ -296,42 +292,29 @@ class Modesto:
 
         """
 
-        missing_params = collections.defaultdict(dict)
+        missing_params = {}
         flag = False
 
         if self.temperature_driven:
             self.add_mf(start_time)
 
-        missing_params[None]['general'] = {}
+        missing_params['general'] = {}
         for name, param in self.params.items():
             if not param.check():
-                missing_params[None]['general'][name] = param.get_description()
+                missing_params['general'][name] = param.get_description()
                 flag = True
 
-        for node, comp_list in self.components.items():
-            if node is not None:
-                missing_params[node][None], flag_comp = self.nodes[node].check_data()
+        for component, comp_obj in self.components.items():
+            missing_params[component], flag_comp = comp_obj.check_data()
 
-                # Assign empty component parameters that have a general version:
-                empty_general_params = set(missing_params[node][None]).intersection(set(self.params))
-                for param in empty_general_params:
-                    self.nodes[node].change_param_object(param, self.params[param])
-                    del missing_params[node][None][param]
+            # Assign empty component parameters that have a general version:
+            empty_general_params = set(missing_params[component]).intersection(set(self.params))
+            for param in empty_general_params:
+                comp_obj.change_param_object(param, self.params[param])
+                del missing_params[component][param]
 
-                if missing_params[node][None]:
-                    flag = True
-
-            for comp, comp_obj in comp_list.items():
-                missing_params[node][comp], flag_comp = comp_obj.check_data()
-
-                # Assign empty component parameters that have a general version:
-                empty_general_params = set(missing_params[node][comp]).intersection(set(self.params))
-                for param in empty_general_params:
-                    comp_obj.change_param_object(param, self.params[param])
-                    del missing_params[node][comp][param]
-
-                if missing_params[node][comp]:
-                    flag = True
+            if missing_params[component]:
+                flag = True
 
         if flag:
             raise Exception('Following parameters are missing:\n{}'
@@ -371,11 +354,7 @@ class Modesto:
 
         :return: Component object list
         """
-        all_comps = []
-        for node, comp_list in self.components.items():
-            for comp, comp_obj in comp_list.items():
-                all_comps.append(comp_obj)
-        return all_comps
+        return self.components.values()
 
     def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi', warmstart=False, probe=False,
               timelim=None):
@@ -556,11 +535,13 @@ class Modesto:
         :param node: Name of the node, If None, it is considered to be a pipe
         :return:
         """
+        if node is not None:
+            name = node + '.' + name
 
-        if name not in self.components[node]:
+        if name not in self.components:
             raise KeyError(
                 'There is no component named {} at node {}'.format(name, node))
-        return self.components[node][name]
+        return self.components[name]
 
     def get_result(self, name, node=None, comp=None, index=None, check_results=True, state=False):
         """
@@ -577,15 +558,7 @@ class Modesto:
         if self.results is None and check_results:
             raise Exception('The optimization problem has not been solved yet.')
 
-        if comp is not None:
-            obj = self.get_component(comp, node)
-        elif node is not None:
-            obj = self.nodes[node]
-        else:
-            raise Exception(
-                '%node: {}, comp:{} are not a valid component or node names'.format(
-                    node, comp))
-
+        obj = self.get_component(comp, node)
         opt_obj = obj.block.find_component(name)
 
         resname = ''
@@ -615,7 +588,6 @@ class Modesto:
                     time = self.X_TIME
                 else:
                     time = self.TIME
-                print time
                 for i in time:
                     result.append(opt_obj[(index, i)].value)
                 timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step) + 'S',
@@ -942,9 +914,6 @@ class Node(Submodel):
         self.node = node
         self.loc = self.get_loc()
 
-        self.model = None
-        self.block = None
-
         self.components = {}
         self.pipes = {}
 
@@ -999,6 +968,8 @@ class Node(Submodel):
         :return:
         """
 
+        name = self.name + '.' + name
+
         assert name not in self.components, 'A component named \'{}\' already exists for node \'{}\''.format(
             name, self.name)
 
@@ -1021,7 +992,7 @@ class Node(Submodel):
 
         self.logger.info('Component {} added to {}'.format(name, self.name))
 
-        return obj
+        self.components[name] = obj
 
     def add_pipe(self, pipe):
 
@@ -1038,7 +1009,7 @@ class Node(Submodel):
         :return: A list of the names of components that have been added
         """
         for component, type in self.__get_data("comps").items():
-            self.components[component] = self.add_comp(component, type)
+            self.add_comp(component, type)
 
         self.logger.info('Build of {} finished'.format(self.name))
 
@@ -1056,9 +1027,14 @@ class Node(Submodel):
                   'horizon':
                        DesignParameter('horizon',
                                        unit='s',
-                                       description='Horizon of the optimization problem')}
+                                       description='Horizon of the optimization problem'),
+                  'lines': DesignParameter('lines',
+                                          unit='-',
+                                          description='List of names of the lines that can be found in the network, e.g. '
+                                                      '\'supply\' and \'return\'',
+                                          val=['supply', 'return'])
+                    }
         return params
-
 
     def compile(self, model, start_time):
         """
@@ -1071,8 +1047,7 @@ class Node(Submodel):
         self._make_block(model)
 
         for name, comp in self.components.items():
-            comp_block = self._make_component_block(name)
-            comp.compile(model, comp_block, start_time)
+            comp.compile(model, start_time)
 
         self._add_bal()
 
@@ -1091,7 +1066,9 @@ class Node(Submodel):
         # TODO No mass flow reversal yet
         if self.temperature_driven:
 
-            self.block.mix_temp = Var(self.TIME, self.model.lines)
+            lines = self.params['lines'].v()
+
+            self.block.mix_temp = Var(self.TIME, lines)
 
             def _temp_bal_incoming(b, t, l):
 
@@ -1134,7 +1111,7 @@ class Node(Submodel):
                                for pipe in incoming_pipes[l])
 
             self.block.def_mixed_temp = Constraint(self.TIME,
-                                                   self.model.lines,
+                                                   lines,
                                                    rule=_temp_bal_incoming)
 
             def _temp_bal_outgoing(b, t, l, comp):
@@ -1165,11 +1142,11 @@ class Node(Submodel):
                     return Constraint.Skip
 
             self.block.outgoing_temp_comps = Constraint(self.TIME,
-                                                        self.model.lines,
+                                                        lines,
                                                         c.keys(),
                                                         rule=_temp_bal_outgoing)
             self.block.outgoing_temp_pipes = Constraint(self.TIME,
-                                                        self.model.lines,
+                                                        lines,
                                                         p.keys(),
                                                         rule=_temp_bal_outgoing)
 
@@ -1192,44 +1169,6 @@ class Node(Submodel):
 
             self.block.ineq_mass_bal = Constraint(self.TIME,
                                                   rule=_mass_bal)
-
-    def _make_block(self, model):
-        """
-        Make a seperate block in the pyomo Concrete model for the Node
-        :param model: The model to which it should be added
-        :return:
-        """
-        # TODO Make base class
-        assert model is not None, 'Top level model must be initialized first'
-        self.model = model
-        # If block is already present, remove it
-        if self.model.component(self.name) is not None:
-            self.model.del_component(self.name)
-        self.model.add_component(self.name, Block())
-        self.block = self.model.__getattribute__(self.name)
-
-        self.logger.info(
-            'Optimization block initialized for {}'.format(self.name))
-
-    def _make_component_block(self, name):
-        """
-        Make a separate block for a component model
-
-        :param name: The name of the component model
-        :return:
-        """
-
-        # If block is already present, remove it
-        if self.block.component(name) is not None:
-            self.block.del_component(self.name)
-
-        self.block.add_component(name, Block())
-        comp_block = self.block.__getattribute__(name)
-
-        self.logger.info(
-            'Optimization block for Component {} initialized'.format(name))
-
-        return comp_block
 
     def get_mflo(self, t, start_time):
         """
@@ -1343,25 +1282,6 @@ class Edge(object):
 
         return obj
 
-    def _make_block(self):
-        """
-        Add a block to the optimization model to add the pipe model
-
-        :param model: The optimiztaion model
-        :return:
-        """
-
-        # If block is already present, remove it
-        if self.model.component(self.name) is not None:
-            self.model.del_component(self.name)
-        self.model.add_component(self.name, Block())
-        block = self.model.__getattribute__(self.name)
-
-        self.logger.info(
-            'Optimization block for Pipe {} initialized'.format(self.name))
-
-        return block
-
     def compile(self, model, start_time):
         """
         
@@ -1370,11 +1290,7 @@ class Edge(object):
         :param model: 
         :return: 
         """
-
-        self.model = model
-        block = self._make_block()
-
-        self.pipe.compile(model, block, start_time)
+        self.pipe.compile(model, start_time)
 
     def get_length(self):
 
