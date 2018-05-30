@@ -196,17 +196,17 @@ class RCmodel(Component):
         self.structure = G
         self.controlVariables += ['Q_hea_D', 'Q_hea_N']
 
-    def compile(self, topmodel, parent, start_time):
+    def compile(self, model, block, start_time):
         """
-        Build the RC model
+        ompiles the RC model
 
+        :param model: The optimization model
+        :param block: The component model block
+        :param start_time: The start time of the optimization
         :return:
         """
 
-        self.update_time(start_time)
-
-        self.model = topmodel
-        self.make_block(parent)
+        Component.compile(self, model, block, start_time)
 
         self.build()
 
@@ -331,7 +331,7 @@ class RCmodel(Component):
                 max_temp[state] = self.params['floor_max_temperature']
                 min_temp[state] = self.params['floor_min_temperature']
             else:
-                raise Exception('{} was given as state type which is not valid'.format(s_ob.state_type))
+                raise Exception('{} was given a state type which is not valid'.format(s_ob.state_type))
 
             if (self.params[state + '0'].get_slack()) and (s_ob.state_type is not None):
                 uslack[state] = self.make_slack(state + '_u_slack', self.model.X_TIME)
