@@ -855,7 +855,7 @@ class RenewableEnergySource(Component):
         self.logger = logging.getLogger('modesto.components.RES')
         self.logger.info('Initializing RES {}'.format(name))
 
-    def compile(self, topmodel, parent, start_time):
+    def compile(self, model, block, start_time):
         """
         Compile this component's equations
 
@@ -864,10 +864,7 @@ class RenewableEnergySource(Component):
         :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-        self.update_time(start_time)
-
-        self.model = topmodel
-        self.make_block(parent)
+        Component.compile(self, model, block, start_time)
 
         heat_profile = self.params['heat_profile'].v()
 
