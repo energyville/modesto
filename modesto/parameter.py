@@ -275,7 +275,7 @@ class TimeSeriesParameter(Parameter):
         :param time_step:   Sampling time of the optimization problem
         :param val:         Value of the parameter, if not given, it becomes None
         """
-        if isinstance(val, pd.Series):
+        if not isinstance(val, pd.Series) and val is not None:
             raise TypeError('The value of this parameter (user/weather data)should be a pandas Series')
 
         self.time_data = False  # Does the dataframe have a timeData index? TODO this would become obsolete
