@@ -308,7 +308,7 @@ class Component(object):
         """
         return 0
 
-    def obj_cost(self):
+    def obj_fuel_cost(self):
         """
         Yield summation of energy variables for objective function, but only for relevant component types
 
@@ -340,6 +340,14 @@ class Component(object):
         """
         return 0
 
+    def obj_co2_cost(self):
+        """
+        Yield summation of CO2 cost
+
+        :return:
+        """
+        return 0
+
     def compile(self, model, block, start_time):
         """
         Compiles the component model
@@ -353,6 +361,7 @@ class Component(object):
         self.model = model
         self.block = block
         self.update_time(start_time)
+
 
 
 class FixedProfile(Component):
@@ -650,7 +659,12 @@ class ProducerVariable(Component):
                                         description='Investment cost as a function of Qmax',
                                         unit='EUR',
                                         unit_index='W',
-                                        val=0)
+                                        val=0),
+            'CO2_price': UserDataParameter('CO2_price',
+                                           'CO2 price',
+                                           'euro/kg CO2',
+                                           self.time_step,
+                                           self.horizon)
         }
 
         if self.temperature_driven:
@@ -787,7 +801,7 @@ class ProducerVariable(Component):
 
         return sum(pef / eta * (self.get_heat(t)) * self.time_step / 3600 / 1000 for t in range(self.n_steps))
 
-    def obj_cost(self):
+    def obj_fuel_cost(self):
         """
         Generator for cost objective variables to be summed
         Unit: euro
@@ -834,6 +848,23 @@ class ProducerVariable(Component):
         # return sum((70+273.15 - self.get_temperature(t, 'supply'))**2 for t in range(self.n_steps))
 
         return sum(self.get_temperature(t, 'supply') for t in self.model.TIME)
+
+    def obj_co2_cost(self):
+        """
+        Generator for CO2 cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+
+        eta = self.params['efficiency'].v()
+        pef = self.params['PEF'].v()
+        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2_price = self.params['CO2_price'].v()
+        print co2_price
+        return sum(co2_price[t] * co2 / eta * self.get_heat(t) *
+                   self.time_step / 3600 / 1000 for t in range(self.n_steps))
+
 
 class RenewableEnergySource(Component):
     def __init__(self, name, horizon, time_step, temperature_driven=False):
@@ -904,7 +935,6 @@ class RenewableEnergySource(Component):
             # see http://solar-district-heating.eu/Portals/0/Factsheets/SDH-WP3-D31-D32_August2012.pdf
         }
         return params
-
 
 
 class SolarThermalCollector(Component):
