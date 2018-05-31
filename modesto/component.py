@@ -1115,6 +1115,7 @@ class StorageVariable(Component):
         :param start_time: Start time of the optimization
         :return:
         """
+        self.update_time(start_time)
         self.calculate_static_parameters()
         self.initial_compilation(model, block, start_time)
         mult = self.params['mult'].v()
