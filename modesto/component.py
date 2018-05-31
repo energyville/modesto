@@ -990,7 +990,11 @@ class StorageVariable(Component):
                                         description='Investment cost as a function of storage volume',
                                         unit='EUR',
                                         unit_index='m3',
-                                        val=0)
+                                        val=0),
+            'mult': DesignParameter(name='mult',
+                                    description='Multiplication factor indicating number of DHW tanks',
+                                    unit='-',
+                                    val=1)
         }
 
         return params
@@ -1081,9 +1085,9 @@ class StorageVariable(Component):
         :param start_time: Start time of the optimization
         :return:
         """
-        self.update_time(start_time)
         self.calculate_static_parameters()
         self.initial_compilation(model, block, start_time)
+        mult = self.params['mult'].v()
 
         # Internal
         self.block.heat_stor = Var(self.model.X_TIME)  # , bounds=(
@@ -1108,7 +1112,7 @@ class StorageVariable(Component):
         # State equation
         def _state_eq(b, t):  # in kWh
             return b.heat_stor[t + 1] == b.heat_stor[t] + self.time_step / 3600 * (
-                b.heat_flow[t] - b.heat_loss[t]) / 1000 \
+                b.heat_flow[t]/mult - b.heat_loss[t]) / 1000 \
                                          - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
 
             # self.tau * (1 - exp(-self.time_step / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
@@ -1258,6 +1262,7 @@ class StorageCondensed(StorageVariable):
         self.block.heat_stor = Var(self.model.X_TIME, self.block.reps)
         self.block.soc = Var(self.model.X_TIME, self.block.reps, domain=NonNegativeReals)
 
+        mult = self.params['mult'].v()
         R = self.R
         N = self.N  # For brevity of equations
         zH = self.heat_loss_coeff
@@ -1269,7 +1274,7 @@ class StorageCondensed(StorageVariable):
             elif t == 0:
                 return b.heat_stor[t, r] == b.heat_stor[tlast, r - 1]
             else:
-                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (b.heat_flow[t - 1] - b.heat_loss_ct[
+                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (b.heat_flow[t - 1]/mult - b.heat_loss_ct[
                     t - 1]) * self.time_step / 3600 / 1000
 
         self.block.state_eq = Constraint(self.model.X_TIME, self.block.reps, rule=_state_eq)
