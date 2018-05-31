@@ -217,7 +217,7 @@ class Modesto:
         def obj_co2(model):
             return model.Slack + sum(comp.obj_co2() for comp in self.iter_components())
 
-        def obj_co2_cost(model):
+        def obj_co2_fuel_cost(model):
             return model.Slack + sum(comp.obj_co2_cost() + comp.obj_fuel_cost()
                                      for comp in self.iter_components())
 
@@ -225,7 +225,7 @@ class Modesto:
         self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
         self.model.OBJ_COST_RAMP = Objective(rule=obj_cost_ramp, sense=minimize)
         self.model.OBJ_CO2 = Objective(rule=obj_co2, sense=minimize)
-        self.model.OBJ_COST_CO2_FUEL = Objective(rule=obj_co2_cost, sense=minimize)
+        self.model.OBJ_COST_CO2_FUEL = Objective(rule=obj_co2_fuel_cost, sense=minimize)
 
         self.objectives = {
             'energy': self.model.OBJ_ENERGY,
