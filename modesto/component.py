@@ -4,7 +4,7 @@ import logging
 import sys
 from math import pi, log, exp
 
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value, Set
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value, Set, Binary
 
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, SeriesParameter
 
@@ -113,7 +113,6 @@ class Component(object):
                             'the same type as the original parameter.'.format(name))
 
         self.params[name] = new_object
-
 
     def get_param_value(self, name, time=None):
         """
@@ -627,6 +626,10 @@ class ProducerVariable(Component):
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
+            'Qmin': DesignParameter('Qmax',
+                                    'Minimum possible heat output',
+                                    'W',
+                                    val=0),
             'ramp': DesignParameter('ramp',
                                     'Maximum ramp (increase in heat output)',
                                     'W/s'),
@@ -675,8 +678,26 @@ class ProducerVariable(Component):
         """
         Component.compile(self, model, block, start_time)
 
-        self.block.heat_flow = Var(self.model.TIME, bounds=(0, self.params['Qmax'].v()))
+        self.block.heat_flow = Var(self.model.TIME)
         self.block.ramping_cost = Var(self.model.TIME)
+
+        if not self.params['Qmin'].v() == 0:
+            self.block.on = Var(self.model.TIME, within=Binary)
+            def _min_heat(b, t):
+                return self.params['Qmin'].v() * b.on[t] <= b.heat_flow[t]
+
+            def _max_heat(b, t):
+                return b.heat_flow[t] <= self.params['Qmax'].v() * b.on[t]
+
+        else:
+            def _min_heat(b, t):
+                return b.heat_flow[t] >= self.params['Qmin'].v()
+
+            def _max_heat(b, t):
+                return b.heat_flow[t] <= self.params['Qmax'].v()
+
+        self.block.min_heat = Constraint(self.model.TIME, rule=_min_heat)
+        self.block.max_heat = Constraint(self.model.TIME, rule=_max_heat)
 
         if self.temperature_driven:
             def _mass_flow(b, t):
@@ -839,7 +860,6 @@ class ProducerVariable(Component):
         pef = self.params['PEF'].v()
         co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
         co2_price = self.params['CO2_price'].v()
-        print co2_price
         return sum(co2_price[t] * co2 / eta * self.get_heat(t) *
                    self.time_step / 3600 / 1000 for t in range(self.n_steps))
 
