@@ -55,7 +55,6 @@ class Modesto:
         self.allow_flow_reversal = True
 
         self.graph = graph
-        self.nodes = {}
         self.edges = {}
         self.components = {}
         self.params = self.create_params()
@@ -148,21 +147,19 @@ class Modesto:
 
         :return:
         """
-        self.nodes = {}
         self.components = {}
 
-        for node in self.graph.nodes:
+        for node in self.get_nodes():
             # Create the node
-            assert node not in self.nodes, "Node %s already exists" % node.name
-            self.nodes[node] = (Node(name=node,
+            assert node not in self.components, "Node %s already exists" % node.name
+            self.components[node] = (Node(name=node,
                                      node=self.graph.nodes[node],
                                      horizon=self.horizon,
                                      time_step=self.time_step,
                                      temperature_driven=self.temperature_driven))
 
             # Add the new components
-            self.components[node] = self.nodes[node]
-            self.components.update(self.nodes[node].get_components())
+            self.components.update(self.components[node].get_components())
 
     def __build_edges(self):
         """
@@ -176,8 +173,8 @@ class Modesto:
 
         for edge_tuple in self.graph.edges:
             edge = self.graph[edge_tuple[0]][edge_tuple[1]]
-            start_node = self.nodes[edge_tuple[0]]
-            end_node = self.nodes[edge_tuple[1]]
+            start_node = self.components[edge_tuple[0]]
+            end_node = self.components[edge_tuple[1]]
             name = edge['name']
 
             assert name not in self.edges, "An edge with name %s already exists" % \
@@ -276,10 +273,10 @@ class Modesto:
         self.update_time(self.start_time)
 
         # Components
-        for name, edge in self.edges.items():
-            edge.compile(self.model, start_time)
-        for name, node in self.nodes.items():
-            node.compile(self.model, start_time)
+        for name in self.get_edges():
+            self.get_component(name=name).compile(self.model, start_time)
+        for name in self.get_nodes():
+            self.get_component(name=name).compile(self.model, start_time)
 
         self.__build_objectives()
 
@@ -294,9 +291,6 @@ class Modesto:
 
         missing_params = {}
         flag = False
-
-        if self.temperature_driven:
-            self.add_mf(start_time)
 
         missing_params['general'] = {}
         for name, param in self.params.items():
@@ -736,73 +730,88 @@ class Modesto:
 
         # TODO Only one producer node possible at the moment, with only a single componenta at the node
 
+        # Initialize result
+        result = collections.defaultdict(list)
+
+        # Get nodes, edges and components of problem:
         nodes = self.get_nodes()
         edges = self.get_edges()
+        comps = {}
+        for node in nodes:
+            comps[node] = self.get_node_components(node).keys()
 
-        result = {}
-        for node in self.components:
-            result[node] = collections.defaultdict(list)
-        mf_nodes = collections.defaultdict(list)
-
+        # Set up matrix
         inc_matrix = -nx.incidence_matrix(self.graph, oriented=True).todense()
 
         # Remove the producer node and the corresponding row from the matrix to make the system determined
-        prod_nodes = self.find_producer_nodes()
-        if not prod_nodes:
+        prod_nodes = collections.defaultdict(list)
+        for node, components in comps.items():
+            for component in components:
+                if self.components[component].is_heat_source():
+                    prod_nodes[node].append(component)
+
+        if prod_nodes is None:
             raise Exception('No heat generation unit is present in the given network, please add one')
-        elif len(prod_nodes) > 1:
+        elif len(prod_nodes.values()) > 1:
             raise Exception('modesto is not (yet) capable of dealing with the combination of time delays'
                             'and multiple heat generation units!')
 
-        row_nr = nodes.index(prod_nodes[0])
+        producer_node = prod_nodes.keys()[0]
+        producer_comp = prod_nodes[producer_node][0]
+
+        row_nr = nodes.index(producer_node)
         row = inc_matrix[row_nr, :]
-        nodes.remove(prod_nodes[0])
         matrix = np.delete(inc_matrix, row_nr, 0)
 
         for t in self.TIME:
+            # initializing vector with node mass flow rates
             vector = []
 
-            # Collect known mass flow rates at nodes
+            # TODO Remove nodes from result!
+            # initializing result values for node mass flows
             for node in nodes:
-                for comp, comp_obj in self.nodes[node].get_components().items():
-                    result[node][comp].append(
-                        comp_obj.get_mflo(t, compiled=False, start_time=start_time))
-                mf_node = self.nodes[node].get_mflo(t, start_time)
-                mf_nodes[node].append(mf_node)
-                vector.append(mf_node)
+                result[node].append(0)
 
+            # Collect known mass flow rates at components and add them to corresponding nodes
+            for node in comps:
+                node_comps = comps[node]
+                for comp in node_comps:
+                    comp_obj = self.get_component(name=comp)
+                    result[comp].append(comp_obj.get_known_mflo(t, start_time))
+                    result[node][-1] += result[comp][-1]
+
+            # Fill up node mass flow rate vector
+            for node in nodes:
+                if not node == producer_node:
+                    vector.append(result[node][-1])
+
+            # Solve system
             sol = np.linalg.solve(matrix, vector)
 
+            # Save pipe mass flow rates
             for i, edge in enumerate(edges):
-                result[None][edge].append(sol[i])
+                result[edge].append(sol[i])
 
-            mf_nodes[prod_nodes[0]].append(sum(
-                result[None][edge][-1] * row[0, i] for i, edge in
+            # Calculate mass flow through producer node
+            result[producer_node][-1] =(sum(
+                result[edge][-1] * row[0, i] for i, edge in
                 enumerate(edges)))
 
-            for comp in self.nodes[prod_nodes[0]].get_components():
-                result[prod_nodes[0]][comp].append(mf_nodes[prod_nodes[0]][-1])
+            # Calculate mass flow through producer component
+            result[producer_comp][-1] = result[producer_node][-1] - sum(result[x][-1] for x in comps[producer_node])
 
         return result
-
-    def find_producer_nodes(self):
-        prod_nodes = []
-        for node in self.get_nodes():
-            if self.nodes[node].contains_heat_source():
-                prod_nodes.append(node)
-
-        return prod_nodes
 
     def add_mf(self, start_time):
         mf = self.calculate_mf(start_time)
 
-        for node, comp_list in self.components.items():
+        for comp, comp_obj in self.components.items():
 
-            mf_df = pd.DataFrame.from_dict(mf[node])
+            mf_df = pd.DataFrame.from_dict(mf)
+            print mf_df
 
-            for comp, comp_obj in comp_list.items():
-                self.change_param(node=node, comp=comp, param='mass_flow',
-                                  val=mf_df[comp])
+            if comp not in self.get_nodes():
+                comp_obj.change_param(param='mass_flow', new_data=mf_df[comp])
 
     def get_nodes(self):
         """
@@ -826,6 +835,21 @@ class Modesto:
             edges.append(dict[tuple])
         return edges
 
+    def get_node_components(self, node):
+        """
+        Returns a dict with all components belonging to one node
+
+
+        :return:
+        """
+        if node not in self.get_nodes():
+            raise KeyError('{} is not an exiting node'.format(node))
+
+        node_obj = self.components[node]
+
+        return node_obj.get_components()
+
+
     # TODO these pipe parameter getters should be defined in the relevant pipe classes.
     def get_pipe_diameter(self, pipe):
         """
@@ -835,11 +859,11 @@ class Modesto:
         :return: diameter
         """
 
-        if pipe not in self.components[None]:
+        if pipe not in self.components:
             raise KeyError(
                 '{} is not recognized as an existing pipe'.format(pipe))
 
-        return self.components[None][pipe].get_diameter()
+        return self.components[pipe].get_diameter()
 
     def get_pipe_length(self, pipe):
         """
@@ -849,11 +873,11 @@ class Modesto:
         :return: length
         """
 
-        if pipe not in self.components[None]:
+        if pipe not in self.components:
             raise KeyError(
                 '{} is not recognized as an existing pipe'.format(pipe))
 
-        return self.components[None][pipe].get_length()
+        return self.components[pipe].get_length()
 
     def get_heat_stor_init(self):
         """
@@ -1169,21 +1193,6 @@ class Node(Submodel):
 
             self.block.ineq_mass_bal = Constraint(self.TIME,
                                                   rule=_mass_bal)
-
-    def get_mflo(self, t, start_time):
-        """
-        Calculate the mass flow into the network
-
-        :return: mass flow
-        """
-
-        # TODO Find something better
-
-        m_flo = 0
-        for _, comp in self.components.items():
-            m_flo += comp.get_mflo(t, compiled=False, start_time=start_time)
-
-        return m_flo
 
     def get_heat_stor_init(self):
         """

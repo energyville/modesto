@@ -247,7 +247,7 @@ class SeriesParameter(Parameter):
         :return:
         """
         if self.value is None:
-            raise Exception('Parameter {} has no value yet'.format(name))
+            raise Exception('Parameter {} has no value yet'.format(self.name))
         elif isinstance(self.value, (int, float)):
             return self.value*index
         else:

@@ -271,4 +271,13 @@ class Submodel(object):
         else:
             return f * variable <= f * bound + slack_variable
 
+    def get_known_mflo(self, t, start_time):
+        """
+        Calculate the mass flow into the network, provided the injections and extractions at all nodes are already given
+
+        :return: mass flow
+        """
+
+        return 0
+
 

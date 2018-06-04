@@ -174,6 +174,8 @@ def construct_model():
 
     optmodel.change_params(prod_design, node='ThorPark', comp='plant')
 
+    optmodel.add_mf(start_time)
+
     ##################################
     # Print parameters               #
     ##################################

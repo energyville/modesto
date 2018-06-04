@@ -92,7 +92,7 @@ class Component(Submodel):
     def is_heat_source(self):
         return False
 
-    def get_mflo(self, t, compiled=True, start_time=None):
+    def get_mflo(self, t, start_time=None):
         """
         Return mass_flow variable at time t
 
@@ -100,22 +100,28 @@ class Component(Submodel):
         :param compiled: If True, the compilation of the model is assumed to be finished. If False, other means to get to the mass flow are used
         :return:
         """
-        # TODO Find something better!
-        if not compiled:
-            self.update_time(start_time)
+        if self.block is None:
+            raise Exception("The optimization model for %s has not been compiled" % self.name)
+        return self.direction * self.block.mass_flow[t]
+
+    def get_known_mflo(self, t, start_time):
+
+        """
+        Calculate the mass flow into the network, provided the injections and extractions at all nodes are already given
+
+        :return: mass flow at time t
+        """
+
+        self.update_time(start_time)
+        try:
+            return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v() \
+                   / self.cp / self.params['delta_T'].v()
+        except:
             try:
-                return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v() \
+                return self.direction * self.params['heat_profile'].v(t) \
                        / self.cp / self.params['delta_T'].v()
             except:
-                try:
-                    return self.direction * self.params['heat_profile'].v() \
-                           / self.cp / self.params['delta_T'].v()
-                except:
-                    return None
-        else:
-            if self.block is None:
-                raise Exception("The optimization model for %s has not been compiled" % self.name)
-            return self.direction * self.block.mass_flow[t]
+                return None
 
     def get_direction(self):
         """
@@ -630,6 +636,9 @@ class ProducerVariable(Component):
         # return sum((70+273.15 - self.get_temperature(t, 'supply'))**2 for t in range(self.n_steps))
 
         return sum(self.get_temperature(t, 'supply') for t in self.TIME)
+
+    def get_known_mflo(self, t, start_time):
+        return 0
 
 
 class SolarThermalCollector(Component):
