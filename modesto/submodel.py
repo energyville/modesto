@@ -4,7 +4,7 @@ from pyomo.core.base import Block,  Var, NonNegativeReals, value
 
 
 class Submodel(object):
-    def __init__(self, name=None, horizon=None, time_step=None, temperature_driven=False):
+    def __init__(self, name=None, temperature_driven=False):
         """
         Base class for submodels
 
@@ -18,11 +18,6 @@ class Submodel(object):
 
         self.temperature_driven = temperature_driven
 
-        self.horizon = horizon
-        self.time_step = time_step
-        if not horizon % time_step == 0:
-            raise Exception("The horizon should be a multiple of the time step.")
-
         self.params = self.create_params()
 
         self.slack_list = []
@@ -31,7 +26,6 @@ class Submodel(object):
 
         self.cp = 4180
         self.rho = 1000
-
 
     def create_params(self):
         """
@@ -42,7 +36,7 @@ class Submodel(object):
 
         return {}
 
-    def update_time(self, new_val):
+    def update_time(self, start_time, time_step, horizon):
         """
         Change the start time of all parameters to ensure correct read out of data
 
@@ -50,7 +44,12 @@ class Submodel(object):
         :return:
         """
         for _, param in self.params.items():
-            param.change_start_time(new_val)
+            param.change_start_time(start_time)
+            param.change_time_step(time_step)
+            param.change_horizon(horizon)
+
+        if not horizon % time_step == 0:
+            raise Exception("The horizon should be a multiple of the time step ({}).".format(self.name))
 
     def pprint(self, txtfile=None):
         """
@@ -231,6 +230,16 @@ class Submodel(object):
 
         :return:
         """
+        return 0
+
+    def get_investment_cost(self):
+        """
+        Get the investment cost of this component. For a generic component, this is currently 0, but as components with price data are added, the cost parameter is used to get this value.
+
+        :return: Cost in EUR
+        """
+        # TODO: express cost with respect to economic lifetime
+
         return 0
 
     def get_slack(self, slack_name, t):

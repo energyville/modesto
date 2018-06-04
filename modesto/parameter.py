@@ -33,6 +33,12 @@ class Parameter(object):
         pass
         # TODO change start time is only relevant for time indexed parameters
 
+    def change_time_step(self, val):
+        pass
+
+    def change_horizon(self, val):
+        pass
+
     def change_value(self, new_val):
         """
         Change the value of the parameter
@@ -265,22 +271,21 @@ class SeriesParameter(Parameter):
 
 
 class TimeSeriesParameter(Parameter):
-    def __init__(self, name, description, unit, time_step, horizon, val=None):
+    def __init__(self, name, description, unit, val=None):
         """
         Class that describes a parameter with a value consisting of a dataframe
 
         :param name:        Name of the parameter (str)
         :param description: Description of the parameter (str)
         :param unit:        Unit of the parameter (e.g. K, W, m...) (str)
-        :param time_step:   Sampling time of the optimization problem
         :param val:         Value of the parameter, if not given, it becomes None
         """
         if isinstance(val, pd.Series):
             raise TypeError('The value of this parameter (user/weather data)should be a pandas Series')
 
         self.time_data = False  # Does the dataframe have a timeData index? TODO this would become obsolete
-        self.time_step = time_step
-        self.horizon = horizon
+        self.time_step = None
+        self.horizon = None
         self.start_time = None
         Parameter.__init__(self, name, description, unit, val)
 
@@ -345,9 +350,15 @@ class TimeSeriesParameter(Parameter):
         else:
             raise TypeError('New start time should be pandas timestamp or string representation of a timestamp')
 
+    def change_horizon(self, val):
+        self.horizon = val
+
+    def change_time_step(self, val):
+        self.time_step = val
+
 
 class UserDataParameter(TimeSeriesParameter):
-    def __init__(self, name, description, unit, time_step, horizon, val=None):
+    def __init__(self, name, description, unit, val=None):
         """
         Class that describes a user data parameter
 
@@ -358,11 +369,11 @@ class UserDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, time_step, horizon, val)
+        TimeSeriesParameter.__init__(self, name, description, unit, val)
 
 
 class WeatherDataParameter(TimeSeriesParameter):
-    def __init__(self, name, description, unit, time_step, horizon, val=None):
+    def __init__(self, name, description, unit, val=None):
         """
         Class that describes a weather data parameter
 
@@ -373,4 +384,4 @@ class WeatherDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, time_step, horizon, val)
+        TimeSeriesParameter.__init__(self, name, description, unit, val)

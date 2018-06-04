@@ -76,37 +76,25 @@ class Modesto:
         params = {
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
-                                       'K',
-                                       time_step=self.time_step,
-                                       horizon=self.horizon),
+                                       'K'),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
-                                       'K',
-                                       time_step=self.time_step,
-                                       horizon=self.horizon),
+                                       'K'),
             'Q_sol_E': WeatherDataParameter('Q_sol_E',
                                             'Eastern solar radiation',
-                                            'W',
-                                            self.time_step,
-                                            self.horizon
+                                            'W'
                                             ),
             'Q_sol_S': WeatherDataParameter('Q_sol_S',
                                             'Southern solar radiation',
-                                            'W',
-                                            self.time_step,
-                                            self.horizon
+                                            'W'
                                             ),
             'Q_sol_W': WeatherDataParameter('Q_sol_W',
                                             'Western solar radiation',
-                                            'W',
-                                            self.time_step,
-                                            self.horizon
+                                            'W'
                                             ),
             'Q_sol_N': WeatherDataParameter('Q_sol_N',
                                             'Northern solar radiation',
-                                            'W',
-                                            self.time_step,
-                                            self.horizon),
+                                            'W'),
             'time_step':
                 DesignParameter('time_step',
                                 unit='s',
@@ -154,8 +142,6 @@ class Modesto:
             assert node not in self.components, "Node %s already exists" % node.name
             self.components[node] = (Node(name=node,
                                      node=self.graph.nodes[node],
-                                     horizon=self.horizon,
-                                     time_step=self.time_step,
                                      temperature_driven=self.temperature_driven))
 
             # Add the new components
@@ -186,8 +172,6 @@ class Modesto:
                                     edge=edge,
                                     start_node=start_node,
                                     end_node=end_node,
-                                    horizon=self.horizon,
-                                    time_step=self.time_step,
                                     pipe_model=self.pipe_model,
                                     allow_flow_reversal=self.allow_flow_reversal,
                                     temperature_driven=self.temperature_driven)
@@ -428,24 +412,18 @@ class Modesto:
 
         return status
 
-    def opt_settings(self, objective=None, horizon=None, time_step=None,
+    def opt_settings(self, objective=None,
                      pipe_model=None, allow_flow_reversal=None):
         """
         Change the setting of the optimization problem
 
         :param objective: Name of the optimization objective
-        :param horizon: The horizon of the problem, in seconds
-        :param time_step: The time between two points, in secinds
         :param pipe_model: The name of the type of pipe model to be used
         :param allow_flow_reversal: Boolean indicating whether mass flow reversals are possible in the pipes
         :return:
         """
         if objective is not None:  # TODO Do we need this to be defined at the top level of modesto?
             self.set_objective(objective)
-        if horizon is not None:
-            self.horizon = horizon
-        if time_step is not None:
-            self.time_step = time_step
         if pipe_model is not None:
             self.pipe_model = pipe_model
         if allow_flow_reversal is not None:
@@ -919,7 +897,7 @@ class Modesto:
 
 
 class Node(Submodel):
-    def __init__(self, name, node, horizon, time_step, temperature_driven=False):
+    def __init__(self, name, node, temperature_driven=False):
         """
         Class that represents a geographical network location,
         associated with a number of components and connected to other nodes through edges
@@ -930,7 +908,7 @@ class Node(Submodel):
         :param horizon: Horizon of the problem
         :param time_step: Time step between two points of the problem
         """
-        Submodel.__init__(self, name=name, horizon=horizon, time_step=time_step, temperature_driven=temperature_driven)
+        Submodel.__init__(self, name=name, temperature_driven=temperature_driven)
 
         self.logger = logging.getLogger('modesto.Node')
         self.logger.info('Initializing Node {}'.format(name))
@@ -1006,8 +984,7 @@ class Node(Submodel):
                 cls = None
 
         if cls:
-            obj = cls(name=name, horizon=self.horizon,
-                      time_step=self.time_step,
+            obj = cls(name=name,
                       temperature_driven=self.temperature_driven)
         else:
             raise ValueError(
@@ -1222,8 +1199,7 @@ class Node(Submodel):
 
 
 class Edge(object):
-    def __init__(self, name, edge, start_node, end_node, horizon,
-                 time_step, pipe_model, allow_flow_reversal,
+    def __init__(self, name, edge, start_node, end_node, pipe_model, allow_flow_reversal,
                  temperature_driven):
         """
         Connection object between two nodes in a graph
@@ -1232,8 +1208,6 @@ class Edge(object):
         :param edge: Networkx Edge object
         :param start_node: modesto.Node object
         :param stop_node: modesto.Node object
-        :param horizon: Horizon of the problem
-        :param time_step: Time step between two points of the problem
         :param pipe_model: Type of pipe model to be used
         """
 
@@ -1242,9 +1216,6 @@ class Edge(object):
 
         self.name = name
         self.edge = edge
-
-        self.horizon = horizon
-        self.time_step = time_step
 
         self.start_node = start_node
         self.end_node = end_node
@@ -1273,8 +1244,7 @@ class Edge(object):
             cls = None
 
         if cls:
-            obj = cls(name=self.name, horizon=self.horizon,
-                      time_step=self.time_step,
+            obj = cls(name=self.name,
                       start_node=self.start_node.name,
                       end_node=self.end_node.name, length=self.length,
                       allow_flow_reversal=allow_flow_reversal,
