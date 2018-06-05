@@ -14,6 +14,7 @@ from pyomo.core.base import value
 
 import modesto.utils as ut
 from modesto.main import Modesto
+from modesto.mass_flow_calculation import MfCalculation
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -136,8 +137,22 @@ def construct_model():
     WS_building_params = ZW_building_params.copy()
     WS_building_params['mult'] = 1000
 
+    # Calculating mass flows through network
+    mfcalc = MfCalculation(G, time_step, time_step*n_steps)
+    mfcalc.add_mf(node='waterscheiGarden', name='buildingD',
+                  mf_df=WS_building_params['mult'] * heat_profile / 4186 / WS_building_params['delta_T'])
+    mfcalc.add_mf(node='zwartbergNE', name='buildingD',
+                  mf_df=ZW_building_params['mult'] * heat_profile / 4186 / ZW_building_params['delta_T'])
+    mfcalc.set_producer_node('ThorPark')
+    mfcalc.set_producer_component('plant')
+    mfcalc.calculate_mf()
+    ZW_building_params['mass_flow'] = mfcalc.get_comp_mf(node='zwartbergNE', comp='buildingD')
+    WS_building_params['mass_flow'] = mfcalc.get_comp_mf(node='waterscheiGarden', comp='buildingD')
+
     optmodel.change_params(ZW_building_params, node='zwartbergNE', comp='buildingD')
     optmodel.change_params(WS_building_params, node='waterscheiGarden', comp='buildingD')
+
+
 
     # pipe parameters
 
@@ -148,11 +163,14 @@ def construct_model():
                      'wall_temperature_supply': supply_temp,
                      'wall_temperature_return': return_temp,
                      'temperature_out_supply': supply_temp,
-                     'temperature_out_return': return_temp}
+                     'temperature_out_return': return_temp,
+                     'mass_flow': mfcalc.get_edge_mf('bbThor')}
     spWaterschei_params = bbThor_params.copy()
     spWaterschei_params['diameter'] = 150
+    spWaterschei_params['mass_flow'] = mfcalc.get_edge_mf('spWaterschei')
     spZwartbergNE_params = bbThor_params.copy()
     spZwartbergNE_params['diameter'] = 150
+    spZwartbergNE_params['mass_flow'] = mfcalc.get_edge_mf('spZwartbergNE')
 
     optmodel.change_params(spWaterschei_params, comp='spWaterschei')
     optmodel.change_params(spZwartbergNE_params, comp='spZwartbergNE')
@@ -170,11 +188,10 @@ def construct_model():
                    'temperature_max': 363.15,
                    'temperature_min': 323.15,
                    'ramp': 1e6 / 3600,
-                   'ramp_cost': 0.01}
+                   'ramp_cost': 0.01,
+                   'mass_flow': mfcalc.get_comp_mf(node='ThorPark', comp='plant')}
 
     optmodel.change_params(prod_design, node='ThorPark', comp='plant')
-
-    optmodel.add_mf(start_time)
 
     ##################################
     # Print parameters               #

@@ -719,100 +719,6 @@ class Modesto:
         else:
             return string
 
-    def calculate_mf(self, start_time):
-        """
-        Given the heat demands of all substations, calculate the mass flow throughout the entire network
-        !!!! Only one producer node possible at the moment, with only a single component at this node
-
-        :param producer_node: Name of the node for which the equation is skipped to get a determined system
-        :return:
-        """
-
-        # TODO Only one producer node possible at the moment, with only a single componenta at the node
-
-        # Initialize result
-        result = collections.defaultdict(list)
-
-        # Get nodes, edges and components of problem:
-        nodes = self.get_nodes()
-        edges = self.get_edges()
-        comps = {}
-        for node in nodes:
-            comps[node] = self.get_node_components(node).keys()
-
-        # Set up matrix
-        inc_matrix = -nx.incidence_matrix(self.graph, oriented=True).todense()
-
-        # Remove the producer node and the corresponding row from the matrix to make the system determined
-        prod_nodes = collections.defaultdict(list)
-        for node, components in comps.items():
-            for component in components:
-                if self.components[component].is_heat_source():
-                    prod_nodes[node].append(component)
-
-        if prod_nodes is None:
-            raise Exception('No heat generation unit is present in the given network, please add one')
-        elif len(prod_nodes.values()) > 1:
-            raise Exception('modesto is not (yet) capable of dealing with the combination of time delays'
-                            'and multiple heat generation units!')
-
-        producer_node = prod_nodes.keys()[0]
-        producer_comp = prod_nodes[producer_node][0]
-
-        row_nr = nodes.index(producer_node)
-        row = inc_matrix[row_nr, :]
-        matrix = np.delete(inc_matrix, row_nr, 0)
-
-        for t in self.TIME:
-            # initializing vector with node mass flow rates
-            vector = []
-
-            # TODO Remove nodes from result!
-            # initializing result values for node mass flows
-            for node in nodes:
-                result[node].append(0)
-
-            # Collect known mass flow rates at components and add them to corresponding nodes
-            for node in comps:
-                node_comps = comps[node]
-                for comp in node_comps:
-                    comp_obj = self.get_component(name=comp)
-                    result[comp].append(comp_obj.get_known_mflo(t, start_time))
-                    result[node][-1] += result[comp][-1]
-
-            # Fill up node mass flow rate vector
-            for node in nodes:
-                if not node == producer_node:
-                    vector.append(result[node][-1])
-
-            # Solve system
-            sol = np.linalg.solve(matrix, vector)
-
-            # Save pipe mass flow rates
-            for i, edge in enumerate(edges):
-                result[edge].append(sol[i])
-
-            # Calculate mass flow through producer node
-            result[producer_node][-1] =(sum(
-                result[edge][-1] * row[0, i] for i, edge in
-                enumerate(edges)))
-
-            # Calculate mass flow through producer component
-            result[producer_comp][-1] = result[producer_node][-1] - sum(result[x][-1] for x in comps[producer_node])
-
-        return result
-
-    def add_mf(self, start_time):
-        mf = self.calculate_mf(start_time)
-
-        for comp, comp_obj in self.components.items():
-
-            mf_df = pd.DataFrame.from_dict(mf)
-            print mf_df
-
-            if comp not in self.get_nodes():
-                comp_obj.change_param(param='mass_flow', new_data=mf_df[comp])
-
     def get_nodes(self):
         """
         Returns a list with the names of nodes (ordered in the same way as in the graph)
@@ -848,7 +754,6 @@ class Modesto:
         node_obj = self.components[node]
 
         return node_obj.get_components()
-
 
     # TODO these pipe parameter getters should be defined in the relevant pipe classes.
     def get_pipe_diameter(self, pipe):
@@ -925,7 +830,6 @@ class Node(Submodel):
         associated with a number of components and connected to other nodes through edges
 
         :param name: Unique identifier of node (str)
-        :param graph: Networkx Graph object
         :param node: Networkx Node object
         :param horizon: Horizon of the problem
         :param time_step: Time step between two points of the problem
