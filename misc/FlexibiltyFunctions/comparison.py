@@ -5,12 +5,12 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 from modesto.main import Modesto
-import parameters
+import parameters_new as parameters
 import math
 import numpy as np
 import pickle
 
-logging.basicConfig(level=logging.WARNING,
+logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
@@ -23,677 +23,613 @@ Settings
 
 n_buildings = 10
 n_streets = 3
-horizon = 24*7*3600
+horizon = 24*4*3600
 start_time = pd.Timestamp('20140101')
 
 time_index = pd.date_range(start=start_time, periods=int(horizon/3600)+1, freq='H')
-n_points = int(math.ceil(n_buildings / 2))
 
 selected_flex_cases = ['Reference',  'Flexibility']
-selected_model_cases = ['NoPipes', 'Building', 'Pipe', 'Combined']
-selected_street_cases = ['New street', 'Old street', 'Mixed street']
-selected_district_cases = ['Series', 'Parallel']
-
-n_cases = len(selected_flex_cases) * len(selected_model_cases) * len(selected_street_cases + selected_district_cases)
+selected_model_cases = ['Buildings - ideal network', 'Buildings', 'Network', 'Combined - LP']
+selected_street_cases = []
+selected_district_cases = ['Genk']
 
 dist_pipe_length = 150
 street_pipe_length = 30
 service_pipe_length = 30
 
-old_building = 'SFH_D_4_2zone_REF1'
-mixed_building = 'SFH_D_4_2zone_REF2'
+old_building = 'SFH_D_3_2zone_TAB'
+mixed_building = 'SFH_D_3_2zone_REF1'
 new_building = 'SFH_D_5_ins_TAB'
 
-"""
 
-Cases
+streets = ['Old street', 'Mixed street', 'New street']
+districts = ['Series district', 'Parallel district']
+models = ['Buildings - ideal network', 'Buildings', 'Network', 'Combined - LP']
 
-"""
+building_types = {'Mixed street': [new_building, old_building]*int(n_buildings/2),
+                  'Old street': [old_building]*n_buildings,
+                  'New street': [new_building]*n_buildings,
+                  'Series district': [old_building, mixed_building, new_building],
+                  'Parallel district': [old_building, mixed_building, new_building],
+                  'Genk': [old_building]*9}
 
-model_cases = {'NoPipes':
-               {
-                'pipe_model': 'NoPipes',
-                'time_step': 'StSt',
-                'building_model': 'RCmodel'
-               },
-               'Building':
-                   {
-                       'pipe_model': 'StSt',
-                       'time_step': 'StSt',
-                       'building_model': 'RCmodel'
-                   },
-               'Pipe':
-                   {
-                       'pipe_model': 'Dynamic',
-                       'time_step': 'Dynamic',
-                       'building_model': 'Fixed',
-                       'heat_profile': 'Reference'
-                   },
-               'Combined':
-                   {
-                       'pipe_model': 'Dynamic',
-                       'time_step': 'Dynamic',
-                       'building_model': 'Fixed',
-                       'heat_profile': 'Flexibility'
-                   },
-               'Non-linear':
-                   {
-                       'pipe_model': 'Dynamic',
-                       'time_step': 'Dynamic',
-                       'building_model': 'RCmodel'
-                   }
-               }
+node_names = {'Mixed street': ['Building' + str(i) for i in range(n_buildings)],
+              'Old street': ['Building' + str(i) for i in range(n_buildings)],
+              'New street': ['Building' + str(i) for i in range(n_buildings)],
+              'Series district': ['Street' + str(i) for i in range(n_streets)],
+              'Parallel district': ['Street' + str(i) for i in range(n_streets)],
+              'Genk': ['TermienWest', 'TermienOost', 'Boxbergheide', 'Winterslag', 'OudWinterslag',
+                       'ZwartbergNW', 'ZwartbergZ', 'ZwartbergNE', 'WaterscheiGarden']}
 
-flex_cases = {'Reference':
-                  {'price_profile': 'constant'},
-              'Flexibility':
-                  {'price_profile': 'step'}
-              }
+edge_names = {'Mixed street': ['dist_pipe' + str(i) for i in range(int(math.ceil(n_buildings/2)))] +
+                              ['serv_pipe' + str(i) for i in range(n_buildings)],
+              'Old street': ['dist_pipe' + str(i) for i in range(int(math.ceil(n_buildings/2)))] +
+                            ['serv_pipe' + str(i) for i in range(n_buildings)],
+              'New street': ['dist_pipe' + str(i) for i in range(int(math.ceil(n_buildings/2)))] +
+                            ['serv_pipe' + str(i) for i in range(n_buildings)],
+              'Series district': ['dist_pipe' + str(i) for i in range(n_streets)],
+              'Parallel district': ['dist_pipe' + str(i) for i in range(n_streets)],
+              'Genk': ['dist_pipe' + str(i) for i in range(14)]}
 
-streets = {'Mixed street': [new_building, old_building]*int(n_buildings/2),
-           'Old street': [old_building]*n_buildings,
-           'New street': [new_building]*n_buildings,
-           'Series': [old_building, mixed_building, new_building],
-           'Parallel': [old_building, mixed_building, new_building]
-}
+pipe_diameters = {'Mixed street': [50, 40, 32, 32, 25] + [20] * n_buildings,
+                  'Old street': [50, 40, 32, 32, 25] + [20] * n_buildings,
+                  'New street': [50, 40, 32, 32, 25] + [20] * n_buildings,
+                  'Series district': [80, 65, 50],
+                  'Parallel district': [50, 50, 50],
+                  'Genk': [800, 250, 400, 700, 250, 400, 700, 250, 600, 450, 400, 350, 300, 250]}
 
-distribution_pipes = {'Series': [80, 65, 50],
-                      'Parallel': [50, 50, 50]}
+mult = {'Mixed street': [1] * n_buildings,
+        'Old street': [1] * n_buildings,
+        'New street': [n_buildings] * n_buildings,
+        'Series district': [n_buildings] * n_streets,
+        'Parallel district': [n_buildings] * n_streets,
+        'Genk': [633, 746, 2363, 1789, 414, 567, 1571, 584, 2094]}
 
-street_pipes = {'Mixed street': [50, 40, 32, 32, 20],
-                'Old street': [50, 40, 32, 32, 20],
-                'New street': [50, 40, 32, 32, 20]}
+max_heat = {'SFH_D_5_ins_TAB': 8900,
+            'SFH_D_3_2zone_REF1': 8659,
+            'SFH_D_3_2zone_TAB': 15794}
 
-service_pipes = {'Mixed street': [20] * n_buildings,
-                 'Old street': [20] * n_buildings,
-                 'New street': [20] * n_buildings}
+pos = 2.75/7
+price_profiles = {'constant': pd.Series(1, index=time_index),
+                  'step': pd.Series([1]*int(len(time_index)*pos) + [2]*(len(time_index)-int(len(time_index)*pos)),
+                                    index=time_index)}
 
-
-# dhw_use = range(1, n_buildings)
+time_steps = {'StSt': 900,
+              'Dynamic': 300}
 
 pipe_models = {'NoPipes': 'SimplePipe',
                'StSt': 'ExtensivePipe',
                'Dynamic': 'NodeMethod'}
 
-pos = 3.5/7
-price_profiles = {'constant': pd.Series(1, index=time_index),
-                  'step': pd.Series([1]*int(len(time_index)*pos) + [2]*(len(time_index)-int(len(time_index)*pos)),
-                                    index=time_index)}
-
-building_models = {'RCmodel': 'RCmodel',
+building_models = {'RC': 'RCmodel',
                    'Fixed': 'BuildingFixed'}
 
-time_steps = {'StSt': 900,
-              'Dynamic': 300}
+model_cases = {'Buildings - ideal network':
+               {
+                'pipe_model': pipe_models['NoPipes'],
+                'time_step': time_steps['StSt'],
+                'building_model': building_models['RC'],
+                'heat_profile': None
+               },
+               'Buildings':
+                   {
+                       'pipe_model': pipe_models['StSt'],
+                       'time_step': time_steps['StSt'],
+                       'building_model': building_models['RC'],
+                       'heat_profile': None
+                   },
+               'Network':
+                   {
+                       'pipe_model': pipe_models['Dynamic'],
+                       'time_step': time_steps['Dynamic'],
+                       'building_model': building_models['Fixed'],
+                       'heat_profile': 'Reference'
+                   },
+               'Combined - LP':
+                   {
+                       'pipe_model': pipe_models['Dynamic'],
+                       'time_step': time_steps['Dynamic'],
+                       'building_model': building_models['Fixed'],
+                       'heat_profile': 'Flexibility'
+                   },
+               'Combined - MINLP':
+                   {
+                       'pipe_model': pipe_models['Dynamic'],
+                       'time_step': time_steps['Dynamic'],
+                       'building_model': building_models['RC'],
+                       'heat_profile': None
+                   }
+               }
 
-max_heat = {'SFH_D_5_ins_TAB': 7000,
-            'SFH_D_4_2zone_REF1': 28000,
-            'SFH_D_4_2zone_REF2': 17500}
 
-"""
+def set_up_modesto(neighb, network_graph, modelcase, bparams, prodparams, dhwparams, pipeparams, flex, results):
+    pipe_model = model_cases[modelcase]['pipe_model']
+    time_step = model_cases[modelcase]['time_step']
 
-Initializing results
+    if pipe_model == 'NodeMethod':
+        optmodel = Modesto(horizon, time_step, pipe_model, network_graph)
+    else:
+        optmodel = Modesto(horizon + time_step, time_step, pipe_model, network_graph)
 
-"""
+    optmodel.change_params(parameters.get_general_params())
 
-parameters.dr.read_data(horizon + 2*time_steps['StSt'], start_time, time_steps['Dynamic'])
+    def change_params(params, key_list, node, comp):
+        optmodel.change_params({key: params[key] for key in key_list},
+                               node=node, comp=comp)
 
-Building_heat_use = {}
-Heat_injection = {}
-Building_temperatures = {}
-Network_temperatures = {}
-Delta_Q = {}
-Mass_flow_rates = {}
-objectives = {}
+    if flex:
+        cost = price_profiles['step']
+    else:
+        cost = price_profiles['constant']
 
-# Difference in energy use
-fig1, ax = plt.subplots(1, 1)
-fig1.suptitle('Step responses')
+    prodparams['fuel_cost'] = cost
 
-if selected_street_cases:
+    if modelcase == 'Network' or modelcase == 'Combined - LP':
+        b_key_list = ['delta_T', 'mult', 'temperature_return',
+                      'temperature_supply', 'temperature_max',
+                      'temperature_min', 'heat_profile']
 
-    fig2, axarr2 = plt.subplots(2, n_buildings, sharex=True, sharey=True)
-    fig2.suptitle('Building temperatures - street cases')
+        dhw_key_list = ['delta_T', 'mult', 'heat_profile', 'temperature_return',
+                        'temperature_supply', 'temperature_max', 'temperature_min']
 
-    fig4, axarr4 = plt.subplots(1, n_buildings, sharex=True, sharey=True)
-    fig4.suptitle('Building heat use - street cases')
+        prod_key_list = prodparams.keys()
+    else:
+        b_key_list = ['delta_T', 'mult', 'night_min_temperature', 'night_max_temperature',
+                      'day_min_temperature', 'day_max_temperature', 'bathroom_min_temperature',
+                      'bathroom_max_temperature', 'floor_min_temperature', 'floor_max_temperature',
+                      'model_type', 'Q_sol_E', 'Q_sol_W', 'Q_sol_S', 'Q_sol_N',
+                      'Q_int_D', 'Q_int_N', 'Te', 'Tg', 'TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0',
+                      'TfiN0', 'TiN0', 'TwiN0', 'TwN0', 'max_heat']
 
-    fig6, axarr6 = plt.subplots(1, n_buildings, sharex=True, sharey=True)
-    fig6.suptitle('Network temperatures - street cases')
+        dhw_key_list = ['delta_T', 'mult', 'heat_profile']
 
-    fig8, axarr8 = plt.subplots(1, 1, sharex=True, sharey=True)
-    fig8.suptitle('Mass flow rate to network - street cases')
+        prod_key_list = ['efficiency', 'PEF', 'CO2',
+                         'fuel_cost', 'Qmax', 'ramp_cost', 'ramp']
 
-if selected_district_cases:
+    if modelcase == 'Buildings':
+        p_key_list = ['diameter', 'temperature_supply', 'temperature_return']
+    elif modelcase == 'Buildings - ideal network':
+        p_key_list = ['diameter']
+    else:
+        p_key_list = ['diameter', 'temperature_history_supply', 'temperature_history_return', 'mass_flow_history',
+                      'wall_temperature_supply', 'wall_temperature_return', 'temperature_out_supply',
+                      'temperature_out_return']
 
-    fig3, axarr3 = plt.subplots(2, n_streets, sharex=True, sharey=True)
-    fig3.suptitle('Building temperatures - district cases')
+    for i, building in enumerate(bparams):
+        heat_profile_type = model_cases[modelcase]['heat_profile']
+        if heat_profile_type:
+            bparams[building]['heat_profile'] = results['Buildings'][heat_profile_type]['building_heat_use'][building]
 
-    fig5, axarr5 = plt.subplots(1, n_streets, sharex=True, sharey=True)
-    fig5.suptitle('Building heat use - district cases')
+            # Introducing bypass to increase robustness
+            for j, val in enumerate(bparams[building]['heat_profile']):
+                if val <= 0.1:
+                    bparams[building]['heat_profile'][j] = 10*mult[neighb][i]
 
-    fig7, axarr7 = plt.subplots(1, n_streets, sharex=True, sharey=True)
-    fig7.suptitle('Network temperatures - district cases')
+            bparams[building]['mult'] = 1
+        else:
+            bparams[building]['mult'] = mult[neighb][i]
 
-    fig9, axarr9 = plt.subplots(1, n_streets, sharex=True, sharey=True)
-    fig9.suptitle('Mass flow rates in network - district cases')
+        change_params(bparams[building], b_key_list, node=building, comp='building')
+        change_params(dhwparams[building], dhw_key_list, node=building, comp='DHW')
 
-def save_obj(obj, name ):
-    with open('results/'+ name + '.pkl', 'wb') as f:
+    for pipe in pipeparams:
+        change_params(pipeparams[pipe], p_key_list, node=None, comp=pipe)
+
+    change_params(prodparams, prod_key_list, node='Producer', comp='plant')
+
+    return optmodel
+
+
+def solve_optimization(optmodel):
+    optmodel.compile(start_time=start_time)
+    optmodel.set_objective('cost')
+    optmodel.solve()
+
+    print 'Slack: ', optmodel.model.Slack.value
+    print 'Energy:', optmodel.get_objective('energy') - optmodel.model.Slack.value, ' kWh'
+    print 'Cost:  ', optmodel.get_objective('cost') - optmodel.model.Slack.value, ' euro'
+
+
+def get_building_heat_profile(neigh_node_names, optmodel):
+    building_heat_use = {}
+
+    for i in neigh_node_names:
+        building_heat_use[i] = \
+            optmodel.get_result('heat_flow', node=i, comp='building', state=True)
+
+    return building_heat_use
+
+
+def get_building_temperatures(neigh_node_names, optmodel, statename):
+    result = {}
+
+    for i in neigh_node_names:
+        result[i] = optmodel.get_result('StateTemperatures', node=i,
+                                        comp='building', index=statename, state=True)
+
+    return result
+
+
+def get_heat_injection(optmodel):
+    return optmodel.get_result('heat_flow', node='Producer', comp='plant')
+
+
+def get_total_mf_rate(optmodel):
+    return optmodel.get_result('mass_flow', node='Producer', comp='plant')
+
+
+def collect_results(neigh, optmodel, modelcase):
+    result = {'building_heat_use': get_building_heat_profile(node_names[neigh], optmodel)}
+
+    if modelcase == 'Buildings - ideal network' or modelcase == 'Buildings':
+        result['day_zone_temperatures'] = get_building_temperatures(node_names[neigh], optmodel, 'TiD')
+        result['night_zone_temperatures'] = get_building_temperatures(node_names[neigh], optmodel, 'TiN')
+
+    result['heat_injection'] = get_heat_injection(optmodel)
+    result['total_mass_flow_rate'] = get_total_mf_rate(optmodel)
+
+    return result
+
+
+def plot_building_temperatures(bparams, nresults):
+    fig, axarr = plt.subplots(len(bparams), 2)
+
+    for i, build in enumerate(b_params):
+        axarr[i, 0].plot(bparams[build]['day_min_temperature'], linestyle=':', color='k')
+        axarr[i, 1].plot(bparams[build]['night_min_temperature'], linestyle=':', color='k')
+        axarr[i, 0].plot(bparams[build]['day_max_temperature'], linestyle=':', color='k')
+        axarr[i, 1].plot(bparams[build]['night_max_temperature'], linestyle=':', color='k')
+
+        axarr[i, 0].plot(nresults['day_zone_temperatures'][build])
+        axarr[i, 1].plot(nresults['night_zone_temperatures'][build])
+
+    plt.show()
+
+    return fig
+
+
+def plot_heat_injection(ax1, ax2, nresults, model_case):
+    ax1.plot(nresults['Reference']['heat_injection'], label='Reference')
+    ax1.plot(nresults['Flexibility']['heat_injection'], label='Flexibility')
+    ax1.set_title(neigh)
+
+    ax2.plot(nresults['Flexibility']['heat_injection'] -
+             nresults['Reference']['heat_injection'], label=model_case)
+
+    return ax1, ax2
+
+
+def generate_graph(neighborhood, node_names, edge_names, building_model, draw=True):
+    if neighborhood in streets:
+        g = street_graph(node_names, edge_names, building_model, draw)
+    elif neighborhood == 'Series district':
+        g = series_district_graph(node_names, edge_names, building_model, draw)
+    elif neighborhood == 'Parallel district':
+        g = parallel_district_graph(node_names, edge_names, building_model, draw)
+    elif neighborhood == 'Genk':
+        g = genk_graph(building_model, draw)
+    else:
+        raise Exception('{} is not a valid neigborhood'.format(neighborhood))
+
+    return g
+
+
+def save_obj(obj, name):
+    with open('results/' + name + '.pkl', 'wb') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
-"""
 
-Setting up graph
-
-"""
-
-
-def street_graph(n_buildings, building_model, draw=True):
+def street_graph(building_names, pipe_names, building_model, draw=True):
     """
-    Generate the graph for a street
 
-    :param n_points: The number of points to which 2 buildings are connected
+    :param building_names:
+    :param pipe_names:
+    :param building_model:
+    :param draw:
     :return:
     """
 
-    G = nx.DiGraph()
+    g = nx.DiGraph()
 
-    G.add_node('Producer', x=0, y=0, z=0,
+    g.add_node('Producer', x=0, y=0, z=0,
                comps={'plant': 'ProducerVariable'})
 
+    nr_buildings = len(building_names)
+    n_points = int(math.ceil(nr_buildings / 2))
+
     for i in range(n_points):
-        G.add_node('p' + str(i), x=street_pipe_length * (i + 1), y=0, z=0,
+        g.add_node('p' + str(i), x=street_pipe_length * (i + 1), y=0, z=0,
                    comps={})
-        G.add_node('Building' + str(i), x=street_pipe_length * (i + 1), y=service_pipe_length, z=0,
+        g.add_node(building_names[i], x=street_pipe_length * (i + 1), y=service_pipe_length, z=0,
                    comps={'building': building_model,
                           'DHW': 'BuildingFixed'})
 
-        if n_points + i + 1 <= n_buildings:
-            G.add_node('Building' + str(n_points + i), x=30 * (i + 1), y=-30, z=0,
+        if n_points + i + 1 <= nr_buildings:
+            g.add_node(building_names[n_points + i], x=street_pipe_length * (i + 1), y=-service_pipe_length, z=0,
                        comps={'building': building_model,
                               'DHW': 'BuildingFixed'})
 
-    G.add_edge('Producer', 'p0', name='dist_pipe0')
+    k = 1
+    g.add_edge('Producer', 'p0', name=pipe_names[0])
     for i in range(n_points - 1):
-        G.add_edge('p' + str(i), 'p' + str(i + 1), name='dist_pipe' + str(i + 1))
+        g.add_edge('p' + str(i), 'p' + str(i + 1), name=pipe_names[k])
+        k += 1
 
     for i in range(n_points):
-        G.add_edge('p' + str(i), 'Building' + str(i), name='serv_pipe' + str(i))
+        g.add_edge('p' + str(i), 'Building' + str(i), name=pipe_names[k])
 
-        if n_points + i + 1 <= n_buildings:
-            G.add_edge('p' + str(i), 'Building' + str(n_points + i), name='serv_pipe' + str(n_points + i))
+        if n_points + i + 1 <= nr_buildings:
+            g.add_edge('p' + str(i), 'Building' + str(n_points + i), name=pipe_names[n_points + k])
+
+        k += 1
 
     if draw:
 
         coordinates = {}
-        for node in G.nodes:
-            coordinates[node] = (G.nodes[node]['x'], G.nodes[node]['y'])
+        for node in g.nodes:
+            coordinates[node] = (g.nodes[node]['x'], g.nodes[node]['y'])
 
         fig = plt.figure()
-        nx.draw(G, coordinates, with_labels=True, node_size=0)
+        nx.draw(g, coordinates, with_labels=True, node_size=0)
         fig.savefig('img/street_layout.svg')
         plt.show()
 
-    return G
+    return g
 
 
-def radial_district_graph(n_streets, building_model, draw=True):
+def parallel_district_graph(street_names, pipe_names, building_model, draw=True):
     """
-    Generate the graph for a street
 
-    :param n_streets: The number of streets to which 2 buildings are connected
+    :param street_names:
+    :param pipe_names:
+    :param building_model:
+    :param draw:
     :return:
     """
 
-    G = nx.DiGraph()
+    g = nx.DiGraph()
 
-    G.add_node('Producer', x=0, y=0, z=0,
+    g.add_node('Producer', x=0, y=0, z=0,
                comps={'plant': 'ProducerVariable'})
 
+    nr_streets = len(street_names)
     angle = 2*np.pi/n_streets
     distance = dist_pipe_length
 
-    for i in range(n_streets):
+    for i in range(nr_streets):
 
         street_angle = i*angle
         x_coor = np.cos(street_angle)*distance
         y_coor = np.sin(street_angle)*distance
-        G.add_node('Street' + str(i),  x=x_coor, y=y_coor, z=0,
-                   comps={'building': building_model})
+        g.add_node(street_names[i],  x=x_coor, y=y_coor, z=0,
+                   comps={'building': building_model,
+                          'DHW': 'BuildingFixed'})
 
-        G.add_edge('Producer', 'Street' + str(i), name='dist_pipe' + str(i))
+        g.add_edge('Producer', street_names[i], name=pipe_names[i])
 
     if draw:
 
         coordinates = {}
-        for node in G.nodes:
-            coordinates[node] = (G.nodes[node]['x'], G.nodes[node]['y'])
+        for node in g.nodes:
+            coordinates[node] = (g.nodes[node]['x'], g.nodes[node]['y'])
 
         fig = plt.figure()
-        nx.draw(G, coordinates, with_labels=True, node_size=0)
-        fig.savefig('img/radial_district_layout.svg')
+        nx.draw(g, coordinates, with_labels=True, node_size=0)
+        fig.savefig('img/parallel_district_layout.svg')
         plt.show()
 
-    return G
+    return g
 
-def linear_district_graph(n_streets, building_model, draw=True):
+
+def series_district_graph(street_names, pipe_names, building_model, draw=True):
     """
-    Generate the graph for a street
 
-    :param n_streets: The number of streets to which 2 buildings are connected
+    :param nr_streets:
+    :param building_model:
+    :param draw:
     :return:
     """
 
-    G = nx.DiGraph()
+    g = nx.DiGraph()
 
-    G.add_node('Producer', x=0, y=0, z=0,
+    g.add_node('Producer', x=0, y=0, z=0,
                comps={'plant': 'ProducerVariable'})
 
     distance = dist_pipe_length
+    nr_streets = len(street_names)
 
-    for i in range(n_streets):
+    for i in range(nr_streets):
 
-        G.add_node('Street' + str(i),  x=distance*(i+1), y=0, z=0,
-                   comps={'building': building_model})
+        g.add_node(street_names[i],  x=distance*(i+1), y=0, z=0,
+                   comps={'building': building_model,
+                          'DHW': 'BuildingFixed'})
 
-    G.add_edge('Producer', 'Street0', name='dist_pipe0')
+    g.add_edge('Producer', street_names[0], name=pipe_names[0])
 
-    for i in range(n_streets-1):
-        G.add_edge('Street' + str(i), 'Street' + str(i+1), name='dist_pipe' + str(i+1))
+    for i in range(nr_streets-1):
+        g.add_edge(street_names[i], street_names[i+1], name=pipe_names[i+1])
 
     if draw:
 
         coordinates = {}
-        for node in G.nodes:
-            coordinates[node] = (G.nodes[node]['x'], G.nodes[node]['y'])
+        for node in g.nodes:
+            coordinates[node] = (g.nodes[node]['x'], g.nodes[node]['y'])
 
         fig = plt.figure()
-        nx.draw(G, coordinates, with_labels=True, node_size=0)
-        fig.savefig('img/linear_district_layout.svg')
+        nx.draw(g, coordinates, with_labels=True, node_size=0)
+        fig.savefig('img/series_district_layout.svg')
         plt.show()
 
-    return G
+    return g
 
-"""
 
-Running cases
-
-"""
-
-c = 0  # Number to determine progress in the program
-
-for n, case in enumerate(selected_model_cases):
-    Building_heat_use[case] = {}
-    Heat_injection[case] = {}
-    Building_temperatures[case] = {}
-    Network_temperatures[case] = {}
-    Delta_Q[case] = {}
-    Mass_flow_rates[case] = {}
-    objectives[case] = {}
-
-    time_step = time_steps[model_cases[case]['time_step']]
-    pipe_model = pipe_models[model_cases[case]['pipe_model']]
-    building_model = building_models[model_cases[case]['building_model']]
-
-    """
-    
-    Street cases
-    
+def genk_graph(building_model, draw=True):
     """
 
-    for street in selected_street_cases:
-        Building_heat_use[case][street] = {}
-        Heat_injection[case][street] = {}
-        Building_temperatures[case][street] = {}
-        Network_temperatures[case][street] = {}
-        Delta_Q[case][street] = {}
-        Mass_flow_rates[case][street] = {}
-        objectives[case][street] = {}
+    :param building_model:
+    :param draw:
+    :return:
+    """
 
-        graph = street_graph(n_buildings, building_model, draw=False)
+    g = nx.DiGraph()
 
-        if pipe_model == 'NodeMethod':
-            optmodel = Modesto(horizon, time_step, pipe_model, graph)
-            flag_nm = True
+    g.add_node('Producer', x=5000, y=5000, z=0,
+               comps={'plant': 'ProducerVariable'})
+    g.add_node('ZwartbergNE', x=3500, y=5100, z=0,
+               comps={'building': building_model,
+                      'DHW': 'BuildingFixed'})
+    g.add_node('WaterscheiGarden', x=3300, y=6700, z=0,
+               comps={'building': building_model,
+                      'DHW': 'BuildingFixed'})
+    g.add_node('ZwartbergNW', x=1500, y=6600, z=0,
+               comps={'building': building_model,
+                      'DHW': 'BuildingFixed'})
+    g.add_node('ZwartbergZ', x=2000, y=6000, z=0,
+               comps={'building': building_model,
+                      'DHW': 'BuildingFixed'})
+    g.add_node('OudWinterslag', x=1700, y=4000, z=0,
+               comps={'building': building_model,
+                      'DHW': 'BuildingFixed'})
+    g.add_node('Winterslag', x=1000, y=2500, z=0,
+               comps={'building': building_model,
+                      'DHW': 'BuildingFixed'})
+    g.add_node('Boxbergheide', x=-1200, y=2100, z=0,
+               comps={'building': building_model,
+                      'DHW': 'BuildingFixed'})
+    g.add_node('TermienOost', x=800, y=880, z=0,
+               comps={'building': building_model,
+                      'DHW': 'BuildingFixed'})
+    g.add_node('TermienWest', x=0, y=0, z=0,
+               comps={'building': building_model,
+                      'DHW': 'BuildingFixed'})
+    g.add_node('p1', x=3500, y=6100, z=0,
+               comps={})
+    g.add_node('p2', x=1700, y=6300, z=0,
+               comps={})
+    g.add_node('p3', x=250, y=5200, z=0,
+               comps={})
+    g.add_node('p4', x=0, y=2700, z=0,
+               comps={})
+    g.add_node('p5', x=620, y=700, z=0,
+               comps={})
+
+    g.add_edge('Producer', 'p1', name='dist_pipe0')
+    g.add_edge('p1', 'ZwartbergNE', name='dist_pipe1')
+    g.add_edge('p1', 'WaterscheiGarden', name='dist_pipe2')
+    g.add_edge('p1', 'p2', name='dist_pipe3')
+    g.add_edge('p2', 'ZwartbergNW', name='dist_pipe4')
+    g.add_edge('p2', 'ZwartbergZ', name='dist_pipe5')
+    g.add_edge('p2', 'p3', name='dist_pipe6')
+    g.add_edge('p3', 'OudWinterslag', name='dist_pipe7')
+    g.add_edge('p3', 'p4', name='dist_pipe8')
+    g.add_edge('p4', 'Boxbergheide', name='dist_pipe9')
+    g.add_edge('p4', 'Winterslag', name='dist_pipe10')
+    g.add_edge('p4', 'p5', name='dist_pipe11')
+    g.add_edge('p5', 'TermienOost', name='dist_pipe12')
+    g.add_edge('p5', 'TermienWest', name='dist_pipe13')
+
+    if draw:
+
+        coordinates = {}
+        for node in g.nodes:
+            coordinates[node] = (g.nodes[node]['x'], g.nodes[node]['y'])
+
+        fig = plt.figure()
+        nx.draw(g, coordinates, with_labels=True, node_size=0)
+        fig.savefig('img/genk_layout.svg')
+        plt.show()
+
+    return g
+
+
+def collect_neighborhood_data(street_name, building_names, edge_names, aggregated=False):
+
+    b_params = {}
+    dhw_params = {}
+    p_params = {}
+
+    for i, name in enumerate(building_names):
+        building_type = building_types[street_name][i]
+
+        if aggregated:
+            b_params[name] = parameters.get_aggregated_building_params(i,
+                                                                       max_heat=max_heat[building_type],
+                                                                       model_type=building_types[street_name][i],
+                                                                       mult=mult[street_name][i])
+
+            dhw_params[name] = parameters.get_dhw_params(i, aggregated=aggregated)
         else:
-            optmodel = Modesto(horizon + time_step, time_step, pipe_model, graph)
-            flag_nm = False
+            b_params[name] = parameters.get_single_building_params(i,
+                                                                   max_heat=max_heat[building_type],
+                                                                   model_type=building_types[street_name][i])
 
-        if pipe_model == 'SimplePipe':
-            flag_i = True
+            dhw_params[name] = parameters.get_dhw_params(i, aggregated=aggregated, mult=mult[street_name][i])
+
+    for i, name in enumerate(edge_names):
+        p_params[name] = parameters.get_pipe_params(pipe_diameters[street_name][i])
+
+    prod_params = parameters.get_producer_params()
+
+    return b_params, prod_params, dhw_params, p_params
+
+
+if __name__ == '__main__':
+
+    fig1, axarr1 = plt.subplots(len(selected_district_cases + selected_street_cases), 1)
+    fig2, axarr2 = plt.subplots(len(selected_model_cases), len(selected_district_cases + selected_street_cases))
+
+    results = {}
+    parameters.dr.read_data(horizon + 2 * time_steps['StSt'], start_time, time_steps['Dynamic'], max_heat.keys())
+
+    n_cases = len(selected_model_cases) * len(
+        selected_street_cases + selected_district_cases)
+    n = 0
+
+    for l, neigh in enumerate(selected_street_cases + selected_district_cases):
+        results[neigh] = {}
+        if neigh in selected_district_cases:
+            b_params, prod_params, dhw_params, p_params = collect_neighborhood_data(neigh,
+                                                                                    node_names[neigh],
+                                                                                    edge_names[neigh],
+                                                                                    True)
         else:
-            flag_i = False
+            b_params, prod_params, dhw_params, p_params = collect_neighborhood_data(neigh,
+                                                                                    node_names[neigh],
+                                                                                    edge_names[neigh],
+                                                                                    False)
 
-        optmodel.change_params(parameters.get_general_params())
+        for m, model_case in enumerate(selected_model_cases):
+            n += 1
 
-        for i in range(n_buildings):
+            building_model = model_cases[model_case]['building_model']
+            results[neigh][model_case] = {}
 
-            if flag_nm:
-                heat_profile = Building_heat_use['Building'][street][model_cases[case]['heat_profile']][i]
+            graph = generate_graph(neigh, node_names[neigh], edge_names[neigh], building_model, False)
 
-                # Introducing bypass to increase robustness
-                for j, val in enumerate(heat_profile):
-                    if val <= 0.1:
-                        heat_profile[j] = 10
+            string = 'CASE ' + str(n) + ' of ' + str(n_cases) + ': ' + neigh + ' - ' + model_case + ' - Reference'
+            print '\n', string, '\n', '-' * len(string), '\n'
+            opt = set_up_modesto(neigh, graph, model_case, b_params, prod_params, dhw_params, p_params, False, results[neigh])
+            solve_optimization(opt)
+            results[neigh][model_case]['Reference'] = collect_results(neigh, opt, model_case)
 
-                b_params = parameters.get_single_building_params(flag_nm,
-                                                          i,
-                                                          heat_profile=heat_profile)
+            string = 'CASE ' + str(n) + ' of ' + str(n_cases) + ': ' + neigh + ' - ' + model_case + ' - Flexibility'
+            print '\n', string, '\n', '-' * len(string), '\n'
+            opt = set_up_modesto(neigh, graph, model_case, b_params, prod_params, dhw_params, p_params, True, results[neigh])
+            solve_optimization(opt)
+            results[neigh][model_case]['Flexibility'] = collect_results(neigh, opt, model_case)
+
+            if len(selected_street_cases+selected_district_cases) == 1:
+                plot_heat_injection(axarr2[m], axarr1, results[neigh][model_case], model_case)
+                axarr1.set_title(neigh)
+                axarr2[m].set_title(neigh + ' ' + model_case)
+                axarr1. legend()
+                axarr2[0].legend()
             else:
-                b_params = parameters.get_single_building_params(flag_nm,
-                                                                 i,
-                                                                max_heat=max_heat[streets[street][i]],
-                                                                model_type=streets[street][i])
+                plot_heat_injection(axarr2[m, l], axarr1[l], results[neigh][model_case], model_case)
+                axarr1[l].set_title(neigh)
+                axarr2[m, l].set_title(neigh + ' ' + model_case)
+                axarr1[0]. legend()
+                axarr2[0, 0].legend()
 
-                axarr2[0, i].plot(b_params['day_min_temperature'], color='k', linestyle=':')
-                axarr2[0, i].plot(b_params['day_max_temperature'], color='k', linestyle=':')
-                axarr2[1, i].plot(b_params['night_min_temperature'], color='k', linestyle=':')
-                axarr2[1, i].plot(b_params['night_max_temperature'], color='k', linestyle=':')
 
-            optmodel.change_params(b_params, 'Building' + str(i), 'building')
-
-            dhw_params = parameters.get_dhw_params(flag_nm, i)
-            optmodel.change_params(dhw_params, 'Building' + str(i), 'DHW')
-
-            p_params = parameters.get_pipe_params(pipe_model, service_pipes[street][i])
-            optmodel.change_params(p_params, None, 'serv_pipe' + str(i))
-
-        for i in range(n_points):
-            p_params = parameters.get_pipe_params(pipe_model, street_pipes[street][i])
-            optmodel.change_params(p_params, None, 'dist_pipe' + str(i))
-
-        for flex_case in selected_flex_cases:
-            c += 1
-
-            Building_heat_use[case][street][flex_case] = {}
-            Heat_injection[case][street][flex_case] = {}
-            Building_temperatures[case][street][flex_case] = {}
-            Network_temperatures[case][street][flex_case] = {}
-            Mass_flow_rates[case][street][flex_case] = {}
-            objectives[case][street][flex_case] = {}
-
-            cost = price_profiles[flex_cases[flex_case]['price_profile']]
-            prod_params = parameters.get_producer_params(flag_nm, cost)
-            optmodel.change_params(prod_params, 'Producer', 'plant')
-
-            print '\n CASE: ', case, ' ', street, ' ', flex_case, str(c/n_cases*100), \
-                '%\n------------------------------------------------\n'
-
-            optmodel.compile(start_time)
-            optmodel.set_objective('cost')
-
-            status = optmodel.solve(tee=True)
-
-            objectives[case][street][flex_case]['Slack'] = optmodel.model.Slack.value
-            objectives[case][street][flex_case]['energy'] = optmodel.get_objective('energy')
-            objectives[case][street][flex_case]['cost'] = optmodel.get_objective('cost')
-
-            print 'Slack: ', optmodel.model.Slack.value
-            print 'Energy:', optmodel.get_objective('energy') - optmodel.model.Slack.value, ' kWh'
-            print 'Cost:  ', optmodel.get_objective('cost') - optmodel.model.Slack.value, ' euro'
-            print 'Active:', optmodel.get_objective() - optmodel.model.Slack.value
-
-            Building_temperatures[case][street][flex_case]['TiD'] = {}
-            Building_temperatures[case][street][flex_case]['TiN'] = {}
-            for i in range(n_buildings):
-
-                axarr2[0, i].set_title('Building ' + str(i))
-                axarr4[i].set_title('Building ' + str(i))
-                axarr6[i].set_title('Building ' + str(i))
-
-                Building_heat_use[case][street][flex_case][i] = \
-                    optmodel.get_result('heat_flow', node='Building' + str(i), comp='building', state=True)
-
-                if building_model == 'RCmodel':
-                    Building_temperatures[case][street][flex_case]['TiD'][i] = \
-                        optmodel.get_result('StateTemperatures', node='Building' + str(i),
-                                     comp='building', index='TiD', state=True)
-                    Building_temperatures[case][street][flex_case]['TiN'][i] = \
-                        optmodel.get_result('StateTemperatures', node='Building' + str(i),
-                                     comp='building', index='TiN', state=True)
-
-                    axarr2[0, i].plot(Building_temperatures[case][street][flex_case]['TiD'][i], label=case + ' ' + flex_case + ' ' + str(i))
-                    axarr2[1, i].plot(Building_temperatures[case][street][flex_case]['TiN'][i], label=case + ' ' + flex_case + ' ' + str(i))
-                    axarr4[i].plot(Building_heat_use[case][street][flex_case][i], label=case + ' ' + flex_case + ' ' + str(i))
-
-                if pipe_model == 'NodeMethod':
-                    Network_temperatures[case][street][flex_case]['plant_supply'] = \
-                        optmodel.get_result('temperatures', node='Producer', comp='plant', index='supply')
-                    Network_temperatures[case][street][flex_case]['plant_return'] = \
-                        optmodel.get_result('temperatures', node='Producer', comp='plant', index='return')
-
-                    for k in range(n_buildings):
-                        Network_temperatures[case][street][flex_case]['b' + str(k) + '_supply'] = \
-                            optmodel.get_result('temperatures', node='Building' + str(k), comp='building', index='supply')
-                        Network_temperatures[case][street][flex_case]['b' + str(k) + '_supply'] = \
-                            optmodel.get_result('temperatures', node='Building' + str(k), comp='building', index='return')
-
-                    axarr6[i].plot(Network_temperatures[case][street][flex_case]['plant_supply'], label=case + ' ' + street + ' ' + flex_case + ' supply')
-                    axarr6[i].plot(Network_temperatures[case][street][flex_case]['plant_return'], label=case + ' ' + street + ' ' + flex_case + ' return')
-
-            axarr2[0, 0].legend()
-            axarr2[0, 0].set_ylabel('Day zone temperature [K]')
-            axarr2[1, 0].set_ylabel('Night zone temperature [K]')
-            axarr4[0].legend()
-            axarr4[0].set_ylabel('Power [W]')
-            axarr6[0].legend()
-            axarr4[0].set_ylabel('Temperature[K] [W]')
-
-            Mass_flow_rates[case][street][flex_case] = optmodel.get_result('mass_flow', node=None, comp='dist_pipe0')
-
-            if case == 'Building':
-                axarr8.plot(Mass_flow_rates[case][street][flex_case], label=case + ' ' + street + ' ' + flex_case)
-                axarr8.legend()
-
-            Heat_injection[case][street][flex_case] = optmodel.get_result('heat_flow', node='Producer', comp='plant')
-
-            heat_injection = sum(Heat_injection[case][street][flex_case])
-            heat_use = sum(sum(Building_heat_use[case][street][flex_case][i]) for i in range(n_buildings))
-            print 'Efficiency: ', heat_use / heat_injection * 100, '%'
-
-        if ('Flexibility' in selected_flex_cases) and ('Reference' in selected_flex_cases):
-            Delta_Q[case][street] = Heat_injection[case][street]['Flexibility'] - Heat_injection[case][street]['Reference']
-            ax.plot(Delta_Q[case][street], label=case + ' ' + street)
-            ax.legend()
-
-
-    """
-    
-    District case
-    
-    """
-
-    for district in selected_district_cases:
-        Building_heat_use[case][district] = {}
-        Heat_injection[case][district] = {}
-        Building_temperatures[case][district] = {}
-        Network_temperatures[case][district] = {}
-        Delta_Q[case][district] = {}
-        Mass_flow_rates[case][district] = {}
-        objectives[case][district] = {}
-
-        if district == 'Series':
-            graph = linear_district_graph(n_streets, building_model, draw=False)
-        elif district == 'Parallel':
-            graph = radial_district_graph(n_streets, building_model, draw=False)
-
-        if pipe_model == 'NodeMethod':
-            optmodel = Modesto(horizon, time_step, pipe_model, graph)
-            flag_nm = True
-        else:
-            optmodel = Modesto(horizon + time_step, time_step, pipe_model, graph)
-            flag_nm = False
-
-        if pipe_model == 'SimplePipe':
-            flag_i = True
-        else:
-            flag_i = False
-
-        optmodel.change_params(parameters.get_general_params())
-
-        for i in range(n_streets):
-
-            if flag_nm:
-                heat_profile = Building_heat_use['Building'][district][model_cases[case]['heat_profile']][i]
-
-                # Introducing bypass to increase robustness
-                for j, val in enumerate(heat_profile):
-                    if val <= 0.1:
-                        heat_profile[j] = 100
-
-                b_params = parameters.get_aggregated_building_params(flag_nm,
-                                                          i,
-                                                          heat_profile=heat_profile,
-                                                          mult=1
-                                                          )  # heat_profile gives heat use for entire street, not one building!
-            else:
-                b_params = parameters.get_aggregated_building_params(flag_nm,
-                                                          i,
-                                                          max_heat=max_heat[streets[district][i]],
-                                                          model_type=streets[district][i],
-                                                          mult=n_buildings)
-
-                axarr3[0, i].plot(b_params['day_min_temperature'], color='k', linestyle=':')
-                axarr3[0, i].plot(b_params['day_max_temperature'], color='k', linestyle=':')
-                axarr3[1, i].plot(b_params['night_min_temperature'], color='k', linestyle=':')
-                axarr3[1, i].plot(b_params['night_max_temperature'], color='k', linestyle=':')
-
-            optmodel.change_params(b_params, 'Street' + str(i), 'building')
-
-        for i in range(n_streets):
-            p_params = parameters.get_pipe_params(pipe_model, distribution_pipes[district][i])
-            optmodel.change_params(p_params, None, 'dist_pipe' + str(i))
-
-        for flex_case in selected_flex_cases:
-            c += 1
-
-            Building_heat_use[case][district][flex_case] = {}
-            Heat_injection[case][district][flex_case] = {}
-            Building_temperatures[case][district][flex_case] = {}
-            Network_temperatures[case][district][flex_case] = {}
-            Mass_flow_rates[case][district][flex_case] = {}
-            objectives[case][district][flex_case] = {}
-
-            cost = price_profiles[flex_cases[flex_case]['price_profile']]
-            prod_params = parameters.get_producer_params(flag_nm, cost)
-            optmodel.change_params(prod_params, 'Producer', 'plant')
-
-            print '\n CASE: ', case, ' ', district, ' ', flex_case, str(c/n_cases*100), '%\n------------------------------------------------\n'
-
-            optmodel.compile(start_time)
-            optmodel.set_objective('cost')
-
-            optmodel.solve(solver='cplex', tee=True)
-
-            objectives[case][district][flex_case]['Slack'] = optmodel.model.Slack.value
-            objectives[case][district][flex_case]['energy'] = optmodel.get_objective('energy')
-            objectives[case][district][flex_case]['cost'] = optmodel.get_objective('cost')
-
-            print 'Slack: ', optmodel.model.Slack.value
-            print 'Energy:', optmodel.get_objective('energy') - optmodel.model.Slack.value, ' kWh'
-            print 'Cost:  ', optmodel.get_objective('cost') - optmodel.model.Slack.value, ' euro'
-            print 'Active:', optmodel.get_objective() - optmodel.model.Slack.value
-
-            Building_temperatures[case][district][flex_case]['TiD'] = {}
-            Building_temperatures[case][district][flex_case]['TiN'] = {}
-            for i in range(n_streets):
-
-                axarr3[0, i].set_title('Street ' + str(i))
-                axarr5[i].set_title('Street ' + str(i))
-                axarr7[i].set_title('Street ' + str(i))
-
-                Building_heat_use[case][district][flex_case][i] = \
-                    optmodel.get_result('heat_flow', node='Street' + str(i), comp='building', state=True)
-
-                if building_model == 'RCmodel':
-                    Building_temperatures[case][district][flex_case]['TiD'][i] = \
-                        optmodel.get_result('StateTemperatures', node='Street' + str(i),
-                                            comp='building', index='TiD', state=True)
-                    Building_temperatures[case][district][flex_case]['TiN'][i] = \
-                        optmodel.get_result('StateTemperatures', node='Street' + str(i),
-                                            comp='building', index='TiN', state=True)
-
-                    axarr3[0, i].plot(Building_temperatures[case][district][flex_case]['TiD'][i],
-                             label=case + ' ' + district + ' ' + flex_case)
-                    axarr3[1, i].plot(Building_temperatures[case][district][flex_case]['TiN'][i],
-                             label=case + ' ' + district + ' ' + flex_case)
-                    axarr5[i].plot(Building_heat_use[case][district][flex_case][i],
-                             label=case + ' ' + district + ' ' + flex_case)
-
-                if pipe_model == 'NodeMethod':
-                    Network_temperatures[case][district][flex_case]['plant_supply'] = \
-                        optmodel.get_result('temperatures', node='Producer', comp='plant', index='supply')
-                    Network_temperatures[case][district][flex_case]['plant_return'] = \
-                        optmodel.get_result('temperatures', node='Producer', comp='plant', index='return')
-
-                    for k in range(n_streets):
-                        Network_temperatures[case][district][flex_case]['b' + str(k) + '_supply'] = \
-                            optmodel.get_result('temperatures', node='Street' + str(k), comp='building', index='supply')
-                        Network_temperatures[case][district][flex_case]['b' + str(k) + '_supply'] = \
-                            optmodel.get_result('temperatures', node='Street' + str(k), comp='building', index='return')
-
-                    axarr7[i].plot(Network_temperatures[case][district][flex_case]['plant_supply'],
-                             label=case + ' ' + district + ' ' + flex_case + ' supply')
-                    axarr7[i].plot(Network_temperatures[case][district][flex_case]['plant_return'],
-                             label=case + ' ' + district + ' ' + flex_case + ' return')
-
-                Mass_flow_rates[case][district][flex_case]['pipe' + str(i)] = \
-                    optmodel.get_result('mass_flow', node=None, comp='dist_pipe' + str(i))
-
-                if case == 'Building':
-                    axarr9[i].plot(Mass_flow_rates[case][district][flex_case]['pipe' + str(i)],
-                                   label=case + ' ' + district + ' ' + flex_case)
-
-            axarr3[0, 0].legend()
-            axarr3[0, 0].set_ylabel('Day zone temperature [K]')
-            axarr3[1, 0].set_ylabel('Night zone temperature [K]')
-            axarr5[0].legend()
-            axarr5[0].set_ylabel('Power [W]')
-            axarr7[0].legend()
-            axarr9[0].legend()
-            axarr9[0].set_ylabel('Temperature[K] [W]')
-
-            Heat_injection[case][district][flex_case] = optmodel.get_result('heat_flow', node='Producer',
-                                                                          comp='plant')
-
-            heat_injection = sum(Heat_injection[case][district][flex_case])
-            heat_use = sum(sum(Building_heat_use[case][district][flex_case][i]) for i in range(n_streets))
-            print 'Efficiency: ', heat_use/heat_injection*100, '%'
-
-        if ('Flexibility' in selected_flex_cases) and ('Reference' in selected_flex_cases):
-            Delta_Q[case][district] = Heat_injection[case][district]['Flexibility'] - Heat_injection[case][district][
-                'Reference']
-            ax.plot(Delta_Q[case][district], label=case + ' ' + district)
-            ax.legend()
-
-save_obj(Heat_injection, 'heat_injection')
-save_obj(Building_temperatures, 'building_temperatures')
-save_obj(Building_heat_use, 'building_heat_use')
-save_obj(Network_temperatures, 'network_temperatures')
-save_obj(Mass_flow_rates, 'mass_flow_rates')
-save_obj(price_profiles, 'price_profiles')
-save_obj(objectives, 'objectives')
-
-
-"""
-
-Plotting results
-
-"""
-
-# fig.title('Heat injection')
-# fig.xlabel('Time')
-# fig.ylabel('Power [W]')
-# fig.legend()
-# ax2.set_title('Temperatures day zone')
-# ax2.set_ylabel('Temperature [K]')
-# ax3.set_title('Temperatures night zone')
-# ax3.set_ylabel('Temperature [K]')
-# ax3.set_xlabel('Time')
-# ax2.legend()
-# ax4.set_title('Buidling heat use')
-# ax4.set_ylabel('Power [W]')
-# ax4.set_xlabel('Time')
-# ax4.legend()
 plt.show()
