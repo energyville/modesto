@@ -54,7 +54,7 @@ def construct_model():
 
     nx.draw(G, with_labels=True)
 
-    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step, pipe_model='NodeMethod', graph=G)
+    optmodel = Modesto(pipe_model='NodeMethod', graph=G)
 
     ##################################
     # Set up data                    #
@@ -288,6 +288,7 @@ if __name__ == '__main__':
     ws_t_ret = optmodel.get_result(node='waterscheiGarden', comp='buildingD', name='temperatures', index='return')
     zw_t_sup = optmodel.get_result(node='zwartbergNE', comp='buildingD', name='temperatures', index='supply')
     zw_t_ret = optmodel.get_result(node='zwartbergNE', comp='buildingD', name='temperatures', index='return')
+    mf_t_ret = optmodel.get_result(node='zwartbergNE', comp='buildingD', name='mass_flow')
 
     # Mass flows through the network
     mf = {'bbThor': optmodel.get_result(comp='bbThor', name='mass_flow'),

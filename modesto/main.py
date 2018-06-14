@@ -556,16 +556,14 @@ class Modesto:
 
         :return:
         """
-        descriptions = {None: {'general': {}}}
+        descriptions = {'general': {}}
         for name, param in self.params.items():
-            descriptions[None]['general'][name] = param.get_description()
+            descriptions['general'][name] = param.get_description()
 
-        for node, comps in self.components.items():
-            descriptions[node] = {}
-            for comp, comp_obj in comps.items():
-                descriptions[node][comp] = {}
-                for name in comp_obj.get_params():
-                    descriptions[node][comp][name] = comp_obj.get_param_description(name)
+        for comp, comp_obj in self.components.items():
+            descriptions[comp] = {}
+            for name in comp_obj.get_params():
+                descriptions[comp][name] = comp_obj.get_param_description(name)
         self._print_params(descriptions)
 
     def print_comp_param(self, node=None, comp=None, *args):
@@ -577,16 +575,18 @@ class Modesto:
         :param args: Names of the parameters, if None are given, all will be printed
         :return:
         """
-        descriptions = {node: {comp: {}}}
 
         comp_obj = self.get_component(comp, node)
+        comp_name = comp_obj.name
+        descriptions = {comp_name: {}}
+
         if not args:
             for name in comp_obj.get_params():
-                descriptions[node][comp][name] = comp_obj.get_param_description(name)
+                descriptions[comp_name][name] = comp_obj.get_param_description(name)
         for name in args:
             if name not in comp_obj.params:
                 raise IndexError('%s is not a valid parameter of %s' % (name, comp))
-            descriptions[node][comp][name] = comp_obj.get_param_description(name)
+            descriptions[comp_name][name] = comp_obj.get_param_description(name)
 
         self._print_params(descriptions)
 
@@ -604,12 +604,12 @@ class Modesto:
             for name in self.params:
                 list[name] = self.params[name].get_description()
 
-            self._print_params({None: {'general': list}})
+            self._print_params({'general': list})
         else:
             if name not in self.params:
                 raise IndexError('%s is not a valid general parameter ' % name)
 
-            self._print_params({None: {'general': {name: self.params[name].get_description()}}})
+            self._print_params({'general': {name: self.params[name].get_description()}})
 
     @staticmethod
     def _print_params(descriptions, disp=True):
@@ -622,16 +622,11 @@ class Modesto:
         :return:
         """
         string = ''
-        for node in descriptions:
-            if node is None:
-                node_str = ''
-            else:
-                node_str = node + '.'
-            for comp in descriptions[node]:
-                if descriptions[node][comp]:
-                    string += '\n--- ' + node_str + comp + ' ---\n\n'
-                    for param, des in descriptions[node][comp].items():
-                        string += '-' + param + '\n' + des + '\n\n'
+        for comp, des in descriptions.items():
+            if des:
+                string += '\n--- ' + comp + ' ---\n\n'
+                for param, des in descriptions[comp].items():
+                    string += '-' + param + '\n' + des + '\n\n'
 
         if disp:
             print string

@@ -52,8 +52,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='SimplePipe', graph=G)
+    optmodel = Modesto(pipe_model='SimplePipe', graph=G)
 
     ##################################
     # Fill in the parameters         #

@@ -89,9 +89,7 @@ def setup_opt():
 
     # And create the modesto object
 
-    model = Modesto(horizon=horizon,
-                    time_step=time_step,
-                    pipe_model=pipe_model,
+    model = Modesto(pipe_model=pipe_model,
                     graph=G)
 
     # # Adding data
