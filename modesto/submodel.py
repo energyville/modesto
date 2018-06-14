@@ -1,6 +1,10 @@
 from __future__ import division
 
 from pyomo.core.base import Block,  Var, NonNegativeReals, value
+from pyomo.core.base.param import IndexedParam
+from pyomo.core.base.var import IndexedVar
+
+import pandas as pd
 
 
 class Submodel(object):
@@ -157,6 +161,12 @@ class Submodel(object):
         # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
         self.TIME = self.X_TIME[:-1]
 
+    def get_time_axis(self, state=False):
+        if state:
+            return self.X_TIME
+        else:
+            return self.TIME
+
     def _make_block(self, model):
         """
         Make a seperate block in the pyomo Concrete model for the Node
@@ -174,8 +184,6 @@ class Submodel(object):
 
         self.logger.info(
             'Optimization block initialized for {}'.format(self.name))
-
-
 
     def obj_slack(self):
         """
@@ -287,4 +295,42 @@ class Submodel(object):
 
         return 0
 
+    def get_result(self, name, index, state, start_time):
+        obj = self.block.find_component(name)
 
+        result = []
+
+        if obj is None:
+            raise Exception('{} is not a valid parameter or variable of {}'.format(name, self.name))
+
+        time = self.get_time_axis(state)
+
+        if isinstance(obj, IndexedVar):
+            if index is None:
+                for i in obj:
+                    result.append(value(obj[i]))
+
+                resname = self.name + '.' + name
+
+            else:
+                for i in time:
+                    result.append(obj[(index, i)].value)
+
+                    resname = self.name + '.' + name + '.' + index
+
+        elif isinstance(obj, IndexedParam):
+            result = obj.values()
+
+            resname = self.name + '.' + name
+
+        else:
+            self.logger.warning(
+                '{}.{} was a different type of variable/parameter than what has been implemented: '
+                '{}'.format(self.name, name, type(obj)))
+            return None
+
+        timeindex = pd.DatetimeIndex(start=start_time,
+                                     freq=str(self.params['time_step']) + 'S',
+                                     periods=len(result))
+
+        return pd.Series(data=result, index=timeindex, name=resname)

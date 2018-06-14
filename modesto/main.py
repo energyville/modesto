@@ -21,7 +21,7 @@ from parameter import *
 
 
 class Modesto:
-    def __init__(self, horizon, time_step, pipe_model, graph):
+    def __init__(self, pipe_model, graph):
         """
         This class allows setting up optimization problems for district energy systems
 
@@ -34,17 +34,7 @@ class Modesto:
 
         self.model = ConcreteModel()
 
-        self.horizon = horizon
-        self.time_step = time_step
-        assert (
-                   horizon % time_step) == 0, "The horizon should be a multiple of the time step."
-        self.n_steps = int(horizon // time_step)
-
         self.results = None
-
-        self.start_time = None
-        self.X_TIME = range(self.n_steps + 1)
-        self.TIME = self.X_TIME[:-1]
 
         self.pipe_model = pipe_model
         if pipe_model == 'NodeMethod':
@@ -223,13 +213,13 @@ class Modesto:
 
         if self.temperature_driven:
             def obj_temp(model):
-                return sum(comp.obj_temp() for comp in self.iter_components())
+                return model.Slack + sum(comp.obj_temp() for comp in self.iter_components())
 
             self.model.OBJ_TEMP = Objective(rule=obj_temp, sense=minimize)
 
             self.objectives['temp'] = self.model.OBJ_TEMP
 
-    def compile(self, start_time='24012014'):
+    def compile(self, start_time='20140101'):
         """
         Compile the optimization problem
 
@@ -253,7 +243,7 @@ class Modesto:
             self.model = ConcreteModel()
 
         # Check whether all necessary parameters are there
-        self.check_data(self.start_time)
+        self.check_data()
         self.update_time(self.start_time)
 
         # Components
@@ -266,7 +256,7 @@ class Modesto:
 
         self.compiled = True  # Change compilation flag
 
-    def check_data(self, start_time=None):
+    def check_data(self):
         """
         Checks whether all parameters have been assigned a value,
         if not an error is raised
@@ -531,57 +521,8 @@ class Modesto:
             raise Exception('The optimization problem has not been solved yet.')
 
         obj = self.get_component(comp, node)
-        opt_obj = obj.block.find_component(name)
 
-        resname = ''
-        for i in [node, comp, name]:
-            if i is not None:
-                '.'.join([resname, i])
-
-        result = []
-
-        if opt_obj is None:
-            raise Exception(
-                '{} is not a valid parameter or variable of {}'.format(name,
-                                                                       comp))
-
-        if isinstance(opt_obj, IndexedVar):
-            if index is None:
-                for i in opt_obj:
-                    result.append(value(opt_obj[i]))
-
-                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step) + 'S',
-                                             periods=len(result))
-
-                result = pd.Series(data=result, index=timeindex, name=resname)
-
-            else:
-                if state:
-                    time = self.X_TIME
-                else:
-                    time = self.TIME
-                for i in time:
-                    result.append(opt_obj[(index, i)].value)
-                timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step) + 'S',
-                                             periods=len(result))
-                result = pd.Series(data=result, index=timeindex, name=resname + '_' + str(index))
-
-            return result
-
-        elif isinstance(opt_obj, IndexedParam):
-            result = opt_obj.values()
-
-            timeindex = pd.DatetimeIndex(start=self.start_time, freq=str(self.time_step) + 'S',
-                                         periods=len(result))
-            result = pd.Series(data=result, index=timeindex, name=resname)
-
-            return result
-
-        else:
-            self.logger.warning(
-                '{}.{} was a different type of variable/parameter than what has been implemented: '
-                '{}'.format(comp, name, type(obj)))
-            return None
+        return obj.get_result(name, index, state, self.start_time)
 
     def get_objective(self, objtype=None, get_value=True):
         """
