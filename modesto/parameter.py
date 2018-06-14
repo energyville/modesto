@@ -301,6 +301,10 @@ class TimeSeriesParameter(Parameter):
 
         if self.start_time is None:
             raise Exception('No start time has been given to parameter {} yet'.format(self.name))
+        if self.horizon is None:
+            raise Exception('No horizon has been given to parameter {} yet'.format(self.name))
+        if self.time_step is None:
+            raise Exception('No time step has been given to parameter {} yet'.format(self.name))
 
         if time is None:
             if self.time_data:  # Data has a pd.DatetimeIndex

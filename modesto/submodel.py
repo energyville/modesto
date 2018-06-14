@@ -148,8 +148,6 @@ class Submodel(object):
             return self.params[name].get_description()
 
     def set_time_axis(self):
-        print self.name
-        print self.params['horizon'].v()
         horizon = self.params['horizon'].v()
         time_step = self.params['time_step'].v()
         assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
