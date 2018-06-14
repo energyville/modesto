@@ -246,7 +246,7 @@ class Modesto:
 
             self.objectives['temp'] = self.model.OBJ_TEMP
 
-    def compile(self, start_time='24012014'):
+    def compile(self, start_time='20140101'):
         """
         Compile the optimization problem
 
