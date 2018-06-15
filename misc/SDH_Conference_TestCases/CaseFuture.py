@@ -102,9 +102,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # And create the modesto object
 
-    model = Modesto(horizon=horizon,
-                    time_step=time_step,
-                    pipe_model=pipe_model,
+    model = Modesto(pipe_model=pipe_model,
                     graph=G)
 
     # # Adding data
@@ -148,7 +146,9 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
                       'Q_sol_E': QsolE,
                       'Q_sol_W': QsolW,
                       'Q_sol_S': QsolS,
-                      'Q_sol_N': QsolN}
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': horizon}
 
     model.change_params(general_params)
 

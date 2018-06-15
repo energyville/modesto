@@ -52,8 +52,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='ExtensivePipe', graph=G)
+    optmodel = Modesto(pipe_model='SimplePipe', graph=G)
 
     ##################################
     # Fill in the parameters         #
@@ -81,7 +80,9 @@ def construct_model():
                       'Q_sol_E': QsolE,
                       'Q_sol_W': QsolW,
                       'Q_sol_S': QsolS,
-                      'Q_sol_N': QsolN}
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': n_steps*time_step}
 
     optmodel.change_params(general_params)
 
@@ -101,7 +102,7 @@ def construct_model():
     optmodel.change_params(ws_building_params, node='waterscheiGarden',
                            comp='buildingD')
 
-    bbThor_params = {'diameter': 500, 'temperature_supply': 273.15 + 80, 'temperature_return': 273.15 + 60}
+    bbThor_params = {'diameter': 500}
     spWaterschei_params = bbThor_params.copy()
     spWaterschei_params['diameter'] = 500
     spZwartbergNE_params = bbThor_params.copy()

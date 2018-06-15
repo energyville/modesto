@@ -27,15 +27,16 @@ def test_producer():
     QsolS = pd.Series(0, time_index)
     QsolW = pd.Series(0, time_index)
 
-    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='SimplePipe', graph=construct_model())
+    optmodel = Modesto(pipe_model='SimplePipe', graph=construct_model())
 
     general_params = {'Te': t_amb,
                       'Tg': t_g,
                       'Q_sol_E': QsolE,
                       'Q_sol_W': QsolW,
                       'Q_sol_S': QsolS,
-                      'Q_sol_N': QsolN}
+                      'Q_sol_N': QsolN,
+                      'horizon': n_steps*time_step,
+                      'time_step': time_step}
 
     optmodel.change_params(general_params)
 
