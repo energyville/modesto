@@ -125,7 +125,7 @@ class Component(Submodel):
     def is_heat_source(self):
         return False
 
-    def get_mflo(self, t, start_time=None):
+    def get_mflo(self, t):
         """
         Return mass_flow variable at time t
 
