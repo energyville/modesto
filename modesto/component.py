@@ -103,6 +103,121 @@ class Component(Submodel):
             raise Exception("The optimization model for %s has not been compiled" % self.name)
         return self.direction * self.block.mass_flow[t]
 
+    def get_direction(self):
+        """
+        Return direction
+
+        :return:
+        """
+        return self.direction
+
+    def get_slack(self, slack_name, t):
+        """
+        Get the value of a slack variable at a certain time
+
+        :param slack_name: Name of the slack variable
+        :param t: Time
+        :return: Value of slack
+        """
+
+        return self.block.find_component(slack_name)[t]
+
+    def get_investment_cost(self):
+        """
+        Get the investment cost of this component. For a generic component, this is currently 0, but as components with price data are added, the cost parameter is used to get this value.
+
+        :return: Cost in EUR
+        """
+        # TODO: express cost with respect to economic lifetime
+
+        return 0
+
+    def make_slack(self, slack_name, time_axis):
+        self.slack_list.append(slack_name)
+        self.block.add_component(slack_name, Var(time_axis, within=NonNegativeReals))
+        return self.block.find_component(slack_name)
+
+    def constrain_value(self, variable, bound, ub=True, slack_variable=None):
+        """
+
+        :param variable: variable that needs to be constrained, this is only a single value
+        :param bound: The value by which the variable needs to be bounded
+        :param ub: if True, this will impose an upper boundary, if False a lower boundary is imposed
+        :param slack_variable: The variable that describes the slack
+        :return:
+        """
+
+        # TODO make two-sided constraints (with possible double slack?) possible
+
+        if ub is True:
+            f = 1
+        else:
+            f = -1
+
+        if slack_variable is None:
+            return f * variable <= f * bound
+        else:
+            return f * variable <= f * bound + slack_variable
+
+    def change_param(self, param, new_data):
+        """
+        Change the value of a parameter
+
+        :param param: Name of the kind of user data
+        :param new_data: The new value of the parameter
+        :return:
+        """
+        if param not in self.params:
+            raise Exception("{} is not recognized as a valid parameter for {}".format(param, self.name))
+
+        self.params[param].change_value(new_data)
+
+    def check_data(self):
+        """
+        Check if all data required to build the optimization problem is available
+
+        :return missing_params: dict containing all missing parameters and their descriptions
+        :return flag: True if there are missing params, False if not
+        """
+        missing_params = {}
+        flag = False
+
+        for name, param in self.params.items():
+            if not param.check():
+                missing_params[name] = self.get_param_description(name)
+                flag = True
+
+        return missing_params, flag
+
+    def get_param_description(self, name):
+        """
+        Returns a string containing the description of a parameter
+
+        :param name: Name of the parameter. If None, all parameters are returned
+        :return: A dict of all descriptions
+        """
+
+        if name not in self.params:
+            raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
+        else:
+            return self.params[name].get_description()
+
+    def obj_energy(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_fuel_cost(self):
+        """
+        Yield summation of energy variables for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
     def get_known_mflo(self, t, start_time):
 
         """
@@ -130,6 +245,14 @@ class Component(Submodel):
         """
         return self.direction
 
+    def obj_co2_cost(self):
+        """
+        Yield summation of CO2 cost
+
+        :return:
+        """
+        return 0
+
     def compile(self, model, start_time):
         """
         Compiles the component model
@@ -145,6 +268,7 @@ class Component(Submodel):
         self.update_time(start_time,
                          time_step=self.params['time_step'].v(),
                          horizon=self.params['horizon'].v())
+
 
 
 class FixedProfile(Component):
@@ -404,8 +528,11 @@ class ProducerVariable(Component):
                                         description='Investment cost as a function of Qmax',
                                         unit='EUR',
                                         unit_index='W',
-                                        val=0)
-        })
+                                        val=0),
+            'CO2_price': UserDataParameter('CO2_price',
+                                           'CO2 price',
+                                           'euro/kg CO2')
+                })
 
         if self.temperature_driven:
             params['mass_flow'] = UserDataParameter('mass_flow',
@@ -547,7 +674,7 @@ class ProducerVariable(Component):
 
         return sum(pef / eta * (self.get_heat(t)) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
 
-    def obj_cost(self):
+    def obj_fuel_cost(self):
         """
         Generator for cost objective variables to be summed
         Unit: euro
@@ -597,6 +724,21 @@ class ProducerVariable(Component):
 
     def get_known_mflo(self, t, start_time):
         return 0
+
+    def obj_co2_cost(self):
+        """
+        Generator for CO2 cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+
+        eta = self.params['efficiency'].v()
+        pef = self.params['PEF'].v()
+        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2_price = self.params['CO2_price'].v()
+
+        return sum(co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
 
 
 class SolarThermalCollector(Component):
@@ -772,7 +914,11 @@ class StorageVariable(Component):
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
                                        'K'),
-        })
+            'mult': DesignParameter(name='mult',
+                                    description='Multiplication factor indicating number of DHW tanks',
+                                    unit='-',
+                                    val=1)
+            })
 
         return params
 
@@ -867,6 +1013,7 @@ class StorageVariable(Component):
         self.update_time(start_time, self.params['time_step'].v(), self.params['horizon'].v())
         self.calculate_static_parameters()
         self.initial_compilation(model, start_time)
+        mult = self.params['mult'].v()
 
         # Internal
         self.block.heat_stor = Var(self.X_TIME)  # , bounds=(
@@ -891,7 +1038,7 @@ class StorageVariable(Component):
         # State equation
         def _state_eq(b, t):  # in kWh
             return b.heat_stor[t + 1] == b.heat_stor[t] + self.params['time_step'].v() / 3600 * (
-                b.heat_flow[t] - b.heat_loss[t]) / 1000 \
+                b.heat_flow[t]/mult - b.heat_loss[t]) / 1000 \
                                          - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
 
             # self.tau * (1 - exp(-self.params['time_step'].v() / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
@@ -1038,6 +1185,7 @@ class StorageCondensed(StorageVariable):
         self.block.heat_stor = Var(self.X_TIME, self.block.reps)
         self.block.soc = Var(self.X_TIME, self.block.reps, domain=NonNegativeReals)
 
+        mult = self.params['mult'].v()
         R = self.R
         N = self.N  # For brevity of equations
         zH = self.heat_loss_coeff
@@ -1049,8 +1197,9 @@ class StorageCondensed(StorageVariable):
             elif t == 0:
                 return b.heat_stor[t, r] == b.heat_stor[tlast, r - 1]
             else:
-                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (b.heat_flow[t - 1] - b.heat_loss_ct[
+                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (b.heat_flow[t - 1]/mult - b.heat_loss_ct[
                     t - 1]) * self.params['time_step'].v() / 3600 / 1000
+
 
         self.block.state_eq = Constraint(self.X_TIME, self.block.reps, rule=_state_eq)
         self.block.final_eq = Constraint(

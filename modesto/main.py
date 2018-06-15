@@ -62,7 +62,6 @@ class Modesto:
         pass
 
     def create_params(self):
-
         params = {
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
@@ -98,7 +97,11 @@ class Modesto:
                                 unit='-',
                                 description='List of names of the lines that can be found in the network, e.g. '
                                             '\'supply\' and \'return\'',
-                                val=['supply', 'return'])
+                                val=['supply', 'return']),
+            'CO2_price': UserDataParameter('CO2_price',
+                                           'CO2 price',
+                                           'euro/kg CO2',
+                                           val=0)
         }
 
         return params
@@ -188,7 +191,7 @@ class Modesto:
             return model.Slack + sum(comp.obj_energy() for comp in self.iter_components())
 
         def obj_cost(model):
-            return model.Slack + sum(comp.obj_cost() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_fuel_cost() for comp in self.iter_components())
 
         def obj_cost_ramp(model):
             return model.Slack + sum(comp.obj_cost_ramp() for comp in self.iter_components())
@@ -196,16 +199,22 @@ class Modesto:
         def obj_co2(model):
             return model.Slack + sum(comp.obj_co2() for comp in self.iter_components())
 
+        def obj_co2_fuel_cost(model):
+            return model.Slack + sum(comp.obj_co2_cost() + comp.obj_fuel_cost()
+                                     for comp in self.iter_components())
+
         self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
         self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
         self.model.OBJ_COST_RAMP = Objective(rule=obj_cost_ramp, sense=minimize)
         self.model.OBJ_CO2 = Objective(rule=obj_co2, sense=minimize)
+        self.model.OBJ_COST_CO2_FUEL = Objective(rule=obj_co2_fuel_cost, sense=minimize)
 
         self.objectives = {
             'energy': self.model.OBJ_ENERGY,
             'cost': self.model.OBJ_COST,
             'cost_ramp': self.model.OBJ_COST_RAMP,
             'co2': self.model.OBJ_CO2,
+            'cost_fuel_co2': self.model.OBJ_COST_CO2_FUEL
         }
 
         for objective in self.objectives.values():

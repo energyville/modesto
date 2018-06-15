@@ -238,6 +238,22 @@ class Submodel(object):
         """
         return 0
 
+    def obj_fuel_cost(self):
+        """
+        Yield summation of fuel cost for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_co2_cost(self):
+        """
+        Yield summation of CO2 cost for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
     def get_investment_cost(self):
         """
         Get the investment cost of this component. For a generic component, this is currently 0, but as components with price data are added, the cost parameter is used to get this value.

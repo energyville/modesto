@@ -280,8 +280,6 @@ class TimeSeriesParameter(Parameter):
         :param unit:        Unit of the parameter (e.g. K, W, m...) (str)
         :param val:         Value of the parameter, if not given, it becomes None
         """
-        if isinstance(val, pd.Series):
-            raise TypeError('The value of this parameter (user/weather data)should be a pandas Series')
 
         self.time_data = False  # Does the dataframe have a timeData index? TODO this would become obsolete
         self.time_step = None
@@ -310,6 +308,8 @@ class TimeSeriesParameter(Parameter):
             if self.time_data:  # Data has a pd.DatetimeIndex
                 return ut.select_period_data(self.value, time_step=self.time_step, horizon=self.horizon,
                                              start_time=self.start_time).values
+            elif not isinstance(self.value, pd.Series):
+                return [self.value] * int(self.horizon/self.time_step)
             else:  # Data has a numbered index
                 return self.value.values
 
@@ -320,6 +320,8 @@ class TimeSeriesParameter(Parameter):
             if self.time_data:
                 timeindex = self.start_time + pd.Timedelta(seconds=time * self.time_step)
                 return self.value[timeindex]
+            elif not isinstance(self.value, pd.Series):
+                return self.value
             else:
                 return self.value[time]
 
