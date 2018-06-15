@@ -4,7 +4,7 @@ import logging
 import sys
 from math import pi, log, exp
 
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value, Set
+from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value, Set, Binary
 from modesto.submodel import Submodel
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, SeriesParameter, WeatherDataParameter
 
@@ -59,6 +59,40 @@ class Component(Submodel):
                                        unit='s',
                                        description='Horizon of the optimization problem')}
         return params
+
+	def change_param_object(self, name, new_object):
+		"""
+		Replace a parameter object by a new one
+
+		:param new_object: The new parameter object
+        :param name: The name of the parameter to be changed
+        :return:
+        """
+
+        if name not in self.params:
+            raise KeyError('{} is not recognized as a parameter of {}'.format(name, self.name))
+        if not type(self.params[name]) is type(new_object):
+            raise TypeError('When changing the {} parameter object, you should use '
+                            'the same type as the original parameter.'.format(name))
+
+        self.params[name] = new_object
+
+    def get_param_value(self, name, time=None):
+        """
+        Gets value of specified design param. Returns "None" if unknown
+
+        :param name: Name of the parameter (str)
+        :param time: If parameter consists of a series of values, the value at a certain can be selected time
+        :return:
+        """
+
+        try:
+            param = self.params[name]
+        except KeyError:
+            param = None
+            self.logger.warning('Parameter {} does not (yet) exist in this component'.format(name))
+
+        return param.get_value(time)
 
     def get_temperature(self, t, line):
         """
@@ -518,6 +552,10 @@ class ProducerVariable(Component):
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W'),
+            'Qmin': DesignParameter('Qmax',
+                                    'Minimum possible heat output',
+                                    'W',
+                                    val=0),
             'ramp': DesignParameter('ramp',
                                     'Maximum ramp (increase in heat output)',
                                     'W/s'),
@@ -567,8 +605,26 @@ class ProducerVariable(Component):
         """
         Component.compile(self, model, start_time)
 
-        self.block.heat_flow = Var(self.TIME, bounds=(0, self.params['Qmax'].v()))
+        self.block.heat_flow = Var(self.TIME)
         self.block.ramping_cost = Var(self.TIME)
+
+        if not self.params['Qmin'].v() == 0:
+            self.block.on = Var(self.TIME, within=Binary)
+            def _min_heat(b, t):
+                return self.params['Qmin'].v() * b.on[t] <= b.heat_flow[t]
+
+            def _max_heat(b, t):
+                return b.heat_flow[t] <= self.params['Qmax'].v() * b.on[t]
+
+        else:
+            def _min_heat(b, t):
+                return b.heat_flow[t] >= self.params['Qmin'].v()
+
+            def _max_heat(b, t):
+                return b.heat_flow[t] <= self.params['Qmax'].v()
+
+        self.block.min_heat = Constraint(self.TIME, rule=_min_heat)
+        self.block.max_heat = Constraint(self.TIME, rule=_max_heat)
 
         if self.temperature_driven:
 
@@ -739,7 +795,6 @@ class ProducerVariable(Component):
         co2_price = self.params['CO2_price'].v()
 
         return sum(co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
-
 
 class SolarThermalCollector(Component):
     def __init__(self, name, temperature_driven=False):

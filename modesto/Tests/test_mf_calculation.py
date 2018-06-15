@@ -44,7 +44,7 @@ def make_heat_profiles(case, start_time=pd.Timestamp('20140101'), time_step=300,
 
     return heat_profile
 
-if __name__ == '__main__':
+def test_mass_flow_calculation():
     n_steps = 10
     test = MfCalculation(make_graph(), horizon=n_steps*300, time_step=300)
     test.set_producer_component('plant')
