@@ -21,19 +21,19 @@ Settings
 
 """
 
-sim_name = 'Genk_test_1306'
+sim_name = 'Vito_porgress_repor_limited_cases_2106'
 
 n_buildings = 10
 n_streets = 3
-horizon = 24*7*3600
+horizon = 24*4*3600
 start_time = pd.Timestamp('20140101')
 
 time_index = pd.date_range(start=start_time, periods=int(horizon/3600)+1, freq='H')
 
 selected_flex_cases = ['Reference',  'Flexibility']
 selected_model_cases = ['Buildings - ideal network', 'Buildings', 'Network', 'Combined - LP']
-selected_street_cases = []
-selected_district_cases = ['Genk']
+selected_street_cases = ['Mixed street']
+selected_district_cases = ['Series district', 'Parallel district', 'Genk']
 
 dist_pipe_length = 150
 street_pipe_length = 30
@@ -45,7 +45,7 @@ new_building = 'SFH_D_5_ins_TAB'
 
 
 streets = ['Old street', 'Mixed street', 'New street']
-districts = ['Series district', 'Parallel district']
+districts = ['Series district', 'Parallel district', 'Genk']
 models = ['Buildings - ideal network', 'Buildings', 'Network', 'Combined - LP']
 
 building_types = {'Mixed street': [new_building, old_building]*int(n_buildings/2),
@@ -82,7 +82,7 @@ pipe_diameters = {'Mixed street': [50, 40, 32, 32, 25] + [20] * n_buildings,
 
 mult = {'Mixed street': [1] * n_buildings,
         'Old street': [1] * n_buildings,
-        'New street': [n_buildings] * n_buildings,
+        'New street': [1] * n_buildings,
         'Series district': [n_buildings] * n_streets,
         'Parallel district': [n_buildings] * n_streets,
         'Genk': [633, 746, 2363, 1789, 414, 567, 1571, 584, 2094]}
@@ -348,13 +348,29 @@ def plot_building_temperatures(axarr, bparams, nresults, pi_time):
 def plot_heat_injection(ax1, ax2, nresults, modelcase, pi_time):
     ax1.plot(nresults['Reference']['heat_injection'], label='Reference')
     ax1.plot(nresults['Flexibility']['heat_injection'], label='Flexibility')
-    ax1.set_title(neigh)
+    ax1.set_title(modelcase)
     plot_price_increase_time(ax1, pi_time)
 
     ax2.plot(nresults['Flexibility']['heat_injection'] -
              nresults['Reference']['heat_injection'], label=modelcase)
     plot_price_increase_time(ax2, pi_time)
 
+    return ax1, ax2
+
+
+def plot_combined_heat_injection(ax1, ax2, nresults_network, nresults_buildings, pi_time):
+    ax1.plot(nresults_buildings['Reference']['heat_injection'], label='Reference')
+    ax1.plot(nresults_network['Flexibility']['heat_injection'], label='Flexibility')
+    ax1.set_title('Combined - LP')
+    plot_price_increase_time(ax1, pi_time)
+
+    # Resampling price profile to correct frequency
+    resampled_b_data = nresults_buildings['Reference']['heat_injection'].resample(nresults_network['Flexibility']['heat_injection'].index.freq).pad()
+    resampled_b_data = resampled_b_data.ix[~(resampled_b_data.index > nresults_network['Flexibility']['heat_injection'].index[-1])]
+
+    ax2.plot(nresults_network['Flexibility']['heat_injection'] -
+             resampled_b_data, label='Combined - LP')
+    plt.plot()
     return ax1, ax2
 
 
@@ -369,13 +385,14 @@ def find_price_increase_time(position, nresults):
 
 def plot(results):
 
-    fig1, axarr1 = plt.subplots(len(selected_district_cases + selected_street_cases), 1, sharex=True)
-    fig2, axarr2 = plt.subplots(len(selected_model_cases), len(selected_district_cases + selected_street_cases), sharex=True)
-    fig3, axarr3 = plt.subplots(len(edge_names['Genk']), 2, sharex=True)
+    neigh_cases = selected_district_cases + selected_street_cases
+    fig1, axarr1 = plt.subplots(len(neigh_cases), 1, sharex=True)
+    fig2, axarr2 = plt.subplots(len(selected_model_cases), len(neigh_cases), sharex=True)
+    fig3, axarr3 = plt.subplots(len(edge_names[neigh_cases[0]]), 2, sharex=True)
     fig4, axarr4 = plt.subplots(1, 2, sharex=True)
-    fig5, axarr5 = plt.subplots(len(edge_names['Genk']), 2, sharex=True)
+    fig5, axarr5 = plt.subplots(len(edge_names[neigh_cases[0]]), 2, sharex=True)
 
-    for l, neigh in enumerate(selected_street_cases + selected_district_cases):
+    for l, neigh in enumerate(neigh_cases):
 
         for m, modelcase in enumerate(selected_model_cases):
 
@@ -383,32 +400,44 @@ def plot(results):
 
             nresults = results[neigh][modelcase]
 
-            if len(selected_street_cases + selected_district_cases) == 1:
-                plot_heat_injection(axarr2[m], axarr1, nresults, modelcase, price_increase_time)
+            if modelcase == 'Network':
+                if len(selected_street_cases + selected_district_cases) == 1:
+                    plot_heat_injection(axarr2[m], axarr1, nresults, modelcase, price_increase_time)
+                    plot_plant_temperature(axarr4[0], nresults, price_increase_time)
+                    axarr4[0].set_title('Network case')
+                    for p, pipe in enumerate(edge_names[neigh]):
+                        plot_network_temperatures(axarr3[p, 0], pipe, nresults, price_increase_time)
+                        plot_water_speed(axarr5[p, 0], pipe, nresults, price_increase_time)
+                else:
+                    plot_heat_injection(axarr2[m, l], axarr1[l], nresults, modelcase, price_increase_time)
+            elif modelcase == 'Combined - LP':
+                if len(selected_street_cases + selected_district_cases) == 1:
+                    plot_combined_heat_injection(axarr2[m], axarr1, nresults, results[neigh]['Buildings'], price_increase_time)
+                    plot_plant_temperature(axarr4[1], nresults, price_increase_time)
+                    axarr4[0].set_title('Combine - LP case')
+                    for p, pipe in enumerate(edge_names[neigh]):
+                        plot_water_speed(axarr5[p, 1], pipe, nresults, price_increase_time)
+                        plot_network_temperatures(axarr3[p, 1], pipe, nresults, price_increase_time)
+                else:
+                    plot_combined_heat_injection(axarr2[m, l], axarr1[l], nresults, results[neigh]['Buildings'],
+                                                 price_increase_time)
+            else:
+                if len(selected_street_cases + selected_district_cases) == 1:
+                    plot_heat_injection(axarr2[m], axarr1, nresults, modelcase, price_increase_time)
+                else:
+                    plot_heat_injection(axarr2[m, l], axarr1[l], nresults, modelcase, price_increase_time)
+
+            if len(neigh_cases) == 1:
                 axarr1.set_title(neigh)
                 axarr2[m].set_title(neigh + ' ' + modelcase)
                 axarr1.legend()
                 axarr2[0].legend()
 
             else:
-                plot_heat_injection(axarr2[m, l], axarr1[l], nresults, modelcase, price_increase_time)
                 axarr1[l].set_title(neigh)
                 axarr2[m, l].set_title(neigh + ' ' + modelcase)
                 axarr1[0].legend()
                 axarr2[0, 0].legend()
-
-            if modelcase == 'Network' and neigh == 'Genk':
-                plot_plant_temperature(axarr4[0], nresults, price_increase_time)
-                axarr4[0].set_title('Network case')
-                for p, pipe in enumerate(edge_names[neigh]):
-                    plot_network_temperatures(axarr3[p, 0], pipe, nresults, price_increase_time)
-                    plot_water_speed(axarr5[p, 0], pipe, nresults, price_increase_time)
-            if modelcase == 'Combined - LP' and neigh == 'Genk':
-                plot_plant_temperature(axarr4[1], nresults, price_increase_time)
-                axarr4[0].set_title('Combine - LP case')
-                for p, pipe in enumerate(edge_names[neigh]):
-                    plot_water_speed(axarr5[p, 1], pipe, nresults, price_increase_time)
-                    plot_network_temperatures(axarr3[p, 1], pipe, nresults, price_increase_time)
 
     fig1.tight_layout()
     fig2.tight_layout()
@@ -733,6 +762,12 @@ if __name__ == '__main__':
             opt = set_up_modesto(neigh, graph, model_case, b_params, prod_params, dhw_params, p_params, True, results[neigh])
             solve_optimization(opt)
             results[neigh][model_case]['Flexibility'] = collect_results(neigh, opt, model_case)
+
+
+            # if model_case == 'Buildings':
+            #     fig6, axarr6 = plt.subplots(len(b_params), 2)
+            #     plot_building_temperatures(axarr6, b_params, results[neigh],
+            #                                find_price_increase_time(pos, results[neigh]))
 
     plot(results)
     save_obj(results, sim_name)

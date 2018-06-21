@@ -36,8 +36,7 @@ class Modesto:
 
         self.horizon = horizon
         self.time_step = time_step
-        assert (
-                   horizon % time_step) == 0, "The horizon should be a multiple of the time step."
+        assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
         self.n_steps = int(horizon // time_step)
 
         self.results = None
