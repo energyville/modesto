@@ -45,7 +45,6 @@ class Modesto:
         self.allow_flow_reversal = True
 
         self.graph = graph
-        self.edges = {}
         self.components = {}
         self.params = self.create_params()
 
@@ -148,30 +147,26 @@ class Modesto:
         :return:
         """
 
-        self.edges = {}
-
         for edge_tuple in self.graph.edges:
             edge = self.graph[edge_tuple[0]][edge_tuple[1]]
             start_node = self.components[edge_tuple[0]]
             end_node = self.components[edge_tuple[1]]
             name = edge['name']
 
-            assert name not in self.edges, "An edge with name %s already exists" % \
-                                           edge['name']
             assert name not in self.components, "A pipe with name %s already exists" % edge['name']
 
             # Create the modesto.Edge object
-            self.edges[name] = Edge(name=name,
-                                    edge=edge,
-                                    start_node=start_node,
-                                    end_node=end_node,
-                                    pipe_model=self.pipe_model,
-                                    allow_flow_reversal=self.allow_flow_reversal,
-                                    temperature_driven=self.temperature_driven)
+            edge = Edge(name=name,
+                        edge=edge,
+                        start_node=start_node,
+                        end_node=end_node,
+                        pipe_model=self.pipe_model,
+                        allow_flow_reversal=self.allow_flow_reversal,
+                        temperature_driven=self.temperature_driven)
 
-            start_node.add_pipe(self.edges[name].pipe)
-            end_node.add_pipe(self.edges[name].pipe)
-            self.components[name] = self.edges[name].pipe
+            start_node.add_pipe(edge.pipe)
+            end_node.add_pipe(edge.pipe)
+            self.components[name] = edge.pipe
 
     def __build_objectives(self):
         """
