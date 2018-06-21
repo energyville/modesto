@@ -17,7 +17,7 @@ logger = logging.getLogger('Main.py')
 #     Main Settings       #
 ###########################
 
-n_steps = 24 * 7
+n_steps = 24*7
 time_step = 3600
 start_time = pd.Timestamp('20140604')
 
@@ -202,8 +202,6 @@ if __name__ == '__main__':
     print '\nStorage'
     print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden',
                                            comp='storage')
-    print 'Mass flow', optmodel.get_result('mass_flow', node='waterscheiGarden',
-                                           comp='storage')
     print 'Energy', optmodel.get_result('heat_stor', node='waterscheiGarden',
                                         comp='storage')
 
@@ -229,8 +227,7 @@ if __name__ == '__main__':
 
     # Efficiency
     print '\nNetwork'
-    print 'Efficiency', (
-                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+    print 'Efficiency', (storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
 
     # Diameters
     # print '\nDiameters'
@@ -243,13 +240,6 @@ if __name__ == '__main__':
     # print 'spWaterschei: ', optmodel.get_result('spWaterschei', 'heat_loss_tot')
     # print 'spZwartbergNE: ', optmodel.get_result('spZwartbergNE', 'heat_loss_tot')
 
-    # Mass flows
-    print '\nMass flows'
-    print 'bbThor: ', optmodel.get_result('mass_flow', comp='bbThor')
-    print 'spWaterschei: ', optmodel.get_result('mass_flow',
-                                                comp='spWaterschei')
-    print 'spZwartbergNE: ', optmodel.get_result('mass_flow',
-                                                 comp='spZwartbergNE')
 
     # Objectives
     print '\nObjective function'

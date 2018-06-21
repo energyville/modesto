@@ -60,11 +60,11 @@ class Component(Submodel):
                                        description='Horizon of the optimization problem')}
         return params
 
-	def change_param_object(self, name, new_object):
-		"""
-		Replace a parameter object by a new one
+    def change_param_object(self, name, new_object):
+        """
+        Replace a parameter object by a new one
 
-		:param new_object: The new parameter object
+        :param new_object: The new parameter object
         :param name: The name of the parameter to be changed
         :return:
         """
@@ -303,6 +303,23 @@ class Component(Submodel):
                          time_step=self.params['time_step'].v(),
                          horizon=self.params['horizon'].v())
 
+    def node_method_equations(self):
+        """
+        Add the equations that are specific for the node method
+
+        :return:
+        """
+
+        pass
+
+    def extensive_pipe_equations(self):
+        """
+        Add the equations that are specific for the extensive pipe model
+
+        :return:
+        """
+
+        pass
 
 
 class FixedProfile(Component):
@@ -381,60 +398,67 @@ class FixedProfile(Component):
         Component.compile(self, model, start_time)
 
         mult = self.params['mult']
-        delta_T = self.params['delta_T']
         heat_profile = self.params['heat_profile']
-
-        def _mass_flow(b, t):
-            return mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
 
         def _heat_flow(b, t):
             return mult.v() * heat_profile.v(t)
 
-        self.block.mass_flow = Param(self.TIME, rule=_mass_flow)
         self.block.heat_flow = Param(self.TIME, rule=_heat_flow)
-
-        if self.temperature_driven:
-            lines = self.params['lines'].v()
-            self.block.temperatures = Var(lines, self.TIME)
-
-            def _decl_temperatures(b, t):
-                if t == 0:
-                    return Constraint.Skip
-                elif b.mass_flow[t] == 0:
-                    return Constraint.Skip
-                else:
-                    return b.temperatures['supply', t] - b.temperatures['return', t] == \
-                           b.heat_flow[t] / b.mass_flow[t] / self.cp
-
-            def _init_temperatures(b, l):
-                return b.temperatures[l, 0] == self.params['temperature_' + l].v()
-
-            uslack = self.make_slack('temperature_max_uslack', self.TIME)
-            lslack = self.make_slack('temperature_max_l_slack', self.TIME)
-
-            ub = self.params['temperature_max'].v()
-            lb = self.params['temperature_min'].v()
-
-            def _max_temp(b, t):
-                return self.constrain_value(b.temperatures['supply', t],
-                                            ub,
-                                            ub=True,
-                                            slack_variable=uslack[t])
-
-            def _min_temp(b, t):
-                return self.constrain_value(b.temperatures['supply', t],
-                                            lb,
-                                            ub=False,
-                                            slack_variable=lslack[t])
-
-            self.block.max_temp = Constraint(self.TIME, rule=_max_temp)
-            self.block.min_temp = Constraint(self.TIME, rule=_min_temp)
-
-            self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
-            self.block.init_temperatures = Constraint(lines, rule=_init_temperatures)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
+
+    def extensive_pipe_equations(self):
+
+        delta_T = self.params['delta_T']
+
+        def _mass_flow(b, t):
+            return b.heat_flow[t] / self.cp / delta_T.v()
+
+        self.block.mass_flow = Param(self.TIME, rule=_mass_flow)
+
+    def node_method_equations(self):
+
+        self.extensive_pipe_equations()
+
+        lines = self.params['lines'].v()
+        self.block.temperatures = Var(lines, self.TIME)
+
+        def _decl_temperatures(b, t):
+            if t == 0:
+                return Constraint.Skip
+            elif b.mass_flow[t] == 0:
+                return Constraint.Skip
+            else:
+                return b.temperatures['supply', t] - b.temperatures['return', t] == \
+                       b.heat_flow[t] / b.mass_flow[t] / self.cp
+
+        def _init_temperatures(b, l):
+            return b.temperatures[l, 0] == self.params['temperature_' + l].v()
+
+        uslack = self.make_slack('temperature_max_uslack', self.TIME)
+        lslack = self.make_slack('temperature_max_l_slack', self.TIME)
+
+        ub = self.params['temperature_max'].v()
+        lb = self.params['temperature_min'].v()
+
+        def _max_temp(b, t):
+            return self.constrain_value(b.temperatures['supply', t],
+                                        ub,
+                                        ub=True,
+                                        slack_variable=uslack[t])
+
+        def _min_temp(b, t):
+            return self.constrain_value(b.temperatures['supply', t],
+                                        lb,
+                                        ub=False,
+                                        slack_variable=lslack[t])
+
+        self.block.max_temp = Constraint(self.TIME, rule=_max_temp)
+        self.block.min_temp = Constraint(self.TIME, rule=_min_temp)
+
+        self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
+        self.block.init_temperatures = Constraint(lines, rule=_init_temperatures)
 
 
 class VariableProfile(Component):
@@ -626,25 +650,6 @@ class ProducerVariable(Component):
         self.block.min_heat = Constraint(self.TIME, rule=_min_heat)
         self.block.max_heat = Constraint(self.TIME, rule=_max_heat)
 
-        if self.temperature_driven:
-
-            lines = self.params['lines'].v()
-
-            def _mass_flow(b, t):
-                return self.params['mass_flow'].v(t)
-
-            self.block.mass_flow = Param(self.TIME, rule=_mass_flow)
-
-            def _decl_init_heat_flow(b):
-                return b.heat_flow[0] == (self.params['temperature_supply'].v() -
-                                          self.params['temperature_return'].v()) * \
-                                         self.cp * b.mass_flow[0]
-
-            self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
-
-        else:
-            self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
-
         def _decl_upward_ramp(b, t):
             if t == 0:
                 return Constraint.Skip
@@ -674,37 +679,54 @@ class ProducerVariable(Component):
         self.block.decl_downward_ramp_cost = Constraint(self.TIME, rule=_decl_downward_ramp_cost)
         self.block.decl_upward_ramp_cost = Constraint(self.TIME, rule=_decl_upward_ramp_cost)
 
-        if self.temperature_driven:
+    def node_method_equations(self):
 
-            self.block.temperatures = Var(lines, self.TIME)
+        lines = self.params['lines'].v()
 
-            def _limit_temperatures(b, t):
-                return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
-                    'temperature_max'].v()
+        def _mass_flow(b, t):
+            return self.params['mass_flow'].v(t)
 
-            self.block.limit_temperatures = Constraint(self.TIME, rule=_limit_temperatures)
+        self.block.mass_flow = Param(self.TIME, rule=_mass_flow)
 
-            def _decl_temperatures(b, t):
-                if t == 0:
-                    return Constraint.Skip
-                elif b.mass_flow[t] == 0:
-                    return Constraint.Skip
-                else:
-                    return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / b.mass_flow[
-                        t] / self.cp
+        def _decl_init_heat_flow(b):
+            return b.heat_flow[0] == (self.params['temperature_supply'].v() -
+                                      self.params['temperature_return'].v()) * \
+                   self.cp * b.mass_flow[0]
 
-            def _init_temperature(b, l):
-                return b.temperatures[l, 0] == self.params['temperature_' + l].v()
+        self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
 
-            def _decl_temp_mf0(b, t):
-                if (not t == 0) and b.mass_flow[t] == 0:
-                    return b.temperatures['supply', t] == b.temperatures['supply', t - 1]
-                else:
-                    return Constraint.Skip
+        self.block.temperatures = Var(lines, self.TIME)
 
-            self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
-            self.block.init_temperatures = Constraint(lines, rule=_init_temperature)
-            self.block.dec_temp_mf0 = Constraint(self.TIME, rule=_decl_temp_mf0)
+        def _limit_temperatures(b, t):
+            return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
+                'temperature_max'].v()
+
+        self.block.limit_temperatures = Constraint(self.TIME, rule=_limit_temperatures)
+
+        def _decl_temperatures(b, t):
+            if t == 0:
+                return Constraint.Skip
+            elif b.mass_flow[t] == 0:
+                return Constraint.Skip
+            else:
+                return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / b.mass_flow[
+                    t] / self.cp
+
+        def _init_temperature(b, l):
+            return b.temperatures[l, 0] == self.params['temperature_' + l].v()
+
+        def _decl_temp_mf0(b, t):
+            if (not t == 0) and b.mass_flow[t] == 0:
+                return b.temperatures['supply', t] == b.temperatures['supply', t - 1]
+            else:
+                return Constraint.Skip
+
+        self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
+        self.block.init_temperatures = Constraint(lines, rule=_init_temperature)
+        self.block.dec_temp_mf0 = Constraint(self.TIME, rule=_decl_temp_mf0)
+
+    def extensive_pipe_equations(self):
+        self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
 
     def get_ramp_cost(self, t):
         return self.block.ramping_cost[t]
@@ -796,6 +818,7 @@ class ProducerVariable(Component):
 
         return sum(co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
 
+
 class SolarThermalCollector(Component):
     def __init__(self, name, temperature_driven=False):
         """
@@ -851,17 +874,25 @@ class SolarThermalCollector(Component):
         self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
         self.block.heat_flow_curt = Var(self.TIME, within=NonNegativeReals)
 
-        self.block.mass_flow = Var(self.TIME)
 
         # Equations
 
         def _heat_bal(m, t):
             return m.heat_flow[t] + m.heat_flow_curt[t] == self.params['area'].v() * m.heat_flow_max[t]
 
+
+        self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
+
+    def node_method_equations(self):
+        raise Warning('The equations of the Node method are not yet implemented for class SolarThermalCollector')
+
+    def extensive_pipe_equations(self):
+
+        self.block.mass_flow = Var(self.TIME)
+
         def _ener_bal(m, t):
             return m.mass_flow[t] == m.heat_flow[t] / self.cp / self.params['delta_T'].v()
 
-        self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
         self.block.eq_ener_bal = Constraint(self.TIME, rule=_ener_bal)
 
     def get_investment_cost(self):
@@ -1043,19 +1074,30 @@ class StorageVariable(Component):
         # Initialize variables
         #       with upper and lower bounds
 
-        mflo_bounds = (
-            self.min_mflo, self.max_mflo) if self.max_mflo is not None else (
-            None, None)
         heat_bounds = (
             (self.min_mflo * self.temp_diff * self.cp,
              self.max_mflo * self.temp_diff * self.cp) if self.max_mflo is not None else (
                 None, None))
 
         # In/out
-        self.block.mass_flow = Var(self.TIME, bounds=mflo_bounds)
         self.block.heat_flow = Var(self.TIME, bounds=heat_bounds)
-        if self.temperature_driven:
-            self.block.supply_temperature = Var(self.TIME)
+
+    def initial_node_method_equations(self):
+
+        self.block.supply_temperature = Var(self.TIME)
+
+    def initial_extensive_pipe_equations(self):
+
+        mflo_bounds = (
+            self.min_mflo, self.max_mflo) if self.max_mflo is not None else (
+            None, None)
+
+        self.block.mass_flow = Var(self.TIME, bounds=mflo_bounds)
+
+        def _heat_bal(b, t):
+            return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
+
+        self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
 
     def compile(self, model, start_time):
         """
@@ -1162,13 +1204,14 @@ class StorageVariable(Component):
         # self.block.init = Constraint(expr=self.block.heat_stor[0] == 1 / 2 * self.vol * 1000 * self.temp_diff * self.cp)
         # print 1 / 2 * self.vol * 1000 * self.temp_diff * self.cp
 
-        ## Mass flow and heat flow link
-        def _heat_bal(b, t):
-            return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
-
-        self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
 
         self.logger.info('Optimization model Storage {} compiled'.format(self.name))
+
+    def node_method_equations(self):
+        self.initial_node_method_equations()
+
+    def extensive_pipe_equations(self):
+        self.initial_extensive_pipe_equations()
 
     def get_heat_stor(self):
         """
@@ -1299,12 +1342,14 @@ class StorageCondensed(StorageVariable):
             self.block.init_eq = Constraint(expr=self.block.heat_stor_init == self.params['heat_stor'].v())
 
         ## Mass flow and heat flow link
-        def _heat_bal(b, t):
-            return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
-
-        self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
 
         self.logger.info('Optimization model StorageCondensed {} compiled'.format(self.name))
+
+    def node_method_equations(self):
+        self.initial_node_method_equations()
+
+    def extensive_pipe_equations(self):
+        self.initial_extensive_pipe_equations()
 
     def get_heat_stor(self, repetition=None, time=None):
         """

@@ -232,7 +232,6 @@ class RCmodel(Component):
         self.block.StateHeatFlows = Var(self.block.control_states, self.TIME)
         self.block.ControlHeatFlows = Var(self.block.control_variables, self.TIME)
         self.block.EdgeHeatFlows = Var(self.block.edge_names, self.TIME)
-        self.block.mass_flow = Var(self.TIME)
         self.block.heat_flow = Var(self.TIME)
 
         ##### Parameters
@@ -373,7 +372,6 @@ class RCmodel(Component):
         ##### Substation model
 
         mult = self.params['mult'].v()
-        delta_T = self.params['delta_T'].v()
 
         def decl_heat_flow(b, t):
             # TODO Find good way to find control inputs
@@ -381,52 +379,59 @@ class RCmodel(Component):
 
         self.block.decl_heat_flow = Constraint(self.TIME, rule=decl_heat_flow)
 
+        # self.block.pprint()
+
+    def node_method_equations(self):
+
+        # self.block.temperatures = Var(self.TIME, self.lines)
+        #
+        # def _decl_temperatures(b, t):
+        #     if t == 0:
+        #         return Constraint.Skip
+        #     elif b.mass_flow[t] == 0:
+        #         return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
+        #     else:
+        #         return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
+        #                b.heat_flow[t] / b.mass_flow[t] / self.cp
+        #
+        # def _init_temperatures(b, l):
+        #     return b.temperatures[0, l] == self.params['temperature_' + l].v()
+        #
+        # uslack = self.make_slack('temperature_max_uslack', self.TIME)
+        # lslack = self.make_slack('temperature_max_l_slack', self.TIME)
+        #
+        # ub = self.params['temperature_max'].v()
+        # lb = self.params['temperature_min'].v()
+        #
+        # def _max_temp_ss(b, t):
+        #     return self.constrain_value(b.temperatures[t, 'supply'],
+        #                                 ub,
+        #                                 ub=True,
+        #                                 slack_variable=uslack[t])
+        #
+        # def _min_temp_ss(b, t):
+        #     return self.constrain_value(b.temperatures[t, 'supply'],
+        #                                 lb,
+        #                                 ub=False,
+        #                                 slack_variable=lslack[t])
+        #
+        # self.block.max_temp_ss = Constraint(self.TIME, rule=_max_temp_ss)
+        # self.block.min_temp_ss = Constraint(self.TIME, rule=_min_temp_ss)
+        #
+        # self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
+        # self.block.init_temperatures = Constraint(self.lines, rule=_init_temperatures)
+        raise Warning('No node method equations are implemented for class RCmodel')
+
+    def extensive_pipe_equations(self):
+
+        delta_T = self.params['delta_T'].v()
+
+        self.block.mass_flow = Var(self.TIME)
+
         def decl_mass_flow(b, t):
             return b.mass_flow[t] == b.heat_flow[t] / self.cp / delta_T
 
         self.block.decl_mass_flow = Constraint(self.TIME, rule=decl_mass_flow)
-
-        # self.block.pprint()
-
-        if self.temperature_driven:
-            print 'WARNING: No temperature variable model implemented (yet)'
-            # self.block.temperatures = Var(self.TIME, self.lines)
-            #
-            # def _decl_temperatures(b, t):
-            #     if t == 0:
-            #         return Constraint.Skip
-            #     elif b.mass_flow[t] == 0:
-            #         return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
-            #     else:
-            #         return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
-            #                b.heat_flow[t] / b.mass_flow[t] / self.cp
-            #
-            # def _init_temperatures(b, l):
-            #     return b.temperatures[0, l] == self.params['temperature_' + l].v()
-            #
-            # uslack = self.make_slack('temperature_max_uslack', self.TIME)
-            # lslack = self.make_slack('temperature_max_l_slack', self.TIME)
-            #
-            # ub = self.params['temperature_max'].v()
-            # lb = self.params['temperature_min'].v()
-            #
-            # def _max_temp_ss(b, t):
-            #     return self.constrain_value(b.temperatures[t, 'supply'],
-            #                                 ub,
-            #                                 ub=True,
-            #                                 slack_variable=uslack[t])
-            #
-            # def _min_temp_ss(b, t):
-            #     return self.constrain_value(b.temperatures[t, 'supply'],
-            #                                 lb,
-            #                                 ub=False,
-            #                                 slack_variable=lslack[t])
-            #
-            # self.block.max_temp_ss = Constraint(self.TIME, rule=_max_temp_ss)
-            # self.block.min_temp_ss = Constraint(self.TIME, rule=_min_temp_ss)
-            #
-            # self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
-            # self.block.init_temperatures = Constraint(self.lines, rule=_init_temperatures)
 
     def create_params(self):
 

@@ -93,7 +93,10 @@ class Pipe(Component):
 
     def get_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
-        return self.get_direction(node) * self.block.mass_flow[t]
+        try:
+            return self.get_direction(node) * self.block.mass_flow[t]
+        except:
+            raise Warning('Component {} uses a pipe model that does not define a mass flow!'.format(self.name))
 
     def get_heat(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
@@ -154,7 +157,6 @@ class SimplePipe(Pipe):
 
         self.block.heat_flow_in = Var(self.TIME)
         self.block.heat_flow_out = Var(self.TIME)
-        self.block.mass_flow = Var(self.TIME)
 
         def _heat_flow(b, t):
             return b.heat_flow_in[t] == b.heat_flow_out[t]
