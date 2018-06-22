@@ -20,9 +20,9 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 
-n_steps = 24 * 31
+n_steps = 24 * 4
 time_step = 3600
-start_time = pd.Timestamp('20140604')
+start_time = pd.Timestamp('20140104')
 
 
 def construct_model():
@@ -51,7 +51,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(pipe_model='SimplePipe', graph=G)
+    optmodel = Modesto(pipe_model='ExtensivePipe', graph=G)
 
     ##################################
     # Fill in the parameters         #
@@ -88,8 +88,7 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps * time_step,
-                      'OM': 10000}
+                      'horizon': n_steps * time_step}
 
     optmodel.change_params(general_params)
 
@@ -132,7 +131,9 @@ def construct_model():
     optmodel.change_init_type(node='zwartbergNE', comp='buildingD',
                               state='TiD0', new_type='cyclic')
 
-    bbThor_params = {'diameter': 500}
+    bbThor_params = {'diameter': 500,
+                     'temperature_supply': 80 + 273.15,
+                     'temperature_return': 60 + 273.15}
     spWaterschei_params = bbThor_params.copy()
     spWaterschei_params['diameter'] = 500
     spZwartbergNE_params = bbThor_params.copy()
@@ -312,7 +313,7 @@ if __name__ == '__main__':
 
     # Objectives
     print '\nObjective function'
-    print 'Slack: ', optmodel.get_slack()
+    print 'Slack: ', optmodel.model.Slack.value
     print 'Energy:', optmodel.get_objective('energy')
     print 'Cost:  ', optmodel.get_objective('cost')
     print 'Active:', optmodel.get_objective()
