@@ -82,7 +82,8 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps*time_step}
+                      'horizon': n_steps*time_step,
+                      'OM': 10**6}
 
     optmodel.change_params(general_params)
 
