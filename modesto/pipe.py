@@ -27,8 +27,7 @@ def str_to_pipe(string):
 
 
 class Pipe(Component):
-    def __init__(self, name, start_node, end_node, length, allow_flow_reversal=False,
-                 temperature_driven=False, direction=1):
+    def __init__(self, name, start_node, end_node, length, allow_flow_reversal=False, direction=1):
         """
         Class that sets up an optimization model for a DHC pipe
 
@@ -44,7 +43,6 @@ class Pipe(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           temperature_driven=temperature_driven,
                            pipe_types={})
         # TODO actually pipe does not need a direction
 
@@ -122,7 +120,7 @@ class Pipe(Component):
 
 class SimplePipe(Pipe):
     def __init__(self, name, start_node, end_node,
-                 length, allow_flow_reversal=False, temperature_driven=False):
+                 length, allow_flow_reversal=False):
         """
         Class that sets up a very simple model of pipe
         No inertia, no time delays, heat_in = heat_out
@@ -139,8 +137,7 @@ class SimplePipe(Pipe):
                       start_node=start_node,
                       end_node=end_node,
                       length=length,
-                      allow_flow_reversal=allow_flow_reversal,
-                      temperature_driven=temperature_driven)
+                      allow_flow_reversal=allow_flow_reversal)
 
         self.params['diameter'].change_value(20)
 
@@ -167,7 +164,7 @@ class SimplePipe(Pipe):
 
 class ExtensivePipe(Pipe):
     def __init__(self, name, start_node,
-                 end_node, length, allow_flow_reversal=True, temperature_driven=False):
+                 end_node, length, allow_flow_reversal=True):
         """
         Class that sets up an extensive model of the pipe
 
@@ -183,8 +180,7 @@ class ExtensivePipe(Pipe):
                       start_node=start_node,
                       end_node=end_node,
                       length=length,
-                      allow_flow_reversal=allow_flow_reversal,
-                      temperature_driven=temperature_driven)
+                      allow_flow_reversal=allow_flow_reversal)
 
         pipe_catalog = self.get_pipe_catalog()
         self.Rs = pipe_catalog['Rs']
@@ -355,7 +351,7 @@ class ExtensivePipe(Pipe):
 
 class NodeMethod(Pipe):
     def __init__(self, name, start_node,
-                 end_node, length, allow_flow_reversal=False, temperature_driven=False, direction=1):
+                 end_node, length, allow_flow_reversal=False, direction=1):
         """
         Class that sets up an extensive model of the pipe
 
@@ -373,7 +369,6 @@ class NodeMethod(Pipe):
                       end_node=end_node,
                       length=length,
                       allow_flow_reversal=allow_flow_reversal,
-                      temperature_driven=temperature_driven,
                       direction=direction)
 
         pipe_catalog = self.get_pipe_catalog()

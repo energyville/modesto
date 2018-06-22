@@ -37,10 +37,6 @@ class Modesto:
         self.results = None
 
         self.pipe_model = pipe_model
-        if pipe_model == 'NodeMethod':
-            self.temperature_driven = True
-        else:
-            self.temperature_driven = False
 
         self.allow_flow_reversal = True
 
@@ -134,7 +130,6 @@ class Modesto:
             assert node not in self.components, "Node %s already exists" % node.name
             self.components[node] = (Node(name=node,
                                      node=self.graph.nodes[node],
-                                     temperature_driven=self.temperature_driven,
                                      pipe_types={self.pipe_model: self.get_edges()}))
 
             # Add the new components
@@ -162,8 +157,7 @@ class Modesto:
                         start_node=start_node,
                         end_node=end_node,
                         pipe_model=self.pipe_model,
-                        allow_flow_reversal=self.allow_flow_reversal,
-                        temperature_driven=self.temperature_driven)
+                        allow_flow_reversal=self.allow_flow_reversal)
 
             start_node.add_pipe(edge.pipe, edge.get_type())
             end_node.add_pipe(edge.pipe, edge.get_type())
@@ -216,7 +210,7 @@ class Modesto:
         for objective in self.objectives.values():
             objective.deactivate()
 
-        if self.temperature_driven:
+        if self.pipe_model == 'NodeMethod':
             def obj_temp(model):
                 return model.Slack + sum(comp.obj_temp() for comp in self.iter_components())
 
@@ -749,7 +743,7 @@ class Modesto:
 
 
 class Node(Submodel):
-    def __init__(self, name, node, temperature_driven=False, pipe_types=None):
+    def __init__(self, name, node, pipe_types=None):
         """
         Class that represents a geographical network location,
         associated with a number of components and connected to other nodes through edges
@@ -759,7 +753,7 @@ class Node(Submodel):
         :param horizon: Horizon of the problem
         :param time_step: Time step between two points of the problem
         """
-        Submodel.__init__(self, name=name, temperature_driven=temperature_driven)
+        Submodel.__init__(self, name=name)
 
         self.logger = logging.getLogger('modesto.Node')
         self.logger.info('Initializing Node {}'.format(name))
@@ -837,7 +831,6 @@ class Node(Submodel):
 
         if cls:
             obj = cls(name=name,
-                      temperature_driven=self.temperature_driven,
                       pipe_types=self.pipe_types.keys())
         else:
             raise ValueError(
@@ -1079,8 +1072,7 @@ class Node(Submodel):
 
 
 class Edge(object):
-    def __init__(self, name, edge, start_node, end_node, pipe_model, allow_flow_reversal,
-                 temperature_driven):
+    def __init__(self, name, edge, start_node, end_node, pipe_model, allow_flow_reversal):
         """
         Connection object between two nodes in a graph
 
@@ -1100,8 +1092,6 @@ class Edge(object):
         self.start_node = start_node
         self.end_node = end_node
         self.length = self.get_length()
-
-        self.temperature_driven = temperature_driven
 
         self.pipe_model = pipe_model
         self.pipe = self.build(pipe_model,
@@ -1130,8 +1120,7 @@ class Edge(object):
             obj = cls(name=self.name,
                       start_node=self.start_node.name,
                       end_node=self.end_node.name, length=self.length,
-                      allow_flow_reversal=allow_flow_reversal,
-                      temperature_driven=self.temperature_driven)
+                      allow_flow_reversal=allow_flow_reversal)
         else:
             obj = None
 

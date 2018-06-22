@@ -20,7 +20,7 @@ def str_to_comp(string):
 
 
 class Component(Submodel):
-    def __init__(self, name=None, direction=None, temperature_driven=False, pipe_types={}):
+    def __init__(self, name=None, direction=None, pipe_types={}):
         """
         Base class for components
 
@@ -30,7 +30,7 @@ class Component(Submodel):
         :param params: Required parameters to set up the model (dict)
         :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
-        Submodel.__init__(self, name=name, temperature_driven=temperature_driven)
+        Submodel.__init__(self, name=name)
 
         self.logger = logging.getLogger('modesto.component.Component')
         self.logger.info('Initializing Component {}'.format(name))
@@ -115,10 +115,10 @@ class Component(Submodel):
         :param line: 'supply' or 'return'
         :return:
         """
-        if not self.temperature_driven:
-            raise ValueError('The model is not temperature driven, with no supply temperature variables')
         if self.block is None:
             raise Exception("The optimization model for %s has not been compiled" % self.name)
+        if not hasattr(self.block, 'temperatures'):
+            raise ValueError('{} is not ready for temperature optimization'.format(self.name))
         if not line in self.params['lines'].v():
             raise ValueError('The input line can only take the values from {}'.format(self.params['lines'].v()))
 
@@ -336,8 +336,7 @@ class Component(Submodel):
 
 
 class FixedProfile(Component):
-    def __init__(self, name=None, direction=None,
-                 temperature_driven=False, pipe_types={}):
+    def __init__(self, name=None, direction=None, pipe_types={}):
         """
         Class for a component with a fixed heating profile
 
@@ -347,7 +346,6 @@ class FixedProfile(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           temperature_driven=temperature_driven,
                            pipe_types=pipe_types)
 
 
@@ -488,7 +486,7 @@ class FixedProfile(Component):
 class VariableProfile(Component):
     # TODO Assuming that variable profile means State-Space model
 
-    def __init__(self, name, direction, temperature_driven=False, pipe_types={}):
+    def __init__(self, name, direction, pipe_types={}):
         """
         Class for components with a variable heating profile
 
@@ -498,7 +496,6 @@ class VariableProfile(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           temperature_driven=temperature_driven,
                            pipe_types=pipe_types)
 
     def compile(self, model, start_time):
@@ -514,7 +511,7 @@ class VariableProfile(Component):
 
 
 class BuildingFixed(FixedProfile):
-    def __init__(self, name, temperature_driven=False, pipe_types={}):
+    def __init__(self, name, pipe_types={}):
         """
         Class for building models with a fixed heating profile
 
@@ -523,13 +520,12 @@ class BuildingFixed(FixedProfile):
         Component.__init__(self,
                            name=name,
                            direction=-1,
-                           temperature_driven=temperature_driven,
                            pipe_types=pipe_types)
 
 
 class BuildingVariable(Component):
 
-    def __init__(self, name, temperature_driven=False, pipe_types={}):
+    def __init__(self, name, pipe_types={}):
         """
         Class for a building with a variable heating profile
 
@@ -538,13 +534,12 @@ class BuildingVariable(Component):
         Component.__init__(self,
                            name=name,
                            direction=-1,
-                           temperature_driven=temperature_driven,
                            pipe_types=pipe_types)
 
 
 class ProducerFixed(FixedProfile):
 
-    def __init__(self, name, temperature_driven=False, pipe_types={}):
+    def __init__(self, name, pipe_types={}):
         """
         Class that describes a fixed producer profile
 
@@ -553,7 +548,6 @@ class ProducerFixed(FixedProfile):
         Component.__init__(self,
                            name=name,
                            direction=1,
-                           temperature_driven=temperature_driven,
                            pipe_types=pipe_types)
 
         self.params['mult'].change_value(1)
@@ -563,7 +557,7 @@ class ProducerFixed(FixedProfile):
 
 
 class ProducerVariable(Component):
-    def __init__(self, name, temperature_driven=False, pipe_types={}):
+    def __init__(self, name, pipe_types={}):
         """
         Class that describes a variable producer
 
@@ -573,7 +567,6 @@ class ProducerVariable(Component):
         Component.__init__(self,
                            name=name,
                            direction=1,
-                           temperature_driven=temperature_driven,
                            pipe_types=pipe_types)
 
         self.logger = logging.getLogger('modesto.components.VarProducer')
@@ -659,7 +652,6 @@ class ProducerVariable(Component):
         params.update(self.extensive_pipe_parameters())
 
         return params
-
 
     def compile(self, model, start_time):
         """
@@ -860,15 +852,13 @@ class ProducerVariable(Component):
 
 
 class SolarThermalCollector(Component):
-    def __init__(self, name, temperature_driven=False, pipe_types={}):
+    def __init__(self, name, pipe_types={}):
         """
         Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
 
         :param name: Name of the solar panel
-        :param temperature_driven:
         """
         Component.__init__(self, name=name, direction=1,
-                           temperature_driven=temperature_driven,
                            pipe_types=pipe_types)
 
         self.logger = logging.getLogger('modesto.components.SolThermCol')
@@ -953,7 +943,7 @@ class SolarThermalCollector(Component):
 
 
 class StorageFixed(FixedProfile):
-    def __init__(self, name, temperature_driven, pipe_types={}):
+    def __init__(self, name, pipe_types={}):
         """
         Class that describes a fixed storage
 
@@ -963,12 +953,11 @@ class StorageFixed(FixedProfile):
         Component.__init__(self,
                            name=name,
                            direction=-1,
-                           temperature_driven=temperature_driven,
                            pipe_types=pipe_types)
 
 
 class StorageVariable(Component):
-    def __init__(self, name, temperature_driven=False, pipe_types={}):
+    def __init__(self, name, pipe_types={}):
         """
         Class that describes a variable storage
 
@@ -978,7 +967,6 @@ class StorageVariable(Component):
         Component.__init__(self,
                            name=name,
                            direction=-1,
-                           temperature_driven=temperature_driven,
                            pipe_types=pipe_types)
 
         self.max_en = 0
@@ -1280,7 +1268,7 @@ class StorageVariable(Component):
 
 
 class StorageCondensed(StorageVariable):
-    def __init__(self, name, temperature_driven=False, pipe_types={}):
+    def __init__(self, name,  pipe_types={}):
         """
         Variable storage model. In this model, the state equation are condensed into one single equation. Only the
             initial and final state remain as a parameter. This component is also compatible with a representative
@@ -1290,12 +1278,9 @@ class StorageCondensed(StorageVariable):
         The heat losses are taken into account exactly in this model.
 
         :param name: name of the component
-        :param temperature_driven: Parameter that defines if component is temperature driven. This component can only be
-            used in non-temperature-driven optimizations.
 
         """
         StorageVariable.__init__(self, name=name,
-                                 temperature_driven=temperature_driven,
                                  pipe_types=pipe_types)
 
         self.N = None  # Number of flow time steps

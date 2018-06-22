@@ -8,7 +8,7 @@ import pandas as pd
 
 
 class Submodel(object):
-    def __init__(self, name=None, temperature_driven=False):
+    def __init__(self, name=None):
         """
         Base class for submodels
 
@@ -19,8 +19,6 @@ class Submodel(object):
         :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
         self.name = name
-
-        self.temperature_driven = temperature_driven
 
         self.params = self.create_params()
 
