@@ -44,8 +44,7 @@ def test_producer():
                      pd.Series(([6e4, 1e5, 6e4] + [0, 1e4, 0]) * 4, index=time_index),
                      pd.Series(([5e4, 1e5, 5e4] + [500] * 3) * 4, index=time_index)]
 
-    building_params = {'delta_T': 20,
-                       'mult': 1,
+    building_params = {'mult': 1,
                        }
 
     optmodel.change_params(building_params, node='user', comp='building')

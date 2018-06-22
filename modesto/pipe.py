@@ -44,7 +44,8 @@ class Pipe(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           pipe_types={})
         # TODO actually pipe does not need a direction
 
         self.params = self.create_params()

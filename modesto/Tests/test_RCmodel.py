@@ -7,7 +7,7 @@ def test_rc_model():
     n_steps = 24
     horizon = n_steps*time_step
 
-    RCmodel = RCmodel('test', False)
+    RCmodel = RCmodel('test', False, pipe_types=['SimplePipe'])
 
     time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
     min_temp_room = pd.Series(16 + 273.15, index=time_index)
@@ -20,7 +20,6 @@ def test_rc_model():
               'day_max_temperature': max_temp_room,
               'night_min_temperature': min_temp_room,
               'night_max_temperature': max_temp_room,
-              'delta_T': 20,
               'mult': 100,
               'horizon': horizon
               }

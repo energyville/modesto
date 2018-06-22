@@ -20,7 +20,7 @@ def str_to_comp(string):
 
 
 class Component(Submodel):
-    def __init__(self, name=None, direction=None, temperature_driven=False):
+    def __init__(self, name=None, direction=None, temperature_driven=False, pipe_types={}):
         """
         Base class for components
 
@@ -43,6 +43,13 @@ class Component(Submodel):
             raise ValueError('Direction should be -1 or 1.')
         self.direction = direction
 
+        self.params = self.create_params()
+
+        if 'ExtensivePipe' in pipe_types:
+            self.params.update(self.extensive_pipe_parameters())
+        if 'NodeMethod' in pipe_types:
+            self.params.update(self.node_method_parameters())
+
     def create_params(self):
         """
         Create all required parameters to set up the model
@@ -59,6 +66,12 @@ class Component(Submodel):
                                        unit='s',
                                        description='Horizon of the optimization problem')}
         return params
+
+    def extensive_pipe_parameters(self):
+        return {}
+
+    def node_method_parameters(self):
+        return {}
 
     def change_param_object(self, name, new_object):
         """
@@ -324,7 +337,7 @@ class Component(Submodel):
 
 class FixedProfile(Component):
     def __init__(self, name=None, direction=None,
-                 temperature_driven=False):
+                 temperature_driven=False, pipe_types={}):
         """
         Class for a component with a fixed heating profile
 
@@ -334,9 +347,9 @@ class FixedProfile(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           pipe_types=pipe_types)
 
-        self.params = self.create_params()
 
     def create_params(self):
         """
@@ -348,9 +361,6 @@ class FixedProfile(Component):
         params = Component.create_params(self)
 
         params.update({
-            'delta_T': DesignParameter('delta_T',
-                                       'Temperature difference across substation',
-                                       'K'),
             'mult': DesignParameter('mult',
                                     'Number of buildings in the cluster',
                                     '-'),
@@ -359,31 +369,45 @@ class FixedProfile(Component):
                                               'W'),
         })
 
-        if self.temperature_driven:
-            params['mass_flow'] = UserDataParameter('mass_flow',
-                                                    'Mass flow through one (average) building substation',
-                                                    'kg/s'
-                                                    )
-            params['temperature_supply'] = StateParameter('temperature_supply',
-                                                          'Initial supply temperature at the component',
-                                                          'K',
-                                                          'fixedVal',
-                                                          slack=True)
-            params['temperature_return'] = StateParameter('temperature_return',
-                                                          'Initial return temperature at the component',
-                                                          'K',
-                                                          'fixedVal')
-            params['temperature_max'] = DesignParameter('temperature_max',
-                                                        'Maximun allowed water temperature at the component',
-                                                        'K')
-            params['temperature_min'] = DesignParameter('temperature_min',
-                                                        'Minimum allowed temperature at the component',
-                                                        'K')
-            params['lines'] = DesignParameter('lines',
-                                              unit='-',
-                                              description='List of names of the lines that can be found in the network, e.g. '
-                                                          '\'supply\' and \'return\'',
-                                              val=['supply', 'return'])
+        return params
+
+    def extensive_pipe_parameters(self):
+        params = {
+            'delta_T': DesignParameter('delta_T',
+                                       'Temperature difference across substation',
+                                       'K')}
+
+        return params
+
+    def node_method_parameters(self):
+        params = {
+            'mass_flow': UserDataParameter('mass_flow',
+                                           'Mass flow through one (average) building substation',
+                                           'kg/s'
+                                           ),
+            'temperature_supply': StateParameter('temperature_supply',
+                                                 'Initial supply temperature at the component',
+                                                 'K',
+                                                 'fixedVal',
+                                                 slack=True),
+            'temperature_return': StateParameter('temperature_return',
+                                                 'Initial return temperature at the component',
+                                                 'K',
+                                                 'fixedVal'),
+            'temperature_max': DesignParameter('temperature_max',
+                                               'Maximun allowed water temperature at the component',
+                                               'K'),
+            'temperature_min': DesignParameter('temperature_min',
+                                               'Minimum allowed temperature at the component',
+                                               'K'),
+            'lines': DesignParameter('lines',
+                                     unit='-',
+                                     description='List of names of the lines that can be found in the network, e.g. '
+                                                 '\'supply\' and \'return\'',
+                                     val=['supply', 'return'])
+        }
+
+        params.update(self.extensive_pipe_parameters())
 
         return params
 
@@ -464,7 +488,7 @@ class FixedProfile(Component):
 class VariableProfile(Component):
     # TODO Assuming that variable profile means State-Space model
 
-    def __init__(self, name, direction, temperature_driven=False):
+    def __init__(self, name, direction, temperature_driven=False, pipe_types={}):
         """
         Class for components with a variable heating profile
 
@@ -474,9 +498,8 @@ class VariableProfile(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           temperature_driven=temperature_driven)
-
-        self.params = self.create_params()
+                           temperature_driven=temperature_driven,
+                           pipe_types=pipe_types)
 
     def compile(self, model, start_time):
         """
@@ -491,7 +514,7 @@ class VariableProfile(Component):
 
 
 class BuildingFixed(FixedProfile):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, pipe_types={}):
         """
         Class for building models with a fixed heating profile
 
@@ -500,12 +523,13 @@ class BuildingFixed(FixedProfile):
         Component.__init__(self,
                            name=name,
                            direction=-1,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           pipe_types=pipe_types)
 
 
 class BuildingVariable(Component):
 
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, pipe_types={}):
         """
         Class for a building with a variable heating profile
 
@@ -514,12 +538,13 @@ class BuildingVariable(Component):
         Component.__init__(self,
                            name=name,
                            direction=-1,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           pipe_types=pipe_types)
 
 
 class ProducerFixed(FixedProfile):
 
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, pipe_types={}):
         """
         Class that describes a fixed producer profile
 
@@ -528,7 +553,8 @@ class ProducerFixed(FixedProfile):
         Component.__init__(self,
                            name=name,
                            direction=1,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           pipe_types=pipe_types)
 
         self.params['mult'].change_value(1)
 
@@ -537,7 +563,7 @@ class ProducerFixed(FixedProfile):
 
 
 class ProducerVariable(Component):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, pipe_types={}):
         """
         Class that describes a variable producer
 
@@ -547,9 +573,8 @@ class ProducerVariable(Component):
         Component.__init__(self,
                            name=name,
                            direction=1,
-                           temperature_driven=temperature_driven)
-
-        self.params = self.create_params()
+                           temperature_driven=temperature_driven,
+                           pipe_types=pipe_types)
 
         self.logger = logging.getLogger('modesto.components.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
@@ -596,30 +621,45 @@ class ProducerVariable(Component):
                                            'euro/kg CO2')
                 })
 
-        if self.temperature_driven:
-            params['mass_flow'] = UserDataParameter('mass_flow',
-                                                    'Flow through the production unit substation',
-                                                    'kg/s')
-            params['temperature_max'] = DesignParameter('temperature_max',
-                                                        'Maximum allowed water temperature',
-                                                        'K')
-            params['temperature_min'] = DesignParameter('temperature_min',
-                                                        'Minimum allowed water temperature',
-                                                        'K')
-            params['temperature_supply'] = StateParameter('temperature_supply',
-                                                          'Initial supply temperature at the component',
-                                                          'K',
-                                                          'fixedVal')
-            params['temperature_return'] = StateParameter('temperature_return',
-                                                          'Initial return temperature at the component',
-                                                          'K',
-                                                          'fixedVal')
-            params['lines'] = DesignParameter('lines',
-                                              unit='-',
-                                              description='List of names of the lines that can be found in the network, e.g. '
-                                                          '\'supply\' and \'return\'',
-                                              val=['supply', 'return'])
         return params
+
+    def extensive_pipe_parameters(self):
+        params = {}
+
+        return params
+
+    def node_method_parameters(self):
+        params = {
+            'mass_flow': UserDataParameter('mass_flow',
+                                           'Mass flow through one (average) building substation',
+                                           'kg/s'
+                                           ),
+            'temperature_supply': StateParameter('temperature_supply',
+                                                 'Initial supply temperature at the component',
+                                                 'K',
+                                                 'fixedVal',
+                                                 slack=True),
+            'temperature_return': StateParameter('temperature_return',
+                                                 'Initial return temperature at the component',
+                                                 'K',
+                                                 'fixedVal'),
+            'temperature_max': DesignParameter('temperature_max',
+                                               'Maximun allowed water temperature at the component',
+                                               'K'),
+            'temperature_min': DesignParameter('temperature_min',
+                                               'Minimum allowed temperature at the component',
+                                               'K'),
+            'lines': DesignParameter('lines',
+                                     unit='-',
+                                     description='List of names of the lines that can be found in the network, e.g. '
+                                                 '\'supply\' and \'return\'',
+                                     val=['supply', 'return'])
+        }
+
+        params.update(self.extensive_pipe_parameters())
+
+        return params
+
 
     def compile(self, model, start_time):
         """
@@ -820,7 +860,7 @@ class ProducerVariable(Component):
 
 
 class SolarThermalCollector(Component):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, pipe_types={}):
         """
         Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
 
@@ -828,9 +868,8 @@ class SolarThermalCollector(Component):
         :param temperature_driven:
         """
         Component.__init__(self, name=name, direction=1,
-                           temperature_driven=temperature_driven)
-
-        self.params = self.create_params()
+                           temperature_driven=temperature_driven,
+                           pipe_types=pipe_types)
 
         self.logger = logging.getLogger('modesto.components.SolThermCol')
         self.logger.info('Initializing SolarThermalCollector {}'.format(name))
@@ -841,7 +880,6 @@ class SolarThermalCollector(Component):
 
         params.update({
             'area': DesignParameter('area', 'Surface area of panels', 'm2'),
-            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K'),
             'heat_profile': UserDataParameter(name='heat_profile',
                                               description='Maximum heat generation per unit area of the solar panel',
                                               unit='W/m2'),
@@ -853,6 +891,15 @@ class SolarThermalCollector(Component):
             # see http://solar-district-heating.eu/Portals/0/Factsheets/SDH-WP3-D31-D32_August2012.pdf
         })
         return params
+
+    def extensive_pipe_parameters(self):
+        parameters = {
+            'delta_T': DesignParameter('delta_T',
+                                       'Temperature difference between in- and outlet',
+                                       'K')}
+
+        return parameters
+
 
     def compile(self, model, start_time):
         """
@@ -906,7 +953,7 @@ class SolarThermalCollector(Component):
 
 
 class StorageFixed(FixedProfile):
-    def __init__(self, name, temperature_driven):
+    def __init__(self, name, temperature_driven, pipe_types={}):
         """
         Class that describes a fixed storage
 
@@ -916,11 +963,12 @@ class StorageFixed(FixedProfile):
         Component.__init__(self,
                            name=name,
                            direction=-1,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           pipe_types=pipe_types)
 
 
 class StorageVariable(Component):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, pipe_types={}):
         """
         Class that describes a variable storage
 
@@ -930,9 +978,9 @@ class StorageVariable(Component):
         Component.__init__(self,
                            name=name,
                            direction=-1,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           pipe_types=pipe_types)
 
-        self.params = self.create_params()
         self.max_en = 0
 
         # TODO choose between stored heat or state of charge as state (which one is easier for initialization?)
@@ -1232,7 +1280,7 @@ class StorageVariable(Component):
 
 
 class StorageCondensed(StorageVariable):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, pipe_types={}):
         """
         Variable storage model. In this model, the state equation are condensed into one single equation. Only the
             initial and final state remain as a parameter. This component is also compatible with a representative
@@ -1247,7 +1295,8 @@ class StorageCondensed(StorageVariable):
 
         """
         StorageVariable.__init__(self, name=name,
-                                 temperature_driven=temperature_driven)
+                                 temperature_driven=temperature_driven,
+                                 pipe_types=pipe_types)
 
         self.N = None  # Number of flow time steps
         self.R = None  # Number of repetitions

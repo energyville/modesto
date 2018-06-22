@@ -134,7 +134,8 @@ class Modesto:
             assert node not in self.components, "Node %s already exists" % node.name
             self.components[node] = (Node(name=node,
                                      node=self.graph.nodes[node],
-                                     temperature_driven=self.temperature_driven))
+                                     temperature_driven=self.temperature_driven,
+                                     pipe_types={self.pipe_model: self.get_edges()}))
 
             # Add the new components
             self.components.update(self.components[node].get_components())
@@ -254,7 +255,6 @@ class Modesto:
         for name in self.get_edges():
             self.get_component(name=name).compile(self.model, start_time)
         for name in self.get_nodes():
-            print name
             self.get_component(name=name).compile(self.model, start_time)
 
         self.__build_objectives()
@@ -660,6 +660,12 @@ class Modesto:
             edges.append(dict[tuple])
         return edges
 
+    def get_node_edges(self, name):
+        connected_nodes = self.graph.neighbors(name)
+        for node in connected_nodes:
+            print node
+        return  connected_nodes
+
     def get_node_components(self, node):
         """
         Returns a dict with all components belonging to one node
@@ -743,7 +749,7 @@ class Modesto:
 
 
 class Node(Submodel):
-    def __init__(self, name, node, temperature_driven=False):
+    def __init__(self, name, node, temperature_driven=False, pipe_types=None):
         """
         Class that represents a geographical network location,
         associated with a number of components and connected to other nodes through edges
@@ -763,7 +769,7 @@ class Node(Submodel):
 
         self.components = {}
         self.pipes = {}
-        self.pipe_types = collections.defaultdict(list)
+        self.pipe_types = pipe_types
 
         self.build()
 
@@ -831,7 +837,8 @@ class Node(Submodel):
 
         if cls:
             obj = cls(name=name,
-                      temperature_driven=self.temperature_driven)
+                      temperature_driven=self.temperature_driven,
+                      pipe_types=self.pipe_types.keys())
         else:
             raise ValueError(
                 "%s is not a valid class name! (component is %s, in node %s)" % (
@@ -847,7 +854,7 @@ class Node(Submodel):
             raise TypeError('Input \'edge\' should be an Pipe object')
 
         self.pipes[pipe.name] = pipe
-        self.pipe_types[pipe_type].append(pipe.name)
+        # self.pipe_types[pipe_type].append(pipe.name)
 
     def build(self):
         """
@@ -914,21 +921,25 @@ class Node(Submodel):
         :return:
         """
 
-        def _collect_pipe_objects(pipe_names):
-            return {pipe_name: self.pipes[pipe_name] for pipe_name in pipe_names}
+        def _collect_pipe_objects(ptype):
+            objs = {}
+            for pipe_name, pipe_obj in self.pipes.items():
+                if pipe_name in self.pipe_types[ptype]:
+                    objs[pipe_name] = pipe_obj
+            return objs
 
         for pipe_type in self.pipe_types:
             if pipe_type == 'SimplePipe':
                 self._add_heat_bal(self.components,
-                                   _collect_pipe_objects(self.pipe_types[pipe_type]))
+                                   _collect_pipe_objects(pipe_type))
             elif pipe_type == 'ExtensivePipe':
                 self._add_heat_bal(self.components,
-                                   _collect_pipe_objects(self.pipe_types[pipe_type]))
+                                   _collect_pipe_objects(pipe_type))
                 self._add_mass_bal(self.components,
-                                   _collect_pipe_objects(self.pipe_types[pipe_type]))
+                                   _collect_pipe_objects(pipe_type))
             elif pipe_type == 'NodeMethod':
                 self._add_temp_bal(self.components,
-                                   _collect_pipe_objects(self.pipe_types[pipe_type]))
+                                   _collect_pipe_objects(pipe_type))
             else:
                 raise Exception('No balance equations are selected yet for {}'.format(pipe_type))
 
