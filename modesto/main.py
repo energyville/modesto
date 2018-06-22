@@ -101,7 +101,11 @@ class Modesto:
             'CO2_price': UserDataParameter('CO2_price',
                                            'CO2 price',
                                            'euro/kg CO2',
-                                           val=0)
+                                           val=0),
+            'OM': DesignParameter('OM',
+                                  description='An estimated order of magnitude (OM) of the objective.',
+                                  unit='-',
+                                  val=1)
         }
 
         return params
@@ -188,20 +192,20 @@ class Modesto:
         self.model.decl_slack = Constraint(rule=_decl_slack)
 
         def obj_energy(model):
-            return model.Slack + sum(comp.obj_energy() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_energy() for comp in self.iter_components())/self.params['OM'].v()
 
         def obj_cost(model):
-            return model.Slack + sum(comp.obj_fuel_cost() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_fuel_cost() for comp in self.iter_components())/self.params['OM'].v()
 
         def obj_cost_ramp(model):
-            return model.Slack + sum(comp.obj_cost_ramp() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_cost_ramp() for comp in self.iter_components())/self.params['OM'].v()
 
         def obj_co2(model):
-            return model.Slack + sum(comp.obj_co2() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_co2() for comp in self.iter_components())/self.params['OM'].v()
 
         def obj_co2_fuel_cost(model):
             return model.Slack + sum(comp.obj_co2_cost() + comp.obj_fuel_cost()
-                                     for comp in self.iter_components())
+                                     for comp in self.iter_components())/self.params['OM'].v()
 
         self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
         self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
@@ -557,10 +561,15 @@ class Modesto:
                 self.objectives.keys())
             obj = self.objectives[objtype]
 
+        slack = self.get_slack()
+
         if get_value:
-            return value(obj)
+            return (value(obj) - slack) * self.params['OM'].v()
         else:
             return obj
+
+    def get_slack(self):
+        return value(self.model.Slack)
 
     def print_all_params(self):
         """

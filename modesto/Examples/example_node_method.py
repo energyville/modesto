@@ -120,7 +120,8 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps*time_step}
+                      'horizon': n_steps*time_step,
+                      'OM': 10**6}
 
     optmodel.change_params(general_params)
     optmodel.test = 'Test'
@@ -321,6 +322,7 @@ if __name__ == '__main__':
     print 'Cost_ramp:  ', optmodel.get_objective('cost_ramp')
     print 'Temperature:', optmodel.get_objective('temp')
     print 'Active:     ', optmodel.get_objective()
+    print 'Slack:      ', optmodel.get_slack()
 
     time = [i * time_step / 3600 for i in range(n_steps)]
 
