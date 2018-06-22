@@ -46,9 +46,7 @@ def setup_modesto(graph):
     start_time = pd.Timestamp('20140101')
     pipe_model = 'ExtensivePipe'
 
-    optmodel = Modesto(horizon=horizon,
-                       time_step=time_step,
-                       pipe_model=pipe_model,
+    optmodel = Modesto(pipe_model=pipe_model,
                        graph=graph
                        )
 
@@ -68,7 +66,9 @@ def setup_modesto(graph):
                       'Q_sol_E': QsolE,
                       'Q_sol_W': QsolW,
                       'Q_sol_S': QsolS,
-                      'Q_sol_N': QsolN}
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': horizon}
     optmodel.change_params(general_params)
 
     Pnom = 4e6

@@ -10,7 +10,7 @@ from pkg_resources import resource_filename
 import modesto.utils as ut
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
@@ -51,8 +51,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='ExtensivePipe', graph=G)
+    optmodel = Modesto(pipe_model='ExtensivePipe', graph=G)
 
     ##################################
     # Fill in the parameters         #
@@ -87,7 +86,9 @@ def construct_model():
                       'Q_sol_E': QsolE,
                       'Q_sol_W': QsolW,
                       'Q_sol_S': QsolS,
-                      'Q_sol_N': QsolN}
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': n_steps * time_step}
 
     optmodel.change_params(general_params)
 
@@ -204,9 +205,7 @@ def construct_model():
 
 if __name__ == '__main__':
     optmodel = construct_model()
-    print optmodel.params['Te'] == optmodel.get_component(node='zwartbergNE', name='buildingD').params['Te']
     optmodel.compile(start_time=start_time)
-    print optmodel.params['Te'] == optmodel.get_component(node='zwartbergNE', name='buildingD').params['Te']
     optmodel.set_objective('cost')
 
     optmodel.model.OBJ_ENERGY.pprint()
