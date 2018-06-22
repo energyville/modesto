@@ -7,7 +7,7 @@ def test_rc_model():
     n_steps = 24
     horizon = n_steps*time_step
 
-    RCmodel = RCmodel('test', pipe_types=['SimplePipe'])
+    RCmodel = RCmodel('test', pipe_type=['SimplePipe'])
 
     time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
     min_temp_room = pd.Series(16 + 273.15, index=time_index)

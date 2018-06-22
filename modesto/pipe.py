@@ -43,7 +43,7 @@ class Pipe(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           pipe_types={})
+                           pipe_type={})
         # TODO actually pipe does not need a direction
 
         self.params = self.create_params()

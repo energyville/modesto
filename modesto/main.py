@@ -21,7 +21,7 @@ from parameter import *
 
 
 class Modesto:
-    def __init__(self, pipe_model, graph):
+    def __init__(self, graph, pipe_model):
         """
         This class allows setting up optimization problems for district energy systems
 
@@ -33,10 +33,9 @@ class Modesto:
         """
 
         self.model = ConcreteModel()
+        self.pipe_model = pipe_model
 
         self.results = None
-
-        self.pipe_model = pipe_model
 
         self.allow_flow_reversal = True
 
@@ -130,7 +129,7 @@ class Modesto:
             assert node not in self.components, "Node %s already exists" % node.name
             self.components[node] = (Node(name=node,
                                      node=self.graph.nodes[node],
-                                     pipe_types={self.pipe_model: self.get_edges()}))
+                                     pipe_type=self.pipe_model))
 
             # Add the new components
             self.components.update(self.components[node].get_components())
@@ -147,6 +146,7 @@ class Modesto:
             edge = self.graph[edge_tuple[0]][edge_tuple[1]]
             start_node = self.components[edge_tuple[0]]
             end_node = self.components[edge_tuple[1]]
+            length = self._get_length(start_node, end_node)
             name = edge['name']
 
             assert name not in self.components, "A pipe with name %s already exists" % edge['name']
@@ -154,8 +154,9 @@ class Modesto:
             # Create the modesto.Edge object
             edge = Edge(name=name,
                         edge=edge,
-                        start_node=start_node,
-                        end_node=end_node,
+                        start_node=start_node.name,
+                        end_node=end_node.name,
+                        length=length,
                         pipe_model=self.pipe_model,
                         allow_flow_reversal=self.allow_flow_reversal)
 
@@ -689,19 +690,22 @@ class Modesto:
 
         return self.components[pipe].get_diameter()
 
-    def get_pipe_length(self, pipe):
+    def _get_length(self, start_node, end_node):
         """
-        Get the length of a certain pipe
+        Calculate the length of a pipe with a known start and en node
 
-        :param pipe: Name of the pipe
-        :return: length
+
+        :param start_node:
+        :param end_node:
+        :return:
         """
 
-        if pipe not in self.components:
-            raise KeyError(
-                '{} is not recognized as an existing pipe'.format(pipe))
+        sumsq = 0
 
-        return self.components[pipe].get_length()
+        for i in ['x', 'y', 'z']:
+            sumsq += (start_node.get_loc()[i] - end_node.get_loc()[
+                i]) ** 2
+        return sqrt(sumsq)
 
     def get_heat_stor_init(self):
         """
@@ -743,7 +747,7 @@ class Modesto:
 
 
 class Node(Submodel):
-    def __init__(self, name, node, pipe_types=None):
+    def __init__(self, name, node, pipe_type=None):
         """
         Class that represents a geographical network location,
         associated with a number of components and connected to other nodes through edges
@@ -763,7 +767,7 @@ class Node(Submodel):
 
         self.components = {}
         self.pipes = {}
-        self.pipe_types = pipe_types
+        self.pipe_type = pipe_type
 
         self.build()
 
@@ -831,7 +835,7 @@ class Node(Submodel):
 
         if cls:
             obj = cls(name=name,
-                      pipe_types=self.pipe_types.keys())
+                      pipe_type=self.pipe_type)
         else:
             raise ValueError(
                 "%s is not a valid class name! (component is %s, in node %s)" % (
@@ -898,9 +902,9 @@ class Node(Submodel):
         for name, comp in self.components.items():
             comp.compile(model, start_time)
 
-            if 'ExtensivePipe' in self.pipe_types:
+            if 'ExtensivePipe' in self.pipe_type:
                 comp.extensive_pipe_equations()
-            elif 'NodeMethod' in self.pipe_types:
+            elif 'NodeMethod' in self.pipe_type:
                 comp.node_method_equations()
 
         self._add_bal()
@@ -914,27 +918,25 @@ class Node(Submodel):
         :return:
         """
 
-        def _collect_pipe_objects(ptype):
-            objs = {}
-            for pipe_name, pipe_obj in self.pipes.items():
-                if pipe_name in self.pipe_types[ptype]:
-                    objs[pipe_name] = pipe_obj
-            return objs
+        # TODO Can be used when multiple types of energy transportation are used together
+        # def _collect_pipe_objects(ptype):
+        #     objs = {}
+        #     for pipe_name, pipe_obj in self.pipes.items():
+        #         if pipe_name in self.pipe_types[ptype]:
+        #             objs[pipe_name] = pipe_obj
+        #     return objs
 
-        for pipe_type in self.pipe_types:
-            if pipe_type == 'SimplePipe':
-                self._add_heat_bal(self.components,
-                                   _collect_pipe_objects(pipe_type))
-            elif pipe_type == 'ExtensivePipe':
-                self._add_heat_bal(self.components,
-                                   _collect_pipe_objects(pipe_type))
-                self._add_mass_bal(self.components,
-                                   _collect_pipe_objects(pipe_type))
-            elif pipe_type == 'NodeMethod':
-                self._add_temp_bal(self.components,
-                                   _collect_pipe_objects(pipe_type))
-            else:
-                raise Exception('No balance equations are selected yet for {}'.format(pipe_type))
+        if 'SimplePipe' == self.pipe_type:
+            self._add_heat_bal(self.components,
+                               self.pipes)
+        if 'ExtensivePipe' == self.pipe_type:
+            self._add_heat_bal(self.components,
+                               self.pipes)
+            self._add_mass_bal(self.components,
+                               self.pipes)
+        if 'NodeMethod' == self.pipe_type:
+            self._add_temp_bal(self.components,
+                               self.pipes)
 
     def _add_heat_bal(self, c, p):
 
@@ -1072,14 +1074,14 @@ class Node(Submodel):
 
 
 class Edge(object):
-    def __init__(self, name, edge, start_node, end_node, pipe_model, allow_flow_reversal):
+    def __init__(self, name, edge, start_node, end_node, length, pipe_model, allow_flow_reversal):
         """
         Connection object between two nodes in a graph
 
         :param name: Unique identifier of node (str)
         :param edge: Networkx Edge object
-        :param start_node: modesto.Node object
-        :param stop_node: modesto.Node object
+        :param start_node: name of the start node
+        :param stop_node: name of the stop node
         :param pipe_model: Type of pipe model to be used
         """
 
@@ -1091,7 +1093,7 @@ class Edge(object):
 
         self.start_node = start_node
         self.end_node = end_node
-        self.length = self.get_length()
+        self.length = length
 
         self.pipe_model = pipe_model
         self.pipe = self.build(pipe_model,
@@ -1118,8 +1120,8 @@ class Edge(object):
 
         if cls:
             obj = cls(name=self.name,
-                      start_node=self.start_node.name,
-                      end_node=self.end_node.name, length=self.length,
+                      start_node=self.start_node,
+                      end_node=self.end_node, length=self.length,
                       allow_flow_reversal=allow_flow_reversal)
         else:
             obj = None
@@ -1143,11 +1145,3 @@ class Edge(object):
         """
         self.pipe.compile(model, start_time)
 
-    def get_length(self):
-
-        sumsq = 0
-
-        for i in ['x', 'y', 'z']:
-            sumsq += (self.start_node.get_loc()[i] - self.end_node.get_loc()[
-                i]) ** 2
-        return sqrt(sumsq)

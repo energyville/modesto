@@ -31,7 +31,7 @@ def str_to_comp(string):
 
 class RCmodel(Component):
 
-    def __init__(self, name, pipe_types={}):
+    def __init__(self, name, pipe_type=None):
         """
 
         :param name: Name of the component
@@ -40,7 +40,7 @@ class RCmodel(Component):
         """
         Component.__init__(self, name,
                            direction=-1,
-                           pipe_types=pipe_types)
+                           pipe_type=pipe_type)
         self.model_types = ['SFH_D_1_2zone_TAB', 'SFH_D_1_2zone_REF1', 'SFH_D_1_2zone_REF2', 'SFH_D_2_2zone_TAB',
                       'SFH_D_2_2zone_REF1',	'SFH_D_2_2zone_REF2', 'SFH_D_3_2zone_TAB', 'SFH_D_3_2zone_REF1',
                       'SFH_D_3_2zone_REF2', 'SFH_D_4_2zone_TAB', 'SFH_D_4_2zone_REF1', 'SFH_D_4_2zone_REF2',
