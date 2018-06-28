@@ -65,6 +65,12 @@ class Pipe(Component):
                          index_col='DN')
         return df
 
+    def get_diameter(self):
+        return self.Di[self.params['diameter'].v()]
+
+    def get_length(self):
+        return self.length
+
     def create_params(self):
         params = {
             'diameter': DesignParameter('diameter',
@@ -708,8 +714,3 @@ class NodeMethod(Pipe):
 
         self.block.def_temp_out = Constraint(self.model.TIME, self.model.lines, rule=_temp_out)
 
-    def get_diameter(self):
-        return self.Di[self.params['diameter'].v()]
-
-    def get_length(self):
-        return self.length
