@@ -60,12 +60,11 @@ class Component(Submodel):
                                        description='Horizon of the optimization problem')}
         return params
 
-	def change_param_object(self, name, new_object):
-		"""
-		Replace a parameter object by a new one
+    def change_param_object(self, name, new_object):
+        """
+        Replace a parameter object by a new one
 
-		:param new_object: The new parameter object
-        :param name: The name of the parameter to be changed
+        :param new_object: The new parameter object
         :return:
         """
 
@@ -136,14 +135,6 @@ class Component(Submodel):
         if self.block is None:
             raise Exception("The optimization model for %s has not been compiled" % self.name)
         return self.direction * self.block.mass_flow[t]
-
-    def get_direction(self):
-        """
-        Return direction
-
-        :return:
-        """
-        return self.direction
 
     def get_slack(self, slack_name, t):
         """

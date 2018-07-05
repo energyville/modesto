@@ -91,11 +91,11 @@ class Pipe(Component):
 
         return params
 
-    def get_mflo(self, node, t):
+    def get_edge_mflo(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
-        return self.get_direction(node) * self.block.mass_flow[t]
+        return self.get_edge_direction(node) * self.block.mass_flow[t]
 
-    def get_heat(self, node, t):
+    def get_edge_heat(self, node, t):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             return -1 * self.block.heat_flow_in[t]
@@ -105,7 +105,7 @@ class Pipe(Component):
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
 
-    def get_direction(self, node, line='supply'):
+    def get_edge_direction(self, node, line='supply'):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             return -1
@@ -429,7 +429,7 @@ class NodeMethod(Pipe):
 
         return params
 
-    def get_temperature(self, node, t, line):
+    def get_edge_temperature(self, node, t, line):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             if line == 'supply':

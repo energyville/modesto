@@ -932,13 +932,13 @@ class Node(Submodel):
                         incoming_comps['return'].append(name)
 
                 for name, pipe in p.items():
-                    if pipe.get_mflo(self.name, t) >= 0:
+                    if pipe.get_edge_mflo(self.name, t) >= 0:
                         incoming_pipes['supply'].append(name)
                     else:
                         incoming_pipes['return'].append(name)
                 # Zero mass flow rate:
                 if sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) + \
-                        sum(p[pipe].get_mflo(self.name, t) for pipe in
+                        sum(p[pipe].get_edge_mflo(self.name, t) for pipe in
                             incoming_pipes[l]) == 0:
                     # mixed temperature is average of all joined pipes, actual value should not matter,
                     # because packages in pipes of this time step will have zero size and components do not take over
@@ -952,12 +952,12 @@ class Node(Submodel):
                 else:  # mass flow rate through the node
                     return (sum(
                         c[comp].get_mflo(t) for comp in incoming_comps[l]) +
-                            sum(p[pipe].get_mflo(self.name, t) for pipe in
+                            sum(p[pipe].get_edge_mflo(self.name, t) for pipe in
                                 incoming_pipes[l])) * b.mix_temp[t, l] == \
                            sum(c[comp].get_mflo(t) * c[comp].get_temperature(t, l)
                                for comp in incoming_comps[l]) + \
-                           sum(p[pipe].get_mflo(self.name, t) * p[
-                               pipe].get_temperature(self.name, t, l)
+                           sum(p[pipe].get_edge_mflo(self.name, t) * p[
+                               pipe].get_edge_temperature(self.name, t, l)
                                for pipe in incoming_pipes[l])
 
             self.block.def_mixed_temp = Constraint(self.TIME,
@@ -976,7 +976,7 @@ class Node(Submodel):
                         outgoing_comps['supply'].append(name)
 
                 for name, pipe_obj in p.items():
-                    if pipe_obj.get_mflo(self.name, t) >= 0:
+                    if pipe_obj.get_edge_mflo(self.name, t) >= 0:
                         outgoing_pipes['return'].append(name)
                     else:
                         outgoing_pipes['supply'].append(name)
@@ -984,7 +984,7 @@ class Node(Submodel):
                 if t == 0:
                     return Constraint.Skip
                 if comp in outgoing_pipes[l]:
-                    return p[comp].get_temperature(self.name, t, l) == \
+                    return p[comp].get_edge_temperature(self.name, t, l) == \
                            b.mix_temp[t, l]
                 elif comp in outgoing_comps[l]:
                     return c[comp].get_temperature(t, l) == b.mix_temp[t, l]
@@ -1006,7 +1006,7 @@ class Node(Submodel):
                 return 0 == sum(
                     self.components[i].get_heat(t) for i in self.components) \
                             + sum(
-                    pipe.get_heat(self.name, t) for pipe in p.values())
+                    pipe.get_edge_heat(self.name, t) for pipe in p.values())
 
             self.block.ineq_heat_bal = Constraint(self.TIME,
                                                   rule=_heat_bal)
@@ -1015,7 +1015,7 @@ class Node(Submodel):
                 return 0 == sum(
                     self.components[i].get_mflo(t) for i in self.components) \
                             + sum(
-                    pipe.get_mflo(self.name, t) for pipe in p.values())
+                    pipe.get_edge_mflo(self.name, t) for pipe in p.values())
 
             self.block.ineq_mass_bal = Constraint(self.TIME,
                                                   rule=_mass_bal)
