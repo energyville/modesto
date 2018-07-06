@@ -309,15 +309,14 @@ class ExtensivePipe(Pipe):
         self.block.heat_flow_forw = Var(self.TIME, within=NonNegativeReals, doc='Heat flow from in- to out-node')
         self.block.heat_loss_forw_tot = Var(self.TIME, within=NonNegativeReals,
                                             doc='Total heat loss from heat flow going from in- to out-node')
-        self.block.slack_heat_loss_forw = Var(self.TIME, within=NonNegativeReals,
-                                              doc='Slack variable to reduce heat losses for low mass flow rates for forward flow')
+        self.make_slack('slack_heat_loss_forw', self.TIME)
+
         if self.allow_flow_reversal:
             self.block.heat_flow_back = Var(self.TIME, within=NonNegativeReals,
                                             doc='Heat flow from out- to in-node')
             self.block.heat_loss_back_tot = Var(self.TIME, within=NonNegativeReals,
                                                 doc='Total heat loss from heat flow going from out- to in-node')
-            self.block.slack_heat_loss_back = Var(self.TIME, within=NonNegativeReals,
-                                                  doc='Slack variable to reduce heat losses for low mass flow rates for backward flow')
+            self.make_slack('slack_heat_loss_back', self.TIME)
 
         """
         Pipe model
@@ -347,7 +346,7 @@ class ExtensivePipe(Pipe):
             self.block.eq_heat_bal_in = Constraint(self.TIME, rule=_eq_heat_bal_in, doc='Heat balance at in-node')
             self.block.eq_heat_bal_out = Constraint(self.TIME, rule=_eq_heat_bal_out, doc='Heat balance at out-node')
         else:
-            def _eq_heat_bal(b,t):
+            def _eq_heat_bal(b, t):
                 """
                 Heat balance for pipe when flow reversal is not allowed.
 
@@ -356,13 +355,17 @@ class ExtensivePipe(Pipe):
                 :return:
                 """
                 return b.heat_flow_out[t] == b.heat_flow_in - b.heat_loss_forw_tot[t]
+
+            self.block.eq_heat_bal = Constraint(self.TIME, rule=_eq_heat_bal,
+                                                doc='Heat balance when flow reversal is not allowed')
+
         # Eq. (3.6)
         def _eq_heat_loss_forw_tot(b, t):
-            return b.heat_loss_forw_tot[t] == self.length * b.heat_loss[t] - b.heat_loss_slack[t]
+            return b.heat_loss_forw_tot[t] == self.length * b.heat_loss[t] - b.slack_heat_loss_forw[t]
 
         if self.allow_flow_reversal:
             def _eq_heat_loss_back_tot(b, t):
-                return b.heat_loss_back_tot[t] == self.length * b.heat_loss[t] - b.heat_loss_slack[t]
+                return b.heat_loss_back_tot[t] == self.length * b.heat_loss[t] - b.slack_heat_loss_back[t]
 
         self.block.eq_heat_loss_forw_tot = Constraint(self.TIME,
                                                       rule=_eq_heat_loss_forw_tot)
