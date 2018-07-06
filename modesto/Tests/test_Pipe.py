@@ -78,7 +78,7 @@ def setup_modesto(graph):
     building_params = {
         'delta_T': 40,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 1, 0, 1] * 4 * numdays) * Pnom
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 0, 0, 1, 0, 1] * 4 * numdays) * Pnom
 
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
@@ -160,7 +160,7 @@ if __name__ == '__main__':
 
     import matplotlib.pyplot as plt
 
-    fig, axs = plt.subplots(3, 1, sharex=True)
+    fig, axs = plt.subplots(4, 1, sharex=True)
 
     for name, opt in opts.iteritems():
         axs[0].plot(opt.get_result('heat_flow', node='cons', comp='cons'), linestyle='--', label='cons_' + name)
@@ -175,8 +175,17 @@ if __name__ == '__main__':
         axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name + '_out')
         axs[2].set_ylabel('Heat flow in/out [W]')
 
+        axs[3].plot(opt.get_result('mass_flow', comp='pipe'), label=name)
+        axs[3].set_ylabel('Mass flow rate [kg/s]')
+
     axs[0].legend()
     axs[1].legend()
     axs[2].legend()
+    axs[3].legend()
+
+    axs[-1].set_xlabel('Time')
+
+    for ax in axs:
+        ax.grid(alpha=0.3, linestyle=':')
 
     plt.show()

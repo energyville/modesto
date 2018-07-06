@@ -391,7 +391,7 @@ class ExtensivePipe(Pipe):
                 return b.heat_loss_tot[t] == b.heat_loss_forw_tot[t]
 
         self.block.eq_heat_loss_sum = Constraint(self.TIME, rule=_eq_heat_loss_sum)
-        
+
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
 
