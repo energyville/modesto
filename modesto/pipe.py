@@ -295,7 +295,7 @@ class ExtensivePipe(Pipe):
         Variables
         """
 
-        mflo_ub = (self.block.mass_flow_max,
+        mflo_ub = (-self.block.mass_flow_max,
                    self.block.mass_flow_max) if self.allow_flow_reversal else (0, self.block.mass_flow_max)
 
         # Real valued
@@ -354,22 +354,22 @@ class ExtensivePipe(Pipe):
                 :param t: time variable for Constraint
                 :return:
                 """
-                return b.heat_flow_out[t] == b.heat_flow_in - b.heat_loss_forw_tot[t]
+                return b.heat_flow_out[t] == b.heat_flow_in[t] - b.heat_loss_forw_tot[t]
 
             self.block.eq_heat_bal = Constraint(self.TIME, rule=_eq_heat_bal,
                                                 doc='Heat balance when flow reversal is not allowed')
 
         # Eq. (3.6)
-        def _eq_heat_loss_forw_tot(b, t):
-            return b.heat_loss_forw_tot[t] == self.length * b.heat_loss[t] - b.slack_heat_loss_forw[t]
 
         if self.allow_flow_reversal:
+            def _eq_heat_loss_forw_tot(b, t):
+                return b.heat_loss_forw_tot[t] == self.length * b.heat_loss[t] - b.slack_heat_loss_forw[t]
+
             def _eq_heat_loss_back_tot(b, t):
                 return b.heat_loss_back_tot[t] == self.length * b.heat_loss[t] - b.slack_heat_loss_back[t]
 
-        self.block.eq_heat_loss_forw_tot = Constraint(self.TIME,
-                                                      rule=_eq_heat_loss_forw_tot)
-        if self.allow_flow_reversal:
+            self.block.eq_heat_loss_forw_tot = Constraint(self.TIME,
+                                                          rule=_eq_heat_loss_forw_tot)
             self.block.eq_heat_loss_back_tot = Constraint(self.TIME,
                                                           rule=_eq_heat_loss_back_tot)
 
@@ -384,6 +384,14 @@ class ExtensivePipe(Pipe):
 
             self.block.ineq_heat_loss_back = Constraint(self.TIME, rule=_ineq_heat_loss_back)
 
+        def _eq_heat_loss_sum(b, t):
+            if self.allow_flow_reversal:
+                return b.heat_loss_tot[t] == b.heat_loss_forw_tot[t] + b.heat_loss_back_tot[t]
+            else:
+                return b.heat_loss_tot[t] == b.heat_loss_forw_tot[t]
+
+        self.block.eq_heat_loss_sum = Constraint(self.TIME, rule=_eq_heat_loss_sum)
+        
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
 
