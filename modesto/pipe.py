@@ -204,6 +204,10 @@ class ExtensivePipe(Pipe):
 
         self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K')
         self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K')
+        self.params['length_scale_factor'] = DesignParameter('length_scale_factor',
+                                                       'Factor with which the length of the pipe can be cchanged, useful in sensitivity analyses',
+                                                       '-',
+                                                       val=1)
 
     def compile(self, model, start_time):
         """
@@ -253,6 +257,7 @@ class ExtensivePipe(Pipe):
 
         Rs = self.Rs[self.dn]
         self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
+        length = self.params['length_scale_factor'].v()*self.length
 
         self.temp_sup = self.params['temperature_supply'].v()
         self.temp_ret = self.params['temperature_return'].v()
@@ -329,7 +334,7 @@ class ExtensivePipe(Pipe):
 
         # Eq. (3.6)
         def _eq_heat_loss_tot(b, t):
-            return b.heat_loss_tot[t] == self.length * b.heat_loss[t]#  * b.nonzero_flow[t]
+            return b.heat_loss_tot[t] == length * b.heat_loss[t]#  * b.nonzero_flow[t]
 
         self.block.eq_heat_loss_tot = Constraint(self.model.TIME,
                                                  rule=_eq_heat_loss_tot)
@@ -444,6 +449,11 @@ class NodeMethod(Pipe):
                                                           'K',
                                                           'fixedVal')
 
+        params['length_scale_factor'] = DesignParameter('length_scale_factor',
+                                                       'Factor with which the length of the pipe can be cchanged, useful in sensitivity analyses',
+                                                       '-',
+                                                       val=1)
+
         return params
 
     def get_temperature(self, node, t, line):
@@ -481,12 +491,14 @@ class NodeMethod(Pipe):
 
         self.block.all_time = Set(initialize=range(self.history_length + self.n_steps), ordered=True)
 
+        length = self.length*self.params['length_scale_factor'].v()
+
         pipe_wall_rho = 7.85 * 10 ** 3  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html kg/m^3
         pipe_wall_c = 461  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html J/kg/K
-        pipe_wall_volume = np.pi * (self.Do[dn] ** 2 - self.Di[dn] ** 2) / 4 * self.length
+        pipe_wall_volume = np.pi * (self.Do[dn] ** 2 - self.Di[dn] ** 2) / 4 * length
         C = pipe_wall_volume * pipe_wall_c * pipe_wall_rho
         surface = np.pi * self.Di[dn] ** 2 / 4  # cross sectional area of the pipe
-        Z = surface * self.rho * self.length  # water mass in the pipe
+        Z = surface * self.rho * length  # water mass in the pipe
 
         # TODO Move capacity?
 
@@ -635,7 +647,7 @@ class NodeMethod(Pipe):
                     return b.wall_temp[l, t] == self.model.Tg[t] + (b.wall_temp[l, t - 1] - self.model.Tg[t]) * \
                                                                    np.exp(-b.K * self.time_step /
                                                                           (surface * self.rho * self.cp +
-                                                                           C / self.length))
+                                                                           C / length))
             else:
                 return b.wall_temp[l, t] == b.temperature_out_nhl[l, t]
 
@@ -670,7 +682,7 @@ class NodeMethod(Pipe):
         #     elif b.mass_flow[t] == 0:
         #         return b.wall_temp[t, l] == self.model.Tg[t] + (b.wall_temp[t-1, l] - self.model.Tg[t]) * \
         #                                     np.exp(-b.K * self.time_step /
-        #                                            (surface * self.rho * self.cp + C/self.length))
+        #                                            (surface * self.rho * self.cp + C/length))
         #     else:
         #         return b.wall_temp[t, l] == b.wall_temp[t-1, l] + \
         #                             ((b.temperature_out_nhc[t, l] - b.temperature_out_nhl[t, l]) *
@@ -704,7 +716,7 @@ class NodeMethod(Pipe):
                 else:
                     return b.temperature_out[l, t] == (b.temperature_out[l, t - 1] - self.model.Tg[t]) * \
                                                       np.exp(-b.K * self.time_step /
-                                                             (surface * self.rho * self.cp + C / self.length)) \
+                                                             (surface * self.rho * self.cp + C / length)) \
                                                       + self.model.Tg[t]
             else:
                 return b.temperature_out[l, t] == self.model.Tg[t] + \

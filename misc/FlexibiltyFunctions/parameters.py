@@ -90,7 +90,8 @@ Network parameters
 
 supply_temp = 333.15
 return_temp = 303.15
-delta_T = supply_temp - return_temp
+delta_T_prod = 10  # Producer temperature difference
+delta_T = supply_temp - return_temp  # substation temperature difference
 
 """
 
@@ -133,8 +134,8 @@ def get_building_params():
                'heat_profile': None,
                'temperature_return': return_temp,
                'temperature_supply': supply_temp,
-               'temperature_max': supply_temp + 20,
-               'temperature_min': return_temp - 20,
+               'temperature_max': 373.15,
+               'temperature_min': 273.15,
                'night_min_temperature': None,
                'night_max_temperature': None,
                'day_min_temperature': None,
@@ -304,7 +305,7 @@ def get_producer_params():
                        'ramp': 1.5e12 / 3600,
                        'temperature_supply': supply_temp,
                        'temperature_return': return_temp,
-                       'temperature_max': supply_temp + 10,
+                       'temperature_max': supply_temp + delta_T_prod,
                        'temperature_min': supply_temp}
 
     return producer_params
