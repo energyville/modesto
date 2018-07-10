@@ -1036,7 +1036,8 @@ def change_pipe_diameter(pos, p_params):
 
 def change_heat_demand(factor, b_params, dhw_params):
     for b in b_params:
-        b_params[b]['heat_profile'] = factor*b_params[b]['heat_profile']
+        if b_params[b]['heat_profile'] is not None:
+            b_params[b]['heat_profile'] = factor*b_params[b]['heat_profile']
     for d in dhw_params:
         dhw_params[d]['heat_profile'] = factor*dhw_params[d]['heat_profile']
 
@@ -1112,7 +1113,7 @@ def get_sensity_parameter_values(name):
 if __name__ == '__main__':
 
     # run_sensitivity_analysis('Genk', 'pipe_lengths')
-    run_sensitivity_analysis('Genk', 'pipe_diameters')
+    # run_sensitivity_analysis('Genk', 'pipe_diameters')
     run_sensitivity_analysis('Genk', 'heat_demand')
     run_sensitivity_analysis('Genk', 'supply_temp_level')
     run_sensitivity_analysis('Genk', 'supply_temp_reach')
