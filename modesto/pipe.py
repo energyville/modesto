@@ -164,7 +164,7 @@ class SimplePipe(Pipe):
 
 class ExtensivePipe(Pipe):
     def __init__(self, name, start_node,
-                 end_node, length, allow_flow_reversal=True, temperature_driven=False):
+                 end_node, length, allow_flow_reversal=True, temperature_driven=False, heat_var=0.05):
         """
         Class that sets up an extensive model of the pipe. This model uses fixed temperatures, variable mass and heat
         flow rates, and calculates steady state heat losses based on the temperature levels that are set beforehand.
@@ -303,6 +303,12 @@ class ExtensivePipe(Pipe):
         self.block.heat_flow_out = Var(self.TIME, doc='Heat flow exiting out-node')
         self.block.mass_flow = Var(self.TIME, bounds=mflo_ub,
                                    doc='Mass flow rate entering in-node and exiting out-node')
+
+        self.block.mass_flow_forw = Var(self.TIME, within=NonNegativeReals, bounds=(0, self.block.mass_flow_max),
+                                        doc='Mass flow rate in design direction')
+        self.block.mass_flow_back = Var(self.TIME, within=NonNegativeReals, bounds=(0, self.block.mass_flow_max),
+                                        doc='Mass flow rate in reverse direction')
+
         self.block.heat_loss_tot = Var(self.TIME, within=NonNegativeReals, doc='Total heat lost from pipe')
 
         # Nonnegative real
@@ -374,13 +380,13 @@ class ExtensivePipe(Pipe):
                                                           rule=_eq_heat_loss_back_tot)
 
         def _ineq_heat_loss_forw(b, t):
-            return b.heat_loss_forw_tot[t] <= b.heat_flow_forw[t]
+            return 2 * b.heat_loss_forw_tot[t] <= b.heat_flow_forw[t]
 
         self.block.ineq_heat_loss_forw = Constraint(self.TIME, rule=_ineq_heat_loss_forw)
 
         if self.allow_flow_reversal:
             def _ineq_heat_loss_back(b, t):
-                return b.heat_loss_back_tot[t] <= b.heat_flow_back[t]
+                return 2 * b.heat_loss_back_tot[t] <= b.heat_flow_back[t]
 
             self.block.ineq_heat_loss_back = Constraint(self.TIME, rule=_ineq_heat_loss_back)
 
@@ -391,6 +397,22 @@ class ExtensivePipe(Pipe):
                 return b.heat_loss_tot[t] == b.heat_loss_forw_tot[t]
 
         self.block.eq_heat_loss_sum = Constraint(self.TIME, rule=_eq_heat_loss_sum)
+
+        def _eq_mass_flows(b, t):
+            return b.mass_flow[t] == b.mass_flow_forw[t] - b.mass_flow_back[t]
+
+        self.block.eq_mass_flows = Constraint(self.TIME, rule=_eq_mass_flows)
+
+        def _ineq_max_heat_flow_forw(b, t):
+            return b.heat_flow_forw[t] <= 1.05 * b.mass_flow_forw[t] * self.cp * (self.temp_sup - self.temp_ret)
+
+        self.block.ineq_heat_flow_forw = Constraint(self.TIME, rule=_ineq_max_heat_flow_forw)
+
+        if self.allow_flow_reversal:
+            def _ineq_max_heat_flow_back(b, t):
+                return b.heat_flow_back[t] <= 1.05 * b.mass_flow_back[t] * self.cp * (self.temp_sup - self.temp_ret)
+
+            self.block.ineq_max_heat_flow_back = Constraint(self.TIME, rule=_ineq_max_heat_flow_back)
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))

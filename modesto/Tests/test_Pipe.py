@@ -160,6 +160,18 @@ if __name__ == '__main__':
 
     import matplotlib.pyplot as plt
 
+    print opts['for'].get_result('slack_heat_loss_forw', comp='pipe')
+    print opts['for'].get_result('heat_flow_in', comp='pipe')
+    print opts['for'].get_result('heat_flow_out', comp='pipe')
+
+    print opts['for'].get_result('mass_flow_forw', comp='pipe')
+    print opts['for'].get_result('mass_flow_back', comp='pipe')
+    print opts['for'].get_result('heat_flow_forw', comp='pipe')
+    print opts['for'].get_result('heat_flow_back', comp='pipe')
+
+    print opts['for'].get_result('heat_loss_forw_tot', comp='pipe')
+    print opts['for'].get_result('heat_loss_back_tot', comp='pipe')
+
     fig, axs = plt.subplots(4, 1, sharex=True)
 
     for name, opt in opts.iteritems():
@@ -169,6 +181,8 @@ if __name__ == '__main__':
         axs[0].set_ylabel('Heat flow [W]')
 
         axs[1].plot(opt.get_result('heat_loss_tot', comp='pipe'), label=name)
+        axs[1].plot(opt.get_result('heat_flow_in', comp='pipe') - opt.get_result('heat_flow_out', comp='pipe'),
+                    label=name)
         axs[1].set_ylabel('Heat loss [W]')
 
         axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name + '_in')
