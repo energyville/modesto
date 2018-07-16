@@ -78,7 +78,7 @@ def setup_modesto(graph):
     building_params = {
         'delta_T': 40,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0,0,0,0,0,0] * 4 * numdays) * Pnom
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom
 
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
