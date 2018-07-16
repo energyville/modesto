@@ -78,7 +78,7 @@ def setup_modesto(graph):
     building_params = {
         'delta_T': 40,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 0, 0, 1, 0, 1] * 4 * numdays) * Pnom
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0,0,0,0,0,0] * 4 * numdays) * Pnom
 
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     print opts
 
     for name, opt in opts.iteritems():
-        res = opt.solve(tee=True, mipgap=0.000001, solver='cplex')
+        res = opt.solve(tee=True, mipgap=0.000001, solver='gurobi')
         if not res == 0:
             raise Exception('Optimization {} failed to solve.'.format(name))
 
@@ -160,17 +160,12 @@ if __name__ == '__main__':
 
     import matplotlib.pyplot as plt
 
-    print opts['for'].get_result('slack_heat_loss_forw', comp='pipe')
+    print opts['for'].get_result('slack_heat_loss', comp='pipe')
     print opts['for'].get_result('heat_flow_in', comp='pipe')
     print opts['for'].get_result('heat_flow_out', comp='pipe')
 
     print opts['for'].get_result('mass_flow_forw', comp='pipe')
     print opts['for'].get_result('mass_flow_back', comp='pipe')
-    print opts['for'].get_result('heat_flow_forw', comp='pipe')
-    print opts['for'].get_result('heat_flow_back', comp='pipe')
-
-    print opts['for'].get_result('heat_loss_forw_tot', comp='pipe')
-    print opts['for'].get_result('heat_loss_back_tot', comp='pipe')
 
     fig, axs = plt.subplots(4, 1, sharex=True)
 

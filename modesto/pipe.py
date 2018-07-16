@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
+from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals, Binary
 
 from component import Component
 from modesto import utils
@@ -201,6 +201,7 @@ class ExtensivePipe(Pipe):
         self.Rs = pipe_catalog['Rs']
         self.allow_flow_reversal = allow_flow_reversal
         self.dn = None
+        self.heat_var = heat_var
 
         self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K')
         self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K')
@@ -277,20 +278,6 @@ class ExtensivePipe(Pipe):
 
         self.block.heat_loss = Param(self.TIME, rule=_heat_loss)
 
-        # Mass flow rate from which heat losses stay constant
-        def _mass_flow_0(b, t):
-            """
-            Rule that provides the mass flow rate from which the heat losses are assumed constant.
-
-            :param b: block identifier
-            :param dn: DN index
-            :return: Mass flow rate in kg/s for given DN
-            """
-            return b.heat_loss[t] / self.cp / (
-                    self.temp_sup - self.temp_ret)
-
-        self.block.mass_flow_0 = Param(self.TIME, rule=_mass_flow_0)
-
         """
         Variables
         """
@@ -304,115 +291,96 @@ class ExtensivePipe(Pipe):
         self.block.mass_flow = Var(self.TIME, bounds=mflo_ub,
                                    doc='Mass flow rate entering in-node and exiting out-node')
 
-        self.block.mass_flow_forw = Var(self.TIME, within=NonNegativeReals, bounds=(0, self.block.mass_flow_max),
-                                        doc='Mass flow rate in design direction')
-        self.block.mass_flow_back = Var(self.TIME, within=NonNegativeReals, bounds=(0, self.block.mass_flow_max),
-                                        doc='Mass flow rate in reverse direction')
+        self.block.mass_flow_forw = Var(self.TIME, within=NonNegativeReals, doc='Forward part of mass flow rate')
+        self.block.mass_flow_back = Var(self.TIME, within=NonNegativeReals, doc='Backward part of mass flow rate')
 
         self.block.heat_loss_tot = Var(self.TIME, within=NonNegativeReals, doc='Total heat lost from pipe')
 
-        # Nonnegative real
-        self.block.heat_flow_forw = Var(self.TIME, within=NonNegativeReals, doc='Heat flow from in- to out-node')
-        self.block.heat_loss_forw_tot = Var(self.TIME, within=NonNegativeReals,
-                                            doc='Total heat loss from heat flow going from in- to out-node')
-        self.make_slack('slack_heat_loss_forw', self.TIME)
+        self.make_slack('slack_heat_loss', self.TIME)
+
+        self.block.flow_dir = Var(self.TIME, within=Binary, doc='Decision variable for flow direction')
 
         if self.allow_flow_reversal:
             self.block.heat_flow_back = Var(self.TIME, within=NonNegativeReals,
                                             doc='Heat flow from out- to in-node')
-            self.block.heat_loss_back_tot = Var(self.TIME, within=NonNegativeReals,
-                                                doc='Total heat loss from heat flow going from out- to in-node')
-            self.make_slack('slack_heat_loss_back', self.TIME)
 
         """
         Pipe model
         """
 
-        # Eq. (3.4)
-        if self.allow_flow_reversal:
-            def _eq_heat_bal_in(b, t):
-                """
-                Heat balance of pipe at in-node
+        ##############
+        # EQUALITIES #
+        ##############
 
-                :param b: optimization model block (automatically put in for pyomo)
-                :param t: time variable for Constraint
-                """
-                return b.heat_flow_in[t] == b.heat_flow_forw[t] + b.heat_loss_back_tot[t] - b.heat_flow_back[t]
+        def _eq_heat_loss_tot(b, t):
+            return b.heat_loss_tot[t] == b.heat_loss[t] * self.length - b.slack_heat_loss[t]
 
-            def _eq_heat_bal_out(b, t):
-                """
-                Heat balance of pipe at out-node
+        self.block.eq_heat_loss_tot = Constraint(self.TIME, rule=_eq_heat_loss_tot)
 
-                :param b: optimization model block (automatically put in for pyomo)
-                :param t: time variable for Constraint
-                :return:
-                """
-                return b.heat_flow_out[t] == b.heat_flow_forw[t] - b.heat_loss_forw_tot[t] - b.heat_flow_back[t]
-
-            self.block.eq_heat_bal_in = Constraint(self.TIME, rule=_eq_heat_bal_in, doc='Heat balance at in-node')
-            self.block.eq_heat_bal_out = Constraint(self.TIME, rule=_eq_heat_bal_out, doc='Heat balance at out-node')
-        else:
-            def _eq_heat_bal(b, t):
-                """
-                Heat balance for pipe when flow reversal is not allowed.
-
-                :param b: optimization model block (automatically put in for pyomo)
-                :param t: time variable for Constraint
-                :return:
-                """
-                return b.heat_flow_out[t] == b.heat_flow_in[t] - b.heat_loss_forw_tot[t]
-
-            self.block.eq_heat_bal = Constraint(self.TIME, rule=_eq_heat_bal,
-                                                doc='Heat balance when flow reversal is not allowed')
-
-        # Eq. (3.6)
-
-        if self.allow_flow_reversal:
-            def _eq_heat_loss_forw_tot(b, t):
-                return b.heat_loss_forw_tot[t] == self.length * b.heat_loss[t] - b.slack_heat_loss_forw[t]
-
-            def _eq_heat_loss_back_tot(b, t):
-                return b.heat_loss_back_tot[t] == self.length * b.heat_loss[t] - b.slack_heat_loss_back[t]
-
-            self.block.eq_heat_loss_forw_tot = Constraint(self.TIME,
-                                                          rule=_eq_heat_loss_forw_tot)
-            self.block.eq_heat_loss_back_tot = Constraint(self.TIME,
-                                                          rule=_eq_heat_loss_back_tot)
-
-        def _ineq_heat_loss_forw(b, t):
-            return 2 * b.heat_loss_forw_tot[t] <= b.heat_flow_forw[t]
-
-        self.block.ineq_heat_loss_forw = Constraint(self.TIME, rule=_ineq_heat_loss_forw)
-
-        if self.allow_flow_reversal:
-            def _ineq_heat_loss_back(b, t):
-                return 2 * b.heat_loss_back_tot[t] <= b.heat_flow_back[t]
-
-            self.block.ineq_heat_loss_back = Constraint(self.TIME, rule=_ineq_heat_loss_back)
-
-        def _eq_heat_loss_sum(b, t):
-            if self.allow_flow_reversal:
-                return b.heat_loss_tot[t] == b.heat_loss_forw_tot[t] + b.heat_loss_back_tot[t]
-            else:
-                return b.heat_loss_tot[t] == b.heat_loss_forw_tot[t]
-
-        self.block.eq_heat_loss_sum = Constraint(self.TIME, rule=_eq_heat_loss_sum)
-
-        def _eq_mass_flows(b, t):
+        def _eq_mass_flow_sum(b, t):
             return b.mass_flow[t] == b.mass_flow_forw[t] - b.mass_flow_back[t]
 
-        self.block.eq_mass_flows = Constraint(self.TIME, rule=_eq_mass_flows)
+        self.block.eq_mass_flow_sum = Constraint(self.TIME, rule=_eq_mass_flow_sum)
 
-        def _ineq_max_heat_flow_forw(b, t):
-            return b.heat_flow_forw[t] <= 1.05 * b.mass_flow_forw[t] * self.cp * (self.temp_sup - self.temp_ret)
+        def _eq_heat_flow_bal(b, t):
+            return b.heat_flow_in[t] == b.heat_loss_tot[t] + b.heat_flow_out[t]
 
-        self.block.ineq_heat_flow_forw = Constraint(self.TIME, rule=_ineq_max_heat_flow_forw)
+        self.block.eq_heat_flow_bal = Constraint(self.TIME, rule=_eq_heat_flow_bal)
 
-        if self.allow_flow_reversal:
-            def _ineq_max_heat_flow_back(b, t):
-                return b.heat_flow_back[t] <= 1.05 * b.mass_flow_back[t] * self.cp * (self.temp_sup - self.temp_ret)
+        ################
+        # INEQUALITIES #
+        ################
 
-            self.block.ineq_max_heat_flow_back = Constraint(self.TIME, rule=_ineq_max_heat_flow_back)
+        def _ineq_mass_flow_forw(b, t):
+            return b.mass_flow_forw[t] <= b.flow_dir[t] * b.mass_flow_max
+
+        def _ineq_mass_flow_back(b, t):
+            return b.mass_flow_back[t] <= (1 - b.flow_dir[t]) * b.mass_flow_max
+
+        self.block.ineq_mflo_forw = Constraint(self.TIME, rule=_ineq_mass_flow_forw)
+        self.block.ineq_mflo_back = Constraint(self.TIME, rule=_ineq_mass_flow_back)
+
+        def _ineq_heat_flow_in_forw_l(b, t):
+            return (1 - self.heat_var) * self.cp * b.mass_flow_forw[t] * (self.temp_sup - self.temp_ret) <= \
+                   b.heat_flow_in[t]
+
+        def _ineq_heat_flow_in_forw_r(b,t):
+            return b.heat_flow_in[t] <= (1 + self.heat_var) * self.cp * b.mass_flow_forw[t] * (
+                    self.temp_sup - self.temp_ret)
+
+        def _ineq_heat_flow_out_forw_l(b, t):
+            return (1 - self.heat_var) * self.cp * b.mass_flow_forw[t] * (self.temp_sup - self.temp_ret) <= \
+                   b.heat_flow_out[t]
+
+        def _ineq_heat_flow_out_forw_r(b, t):
+            return b.heat_flow_out[t] <= (1 + self.heat_var) * self.cp * b.mass_flow_forw[t] * (
+                    self.temp_sup - self.temp_ret)
+
+        def _ineq_heat_flow_in_back_l(b, t):
+            return (1 - self.heat_var) * self.cp * b.mass_flow_back[t] * (self.temp_sup - self.temp_ret) <= \
+                   -b.heat_flow_in[t]
+
+        def _ineq_heat_flow_in_back_r(b, t):
+            return -b.heat_flow_in[t] <= (1 + self.heat_var) * self.cp * b.mass_flow_back[t] * (
+                    self.temp_sup - self.temp_ret)
+
+        def _ineq_heat_flow_out_back_l(b, t):
+            return (1 - self.heat_var) * self.cp * b.mass_flow_back[t] * (self.temp_sup - self.temp_ret) <= \
+                   -b.heat_flow_out[t]
+
+        def _ineq_heat_flow_out_back_r(b, t):
+            return b.heat_flow_out[t] <= (1 + self.heat_var) * self.cp * b.mass_flow_back[t] * (
+                    self.temp_sup - self.temp_ret)
+
+        self.block._ineq_heat_flow_in_forw_l = Constraint(self.TIME, rule=_ineq_heat_flow_in_forw_l)
+        self.block._ineq_heat_flow_out_forw_l = Constraint(self.TIME, rule=_ineq_heat_flow_out_forw_l)
+        self.block._ineq_heat_flow_in_back_l = Constraint(self.TIME, rule=_ineq_heat_flow_in_back_l)
+        self.block._ineq_heat_flow_out_back_l = Constraint(self.TIME, rule=_ineq_heat_flow_out_back_l)
+
+        self.block._ineq_heat_flow_in_forw_r = Constraint(self.TIME, rule=_ineq_heat_flow_in_forw_r)
+        self.block._ineq_heat_flow_out_forw_r = Constraint(self.TIME, rule=_ineq_heat_flow_out_forw_r)
+        self.block._ineq_heat_flow_in_back_r = Constraint(self.TIME, rule=_ineq_heat_flow_in_back_r)
+        self.block._ineq_heat_flow_out_back_r = Constraint(self.TIME, rule=_ineq_heat_flow_out_back_r)
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
