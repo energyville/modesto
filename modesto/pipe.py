@@ -164,7 +164,7 @@ class SimplePipe(Pipe):
 
 class ExtensivePipe(Pipe):
     def __init__(self, name, start_node,
-                 end_node, length, allow_flow_reversal=True, temperature_driven=False, heat_var=100):
+                 end_node, length, allow_flow_reversal=True, temperature_driven=False, heat_var=0.05):
         """
         Class that sets up an extensive model of the pipe. This model uses fixed temperatures, variable mass and heat
         flow rates, and calculates steady state heat losses based on the temperature levels that are set beforehand.
@@ -177,7 +177,7 @@ class ExtensivePipe(Pipe):
 
         **Figure** Schematic of heat flows between inlet and outlet node.
 
-        The variables between the IN and OUT node are nonnegative, but they are allowed to be such at the same time.
+        The variables between the IN and OUT node are non-negative, but they are allowed to be such at the same time.
         In the optimal case, the two variables should not be different from zero at the same time.
 
 
@@ -341,18 +341,31 @@ class ExtensivePipe(Pipe):
         self.block.ineq_mflo_forw = Constraint(self.TIME, rule=_ineq_mass_flow_forw)
         self.block.ineq_mflo_back = Constraint(self.TIME, rule=_ineq_mass_flow_back)
 
-        def _ineq_heat_upper(b, t):
+        def _ineq_heat_in_upper(b, t):
             return b.heat_flow_in[t] <= (
                         (1 + self.heat_var) * b.mass_flow_forw[t] - (1 - self.heat_var) * b.mass_flow_back[
                     t]) * self.cp * (self.temp_sup - self.temp_ret)
 
-        def _ineq_heat_lower(b, t):
+        def _ineq_heat_in_lower(b, t):
+            return b.heat_flow_in[t] >= (
+                        (1 - self.heat_var) * b.mass_flow_forw[t] - (1 + self.heat_var) * b.mass_flow_back[
+                    t]) * self.cp * (self.temp_sup - self.temp_ret)
+
+        def _ineq_heat_out_upper(b, t):
+            return b.heat_flow_out[t] <= (
+                        (1 + self.heat_var) * b.mass_flow_forw[t] - (1 - self.heat_var) * b.mass_flow_back[
+                    t]) * self.cp * (self.temp_sup - self.temp_ret)
+
+        def _ineq_heat_out_lower(b, t):
             return b.heat_flow_out[t] >= (
                         (1 - self.heat_var) * b.mass_flow_forw[t] - (1 + self.heat_var) * b.mass_flow_back[
                     t]) * self.cp * (self.temp_sup - self.temp_ret)
 
-        self.block.ineq_heat_upper = Constraint(self.TIME, rule=_ineq_heat_upper)
-        self.block.ineq_heat_lower = Constraint(self.TIME, rule=_ineq_heat_lower)
+        self.block.ineq_heat_in_upper = Constraint(self.TIME, rule=_ineq_heat_in_upper)
+        self.block.ineq_heat_in_lower = Constraint(self.TIME, rule=_ineq_heat_in_lower)
+
+        self.block.ineq_heat_out_upper = Constraint(self.TIME, rule=_ineq_heat_out_upper)
+        self.block.ineq_heat_out_lower = Constraint(self.TIME, rule=_ineq_heat_out_lower)
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))

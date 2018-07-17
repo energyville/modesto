@@ -6,7 +6,8 @@ from math import sqrt
 import networkx as nx
 # noinspection PyUnresolvedReferences
 import pyomo.environ
-from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var
+from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var, \
+    NonNegativeReals
 from pyomo.core.base.param import IndexedParam
 from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
@@ -180,7 +181,7 @@ class Modesto:
         :return:
         """
 
-        self.model.Slack = Var()
+        self.model.Slack = Var(within=NonNegativeReals)
 
         def _decl_slack(model):
             return model.Slack == 10 ** 6 * sum(comp.obj_slack() for comp in self.iter_components())

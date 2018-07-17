@@ -88,9 +88,9 @@ def setup_modesto(graph):
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': Pnom * 200,
+                   'Qmax': Pnom *1.5,
                    'ramp_cost': 0.01,
-                   'ramp': Pnom / 3600}
+                   'ramp': Pnom/3500}
 
     optmodel.change_params(prod_design, 'prod', 'prod')
 
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     print opts
 
     for name, opt in opts.iteritems():
-        res = opt.solve(tee=True, mipgap=0.000001, solver='gurobi')
+        res = opt.solve(tee=True, mipgap=0.000001, solver='cplex')
         if not res == 0:
             raise Exception('Optimization {} failed to solve.'.format(name))
 
@@ -166,6 +166,9 @@ if __name__ == '__main__':
 
     print opts['for'].get_result('mass_flow_forw', comp='pipe')
     print opts['for'].get_result('mass_flow_back', comp='pipe')
+
+    print "Objective slack"
+    print opts['for'].model.Slack.pprint()
 
     fig, axs = plt.subplots(4, 1, sharex=True)
 
