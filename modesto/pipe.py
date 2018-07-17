@@ -289,7 +289,6 @@ class ExtensivePipe(Pipe):
         self.block.heat_flow_in = Var(self.TIME, doc='Heat flow entering in-node')
         self.block.heat_flow_out = Var(self.TIME, doc='Heat flow exiting out-node')
 
-
         self.block.mass_flow = Var(self.TIME, bounds=mflo_ub,
                                    doc='Mass flow rate entering in-node and exiting out-node')
 
@@ -342,11 +341,15 @@ class ExtensivePipe(Pipe):
         self.block.ineq_mflo_forw = Constraint(self.TIME, rule=_ineq_mass_flow_forw)
         self.block.ineq_mflo_back = Constraint(self.TIME, rule=_ineq_mass_flow_back)
 
-        def _ineq_heat_upper(b,t):
-            return b.heat_flow_in[t] <= ((1+self.heat_var) * b.mass_flow_forw[t] - (1-self.heat_var) * b.mass_flow_back[t])*self.cp*(self.temp_sup-self.temp_ret)
+        def _ineq_heat_upper(b, t):
+            return b.heat_flow_in[t] <= (
+                        (1 + self.heat_var) * b.mass_flow_forw[t] - (1 - self.heat_var) * b.mass_flow_back[
+                    t]) * self.cp * (self.temp_sup - self.temp_ret)
 
         def _ineq_heat_lower(b, t):
-            return b.heat_flow_in[t] >= ((1-self.heat_var) * b.mass_flow_forw[t] - (1+self.heat_var) * b.mass_flow_back[t])*self.cp*(self.temp_sup-self.temp_ret)
+            return b.heat_flow_out[t] >= (
+                        (1 - self.heat_var) * b.mass_flow_forw[t] - (1 + self.heat_var) * b.mass_flow_back[
+                    t]) * self.cp * (self.temp_sup - self.temp_ret)
 
         self.block.ineq_heat_upper = Constraint(self.TIME, rule=_ineq_heat_upper)
         self.block.ineq_heat_lower = Constraint(self.TIME, rule=_ineq_heat_lower)
