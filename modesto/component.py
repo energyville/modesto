@@ -4,9 +4,10 @@ import logging
 import sys
 from math import pi, log, exp
 
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, value, Set, Binary
-from modesto.submodel import Submodel
+from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, Set, Binary
+
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, SeriesParameter, WeatherDataParameter
+from modesto.submodel import Submodel
 
 
 def str_to_comp(string):
@@ -52,12 +53,12 @@ class Component(Submodel):
 
         params = {'time_step':
                       DesignParameter('time_step',
-                                       unit='s',
-                                       description='Time step with which the component model will be discretized'),
+                                      unit='s',
+                                      description='Time step with which the component model will be discretized'),
                   'horizon':
-                       DesignParameter('horizon',
-                                       unit='s',
-                                       description='Horizon of the optimization problem')}
+                      DesignParameter('horizon',
+                                      unit='s',
+                                      description='Horizon of the optimization problem')}
         return params
 
     def change_param_object(self, name, new_object):
@@ -145,6 +146,9 @@ class Component(Submodel):
         :return: Value of slack
         """
 
+        # TODO this is an exact duplicate of get_slack in SubModel. No need to redefine if the function is
+        # exactly the same.
+
         return self.block.find_component(slack_name)[t]
 
     def get_investment_cost(self):
@@ -154,10 +158,13 @@ class Component(Submodel):
         :return: Cost in EUR
         """
         # TODO: express cost with respect to economic lifetime
+        # TODO same as with get_slack: exact duplicate
 
         return 0
 
     def make_slack(self, slack_name, time_axis):
+        # TODO Add doc
+        # TODO Add parameter: penalization; can be different penalizations for different objectives.
         self.slack_list.append(slack_name)
         self.block.add_component(slack_name, Var(time_axis, within=NonNegativeReals))
         return self.block.find_component(slack_name)
@@ -293,7 +300,6 @@ class Component(Submodel):
         self.update_time(start_time,
                          time_step=self.params['time_step'].v(),
                          horizon=self.params['horizon'].v())
-
 
 
 class FixedProfile(Component):
@@ -561,7 +567,7 @@ class ProducerVariable(Component):
             'CO2_price': UserDataParameter('CO2_price',
                                            'CO2 price',
                                            'euro/kg CO2')
-                })
+        })
 
         if self.temperature_driven:
             params['mass_flow'] = UserDataParameter('mass_flow',
@@ -601,6 +607,7 @@ class ProducerVariable(Component):
 
         if not self.params['Qmin'].v() == 0:
             self.block.on = Var(self.TIME, within=Binary)
+
             def _min_heat(b, t):
                 return self.params['Qmin'].v() * b.on[t] <= b.heat_flow[t]
 
@@ -629,7 +636,7 @@ class ProducerVariable(Component):
             def _decl_init_heat_flow(b):
                 return b.heat_flow[0] == (self.params['temperature_supply'].v() -
                                           self.params['temperature_return'].v()) * \
-                                         self.cp * b.mass_flow[0]
+                       self.cp * b.mass_flow[0]
 
             self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
 
@@ -785,7 +792,9 @@ class ProducerVariable(Component):
         co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
         co2_price = self.params['CO2_price'].v()
 
-        return sum(co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+        return sum(
+            co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+
 
 class SolarThermalCollector(Component):
     def __init__(self, name, temperature_driven=False):
@@ -804,7 +813,6 @@ class SolarThermalCollector(Component):
         self.logger.info('Initializing SolarThermalCollector {}'.format(name))
 
     def create_params(self):
-
         params = Component.create_params(self)
 
         params.update({
@@ -964,7 +972,7 @@ class StorageVariable(Component):
                                     description='Multiplication factor indicating number of DHW tanks',
                                     unit='-',
                                     val=1)
-            })
+        })
 
         return params
 
@@ -1084,8 +1092,8 @@ class StorageVariable(Component):
         # State equation
         def _state_eq(b, t):  # in kWh
             return b.heat_stor[t + 1] == b.heat_stor[t] + self.params['time_step'].v() / 3600 * (
-                b.heat_flow[t]/mult - b.heat_loss[t]) / 1000 \
-                                         - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
+                    b.heat_flow[t] / mult - b.heat_loss[t]) / 1000 \
+                   - (self.mflo_use[t] * self.cp * (self.temp_sup - self.temp_ret)) / 1000 / 3600
 
             # self.tau * (1 - exp(-self.params['time_step'].v() / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1218,7 +1226,8 @@ class StorageCondensed(StorageVariable):
         self.initial_compilation(model, start_time)
         self.calculate_static_parameters()
 
-        self.heat_loss_coeff = exp(-self.params['time_step'].v() / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
+        self.heat_loss_coeff = exp(
+            -self.params['time_step'].v() / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1
         print 'zeta H is:', str(self.heat_loss_coeff)
         self.block.heat_stor_init = Var(domain=NonNegativeReals)
         self.block.heat_stor_final = Var(domain=NonNegativeReals)
@@ -1243,9 +1252,8 @@ class StorageCondensed(StorageVariable):
             elif t == 0:
                 return b.heat_stor[t, r] == b.heat_stor[tlast, r - 1]
             else:
-                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (b.heat_flow[t - 1]/mult - b.heat_loss_ct[
+                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (b.heat_flow[t - 1] / mult - b.heat_loss_ct[
                     t - 1]) * self.params['time_step'].v() / 3600 / 1000
-
 
         self.block.state_eq = Constraint(self.X_TIME, self.block.reps, rule=_state_eq)
         self.block.final_eq = Constraint(
@@ -1329,10 +1337,12 @@ class StorageCondensed(StorageVariable):
 
         return zH ** (r * N + n) * self.block.heat_stor_init + sum(zH ** (i * R + n) for i in range(r)) * sum(
             zH ** (N - j - 1) * (
-                self.block.heat_flow[j] * self.params['time_step'].v() - self.block.heat_loss_ct[j] * self.time_step) / 3.6e6 for j in
+                    self.block.heat_flow[j] * self.params['time_step'].v() - self.block.heat_loss_ct[
+                j] * self.time_step) / 3.6e6 for j in
             range(N)) + sum(
             zH ** (n - i - 1) * (
-                self.block.heat_flow[i] * self.params['time_step'].v() - self.block.heat_loss_ct[i] * self.time_step) / 3.6e6 for i in
+                    self.block.heat_flow[i] * self.params['time_step'].v() - self.block.heat_loss_ct[
+                i] * self.time_step) / 3.6e6 for i in
             range(n))
 
     def get_heat_stor_init(self):

@@ -262,6 +262,7 @@ class Submodel(object):
         """
         # TODO: express cost with respect to economic lifetime
 
+
         return 0
 
     def get_slack(self, slack_name, t):
