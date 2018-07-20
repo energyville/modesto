@@ -2,6 +2,9 @@ from __future__ import division
 import modesto.utils as ut
 import os
 import pandas as pd
+import networkx as nx
+import numpy as np
+import collections
 
 """
 
@@ -19,6 +22,7 @@ data_path = os.path.join(modesto_path, 'modesto', 'Data')
 Extra methods
 
 """
+
 
 def aggregate_ISO13790(name, street_nr, n_buildings):
     df = pd.DataFrame(index=t_amb.index, columns=range(n_buildings))
@@ -229,6 +233,7 @@ def get_single_building_params(building_nr, mult=1, max_heat=None, model_type=No
 def get_aggregated_building_params(building_nr, mult, max_heat=None, model_type=None, city=True):
 
     output = get_building_params()
+    output['mult'] = mult
 
     if city:
         # TODO Imporve city user behaviour: different profiles for different city districts
@@ -241,7 +246,6 @@ def get_aggregated_building_params(building_nr, mult, max_heat=None, model_type=
         night_min = aggregate_min_temp('night', model_type, building_nr, mult)
         QCon = aggregate_StROBe(dr.QCon_df, building_nr, mult)
         QRad = aggregate_StROBe(dr.QRad_df, building_nr, mult)
-
 
     Q_int_D = 0.5*(QCon + QRad)
     Q_int_N = 0.5*(QCon + QRad)
@@ -272,7 +276,6 @@ def get_aggregated_building_params(building_nr, mult, max_heat=None, model_type=
         output[state] = night_min[0]
 
     output['max_heat'] = max_heat
-    output['mult'] = mult
     output['model_type'] = model_type
     output['night_min_temperature'] = night_min
     output['night_max_temperature'] = night_max
@@ -340,7 +343,7 @@ DHW parameters
 """
 
 
-def get_dhw_params(building_nr, mult=1, aggregated=False):
+def get_dhw_params(building_nr, mult=1, aggregated=False, city=True):
 
     output = {'delta_T': delta_T,
               'mult': 1,
@@ -354,9 +357,97 @@ def get_dhw_params(building_nr, mult=1, aggregated=False):
         heat_profile = dr.m_DHW_df.iloc[:, building_nr] / 60 * 4186 * (38 - 10)
 
     else:
-        heat_profile = aggregate_StROBe(dr.m_DHW_df, building_nr, mult) / 60 * 4186 * (38 - 10)
+        if city:
+            heat_profile = aggregate_StROBe(dr.m_DHW_df, 0, 50) / 60 * 4186 * (38 - 10)
+        else:
+            heat_profile = aggregate_StROBe(dr.m_DHW_df, building_nr, mult) / 60 * 4186 * (38 - 10)
 
     output['heat_profile'] = heat_profile
     output['mult'] = mult
 
     return output
+
+def size(graph, neighs, mult, qnom, delta_t, producer_node):
+
+    """
+
+    :param graph:
+    :param mult:
+    :param qnom:
+    :param delta_t:
+    :return:
+    """
+
+    """
+    Find mass flow rates through network
+    """
+
+    nodes = list(graph.nodes)
+    tuples = list(graph.edges)
+    dict = nx.get_edge_attributes(graph, 'name')
+    edges = []
+    for tuple in tuples:
+        edges.append(dict[tuple])
+
+    inc_matrix = -nx.incidence_matrix(graph, oriented=True).todense()
+
+    # Remove the producer node and the corresponding row from the matrix to make the system determined
+
+    row_nr = nodes.index(producer_node)
+    del nodes[row_nr]
+    matrix = np.delete(inc_matrix, row_nr, 0)
+
+    vector = []
+
+    # Collect known mass flow rates at nodes
+    for node in nodes:
+        if node in neighs:
+            mf_node = mult[neighs.index(node)]*qnom/delta_t/4186
+        else: # nodes that have no components are not included in neughs list
+            mf_node = 0
+        vector.append(mf_node)
+
+    sol = np.linalg.solve(matrix, vector)
+
+    edge_mf = {}
+    for i, edge in enumerate(edges):
+        edge_mf[edge] = abs(sol[i]/1000*3600)
+
+    """
+    Select diameters
+    """
+
+    vflomax = collections.OrderedDict()  # Maximal volume flow rate per DN in m3/h
+        # Taken from IsoPlus Double-Pipe catalog p. 7
+    vflomax[20]= 1.547,
+    vflomax[25] = 2.526,
+    vflomax[32] = 4.695,
+    vflomax[40] = 6.303,
+    vflomax[50] = 11.757,
+    vflomax[65] = 19.563,
+    vflomax[80] = 30.791,
+    vflomax[100] = 51.891,
+    vflomax[125] = 89.350,
+    vflomax[150] = 152.573,
+    vflomax[200] = 299.541,
+    vflomax[250] = 348 * 1.55,
+    vflomax[300] = 547 * 1.55,
+    vflomax[350] = 705 * 1.55,
+    vflomax[400] = 1550,
+    vflomax[450] = 1370 * 1.55,
+    vflomax[500] = 1820 * 1.55,
+    vflomax[600] = 2920 * 1.55,
+    vflomax[700] = 4370 * 1.55,
+    vflomax[800] = 6240 * 1.55,
+    vflomax[900] = 9500 * 1.55,
+    vflomax[1000] = 14000 * 1.55
+
+    edge_diam = {}
+    for edge in edge_mf:
+        for diam, vflo in vflomax.items():
+            if vflo > edge_mf[edge]:
+                edge_diam[edge] = diam
+                break
+
+    return edge_diam
+

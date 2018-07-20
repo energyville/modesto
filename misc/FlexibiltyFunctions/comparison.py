@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 from modesto.main import Modesto
-import parameters_new as parameters
+import parameters
 import math
 import numpy as np
 import pickle
+import copy
 
 logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -25,7 +26,7 @@ sim_name = 'Sensitivity_analysis_2806'
 
 n_buildings = 10
 n_streets = 3
-horizon = 24*4*3600
+horizon = 24*7*3600
 start_time = pd.Timestamp('20140101')
 
 time_index = pd.date_range(start=start_time, periods=int(horizon/3600)+1, freq='H')
@@ -78,7 +79,7 @@ pipe_diameters = {'Mixed street': [50, 40, 32, 32, 25] + [20] * n_buildings,
                   'New street': [50, 40, 32, 32, 25] + [20] * n_buildings,
                   'Series district': [80, 65, 50],
                   'Parallel district': [50, 50, 50],
-                  'Genk': [800, 250, 350, 700, 250, 400, 700, 250, 600, 450, 400, 350, 250, 300]}
+                  'Genk': [800, 250, 450, 800, 250, 400, 700, 250, 700, 450, 400, 400, 300, 300]}
 
 mult = {'Mixed street': [1] * n_buildings,
         'Old street': [1] * n_buildings,
@@ -89,7 +90,7 @@ mult = {'Mixed street': [1] * n_buildings,
 
 max_heat = {'SFH_D_5_ins_TAB': 8900,
             'SFH_D_3_2zone_REF1': 8659,
-            'SFH_D_3_2zone_TAB': 15794}
+            'SFH_D_3_2zone_TAB': 20000}
 
 pos = 2.75/7
 price_profiles = {'constant': pd.Series(1, index=time_index),
@@ -201,7 +202,7 @@ def select_parameters(neighb, modelcase, bparams, prodparams, dhwparams, pipepar
     return bparams, prodparams, dhwparams, pipeparams, b_key_list, dhw_key_list, p_key_list, prod_key_list
 
 
-def select_parameters_sensitivity(neighb, modelcase, bparams, prodparams, dhwparams, pipeparams, flex, results, sen_param):
+def select_parameters_sensitivity(neighb, modelcase, bparams, prodparams, dhwparams, pipeparams, flex, results, sen_param, val):
 
     if flex:
         cost = price_profiles['step']
@@ -234,7 +235,7 @@ def select_parameters_sensitivity(neighb, modelcase, bparams, prodparams, dhwpar
 
     if modelcase == 'Buildings':
         p_key_list = ['diameter', 'temperature_supply', 'temperature_return']
-        if sen_param == 'pipe_lengths':
+        if sen_param in ['pipe_lengths', 'network_size']:
             p_key_list.append('length_scale_factor')
     elif modelcase == 'Buildings - ideal network':
         p_key_list = ['diameter']
@@ -242,7 +243,7 @@ def select_parameters_sensitivity(neighb, modelcase, bparams, prodparams, dhwpar
         p_key_list = ['diameter', 'temperature_history_supply', 'temperature_history_return', 'mass_flow_history',
                       'wall_temperature_supply', 'wall_temperature_return', 'temperature_out_supply',
                       'temperature_out_return']
-        if sen_param == 'pipe_lengths':
+        if sen_param in ['pipe_lengths', 'network_size']:
             p_key_list.append('length_scale_factor')
 
     for i, building in enumerate(bparams):
@@ -253,7 +254,10 @@ def select_parameters_sensitivity(neighb, modelcase, bparams, prodparams, dhwpar
             # Introducing bypass to increase robustness
             for j, val in enumerate(bparams[building]['heat_profile']):
                 if val <= 0.1:
-                    bparams[building]['heat_profile'][j] = 10*mult[neighb][i]
+                    if sen_param in ['network_size', 'heat_demand']:
+                        bparams[building]['heat_profile'][j] = 10*mult[neighb][i]*val
+                    else:
+                        bparams[building]['heat_profile'][j] = 10*mult[neighb][i]
 
             bparams[building]['mult'] = 1
         else:
@@ -299,13 +303,13 @@ def set_up_modesto_response(neighb, network_graph, modelcase, bparams, prodparam
 
 
 def set_up_modesto_sensitivity(neighb, network_graph, modelcase, bparams, prodparams,
-                               dhwparams, pipeparams, flex, results, sens_param, val):
+                               dhwparams, pipeparams, flex, results, sens_param, val, model_case):
     bparams, prodparams, dhwparams, pipeparams, b_key_list, dhw_key_list, p_key_list, prod_key_list = \
         select_parameters_sensitivity(neighb, modelcase, bparams, prodparams, dhwparams, pipeparams, flex, results,
-                                      sens_param)
+                                      sens_param, val)
 
     bparams, prodparams, dhwparams, pipeparams = \
-        change_parameters(sens_param, val, bparams, prodparams, dhwparams, pipeparams)
+        change_parameters(sens_param, val, bparams, prodparams, dhwparams, pipeparams, model_case)
     return set_up_modesto(network_graph, modelcase, bparams, prodparams, dhwparams, pipeparams, b_key_list,
                           dhw_key_list, p_key_list, prod_key_list)
 
@@ -421,7 +425,7 @@ def plot_water_speed(ax, pipe_name, nresults, pi_time):
 
 def plot_building_temperatures(axarr, bparams, nresults, pi_time):
 
-    for i, build in enumerate(b_params):
+    for i, build in enumerate(bparams):
         axarr[i, 0].plot(bparams[build]['day_min_temperature'], linestyle=':', color='k')
         axarr[i, 1].plot(bparams[build]['night_min_temperature'], linestyle=':', color='k')
         axarr[i, 0].plot(bparams[build]['day_max_temperature'], linestyle=':', color='k')
@@ -429,6 +433,7 @@ def plot_building_temperatures(axarr, bparams, nresults, pi_time):
 
         axarr[i, 0].plot(nresults['day_zone_temperatures'][build])
         axarr[i, 1].plot(nresults['night_zone_temperatures'][build])
+        axarr[i, 0].set_title(build)
         plot_price_increase_time(axarr[i, 0], pi_time)
         plot_price_increase_time(axarr[i, 1], pi_time)
 
@@ -465,7 +470,8 @@ def plot_combined_heat_injection(ax1, ax2, nresults_network, nresults_buildings,
 
     ax2.plot(nresults_network['Flexibility']['heat_injection'] -
              resampled_b_data, label='Combined - LP')
-    plt.plot()
+    plot_price_increase_time(ax2, pi_time)
+
     return ax1, ax2
 
 
@@ -558,9 +564,7 @@ def plot_sensitivity(neigh, sen_param, sen_param_values, results, modelcases):
             else:
 
                 price_increase_time = find_price_increase_time(pos, results[neigh][val][modelcase])
-                if modelcase == 'Network':
-                    plot_heat_injection(axarr2[m, l], axarr1[m], nresults, modelcase, price_increase_time, label=val)
-                elif modelcase == 'Combined - LP':
+                if modelcase == 'Combined - LP':
                     if not results[neigh][val]['Buildings']['Reference'] is None or results[neigh][val]['Buildings']['Flexibility'] is None:
                         plot_combined_heat_injection(axarr2[m, l], axarr1[m], nresults, results[neigh][val]['Buildings'],
                                                      price_increase_time)
@@ -571,20 +575,18 @@ def plot_sensitivity(neigh, sen_param, sen_param_values, results, modelcases):
 
                 if len(sen_param_values) == 1:
                     axarr1.set_title(modelcase)
-                    axarr2[m].set_title(modelcase + ' ' + str(val))
+                    axarr2[m].set_title(str(val))
                     axarr1.legend()
                     axarr2[0].legend()
 
                 else:
-                    axarr1[l].set_title(modelcase)
+                    axarr1[m].set_title(modelcase)
                     axarr2[m, l].set_title(neigh + ' ' + str(val))
                     axarr1[0].legend()
                     axarr2[0, 0].legend()
 
     fig1.tight_layout()
     fig2.tight_layout()
-
-    plt.show()
 
 
 def generate_graph(neighborhood, node_names, edge_names, building_model, draw=True):
@@ -763,10 +765,10 @@ def genk_graph(building_model, draw=True):
 
     g.add_node('Producer', x=5000, y=5000, z=0,
                comps={'plant': 'ProducerVariable'})
-    g.add_node('ZwartbergNE', x=3500, y=5100, z=0,
+    g.add_node('WaterscheiGarden', x=3500, y=5100, z=0,
                comps={'building': building_model,
                       'DHW': 'BuildingFixed'})
-    g.add_node('WaterscheiGarden', x=3300, y=6700, z=0,
+    g.add_node('ZwartbergNE', x=3300, y=6700, z=0,
                comps={'building': building_model,
                       'DHW': 'BuildingFixed'})
     g.add_node('ZwartbergNW', x=1500, y=6600, z=0,
@@ -845,13 +847,13 @@ def collect_neighborhood_data(street_name, building_names, edge_names, aggregate
                                                                        model_type=building_types[street_name][i],
                                                                        mult=mult[street_name][i])
 
-            dhw_params[name] = parameters.get_dhw_params(i, aggregated=aggregated)
+            dhw_params[name] = parameters.get_dhw_params(i, aggregated=aggregated, mult=mult[street_name][i])
         else:
             b_params[name] = parameters.get_single_building_params(i,
                                                                    max_heat=max_heat[building_type],
                                                                    model_type=building_types[street_name][i])
 
-            dhw_params[name] = parameters.get_dhw_params(i, aggregated=aggregated, mult=mult[street_name][i])
+            dhw_params[name] = parameters.get_dhw_params(i, aggregated=aggregated)
 
     for i, name in enumerate(edge_names):
         p_params[name] = parameters.get_pipe_params(pipe_diameters[street_name][i])
@@ -894,6 +896,7 @@ def generate_response_functions():
             print '\n', string, '\n', '-' * len(string), '\n'
 
             opt = set_up_modesto_response(neigh, graph, model_case, b_params, prod_params, dhw_params, p_params, False, results[neigh])
+
             solve_optimization(opt)
             results[neigh][model_case]['Reference'] = collect_results(neigh, opt, model_case)
 
@@ -944,8 +947,9 @@ def run_sensitivity_analysis(neigh='Genk', parameter='pipe_length'):
             graph = generate_graph(neigh, node_names[neigh], edge_names[neigh], building_model, False)
 
             def run_opt(flex_case):
+
                 string = 'CASE ' + str(n) + ' of ' + str(n_cases) + ': ' + neigh \
-                         + ' - ' + model + ' - '+ flex_case + ' - ' + parameter + ': ' + str(val)
+                         + ' - ' + model + ' - ' + flex_case + ' - ' + parameter + ': ' + str(val)
                 print '\n', string, '\n', '-' * len(string), '\n'
 
                 if flex_case == 'Reference':
@@ -953,8 +957,9 @@ def run_sensitivity_analysis(neigh='Genk', parameter='pipe_length'):
                 else:
                     flex_flag = True
 
-                opt = set_up_modesto_sensitivity(neigh, graph, model, b_params, prod_params, dhw_params, p_params,
-                                                 flex_flag, results[neigh][val], parameter, val)
+                opt = set_up_modesto_sensitivity(neigh, graph, model, copy.deepcopy(b_params),  copy.deepcopy(prod_params),
+                                                 copy.deepcopy(dhw_params), copy.deepcopy(p_params),
+                                                 flex_flag, results[neigh][val], parameter, val, model)
 
                 flag = solve_optimization(opt, tee=False, timelim=600)
                 if flag:
@@ -970,23 +975,41 @@ def run_sensitivity_analysis(neigh='Genk', parameter='pipe_length'):
     save_obj(results, sim_name+'_'+parameter)
 
 
-def change_parameters(sens_param, val, b_params, prod_params, dhw_params, p_params):
-    if sens_param == 'pipe_lengths':
+def change_parameters(sens_param, val, b_params, prod_params, dhw_params, p_params, model_case):
+    if sens_param in ['pipe_lengths', 'network_size']:
         p_params = change_pipe_lengths(val, p_params)
-    elif sens_param == 'pipe_diameters':
+    if sens_param == 'pipe_diameters':
         p_params = change_pipe_diameter(val, p_params)
-    elif sens_param == 'heat_demand':
-        b_params, dhw_params = change_heat_demand(val, b_params, dhw_params)
-    elif sens_param == 'supply_temp_level':
+    if sens_param in ['heat_demand', 'network_size']:
+        b_params, dhw_params = change_heat_demand(val, b_params, dhw_params, model_case)
+    if sens_param == 'supply_temp_level':
         b_params, prod_params, dhw_params, p_params = \
             change_supply_temp_level(val, b_params, prod_params, dhw_params, p_params)
-    elif sens_param == 'supply_temp_reach':
+    if sens_param == 'supply_temp_reach':
         prod_params = change_supply_temp_reach(val, prod_params)
-    elif sens_param == 'substation_temp_difference':
+    if sens_param == 'substation_temp_difference':
         b_params, prod_params, dhw_params, p_params = \
-            change_substation_temp_difference(b_params, prod_params, dhw_params, p_params)
+            change_substation_temp_difference(val, b_params, prod_params, dhw_params, p_params)
+    if sens_param == 'network_size':
+        p_params = change_pipe_diameters(val, p_params)
 
     return b_params, prod_params, dhw_params, p_params
+
+
+def change_pipe_diameters(factor, p_params):
+
+    delta_T = parameters.delta_T
+
+    mult_factor = []
+    for m in mult['Genk']:
+        mult_factor.append(int(m * factor))
+
+    diams = parameters.size(genk_graph('RCmodel', draw=False),
+                            node_names['Genk'], mult_factor, 30000, delta_T, 'Producer')
+
+    for p in p_params:
+        p_params[p]['diameter'] = diams[p]
+    return p_params
 
 
 def change_diameter(diam, new_pos):
@@ -1023,7 +1046,6 @@ def change_diameter(diam, new_pos):
 def change_pipe_lengths(factor, p_params):
     for p in p_params:
         p_params[p]['length_scale_factor'] = factor
-
     return p_params
 
 
@@ -1034,23 +1056,25 @@ def change_pipe_diameter(pos, p_params):
     return p_params
 
 
-def change_heat_demand(factor, b_params, dhw_params):
-    for b in b_params:
-        if b_params[b]['heat_profile'] is not None:
-            b_params[b]['heat_profile'] = factor*b_params[b]['heat_profile']
-    for d in dhw_params:
-        dhw_params[d]['heat_profile'] = factor*dhw_params[d]['heat_profile']
+def change_heat_demand(factor, bparams, dhwparams, model):
+    if model == 'Buildings':
+        for b in bparams:
+            if bparams[b]['mult'] is not None:
+                bparams[b]['mult'] = factor*bparams[b]['mult']
+    for d in dhwparams:
+        dhwparams[d]['mult'] = factor*dhwparams[d]['mult']
 
-    return b_params, dhw_params
+    return bparams, dhwparams
 
 
 def change_supply_temp_level(val, b_params, prod_params, dhw_params, p_params):
     for b in b_params:
         b_params[b]['temperature_supply'] = val
-    for p in prod_params:
-        prod_params[p]['temperature_supply'] = val
-        prod_params[p]['temperature_max'] = val + 10
-        prod_params[p]['temperature_min'] = val
+
+    prod_params['temperature_supply'] = val
+    prod_params['temperature_max'] = val + 10
+    prod_params['temperature_min'] = val
+
     for p in p_params:
         p_params[p]['temperature_supply'] = val
         p_params[p]['temperature_history_supply'] = pd.Series(val, index=range(10))
@@ -1065,28 +1089,27 @@ def change_supply_temp_level(val, b_params, prod_params, dhw_params, p_params):
 
 
 def change_supply_temp_reach(val, prod_params):
-    for p in prod_params:
-        prod_params[p]['temperature_max'] += -10 + val
+    prod_params['temperature_max'] += -10 + val
 
     return prod_params
 
 
 def change_substation_temp_difference(val, b_params, prod_params, dhw_params, p_params):
     for b in b_params:
-        supply_temp = b_params[b]['supply_temperature']
+        supply_temp = b_params[b]['temperature_supply']
         b_params[b]['delta_T'] = val
-        b_params[b]['return_temperature'] = supply_temp - val
+        b_params[b]['temperature_return'] = supply_temp - val
     for p in prod_params:
-        supply_temp = prod_params[p]['supply_temperature']
-        prod_params[p]['return_temperature'] = supply_temp - val
+        supply_temp = prod_params['temperature_supply']
+        prod_params['temperature_return'] = supply_temp - val
     for p in p_params:
-        supply_temp = p_params[p]['supply_temperature']
+        supply_temp = p_params[p]['temperature_supply']
         p_params[p]['temperature_return'] = supply_temp - val
         p_params[p]['temperature_history_return'] = pd.Series(supply_temp - val, index=range(10))
         p_params[p]['wall_temperature_return'] = supply_temp - val
         p_params[p]['temperature_out_return'] = supply_temp - val
     for d in dhw_params:
-        supply_temp = dhw_params[d]['supply_temperature']
+        supply_temp = dhw_params[d]['temperature_supply']
         dhw_params[d]['delta_T'] = val
         dhw_params[d]['temperature_return'] = supply_temp - val
 
@@ -1094,6 +1117,8 @@ def change_substation_temp_difference(val, b_params, prod_params, dhw_params, p_
 
 
 def get_sensity_parameter_values(name):
+    if name == 'network_size':
+        return [0.001, 0.01, 0.1, 1]
     if name == 'pipe_lengths':
         return [0.8, 0.9, 1, 1.1, 1.2]
     elif name == 'pipe_diameters':
@@ -1101,21 +1126,22 @@ def get_sensity_parameter_values(name):
     elif name == 'heat_demand':
         return [0.8, 0.9, 0.95, 1, 1.05, 1.1, 1.2]
     elif name == 'supply_temp_level':
-        return [50, 60, 70, 80, 90] + 273.15
+        return [i + 273.15 for i in [50, 60, 70, 80, 90]]
     elif name == 'supply_temp_reach':
-        return [5, 10, 15, 20]
+        return [5, 7.5, 10, 12.5, 15, 17.5, 20]
     elif name == 'substation_temp_difference':
-        return [10, 20, 25, 30, 35, 40]
+        return [15, 20, 25, 30, 35, 40]
     else:
         raise Exception('{} was not recognized as a valid sensitivity parameter name'.format(name))
 
 
 if __name__ == '__main__':
-
     # run_sensitivity_analysis('Genk', 'pipe_lengths')
     # run_sensitivity_analysis('Genk', 'pipe_diameters')
-    run_sensitivity_analysis('Genk', 'heat_demand')
+    # run_sensitivity_analysis('Genk', 'heat_demand')
     run_sensitivity_analysis('Genk', 'supply_temp_level')
     run_sensitivity_analysis('Genk', 'supply_temp_reach')
     run_sensitivity_analysis('Genk', 'substation_temp_difference')
+    run_sensitivity_analysis('Genk', 'network_size')  # TODO Aggregatie gebouwen
 
+    plt.show()
