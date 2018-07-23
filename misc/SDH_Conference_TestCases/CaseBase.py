@@ -83,8 +83,8 @@ def setup_opt():
     # * **Start time** (should be a pandas TimeStamp). Currently, weather and prixe data for 2014 are available in modesto.
     # * **Pipe model**: The type of model used to model the pipes. Only one type can be selected for the whole optimization problem (unlike the component model types). Possibilities: SimplePipe (= perfect pipe, no losses, no time delays), ExtensivePipe (limited mass flows and heat losses, no time delays) and NodeMethod (heat losses and time delays, but requires mass flow rates to be known in advance)
 
-    horizon = 365 * 24 * 3600
-    time_step = 6 * 3600
+    horizon = 100 * 24 * 3600
+    time_step = 3600
     pipe_model = 'ExtensivePipe'
 
     # And create the modesto object
@@ -220,7 +220,7 @@ if __name__ == '__main__':
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
-    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=15)
+    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False)
 
     # ## Collecting results
 
@@ -288,6 +288,8 @@ if __name__ == '__main__':
         axs[0].plot(optmodel.get_result('heat_loss_tot', comp=pipe), label=pipe)
         axs[1].plot(optmodel.get_result('mass_flow', comp=pipe), label=pipe)
     axs[1].legend()
+    axs[0].set_ylabel('Heat_loss_tot [W]')
+    axs[1].set_ylabel('Mass flow [kg/s]')
 
     for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servWat']:
         print pipe, str(round(sum(optmodel.get_result('heat_loss_tot', comp=pipe)) / 1e6, 2)), 'MWh'
@@ -296,7 +298,7 @@ if __name__ == '__main__':
     mass_flows = pd.DataFrame()
     mass_flows['Production'] = optmodel.get_result('mass_flow', node='Production', comp='backup')
 
-    fig, axs = plt.subplots(2, 1, sharex=True)
+    fig, axs = plt.subplots(3, 1, sharex=True)
 
     axs[0].plot(inputs['Production'], label='Heat flow')
     axs[0].plot(mass_flows['Production'] * 40 * 4180, label='$\dot{m}c_p\Delta T$')
@@ -306,6 +308,13 @@ if __name__ == '__main__':
 
     axs[1].plot(inputs['Production'] - mass_flows['Production'] * 40 * 4180)
     axs[1].set_ylabel('Difference [W]')
+
+    for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servWat']:
+        axs[2].plot(optmodel.get_result('slack_heat_loss', comp=pipe), label=pipe)
+    axs[2].legend()
+    axs[2].set_ylabel('Slack [W]')
+    axs[0].set_title('Heat flow error in pipes')
+
 
     for ax in axs:
         ax.legend()
@@ -318,10 +327,12 @@ if __name__ == '__main__':
     axs[0].axhline(40)
     axs[0].set_ylim(0, 200)
 
-    axs[0].set_ylabel('Heat flow [W]')
+    axs[0].set_ylabel('Virtual $\Delta T$ [K]')
 
     axs[1].semilogy(inputs['Production'] / (mass_flows['Production'] * 4180) - 40)
-    axs[1].set_ylabel('Difference [W]')
+    axs[1].set_ylabel('Difference [K]')
+
+    axs[0].set_title('Temperature error in pipes')
 
     for ax in axs:
         ax.legend()

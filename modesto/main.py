@@ -184,7 +184,7 @@ class Modesto:
         self.model.Slack = Var(within=NonNegativeReals)
 
         def _decl_slack(model):
-            return model.Slack == 10 ** 6 * sum(comp.obj_slack() for comp in self.iter_components())
+            return model.Slack == 10 ** 3 * sum(comp.obj_slack() for comp in self.iter_components())
 
         self.model.decl_slack = Constraint(rule=_decl_slack)
 
@@ -379,6 +379,7 @@ class Modesto:
             if timelim is not None:
                 opt.options['timelimit'] = timelim
             opt.options['mip strategy fpheur'] = 2  # Feasibility pump heuristics
+            opt.options['parallel'] = -1
 
         try:
             self.results = opt.solve(self.model, tee=tee)

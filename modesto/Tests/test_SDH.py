@@ -21,4 +21,4 @@ def test_case_future():
     model.compile(start_time=start_time)
     model.set_objective('cost')
     model.opt_settings(allow_flow_reversal=True)
-    assert model.solve(tee=True, mipgap=0.03, solver='gurobi', probe=False, timelim=30) == 0
+    assert model.solve(tee=True, mipgap=0.03, solver='gurobi', probe=False, timelim=None) == 0
