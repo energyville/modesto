@@ -102,9 +102,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # And create the modesto object
 
-    model = Modesto(horizon=horizon,
-                    time_step=time_step,
-                    pipe_model=pipe_model,
+    model = Modesto(pipe_model=pipe_model,
                     graph=G)
 
     # # Adding data
@@ -127,6 +125,10 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     wd = utils.read_time_data(datapath, name='Weather/weatherData.csv')
     t_amb = wd['Te']
     t_g = wd['Tg']
+    QsolN = wd['QsolN']
+    QsolE = wd['QsolS']
+    QsolS = wd['QsolN']
+    QsolW = wd['QsolW']
 
     # #### Electricity price
 
@@ -139,10 +141,14 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # In order to solve the problem, all parameters of the optimization probkem need to get a value. A list of the parameters that modesto needs and their description can be found with the following command:
 
-
-
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': horizon}
 
     model.change_params(general_params)
 
