@@ -188,8 +188,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    'Qmax': 15e7,
-                   'ramp_cost': 0.01,
-                   'ramp': 1e6 / 3600}
+                   'ramp_cost': 0.00,
+                   'ramp': 1e12 / 3600}
 
     model.change_params(prod_design, 'Production', 'backup')
     STOR_COST = resource_filename('modesto', 'Data/Investment/Storage.xlsx')
@@ -300,15 +300,15 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
 if __name__ == '__main__':
 
-    report_timing()
+    # report_timing()
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=6*3600)#*24*365)
+    optmodel = setup_opt(time_step=3600, horizon=36*24*3600)#*24*365)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
-    sol = optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=1)
+    sol = optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=None)
     print 'Status: {}'.format(sol)
     # ## Collecting results
 
