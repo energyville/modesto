@@ -1,5 +1,5 @@
 def test_rc_model():
-    from modesto.RCmodels import RCmodel
+    from modesto.LTIModels.RCmodels import RCmodel
     import pandas as pd
 
     start_time = pd.Timestamp('20140101')

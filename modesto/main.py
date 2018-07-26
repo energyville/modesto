@@ -6,14 +6,12 @@ from math import sqrt
 import networkx as nx
 # noinspection PyUnresolvedReferences
 import pyomo.environ
-from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var, \
+from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constraint, Var, \
     NonNegativeReals
-from pyomo.core.base.param import IndexedParam
-from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 
-import RCmodels as rc
+from modesto.LTIModels import RCmodels as rc
 import component as co
 import pipe as pip
 from submodel import Submodel
