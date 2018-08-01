@@ -602,7 +602,7 @@ class ProducerVariable(Component):
         """
         Component.compile(self, model, start_time)
 
-        self.block.heat_flow = Var(self.TIME)
+        self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
         self.block.ramping_cost = Var(self.TIME)
 
         if not self.params['Qmin'].v() == 0:
