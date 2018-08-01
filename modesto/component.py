@@ -797,17 +797,19 @@ class ProducerVariable(Component):
 
 
 class SolarThermalCollector(Component):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, heat_var=0.05):
         """
         Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
 
         :param name: Name of the solar panel
-        :param temperature_driven:
+        :param temperature_driven: Boolean that denotes if the temperatures are allowed to vary (fixed mass flow rates)
+        :param heat_var:
         """
         Component.__init__(self, name=name, direction=1,
                            temperature_driven=temperature_driven)
 
         self.params = self.create_params()
+        self.heat_var = heat_var
 
         self.logger = logging.getLogger('modesto.components.SolThermCol')
         self.logger.info('Initializing SolarThermalCollector {}'.format(name))
@@ -857,11 +859,15 @@ class SolarThermalCollector(Component):
         def _heat_bal(m, t):
             return m.heat_flow[t] + m.heat_flow_curt[t] == self.params['area'].v() * m.heat_flow_max[t]
 
-        def _ener_bal(m, t):
-            return m.mass_flow[t] == m.heat_flow[t] / self.cp / self.params['delta_T'].v()
+        def _mass_lb(m, t):
+            return m.mass_flow[t] >= m.heat_flow[t] / self.cp / self.params['delta_T'].v() / (1 + self.heat_var)
+
+        def _mass_ub(m, t):
+            return m.mass_flow[t] <= m.heat_flow[t] / self.cp / self.params['delta_T'].v()
 
         self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
-        self.block.eq_ener_bal = Constraint(self.TIME, rule=_ener_bal)
+        self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+        self.block.eq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
 
     def get_investment_cost(self):
         """
