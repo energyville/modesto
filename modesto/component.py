@@ -510,7 +510,7 @@ class ProducerFixed(FixedProfile):
 
 
 class ProducerVariable(Component):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, heat_var=0.05):
         """
         Class that describes a variable producer
 
@@ -523,6 +523,7 @@ class ProducerVariable(Component):
                            temperature_driven=temperature_driven)
 
         self.params = self.create_params()
+        self.heat_var = heat_var
 
         self.logger = logging.getLogger('modesto.components.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
