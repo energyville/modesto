@@ -593,6 +593,11 @@ class ProducerVariable(Component):
                                               description='List of names of the lines that can be found in the network, e.g. '
                                                           '\'supply\' and \'return\'',
                                               val=['supply', 'return'])
+        else:
+            params['delta_T'] = DesignParameter('delta_T',
+                                                'Temperature difference between supply and return of the heat source',
+                                                'K')
+
         return params
 
     def compile(self, model, start_time):
@@ -689,8 +694,9 @@ class ProducerVariable(Component):
                 elif b.mass_flow[t] == 0:
                     return Constraint.Skip
                 else:
-                    return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / b.mass_flow[
-                        t] / self.cp
+                    return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / \
+                           b.mass_flow[
+                               t] / self.cp
 
             def _init_temperature(b, l):
                 return b.temperatures[l, 0] == self.params['temperature_' + l].v()
@@ -794,7 +800,8 @@ class ProducerVariable(Component):
         co2_price = self.params['CO2_price'].v()
 
         return sum(
-            co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+            co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in
+            self.TIME)
 
 
 class SolarThermalCollector(Component):
@@ -1259,7 +1266,8 @@ class StorageCondensed(StorageVariable):
             elif t == 0:
                 return b.heat_stor[t, r] == b.heat_stor[tlast, r - 1]
             else:
-                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (b.heat_flow[t - 1] / mult - b.heat_loss_ct[
+                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (
+                        b.heat_flow[t - 1] / mult - b.heat_loss_ct[
                     t - 1]) * self.params['time_step'].v() / 3600 / 1000
 
         self.block.state_eq = Constraint(self.X_TIME, self.block.reps, rule=_state_eq)
