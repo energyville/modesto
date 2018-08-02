@@ -16,9 +16,9 @@ def test_case_base():
 
 def test_case_future():
     from misc.SDH_Conference_TestCases.CaseFuture import setup_opt
-    model = setup_opt()
+    model = setup_opt(horizon=7*24*3600,time_step=3600)
     start_time = pd.Timestamp('20140101')
     model.compile(start_time=start_time)
     model.set_objective('cost')
     model.opt_settings(allow_flow_reversal=True)
-    assert model.solve(tee=True, mipgap=0.03, solver='gurobi', probe=False, timelim=30) == 0
+    assert model.solve(tee=True, mipgap=0.03, solver='cplex', probe=False, timelim=30) == 0

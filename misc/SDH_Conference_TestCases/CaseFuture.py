@@ -7,7 +7,6 @@
 # # Imports and other stuff
 
 
-
 from __future__ import division
 
 import logging
@@ -19,8 +18,6 @@ from matplotlib.dates import DateFormatter
 
 from modesto import utils
 from modesto.main import Modesto
-
-from pyomo.util.timing import report_timing
 
 logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -116,8 +113,6 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # #### Weather data:
 
-
-
     from pkg_resources import resource_filename
 
     datapath = resource_filename('modesto', 'Data')
@@ -133,7 +128,6 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     # #### Electricity price
 
     # In[11]:
-
 
     c_f = utils.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
 
@@ -155,8 +149,6 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     # Notice how all parameters are first grouped together in a dictionary and then given all at once to modesto.
     #
     # If we print the parameters again, we can see the values have now been added:
-
-
 
     building_params_common = {
         'delta_T': 40,
@@ -182,8 +174,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # ### Heat generation unit
 
-
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'delta_T': 40,
+                   'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
@@ -212,7 +204,6 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     model.change_init_type('heat_stor', 'cyclic', node='Production', comp='tank')
 
     # ### Storage Unit
-
 
     stor_design = {
         'Thi': 70 + 273.15,
@@ -304,7 +295,7 @@ if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=36*24*3600)#*24*365)
+    optmodel = setup_opt(time_step=3600, horizon=7 * 24 * 3600)  # *24*365)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
@@ -321,8 +312,6 @@ if __name__ == '__main__':
     print 'Cost:  ', optmodel.get_objective('cost')
 
     # print optmodel.get_investment_cost()
-
-
 
     # modesto has the get_result method, which allows to get the optimal values of the optimization variables:
 
@@ -365,7 +354,6 @@ if __name__ == '__main__':
     ax.plot(df)
     #
     # fig.autofmt_xdate()
-
 
     # Sum of heat flows
     prod_e = sum(inputs['Production'])
