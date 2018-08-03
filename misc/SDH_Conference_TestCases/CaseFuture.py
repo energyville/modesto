@@ -295,11 +295,11 @@ if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=7 * 24 * 3600)  # *24*365)
+    optmodel = setup_opt(time_step=3*3600, horizon=365 * 24 * 3600)  # *24*365)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
-    sol = optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=None)
+    sol = optmodel.solve(tee=True, mipgap=0.05, solver='gurobi', probe=True, timelim=None)
     print 'Status: {}'.format(sol)
     # ## Collecting results
 
