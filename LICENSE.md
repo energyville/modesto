@@ -1,3 +1,6 @@
+Modesto License
+---------------
+
 BSD 3-Clause License
 
 Copyright (c) 2018, Annelies Vandermeulen and Bram van der Heijde
@@ -28,3 +31,20 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+Licenses for incorporated software
+----------------------------------
+
+Included packages are:
+
+- Pyomo
+- Networkx
+- Pandas
+- Numpy
+- Sphinx
+- sphinx-rtd-theme
+- xlrd
+- setuptools-git
+- jupyter
+
+The licenses associated with the incorporated packages can be reviewed in the 
+LICENSE folder.
