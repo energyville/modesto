@@ -5,18 +5,17 @@ Module to read and build optimization problem equations for building models, des
 
 from __future__ import division
 
-from networkx.readwrite import json_graph
-from modesto.component import Component
-import logging
-import sys
-from math import pi, log, exp
-import networkx as nx
-import pandas as pd
 import os
-import modesto.utils as ut
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
+import sys
+
+import networkx as nx
+import numpy as np
+import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import Block, Param, Var, Constraint, NonNegativeReals, Set
+from pyomo.core.base import Param, Var, Constraint, Set
+
+from modesto.component import Component
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
 
 
 def str_to_comp(string):
@@ -28,6 +27,52 @@ def str_to_comp(string):
     """
     return reduce(getattr, string.split("."), sys.modules[__name__])
 
+
+def splitFactor(nRow, nCol, AArray, AExt, AWin):
+    """
+
+
+    :param nRow: Number of rows
+    :param nCol: Number of columns
+    :param AArray: Vector of total areas
+    :param AExt: Vector of exterior wall areas in all orientations
+    :param AWin: Vector of window areas in all orientations
+    :return: Array of splitting factor values of dimension nRow x nCol
+    """
+
+    splitFacValues = np.zeros((nRow, nCol))
+    ATot = sum(AArray)
+
+    j = 0
+    l = 0
+
+    for A in AArray:
+        if A > 0:
+            k = 0
+            if l == 0:
+                for AWall in AExt:
+                    splitFacValues[k, j] = (A - AWall) / (ATot - AWall - AWin[k])
+                    k += 1
+            elif l == 1:
+                for AWall in AExt:
+                    splitFacValues[k, j] = (A - AWin[k]) / (ATot - AWall - AWin[k])
+                    k += 1
+            else:
+                for AWall in AExt:
+                    splitFacValues[k, j] = A / (ATot - AWall - AWin[k])
+                    k += 1
+            j += 1
+        l += 1
+    return splitFacValues
+
+class TeaserFourElement(Component):
+    def __init__(self, name, temperature_driven=False):
+        """
+        Initialise model from TEASER with four elements.
+
+        :param name:
+        :param temperature_driven:
+        """
 
 class RCmodel(Component):
 
@@ -42,16 +87,18 @@ class RCmodel(Component):
                            direction=-1,
                            temperature_driven=temperature_driven)
         self.model_types = ['SFH_D_1_2zone_TAB', 'SFH_D_1_2zone_REF1', 'SFH_D_1_2zone_REF2', 'SFH_D_2_2zone_TAB',
-                      'SFH_D_2_2zone_REF1',	'SFH_D_2_2zone_REF2', 'SFH_D_3_2zone_TAB', 'SFH_D_3_2zone_REF1',
-                      'SFH_D_3_2zone_REF2', 'SFH_D_4_2zone_TAB', 'SFH_D_4_2zone_REF1', 'SFH_D_4_2zone_REF2',
-                      'SFH_D_5_2zone_TAB', 'SFH_D_5_ins_TAB', 'SFH_SD_1_2zone_TAB', 'SFH_SD_1_2zone_REF1',
-                      'SFH_SD_1_2zone_REF2', 'SFH_SD_2_2zone_TAB', 'SFH_SD_2_2zone_REF1', 'SFH_SD_2_2zone_REF2',
-                      'SFH_SD_3_2zone_TAB', 'SFH_SD_3_2zone_REF1', 'SFH_SD_3_2zone_REF2', 'SFH_SD_4_2zone_TAB',
-                      'SFH_SD_4_2zone_REF1', 'SFH_SD_4_2zone_REF2',	'SFH_SD_5_TAB', 'SFH_SD_5_Ins_TAB',
-                      'SFH_T_1_2zone_TAB','SFH_T_1_2zone_REF1', 'SFH_T_1_2zone_REF2', 'SFH_T_2_2zone_TAB',
-                      'SFH_T_2_2zone_REF1',	'SFH_T_2_2zone_REF2', 'SFH_T_3_2zone_TAB', 'SFH_T_3_2zone_REF1',
-                      'SFH_T_3_2zone_REF2', 'SFH_T_4_2zone_TAB', 'SFH_T_4_2zone_REF1', 'SFH_T_4_2zone_REF2',
-                      'SFH_T_5_TAB', 'SFH_T_5_ins_TAB']
+                            'SFH_D_2_2zone_REF1', 'SFH_D_2_2zone_REF2', 'SFH_D_3_2zone_TAB', 'SFH_D_3_2zone_REF1',
+                            'SFH_D_3_2zone_REF2', 'SFH_D_4_2zone_TAB', 'SFH_D_4_2zone_REF1', 'SFH_D_4_2zone_REF2',
+                            'SFH_D_5_2zone_TAB', 'SFH_D_5_ins_TAB', 'SFH_SD_1_2zone_TAB', 'SFH_SD_1_2zone_REF1',
+                            'SFH_SD_1_2zone_REF2', 'SFH_SD_2_2zone_TAB', 'SFH_SD_2_2zone_REF1',
+                            'SFH_SD_2_2zone_REF2',
+                            'SFH_SD_3_2zone_TAB', 'SFH_SD_3_2zone_REF1', 'SFH_SD_3_2zone_REF2',
+                            'SFH_SD_4_2zone_TAB',
+                            'SFH_SD_4_2zone_REF1', 'SFH_SD_4_2zone_REF2', 'SFH_SD_5_TAB', 'SFH_SD_5_Ins_TAB',
+                            'SFH_T_1_2zone_TAB', 'SFH_T_1_2zone_REF1', 'SFH_T_1_2zone_REF2', 'SFH_T_2_2zone_TAB',
+                            'SFH_T_2_2zone_REF1', 'SFH_T_2_2zone_REF2', 'SFH_T_3_2zone_TAB', 'SFH_T_3_2zone_REF1',
+                            'SFH_T_3_2zone_REF2', 'SFH_T_4_2zone_TAB', 'SFH_T_4_2zone_REF1', 'SFH_T_4_2zone_REF2',
+                            'SFH_T_5_TAB', 'SFH_T_5_ins_TAB']
 
         self.params = self.create_params()
 
@@ -74,7 +121,7 @@ class RCmodel(Component):
 
         for edge in self.structure.edges():
             self.edges[''.join(edge)] = Edge(name=''.join(edge),
-                                             tuple = edge,
+                                             tuple=edge,
                                              edge_object=self.structure.edges[edge])
 
     def get_model_data(self, model_type):
@@ -99,28 +146,28 @@ class RCmodel(Component):
                    C=bp['CiD'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs3ND'], 'Q_sol_E': bp['abs3ED'], 'Q_sol_S': bp['abs3SD'],
-                          'Q_sol_W': bp['abs3WD'],'Q_int_D': bp['f3D']},
+                          'Q_sol_W': bp['abs3WD'], 'Q_int_D': bp['f3D']},
                    Q_control={'Q_hea_D': bp['f3D']},
                    state_type='day')
         G.add_node('TflD',
                    C=bp['CflD'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs4ND'], 'Q_sol_E': bp['abs4ED'], 'Q_sol_S': bp['abs4SD'],
-                      'Q_sol_W': bp['abs4WD'], 'Q_int_D': bp['f4D']},
+                          'Q_sol_W': bp['abs4WD'], 'Q_int_D': bp['f4D']},
                    Q_control={'Q_hea_D': bp['f4D']},
                    state_type=None)
         G.add_node('TwiD',
                    C=bp['CwiD'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs2ND'], 'Q_sol_E': bp['abs2ED'], 'Q_sol_S': bp['abs2SD'],
-                      'Q_sol_W': bp['abs2WD'], 'Q_int_D': bp['f2D']},
+                          'Q_sol_W': bp['abs2WD'], 'Q_int_D': bp['f2D']},
                    Q_control={'Q_hea_D': bp['f2D']},
                    state_type=None)
         G.add_node('TwD',
                    C=bp['CwD'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs1ND'], 'Q_sol_E': bp['abs1ED'], 'Q_sol_S': bp['abs1SD'],
-                      'Q_sol_W': bp['abs1WD'], 'Q_int_D': bp['f1D']},
+                          'Q_sol_W': bp['abs1WD'], 'Q_int_D': bp['f1D']},
                    Q_control={'Q_hea_D': bp['f1D']}, state_type=None)
 
         # Internal floor
@@ -128,14 +175,14 @@ class RCmodel(Component):
                    C=bp['CfiD'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs5ND'], 'Q_sol_E': bp['abs5ED'], 'Q_sol_S': bp['abs5SD'],
-                      'Q_sol_W': bp['abs5WD'], 'Q_int_D': bp['f5D']},
+                          'Q_sol_W': bp['abs5WD'], 'Q_int_D': bp['f5D']},
                    Q_control={'Q_hea_D': bp['f5D']},
                    state_type=None)
         G.add_node('TfiN',
                    C=bp['CfiD'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs5NN'], 'Q_sol_E': bp['abs5EN'], 'Q_sol_S': bp['abs5SN'],
-                      'Q_sol_W': bp['abs5WN'], 'Q_int_N': bp['f5N']},
+                          'Q_sol_W': bp['abs5WN'], 'Q_int_N': bp['f5N']},
                    Q_control={'Q_hea_N': bp['f5N']},
                    state_type=None)
 
@@ -144,21 +191,21 @@ class RCmodel(Component):
                    C=bp['CiN'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs3NN'], 'Q_sol_E': bp['abs3EN'], 'Q_sol_S': bp['abs3SN'],
-                      'Q_sol_W': bp['abs3WN'], 'Q_int_N': bp['f3N']},
+                          'Q_sol_W': bp['abs3WN'], 'Q_int_N': bp['f3N']},
                    Q_control={'Q_hea_N': bp['f3N']},
                    state_type='night')
         G.add_node('TwiN',
                    C=bp['CwiN'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs2NN'], 'Q_sol_E': bp['abs2EN'], 'Q_sol_S': bp['abs2SN'],
-                      'Q_sol_W': bp['abs2WN'], 'Q_int_N': bp['f2N']},
+                          'Q_sol_W': bp['abs2WN'], 'Q_int_N': bp['f2N']},
                    Q_control={'Q_hea_N': bp['f2N']},
                    state_type=None)
         G.add_node('TwN',
                    C=bp['CwN'],
                    T_fix=None,
                    Q_fix={'Q_sol_N': bp['abs1NN'], 'Q_sol_E': bp['abs1EN'], 'Q_sol_S': bp['abs1SN'],
-                      'Q_sol_W': bp['abs1WN'], 'Q_int_N': bp['f1N']},
+                          'Q_sol_W': bp['abs1WN'], 'Q_int_N': bp['f1N']},
                    Q_control={'Q_hea_N': bp['f1N']},
                    state_type=None)
 
@@ -245,7 +292,7 @@ class RCmodel(Component):
         def decl_state_heat(b, s, t):
             obj = self.states[s]
             incoming_heat_names = obj.input['heat_fix']
-            return sum(self.params[i].v(t)*obj.get_q_factor(i) for i in incoming_heat_names)
+            return sum(self.params[i].v(t) * obj.get_q_factor(i) for i in incoming_heat_names)
 
         self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat)
 
@@ -254,25 +301,24 @@ class RCmodel(Component):
             return self.params[temp].v(t)
 
         self.block.FixedTemperatures = Param(self.block.fixed_states,
-                                            self.TIME, rule=decl_fixed_temperature)
+                                             self.TIME, rule=decl_fixed_temperature)
 
         ##### State energy balances
 
         def _energy_balance(b, s, t):
-            return sum(b.ControlHeatFlows[i, t]*self.states[s].get_q_factor(i) for i in b.control_variables) \
+            return sum(b.ControlHeatFlows[i, t] * self.states[s].get_q_factor(i) for i in b.control_variables) \
                    + b.fixed_state_heat[s, t] + \
-                   sum(b.EdgeHeatFlows[e, t]*b.directions[s, e] for e in b.edge_names) == \
+                   sum(b.EdgeHeatFlows[e, t] * b.directions[s, e] for e in b.edge_names) == \
                    b.StateHeatFlows[s, t]
 
         self.block.energy_balance = Constraint(self.block.control_states,
                                                self.TIME, rule=_energy_balance)
 
-
         ##### Temperature change state
 
         def _temp_change(b, s, t):
-            return b.StateTemperatures[s, t+1] == b.StateTemperatures[s, t] + \
-                   b.StateHeatFlows[s, t]/self.states[s].C*self.params['time_step'].v()
+            return b.StateTemperatures[s, t + 1] == b.StateTemperatures[s, t] + \
+                   b.StateHeatFlows[s, t] / self.states[s].C * self.params['time_step'].v()
 
         self.block.temp_change = Constraint(self.block.control_states, self.TIME, rule=_temp_change)
 
@@ -285,7 +331,7 @@ class RCmodel(Component):
                 return Constraint.Skip
             else:
                 raise Exception('{} is an initialization type that has not '
-                                 'been implemented for the building RC models'.format(self.params[s + '0']))
+                                'been implemented for the building RC models'.format(self.params[s + '0']))
 
         self.block.init_temp = Constraint(self.block.control_states, rule=_init_temp)
 
@@ -301,7 +347,7 @@ class RCmodel(Component):
                 stop_temp = b.StateTemperatures[e_ob.stop, t]
             else:
                 stop_temp = b.FixedTemperatures[e_ob.stop, t]
-            return b.EdgeHeatFlows[e, t] == (start_temp - stop_temp)*e_ob.U
+            return b.EdgeHeatFlows[e, t] == (start_temp - stop_temp) * e_ob.U
 
         self.block.edge_heat_flow = Constraint(self.block.edge_names, self.TIME, rule=_edge_heat_flow)
 
@@ -362,7 +408,8 @@ class RCmodel(Component):
         ##### Limit heat flows
 
         def _max_heat_flows(b, t):
-            return sum(b.ControlHeatFlows[i, t] for i in self.block.control_variables) <= self.params['max_heat'].v()
+            return sum(b.ControlHeatFlows[i, t] for i in self.block.control_variables) <= self.params[
+                'max_heat'].v()
 
         def _min_heat_flows(b, i, t):
             return 0 <= b.ControlHeatFlows[i, t]
@@ -377,7 +424,7 @@ class RCmodel(Component):
 
         def decl_heat_flow(b, t):
             # TODO Find good way to find control inputs
-            return b.heat_flow[t] == mult*sum(b.ControlHeatFlows[i, t] for i in b.control_variables)
+            return b.heat_flow[t] == mult * sum(b.ControlHeatFlows[i, t] for i in b.control_variables)
 
         self.block.decl_heat_flow = Constraint(self.TIME, rule=decl_heat_flow)
 
@@ -439,45 +486,45 @@ class RCmodel(Component):
                                    init_type='fixedVal',
                                    slack=True),  # TODO Implement all types of init
             'TflD0': StateParameter('TflD0',
-                                   'Begin temperature at state TflD',
-                                   'K',
-                                   init_type='fixedVal',
-                                   slack=True),
+                                    'Begin temperature at state TflD',
+                                    'K',
+                                    init_type='fixedVal',
+                                    slack=True),
             'TwiD0': StateParameter('TwiD0',
-                                   'Begin temperature at state TwiD',
-                                   'K',
-                                   init_type='fixedVal',
-                                   slack=True),
+                                    'Begin temperature at state TwiD',
+                                    'K',
+                                    init_type='fixedVal',
+                                    slack=True),
             'TwD0': StateParameter('TwD0',
                                    'Begin temperature at state TwD',
                                    'K',
                                    init_type='fixedVal',
                                    slack=True),
             'TfiD0': StateParameter('TfiD0',
-                                   'Begin temperature at state TfiD',
-                                   'K',
-                                   init_type='fixedVal',
-                                   slack=True),
+                                    'Begin temperature at state TfiD',
+                                    'K',
+                                    init_type='fixedVal',
+                                    slack=True),
             'TiN0': StateParameter('TiN0',
                                    'Begin temperature at state TiN',
                                    'K',
                                    init_type='fixedVal',
                                    slack=True),  # TODO Implement all types of init
             'TwiN0': StateParameter('TwiN0',
-                                   'Begin temperature at state TwiN',
-                                   'K',
-                                   init_type='fixedVal',
-                                   slack=True),
+                                    'Begin temperature at state TwiN',
+                                    'K',
+                                    init_type='fixedVal',
+                                    slack=True),
             'TwN0': StateParameter('TwN0',
                                    'Begin temperature at state TwN',
                                    'K',
                                    init_type='fixedVal',
                                    slack=True),
             'TfiN0': StateParameter('TfiN0',
-                                   'Begin temperature at state TfiN',
-                                   'K',
-                                   init_type='fixedVal',
-                                   slack=True),
+                                    'Begin temperature at state TfiN',
+                                    'K',
+                                    init_type='fixedVal',
+                                    slack=True),
             'delta_T': DesignParameter('delta_T',
                                        'Temperature difference across substation',
                                        'K'),
@@ -496,29 +543,29 @@ class RCmodel(Component):
                                                      'K'
                                                      ),
             'night_max_temperature': UserDataParameter('night_max_temperature',
-                                                     'Maximum temperature for night zones',
-                                                     'K'
-                                                     ),
+                                                       'Maximum temperature for night zones',
+                                                       'K'
+                                                       ),
             'night_min_temperature': UserDataParameter('night_min_temperature',
-                                                     'Minimum temperature for night zones',
-                                                     'K'
-                                                     ),
+                                                       'Minimum temperature for night zones',
+                                                       'K'
+                                                       ),
             'bathroom_max_temperature': UserDataParameter('bathroom_max_temperature',
-                                                     'Minimum temperature for bathroom zones',
-                                                     'K'
-                                                     ),
+                                                          'Minimum temperature for bathroom zones',
+                                                          'K'
+                                                          ),
             'bathroom_min_temperature': UserDataParameter('bathroom_min_temperature',
-                                                     'Minimum temperature for bathroom zones',
-                                                     'K'
-                                                     ),
+                                                          'Minimum temperature for bathroom zones',
+                                                          'K'
+                                                          ),
             'floor_max_temperature': UserDataParameter('bathroom_max_temperature',
-                                                          'Minimum temperature for bathroom zones',
-                                                          'K'
-                                                          ),
+                                                       'Minimum temperature for bathroom zones',
+                                                       'K'
+                                                       ),
             'floor_min_temperature': UserDataParameter('bathroom_min_temperature',
-                                                          'Minimum temperature for bathroom zones',
-                                                          'K'
-                                                          ),
+                                                       'Minimum temperature for bathroom zones',
+                                                       'K'
+                                                       ),
             'Q_sol_E': WeatherDataParameter('Q_sol_E',
                                             'Eastern solar radiation',
                                             'W'
@@ -553,7 +600,6 @@ class RCmodel(Component):
                                         'W')
         })
         return params
-
 
 class State:
     """
@@ -668,7 +714,6 @@ class State:
             return self.get_property('Q_fix')[q_name]
         else:
             return 0
-
 
 class Edge:
     """
