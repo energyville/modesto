@@ -30,7 +30,7 @@ def str_to_comp(string):
 
 def splitFactor(nRow, nCol, AArray, AExt, AWin):
     """
-
+    Calculate the distribution of heat gains (internal or solar) to the different wall surfaces.
 
     :param nRow: Number of rows
     :param nCol: Number of columns
@@ -40,7 +40,7 @@ def splitFactor(nRow, nCol, AArray, AExt, AWin):
     :return: Array of splitting factor values of dimension nRow x nCol
     """
 
-    splitFacValues = np.zeros((nRow, nCol))
+    splitFacValues = np.zeros((nCol, nRow))
     ATot = sum(AArray)
 
     j = 0
@@ -51,15 +51,15 @@ def splitFactor(nRow, nCol, AArray, AExt, AWin):
             k = 0
             if l == 0:
                 for AWall in AExt:
-                    splitFacValues[k, j] = (A - AWall) / (ATot - AWall - AWin[k])
+                    splitFacValues[j, k] = (A - AWall) / (ATot - AWall - AWin[k])
                     k += 1
             elif l == 1:
                 for AWall in AExt:
-                    splitFacValues[k, j] = (A - AWin[k]) / (ATot - AWall - AWin[k])
+                    splitFacValues[j, k] = (A - AWin[k]) / (ATot - AWall - AWin[k])
                     k += 1
             else:
                 for AWall in AExt:
-                    splitFacValues[k, j] = A / (ATot - AWall - AWin[k])
+                    splitFacValues[j, k] = A / (ATot - AWall - AWin[k])
                     k += 1
             j += 1
         l += 1
