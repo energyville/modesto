@@ -9,7 +9,6 @@ import os
 import sys
 
 import networkx as nx
-import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, Set
@@ -114,7 +113,8 @@ def readTeaserParam(streetName, buildingName, path=resource_filename('modesto', 
                 'ratioWinConRad']
 
     data.columns = colNames
-    dict_out = data.to_dict('records')[0]
+
+    dict_out = data.to_dict('index')[buildingName]
 
     from ast import literal_eval
 
@@ -123,15 +123,36 @@ def readTeaserParam(streetName, buildingName, path=resource_filename('modesto', 
 
     for key in dict_out:
         if isinstance(dict_out[key], str):
-            dict_out[key] = literal_eval(dict_out[key])
+            parList = literal_eval(dict_out[key])
+            dict_out[key] = dict()
+            for i, ori in enumerate(['S', 'W', 'N', 'E']):
+                dict_out[key][ori] = parList[i]
 
+    # print dict_out
     return dict_out
+
+
+def fixedHeat(id, sfSol, sfInt):
+    """
+    Generate dictionary with correct heat multiplication factors.
+
+    :param id: Impinging surface identifier.
+    :param sfSol: Split factors for solar radiation.
+    :param sfInt: Split factors for internal heat gains
+    :return:
+    """
+    heat_dict = {'Q_int': sfInt[id]}
+
+    for ori in ['N', 'E', 'S', 'W']:
+        heat_dict['Q_sol_' + ori] = sfSol[id][ori]
+
+    return heat_dict
 
 
 # TODO improve inheritance in this file. RCModel and Teaser have a lot of shared code in common.
 
 class TeaserFourElement(Component):
-    def __init__(self, name, params, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False):
         """
         Initialise model from TEASER with four elements.
 
