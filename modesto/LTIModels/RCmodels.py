@@ -28,41 +28,39 @@ def str_to_comp(string):
     return reduce(getattr, string.split("."), sys.modules[__name__])
 
 
-def splitFactor(nRow, nCol, AArray, AExt, AWin):
+def splitFactor(AArray, AExt=None, AWin=None):
     """
     Calculate the distribution of heat gains (internal or solar) to the different wall surfaces.
 
     :param nRow: Number of rows
     :param nCol: Number of columns
     :param AArray: Vector of total areas
-    :param AExt: Vector of exterior wall areas in all orientations
-    :param AWin: Vector of window areas in all orientations
+    :param AExt: Vector of exterior wall areas in all orientations.
+        Default is None, such that non-oriented split factors are calculated.
+    :param AWin: Vector of window areas in all orientations.
+        Default is None, such that non-oriented split factors are calculated.
     :return: Array of splitting factor values of dimension nRow x nCol
     """
 
-    splitFacValues = np.zeros((nCol, nRow))
-    ATot = sum(AArray)
+    splitFacValues = dict()
+    ATot = sum(AArray.values())
 
-    j = 0
-    l = 0
-
-    for A in AArray:
+    for id, A in AArray.iteritems():
         if A > 0:
-            k = 0
-            if l == 0:
-                for AWall in AExt:
-                    splitFacValues[j, k] = (A - AWall) / (ATot - AWall - AWin[k])
-                    k += 1
-            elif l == 1:
-                for AWall in AExt:
-                    splitFacValues[j, k] = (A - AWin[k]) / (ATot - AWall - AWin[k])
-                    k += 1
+            if AExt is None and AWin is None:
+                splitFacValues[id] = A / ATot
             else:
-                for AWall in AExt:
-                    splitFacValues[j, k] = A / (ATot - AWall - AWin[k])
-                    k += 1
-            j += 1
-        l += 1
+                splitFacValues[id] = dict()
+                for ori in ['N', 'E', 'S', 'W']:
+                    if id == 'ATotExt':
+                        splitFacValues[id][ori] = (A - AExt[ori]) / (ATot - AExt[ori] - AWin[ori])
+
+                    elif id == 'ATotWin':
+                        splitFacValues[id][ori] = (A - AWin[ori]) / (ATot - AExt[ori] - AWin[ori])
+
+                    else:
+                        splitFacValues[id][ori] = A / (ATot - AExt[ori] - AWin[ori])
+
     return splitFacValues
 
 
