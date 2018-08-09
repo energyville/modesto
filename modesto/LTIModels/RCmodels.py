@@ -65,14 +65,212 @@ def splitFactor(nRow, nCol, AArray, AExt, AWin):
         l += 1
     return splitFacValues
 
+
+def readTeaserParam(streetName, buildingName, path=resource_filename('modesto', 'Data/BuildingModels/TEASER')):
+    """
+    Read data and construct parameter dictionary for TEASER building models.
+
+    :param streetName: Name of street
+    :param buildingName: Name of building
+    :param path: Indicate location where folders for all streets can be found.
+    :return:
+    """
+
+    filepath = os.path.join(path, streetName, streetName + '_standard_ROM.csv')
+
+    data = pd.read_csv(filepath, sep=';', index_col=0)
+
+    colNames = ['AExt',
+                'AFloor',
+                'AInt',
+                'ARoof',
+                'ATransparent',  # [S, W, N, E]
+                'AWin',  # [S, W, N, E]
+                'CExt',
+                'CFloor',
+                'CInt',
+                'CRoof',
+                'RExt',
+                'RExtRem',
+                'RFloor',
+                'RFloorRem',
+                'RInt',
+                'RRoof',
+                'RRoofRem',
+                'RWin',
+                'VAir',
+                'alphaExt',
+                'alphaFloor',
+                'alphaInt',
+                'alphaRad',
+                'alphaRoof',
+                'alphaWin',
+                'gWin',
+                'mSenFac',
+                'nExt',
+                'nFloor',
+                'nInt',
+                'nOrientations',
+                'nPorts',
+                'nRoof',
+                'ratioWinConRad']
+
+    data.columns = colNames
+    dict_out = data.to_dict('records')[0]
+
+    from ast import literal_eval
+
+    # dict_out turns list items in pandas dataframe into a string representation. ast.literal_eval is a safe way to turn
+    # it back into a string of numerals.
+
+    for key in dict_out:
+        if isinstance(dict_out[key], str):
+            dict_out[key] = literal_eval(dict_out[key])
+
+    return dict_out
+
+
+# TODO improve inheritance in this file. RCModel and Teaser have a lot of shared code in common.
+
 class TeaserFourElement(Component):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, params, temperature_driven=False):
         """
         Initialise model from TEASER with four elements.
 
         :param name:
         :param temperature_driven:
         """
+        Component.__init__(self, name=name, direction=-1, temperature_driven=temperature_driven)
+        self.params = params
+        self.structure = None
+
+        self.states = {}
+        self.edges = {}
+        self.controlVariables = {}
+
+    def build(self):
+        """
+        Create all states and edges
+
+
+
+        :return:
+        """
+
+    def get_model_data(self):
+        """
+        Set up networkX object describing model structure
+
+        :param model_type: Type of model indicating parameters of a specific type of model
+        :return: NetworkX object
+        """
+        if model_type not in self.model_types:
+            raise ValueError('The given model type {} is not valid.'.format(model_type))
+
+        G = nx.Graph()
+
+        # Day zone
+        G.add_node('TiD',
+                   C=bp['CiD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs3ND'], 'Q_sol_E': bp['abs3ED'], 'Q_sol_S': bp['abs3SD'],
+                          'Q_sol_W': bp['abs3WD'], 'Q_int_D': bp['f3D']},
+                   Q_control={'Q_hea_D': bp['f3D']},
+                   state_type='day')
+        G.add_node('TflD',
+                   C=bp['CflD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs4ND'], 'Q_sol_E': bp['abs4ED'], 'Q_sol_S': bp['abs4SD'],
+                          'Q_sol_W': bp['abs4WD'], 'Q_int_D': bp['f4D']},
+                   Q_control={'Q_hea_D': bp['f4D']},
+                   state_type=None)
+        G.add_node('TwiD',
+                   C=bp['CwiD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs2ND'], 'Q_sol_E': bp['abs2ED'], 'Q_sol_S': bp['abs2SD'],
+                          'Q_sol_W': bp['abs2WD'], 'Q_int_D': bp['f2D']},
+                   Q_control={'Q_hea_D': bp['f2D']},
+                   state_type=None)
+        G.add_node('TwD',
+                   C=bp['CwD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs1ND'], 'Q_sol_E': bp['abs1ED'], 'Q_sol_S': bp['abs1SD'],
+                          'Q_sol_W': bp['abs1WD'], 'Q_int_D': bp['f1D']},
+                   Q_control={'Q_hea_D': bp['f1D']}, state_type=None)
+
+        # Internal floor
+        G.add_node('TfiD',
+                   C=bp['CfiD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs5ND'], 'Q_sol_E': bp['abs5ED'], 'Q_sol_S': bp['abs5SD'],
+                          'Q_sol_W': bp['abs5WD'], 'Q_int_D': bp['f5D']},
+                   Q_control={'Q_hea_D': bp['f5D']},
+                   state_type=None)
+        G.add_node('TfiN',
+                   C=bp['CfiD'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs5NN'], 'Q_sol_E': bp['abs5EN'], 'Q_sol_S': bp['abs5SN'],
+                          'Q_sol_W': bp['abs5WN'], 'Q_int_N': bp['f5N']},
+                   Q_control={'Q_hea_N': bp['f5N']},
+                   state_type=None)
+
+        # Night zone
+        G.add_node('TiN',
+                   C=bp['CiN'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs3NN'], 'Q_sol_E': bp['abs3EN'], 'Q_sol_S': bp['abs3SN'],
+                          'Q_sol_W': bp['abs3WN'], 'Q_int_N': bp['f3N']},
+                   Q_control={'Q_hea_N': bp['f3N']},
+                   state_type='night')
+        G.add_node('TwiN',
+                   C=bp['CwiN'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs2NN'], 'Q_sol_E': bp['abs2EN'], 'Q_sol_S': bp['abs2SN'],
+                          'Q_sol_W': bp['abs2WN'], 'Q_int_N': bp['f2N']},
+                   Q_control={'Q_hea_N': bp['f2N']},
+                   state_type=None)
+        G.add_node('TwN',
+                   C=bp['CwN'],
+                   T_fix=None,
+                   Q_fix={'Q_sol_N': bp['abs1NN'], 'Q_sol_E': bp['abs1EN'], 'Q_sol_S': bp['abs1SN'],
+                          'Q_sol_W': bp['abs1WN'], 'Q_int_N': bp['f1N']},
+                   Q_control={'Q_hea_N': bp['f1N']},
+                   state_type=None)
+
+        # External temperatures
+        G.add_node('Te',
+                   C=None,
+                   T_fix='Te',
+                   Q_fix=None,
+                   Q_control=None,
+                   state_type=None)
+        G.add_node('Tg',
+                   C=None,
+                   T_fix='Tg',
+                   Q_fix=None,
+                   Q_control=None,
+                   state_type=None)
+
+        # Connections
+        G.add_edge('Te', 'TwD', U=bp['UwD'])
+        G.add_edge('Te', 'TiD', U=bp['infD'])
+        G.add_edge('TwD', 'TiD', U=bp['hwD'])
+        G.add_edge('TiD', 'TflD', U=bp['hflD'])
+        G.add_edge('TflD', 'Tg', U=bp['UflD'])
+
+        G.add_edge('TiD', 'TwiD', U=bp['hwiD'])
+        G.add_edge('TiD', 'TfiD', U=bp['UfDN'])
+        G.add_edge('TfiD', 'TfiN', U=bp['UfND'])
+
+        G.add_edge('TfiN', 'TiN', U=bp['UfND'])
+        G.add_edge('TiN', 'TwiN', U=bp['hwiN'])
+        G.add_edge('TiN', 'TwN', U=bp['hwN'])
+        G.add_edge('TwN', 'Te', U=bp['UwN'])
+        G.add_edge('TiN', 'Te', U=bp['infN'])
+
+        self.structure = G
+        self.controlVariables += ['Q_hea_D', 'Q_hea_N']
+
 
 class RCmodel(Component):
 
@@ -245,7 +443,7 @@ class RCmodel(Component):
 
     def compile(self, model, start_time):
         """
-        ompiles the RC model
+        Compiles the RC model
 
         :param model: The optimization model
         :param block: The component model block
@@ -268,6 +466,8 @@ class RCmodel(Component):
                 fixed_states.append(state)
             else:
                 control_states.append(state)
+
+                # TODO add radiative heat nodes here
 
         self.block.fixed_states = Set(initialize=fixed_states)
         self.block.control_states = Set(initialize=control_states)
@@ -601,6 +801,7 @@ class RCmodel(Component):
         })
         return params
 
+
 class State:
     """
     Class that describes a state (C) of an RC-model
@@ -612,7 +813,7 @@ class State:
         Initialization method for class State
 
         :param name: Name of the state
-        :param node_object: ONetworkX node object
+        :param node_object: NetworkX node object
         """
 
         self.name = name
@@ -714,6 +915,7 @@ class State:
             return self.get_property('Q_fix')[q_name]
         else:
             return 0
+
 
 class Edge:
     """

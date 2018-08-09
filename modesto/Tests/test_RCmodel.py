@@ -53,7 +53,8 @@ def test_splitFactor_intGains():
     dim = sum(1 if x > 0 else 0 for x in AArray)
 
     np.testing.assert_array_almost_equal(splitFactor(1, dim, AArray, [0], [0]),
-                                         np.asarray([[0.15912053, 0.0354943, 0.58999172, 0.10225216, 0.11314129]]).transpose())
+                                         np.asarray(
+                                             [[0.15912053, 0.0354943, 0.58999172, 0.10225216, 0.11314129]]).transpose())
 
 
 def test_splitFactor_solGains():
@@ -75,6 +76,26 @@ def test_splitFactor_solGains():
          [0.12795594, 0.02749475, 0.61868174, 0.10722446, 0.11864311],
          [0.1193074, 0.02527477, 0.62664357, 0.10860433, 0.12016993],
          [0.13241664, 0.03026044, 0.61338799, 0.10630699, 0.11762794]]).transpose())
+
+
+def test_readTeaserParam():
+    from modesto.LTIModels.RCmodels import readTeaserParam
+
+    from pkg_resources import resource_filename
+
+    assert readTeaserParam('Gierenshof', 'Gierenshof_5_1587139',
+                           resource_filename('modesto', 'Data/BuildingModels/TEASER')) == {
+               'gWin': 0.78, 'RInt': 4.5914838108e-05, 'RFloor': 0.000234402425054, 'nExt': 1L,
+               'RRoof': 2.97373258479e-05, 'RFloorRem': 0.00695369512817, 'alphaInt': 2.22943950132, 'alphaFloor': 1.7,
+               'CExt': 47812986.5825, 'alphaRoof': 1.7, 'RRoofRem': 0.0063951878295,
+               'ATransparent': [15.51060527734198, 17.685904485930944, 22.306888062760372, 12.181587432200367],
+               'ratioWinConRad': 0.03, 'RWin': 0.00206437798896, 'CFloor': 67924057.5908, 'alphaRad': 5.0, 'nPorts': 2L,
+               'AFloor': 194.987239838, 'nInt': 1L, 'alphaWin': 2.7, 'RExtRem': 0.00470671992946,
+               'ARoof': 215.752003747, 'RExt': 0.00011035482959999999,
+               'AExt': [82.906123538469942, 70.743617943723777, 89.227552251041487, 60.553680614889217],
+               'VAir': 1271.97558223, 'CRoof': 9563919.76955, 'alphaExt': 2.7, 'AInt': 1125.07020583, 'mSenFac': 5L,
+               'nRoof': 1L, 'nOrientations': 4L, 'CInt': 105612653.47299999, 'nFloor': 1L,
+               'AWin': [15.51060527734198, 17.685904485930944, 22.306888062760372, 12.181587432200367]}
 
 
 if __name__ == '__main__':
