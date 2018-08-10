@@ -5,6 +5,7 @@ Module to read and build optimization problem equations for building models, des
 
 from __future__ import division
 
+import itertools
 import os
 import sys
 
@@ -167,21 +168,12 @@ class TeaserFourElement(Component):
         self.edges = {}
         self.controlVariables = {}
 
-    def build(self):
-        """
-        Create all states and edges
-
-
-
-        :return:
-        """
-
     def create_params(self):
         params = Component.create_params(self)
 
         params.update({
-            'TiD0': StateParameter('TiD0',
-                                   'Begin temperature at state TiD',
+            'TiD0': StateParameter('TAir0',
+                                   'Begin temperature at state TAir',
                                    'K',
                                    init_type='fixedVal',
                                    slack=True),  # TODO Implement initial temperatures
@@ -244,7 +236,12 @@ class TeaserFourElement(Component):
             'fra_rad': DesignParameter('fra_rad',
                                        'Fraction of input heat that is transferred as radiation.'
                                        '-',
-                                       val=0.3)
+                                       val=0.3),
+            'ACH': DesignParameter('ACH',
+                                   'Air change rate of air volume of the TEASER model. Multiply by air volume to get '
+                                   'volume flow rate per hour',
+                                   'h-1',
+                                   val=0.4)
         })
         return params
 
@@ -287,7 +284,7 @@ class TeaserFourElement(Component):
                    Q_fix={'Q_sol_' + i: mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][i] for i in
                           ['N', 'E', 'S', 'W']},
                    Q_control={'Q_hea': 1 - self.params['fra_rad']},
-                   state_type=None),
+                   state_type='day'),
         G.add_node('TExt',
                    C=mp['CExt'])
         G.add_node('TFloor',
@@ -361,19 +358,264 @@ class TeaserFourElement(Component):
         G.add_edge('TIntRad', 'TAir',
                    U=mp['alphaInt'] * AInt)
 
+        # Ventilation
+        G.add_edge('TAir', 'Te',
+                   U=self.params['ACH'] * mp['VAir'] * 1007 * 1.276)
+
         # Radiation network
-        for node_from, node_to in itertools.combination(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2)
+        for node_from, node_to in itertools.combination(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
             # all possible combinations of two elements from list, which yields all needed radiation connections
-            A_from = mp['A'+node_from] if not isinstance(mp['A'+node_from], dict) else sum(mp['A'+node_from].values())
-            A_to = mp['A'+node_to] if not isinstance(mp['A'+node_to], dict) else sum(mp['A'+node_to].values())
+            A_from = mp['A' + node_from] if not isinstance(mp['A' + node_from], dict) else sum(
+                mp['A' + node_from].values())
+            A_to = mp['A' + node_to] if not isinstance(mp['A' + node_to], dict) else sum(mp['A' + node_to].values())
 
             A_rad = min(A_from, A_to)
 
             G.add_edge('T{}Rad'.format(node_from), 'T{}Rad'.format(node_to),
-                       U=A_rad*mp['alphaRad'])
+                       U=A_rad * mp['alphaRad'])
 
         self.structure = G
         self.controlVariables += ['Q_hea']
+
+    def build(self):
+        self.get_model_data()
+        for state in self.structure.nodes():
+            self.states[state] = State(name=state,
+                                       node_object=self.structure.nodes[state])
+
+        for edge in self.structure.edges():
+            self.edges[''.join(edge)] = Edge(name=''.join(edge),
+                                             tuple=edge,
+                                             edge_object=self.structure.edges[edge])
+
+    def compile(self, model, start_time):
+        Component.compile(self, model, start_time)
+
+        self.build()
+
+        ##### Sets
+        # TODO check initialization of stateless temperatures
+        self.block.state_names = Set(initialize=self.states.keys())
+        self.block.edge_names = Set(initialize=self.edges.keys())
+
+        fixed_states = []
+        control_states = []
+        for state, obj in self.states.items():
+            if obj.input['temperature'] is not None:
+                fixed_states.append(state)
+            else:
+                control_states.append(state)
+
+                # TODO add radiative heat nodes here
+
+        self.block.fixed_states = Set(initialize=fixed_states)
+        self.block.control_states = Set(initialize=control_states)
+        self.block.control_variables = Set(initialize=self.controlVariables)
+
+        ##### Variables
+
+        self.block.StateTemperatures = Var(self.block.control_states, self.X_TIME)
+        self.block.StateHeatFlows = Var(self.block.control_states, self.TIME)
+        self.block.ControlHeatFlows = Var(self.block.control_variables, self.TIME)
+        self.block.EdgeHeatFlows = Var(self.block.edge_names, self.TIME)
+        self.block.mass_flow = Var(self.TIME)
+        self.block.heat_flow = Var(self.TIME)
+
+        ##### Parameters
+
+        def decl_edge_direction(b, s, e):
+            return self.edges[e].get_direction(s)
+
+        self.block.directions = Param(self.block.state_names, self.block.edge_names, rule=decl_edge_direction)
+
+        def decl_state_heat(b, s, t):
+            obj = self.states[s]
+            incoming_heat_names = obj.input['heat_fix']
+            return sum(self.params[i].v(t) * obj.get_q_factor(i) for i in incoming_heat_names)
+
+        self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat)
+
+        def decl_fixed_temperature(b, s, t):
+            temp = self.states[s].input['temperature']
+            return self.params[temp].v(t)
+
+        self.block.FixedTemperatures = Param(self.block.fixed_states,
+                                             self.TIME, rule=decl_fixed_temperature)
+
+        ##### State energy balances
+
+        def _energy_balance(b, s, t):
+            return sum(b.ControlHeatFlows[i, t] * self.states[s].get_q_factor(i) for i in b.control_variables) \
+                   + b.fixed_state_heat[s, t] + \
+                   sum(b.EdgeHeatFlows[e, t] * b.directions[s, e] for e in b.edge_names) == \
+                   b.StateHeatFlows[s, t]
+
+        self.block.energy_balance = Constraint(self.block.control_states,
+                                               self.TIME, rule=_energy_balance)
+
+        ##### Temperature change state
+
+        def _temp_change(b, s, t):
+            if self.states[s].C is None:
+                return b.StateHeatFlows[s, t] == 0
+            else:
+                return b.StateTemperatures[s, t + 1] == b.StateTemperatures[s, t] + \
+                   b.StateHeatFlows[s, t] / self.states[s].C * self.params['time_step'].v()
+
+        self.block.temp_change = Constraint(self.block.control_states, self.TIME, rule=_temp_change)
+
+        def _init_temp(b, s):
+            if self.params[s + '0'].get_init_type() == 'fixedVal':
+                return b.StateTemperatures[s, 0] == self.params[s + '0'].v()
+            elif self.params[s + '0'].get_init_type() == 'cyclic':
+                return b.StateTemperatures[s, 0] == b.StateTemperatures[s, self.X_TIME[-1]]
+            elif self.params[s + '0'].get_init_type() == 'free':
+                return Constraint.Skip
+            else:
+                raise Exception('{} is an initialization type that has not '
+                                'been implemented for the building RC models'.format(self.params[s + '0']))
+
+        self.block.init_temp = Constraint(self.block.control_states, rule=_init_temp)
+
+        ##### Heat flow through edge
+
+        def _edge_heat_flow(b, e, t):
+            e_ob = self.edges[e]
+            if e_ob.start in b.control_states:
+                start_temp = b.StateTemperatures[e_ob.start, t]
+            else:
+                start_temp = b.FixedTemperatures[e_ob.start, t]
+            if e_ob.stop in b.control_states:
+                stop_temp = b.StateTemperatures[e_ob.stop, t]
+            else:
+                stop_temp = b.FixedTemperatures[e_ob.stop, t]
+            return b.EdgeHeatFlows[e, t] == (start_temp - stop_temp) * e_ob.U
+
+        self.block.edge_heat_flow = Constraint(self.block.edge_names, self.TIME, rule=_edge_heat_flow)
+
+        ##### Limit temperatures
+
+        max_temp = {}
+        min_temp = {}
+        uslack = {}
+        lslack = {}
+
+        for state in self.block.control_states:
+            s_ob = self.states[state]
+
+            if s_ob.state_type is None:
+                max_temp[state] = None
+                min_temp[state] = None
+            elif s_ob.state_type == 'day':
+                max_temp[state] = self.params['day_max_temperature']
+                min_temp[state] = self.params['day_min_temperature']
+            elif s_ob.state_type == 'night':
+                max_temp[state] = self.params['night_max_temperature']
+                min_temp[state] = self.params['night_min_temperature']
+            elif s_ob.state_type == 'bathroom':
+                max_temp[state] = self.params['bathroom_max_temperature']
+                min_temp[state] = self.params['bathroom_min_temperature']
+            elif s_ob.state_type == 'floor':
+                max_temp[state] = self.params['floor_max_temperature']
+                min_temp[state] = self.params['floor_min_temperature']
+            else:
+                raise Exception('{} was given a state type which is not valid'.format(s_ob.state_type))
+
+            if (self.params[state + '0'].get_slack()) and (s_ob.state_type is not None):
+                uslack[state] = self.make_slack(state + '_u_slack', self.X_TIME)
+                lslack[state] = self.make_slack(state + '_l_slack', self.X_TIME)
+            else:
+                uslack[state] = [None] * len(self.X_TIME)
+                lslack[state] = [None] * len(self.X_TIME)
+
+        def _max_temp(b, s, t):
+            if max_temp[s] is None:
+                return Constraint.Skip
+            return self.constrain_value(b.StateTemperatures[s, t],
+                                        max_temp[s].v(t),
+                                        ub=True,
+                                        slack_variable=uslack[s][t])
+
+        def _min_temp(b, s, t):
+            if min_temp[s] is None:
+                return Constraint.Skip
+            return self.constrain_value(b.StateTemperatures[s, t],
+                                        min_temp[s].v(t),
+                                        ub=False,
+                                        slack_variable=lslack[s][t])
+
+        self.block.max_temp = Constraint(self.block.control_states, self.X_TIME, rule=_max_temp)
+        self.block.min_temp = Constraint(self.block.control_states, self.X_TIME, rule=_min_temp)
+
+        ##### Limit heat flows
+
+        def _max_heat_flows(b, t):
+            return sum(b.ControlHeatFlows[i, t] for i in self.block.control_variables) <= self.params[
+                'max_heat'].v()
+
+        def _min_heat_flows(b, i, t):
+            return 0 <= b.ControlHeatFlows[i, t]
+
+        self.block.max_heat_flows = Constraint(self.TIME, rule=_max_heat_flows)
+        self.block.min_heat_flows = Constraint(self.block.control_variables, self.TIME, rule=_min_heat_flows)
+
+        ##### Substation model
+
+        mult = self.params['mult'].v()
+        delta_T = self.params['delta_T'].v()
+
+        def decl_heat_flow(b, t):
+            # TODO Find good way to find control inputs
+            return b.heat_flow[t] == mult * sum(b.ControlHeatFlows[i, t] for i in b.control_variables)
+
+        self.block.decl_heat_flow = Constraint(self.TIME, rule=decl_heat_flow)
+
+        def decl_mass_flow(b, t):
+            return b.mass_flow[t] == b.heat_flow[t] / self.cp / delta_T
+
+        self.block.decl_mass_flow = Constraint(self.TIME, rule=decl_mass_flow)
+
+        # self.block.pprint()
+
+        if self.temperature_driven:
+            print 'WARNING: No temperature variable model implemented (yet)'
+            # self.block.temperatures = Var(self.TIME, self.lines)
+            #
+            # def _decl_temperatures(b, t):
+            #     if t == 0:
+            #         return Constraint.Skip
+            #     elif b.mass_flow[t] == 0:
+            #         return b.temperatures[t, 'supply'] == b.temperatures[t, 'return']
+            #     else:
+            #         return b.temperatures[t, 'supply'] - b.temperatures[t, 'return'] == \
+            #                b.heat_flow[t] / b.mass_flow[t] / self.cp
+            #
+            # def _init_temperatures(b, l):
+            #     return b.temperatures[0, l] == self.params['temperature_' + l].v()
+            #
+            # uslack = self.make_slack('temperature_max_uslack', self.TIME)
+            # lslack = self.make_slack('temperature_max_l_slack', self.TIME)
+            #
+            # ub = self.params['temperature_max'].v()
+            # lb = self.params['temperature_min'].v()
+            #
+            # def _max_temp_ss(b, t):
+            #     return self.constrain_value(b.temperatures[t, 'supply'],
+            #                                 ub,
+            #                                 ub=True,
+            #                                 slack_variable=uslack[t])
+            #
+            # def _min_temp_ss(b, t):
+            #     return self.constrain_value(b.temperatures[t, 'supply'],
+            #                                 lb,
+            #                                 ub=False,
+            #                                 slack_variable=lslack[t])
+            #
+            # self.block.max_temp_ss = Constraint(self.TIME, rule=_max_temp_ss)
+            # self.block.min_temp_ss = Constraint(self.TIME, rule=_min_temp_ss)
+            #
+            # self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
+            # self.block.init_temperatures = Constraint(self.lines, rule=_init_temperatures)
 
 
 class RCmodel(Component):
