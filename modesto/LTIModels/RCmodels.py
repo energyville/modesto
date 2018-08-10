@@ -160,9 +160,9 @@ class TeaserFourElement(Component):
         :param temperature_driven:
         """
         Component.__init__(self, name=name, direction=-1, temperature_driven=temperature_driven)
-        self.params = params
+        self.params = self.create_params()
         self.structure = None
-
+        self.model_params = None
         self.states = {}
         self.edges = {}
         self.controlVariables = {}
@@ -176,6 +176,78 @@ class TeaserFourElement(Component):
         :return:
         """
 
+    def create_params(self):
+        params = Component.create_params(self)
+
+        params.update({
+            'TiD0': StateParameter('TiD0',
+                                   'Begin temperature at state TiD',
+                                   'K',
+                                   init_type='fixedVal',
+                                   slack=True),  # TODO Implement initial temperatures
+            'delta_T': DesignParameter('delta_T',
+                                       'Temperature difference across substation',
+                                       'K'),
+            'mult': DesignParameter('mult',
+                                    'Number of buildings represented by building model',
+                                    '-'),
+            'streetName': DesignParameter('streetName',
+                                          'Name of street where the TEASER building is located',
+                                          '-'),
+            'buildingName': DesignParameter('buildingName',
+                                            'Identifier for building in street _streetName_',
+                                            '-'),
+            'day_max_temperature': UserDataParameter('day_max_temperature',
+                                                     'Maximum temperature for day zones',
+                                                     'K'
+                                                     ),
+            'day_min_temperature': UserDataParameter('day_min_temperature',
+                                                     'Minimum temperature for day zones',
+                                                     'K'
+                                                     ),
+            'floor_max_temperature': UserDataParameter('floor_max_temperature',
+                                                       'Minimum temperature for bathroom zones',
+                                                       'K'
+                                                       ),
+            'floor_min_temperature': UserDataParameter('floor_min_temperature',
+                                                       'Minimum temperature for bathroom zones',
+                                                       'K'
+                                                       ),
+            'Q_sol_E': WeatherDataParameter('Q_sol_E',
+                                            'Eastern solar radiation',
+                                            'W'
+                                            ),
+            'Q_sol_S': WeatherDataParameter('Q_sol_S',
+                                            'Southern solar radiation',
+                                            'W'
+                                            ),
+            'Q_sol_W': WeatherDataParameter('Q_sol_W',
+                                            'Western solar radiation',
+                                            'W'
+                                            ),
+            'Q_sol_N': WeatherDataParameter('Q_sol_N',
+                                            'Northern solar radiation',
+                                            'W'),
+            'Q_int': UserDataParameter('Q_int',
+                                       'Internal heat gains',
+                                       'W'
+                                       ),
+            'Te': WeatherDataParameter('Te',
+                                       'Ambient temperature',
+                                       'K'),
+            'Tg': WeatherDataParameter('Tg',
+                                       'Undisturbed ground temperature',
+                                       'K'),
+            'max_heat': DesignParameter('max_heat',
+                                        'Maximum heating power through substation',
+                                        'W'),
+            'fra_rad': DesignParameter('fra_rad',
+                                       'Fraction of input heat that is transferred as radiation.'
+                                       '-',
+                                       val=0.3)
+        })
+        return params
+
     def get_model_data(self):
         """
         Set up networkX object describing model structure
@@ -183,80 +255,64 @@ class TeaserFourElement(Component):
         :param model_type: Type of model indicating parameters of a specific type of model
         :return: NetworkX object
         """
-        if model_type not in self.model_types:
-            raise ValueError('The given model type {} is not valid.'.format(model_type))
+
+        self.model_params = readTeaserParam(self.params['streetName'], self.params['buildingName'])
+        mp = self.model_params
+
+        dim = sum(1 if x > 0 else 0 for x in AArray)
+        AExt = mp['AExt']
+        AWin = mp['AWin']
+        AFloor = mp['AFloor']
+        ARoof = mp['ARoof']
+        AInt = mp['AInt']
+
+        ATotExt = sum(AExt)
+        ATotWin = sum(AWin)
+        AArray = {'ATotExt': ATotExt, 'ATotWin': ATotWin, 'AInt': AInt, 'AFloor': AFloor, 'ARoof': ARoof}
+
+        sfSol = splitFactor(AArray, AExt, AWin)
+        sfInt = splitFactor(AArray)
 
         G = nx.Graph()
 
-        # Day zone
-        G.add_node('TiD',
-                   C=bp['CiD'],
+        # States
+        G.add_node('TRoof',
+                   C=mp['CRoof'],
                    T_fix=None,
-                   Q_fix={'Q_sol_N': bp['abs3ND'], 'Q_sol_E': bp['abs3ED'], 'Q_sol_S': bp['abs3SD'],
-                          'Q_sol_W': bp['abs3WD'], 'Q_int_D': bp['f3D']},
-                   Q_control={'Q_hea_D': bp['f3D']},
-                   state_type='day')
-        G.add_node('TflD',
-                   C=bp['CflD'],
-                   T_fix=None,
-                   Q_fix={'Q_sol_N': bp['abs4ND'], 'Q_sol_E': bp['abs4ED'], 'Q_sol_S': bp['abs4SD'],
-                          'Q_sol_W': bp['abs4WD'], 'Q_int_D': bp['f4D']},
-                   Q_control={'Q_hea_D': bp['f4D']},
+                   Q_fix=None,
                    state_type=None)
-        G.add_node('TwiD',
-                   C=bp['CwiD'],
+        G.add_node('TAir',
+                   C=mp['CAir'],
                    T_fix=None,
-                   Q_fix={'Q_sol_N': bp['abs2ND'], 'Q_sol_E': bp['abs2ED'], 'Q_sol_S': bp['abs2SD'],
-                          'Q_sol_W': bp['abs2WD'], 'Q_int_D': bp['f2D']},
-                   Q_control={'Q_hea_D': bp['f2D']},
-                   state_type=None)
-        G.add_node('TwD',
-                   C=bp['CwD'],
-                   T_fix=None,
-                   Q_fix={'Q_sol_N': bp['abs1ND'], 'Q_sol_E': bp['abs1ED'], 'Q_sol_S': bp['abs1SD'],
-                          'Q_sol_W': bp['abs1WD'], 'Q_int_D': bp['f1D']},
-                   Q_control={'Q_hea_D': bp['f1D']}, state_type=None)
+                   Q_fix={'Q_sol_' + i: mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][i] for i in
+                          ['N', 'E', 'S', 'W']},
+                   Q_control={'Q_hea': 1 - self.params['fra_rad']},
+                   state_type=None),
+        G.add_node('TExt',
+                   C=mp['CExt'])
+        G.add_node('TFloor',
+                   C=mp['CFloor'])
+        G.add_node('TInt',
+                   C=mp['CInt'])
 
-        # Internal floor
-        G.add_node('TfiD',
-                   C=bp['CfiD'],
-                   T_fix=None,
-                   Q_fix={'Q_sol_N': bp['abs5ND'], 'Q_sol_E': bp['abs5ED'], 'Q_sol_S': bp['abs5SD'],
-                          'Q_sol_W': bp['abs5WD'], 'Q_int_D': bp['f5D']},
-                   Q_control={'Q_hea_D': bp['f5D']},
-                   state_type=None)
-        G.add_node('TfiN',
-                   C=bp['CfiD'],
-                   T_fix=None,
-                   Q_fix={'Q_sol_N': bp['abs5NN'], 'Q_sol_E': bp['abs5EN'], 'Q_sol_S': bp['abs5SN'],
-                          'Q_sol_W': bp['abs5WN'], 'Q_int_N': bp['f5N']},
-                   Q_control={'Q_hea_N': bp['f5N']},
-                   state_type=None)
+        # Radiation nodes
+        G.add_node('TRoofRad',
+                   Q_fix=fixedHeat('ARoof', sfSol, sfInt),
+                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['ARoof']})
+        G.add_node('TWinRad',
+                   Q_fix=fixedHeat('ATotWin', sfSol, sfInt),
+                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['ATotWin']})
+        G.add_node('TExtRad',
+                   Q_fix=fixedHeat('ATotExt', sfSol, sfInt),
+                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['ATotExt']})
+        G.add_node('TFloorRad',
+                   Q_fix=fixedHeat('AFloor', sfSol, sfInt),
+                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['AFloor']})
+        G.add_node('TIntRad',
+                   Q_fix=fixedHeat('AInt', sfSol, sfInt),
+                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['AInt']})
 
-        # Night zone
-        G.add_node('TiN',
-                   C=bp['CiN'],
-                   T_fix=None,
-                   Q_fix={'Q_sol_N': bp['abs3NN'], 'Q_sol_E': bp['abs3EN'], 'Q_sol_S': bp['abs3SN'],
-                          'Q_sol_W': bp['abs3WN'], 'Q_int_N': bp['f3N']},
-                   Q_control={'Q_hea_N': bp['f3N']},
-                   state_type='night')
-        G.add_node('TwiN',
-                   C=bp['CwiN'],
-                   T_fix=None,
-                   Q_fix={'Q_sol_N': bp['abs2NN'], 'Q_sol_E': bp['abs2EN'], 'Q_sol_S': bp['abs2SN'],
-                          'Q_sol_W': bp['abs2WN'], 'Q_int_N': bp['f2N']},
-                   Q_control={'Q_hea_N': bp['f2N']},
-                   state_type=None)
-        G.add_node('TwN',
-                   C=bp['CwN'],
-                   T_fix=None,
-                   Q_fix={'Q_sol_N': bp['abs1NN'], 'Q_sol_E': bp['abs1EN'], 'Q_sol_S': bp['abs1SN'],
-                          'Q_sol_W': bp['abs1WN'], 'Q_int_N': bp['f1N']},
-                   Q_control={'Q_hea_N': bp['f1N']},
-                   state_type=None)
-
-        # External temperatures
+        # Fixed temperatures
         G.add_node('Te',
                    C=None,
                    T_fix='Te',
@@ -270,25 +326,54 @@ class TeaserFourElement(Component):
                    Q_control=None,
                    state_type=None)
 
-        # Connections
-        G.add_edge('Te', 'TwD', U=bp['UwD'])
-        G.add_edge('Te', 'TiD', U=bp['infD'])
-        G.add_edge('TwD', 'TiD', U=bp['hwD'])
-        G.add_edge('TiD', 'TflD', U=bp['hflD'])
-        G.add_edge('TflD', 'Tg', U=bp['UflD'])
+        alphaOut = 23
 
-        G.add_edge('TiD', 'TwiD', U=bp['hwiD'])
-        G.add_edge('TiD', 'TfiD', U=bp['UfDN'])
-        G.add_edge('TfiD', 'TfiN', U=bp['UfND'])
+        # CONNECTIONS
+        # Fixed temperatures to model
+        G.add_edge('Te', 'TRoof',
+                   U=1 / (1 / (alphaOut * ARoof) + mp['RRoof']))
+        G.add_edge('Te', 'TFloor',
+                   U=1 / (1 / (alphaOut * AFloor) + mp['RFloor']))
+        G.add_edge('Te', 'TWinRad',
+                   U=1 / (1 / (alphaOut * ATotWin) + mp['RWin']))
+        G.add_edge('Te', 'TExt',
+                   U=1 / (1 / (alphaOut * ATotExt) + mp['RExtRem']))
 
-        G.add_edge('TfiN', 'TiN', U=bp['UfND'])
-        G.add_edge('TiN', 'TwiN', U=bp['hwiN'])
-        G.add_edge('TiN', 'TwN', U=bp['hwN'])
-        G.add_edge('TwN', 'Te', U=bp['UwN'])
-        G.add_edge('TiN', 'Te', U=bp['infN'])
+        # Conduction to radiation nodes
+        G.add_edge('TRoof', 'TRoofRad',
+                   U=1 / mp['RRoofRem'])
+        G.add_edge('TExt', 'TExtRad',
+                   U=1 / mp['RExt'])
+        G.add_edge('TFloor', 'TFloorRad',
+                   U=1 / mp['RFloorRem'])
+        G.add_edge('TInt', 'TIntRad',
+                   U=1 / mp['RInt'])
+
+        # Convection to air node
+        G.add_edge('TRoofRad', 'TAir',
+                   U=mp['alphaRoof'] * ARoof)
+        G.add_edge('TWinRad', 'TAir',
+                   U=mp['alphaWin'] * ATotWin)
+        G.add_edge('TExtRad', 'TAir',
+                   U=mp['alphaExt'] * ATotExt)
+        G.add_edge('TFloorRad', 'TAir',
+                   U=mp['alphaFloor'] * AFloor)
+        G.add_edge('TIntRad', 'TAir',
+                   U=mp['alphaInt'] * AInt)
+
+        # Radiation network
+        for node_from, node_to in itertools.combination(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2)
+            # all possible combinations of two elements from list, which yields all needed radiation connections
+            A_from = mp['A'+node_from] if not isinstance(mp['A'+node_from], dict) else sum(mp['A'+node_from].values())
+            A_to = mp['A'+node_to] if not isinstance(mp['A'+node_to], dict) else sum(mp['A'+node_to].values())
+
+            A_rad = min(A_from, A_to)
+
+            G.add_edge('T{}Rad'.format(node_from), 'T{}Rad'.format(node_to),
+                       U=A_rad*mp['alphaRad'])
 
         self.structure = G
-        self.controlVariables += ['Q_hea_D', 'Q_hea_N']
+        self.controlVariables += ['Q_hea']
 
 
 class RCmodel(Component):
