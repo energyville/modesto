@@ -12,7 +12,7 @@ import sys
 import networkx as nx
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set
+from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 from modesto.component import Component
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
@@ -442,7 +442,7 @@ class TeaserFourElement(Component):
 
         # Ventilation
         G.add_edge('TAir', 'Te',
-                   U=self.params['ACH'].v() * mp['VAir'] * 1007 * 1.276)
+                   U=self.params['ACH'].v() * mp['VAir'] * 1007 * 1.276/3600)
 
         # Radiation network
         for node_from, node_to in itertools.combinations(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
@@ -496,7 +496,7 @@ class TeaserFourElement(Component):
 
         ##### Variables
 
-        self.block.StateTemperatures = Var(self.block.control_states, self.X_TIME)
+        self.block.StateTemperatures = Var(self.block.control_states, self.X_TIME, within=NonNegativeReals)
         self.block.StateHeatFlows = Var(self.block.control_states, self.TIME)
         self.block.ControlHeatFlows = Var(self.block.control_variables, self.TIME)
         self.block.EdgeHeatFlows = Var(self.block.edge_names, self.TIME)
