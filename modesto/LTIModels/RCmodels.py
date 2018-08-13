@@ -289,7 +289,7 @@ class TeaserFourElement(Component):
                                         'Maximum heating power through substation',
                                         'W'),
             'fra_rad': DesignParameter('fra_rad',
-                                       'Fraction of input heat that is transferred as radiation.'
+                                       'Fraction of input heat that is transferred as radiation.',
                                        '-',
                                        val=0.3),
             'ACH': DesignParameter('ACH',
@@ -308,18 +308,17 @@ class TeaserFourElement(Component):
         :return: NetworkX object
         """
 
-        self.model_params = readTeaserParam(self.params['streetName'], self.params['buildingName'])
+        self.model_params = readTeaserParam(self.params['streetName'].v(), self.params['buildingName'].v())
         mp = self.model_params
 
-        dim = sum(1 if x > 0 else 0 for x in AArray)
         AExt = mp['AExt']
         AWin = mp['AWin']
         AFloor = mp['AFloor']
         ARoof = mp['ARoof']
         AInt = mp['AInt']
 
-        ATotExt = sum(AExt)
-        ATotWin = sum(AWin)
+        ATotExt = sum(AExt.values())
+        ATotWin = sum(AWin.values())
         AArray = {'ATotExt': ATotExt, 'ATotWin': ATotWin, 'AInt': AInt, 'AFloor': AFloor, 'ARoof': ARoof}
 
         sfSol = splitFactor(AArray, AExt, AWin)
@@ -332,37 +331,65 @@ class TeaserFourElement(Component):
                    C=mp['CRoof'],
                    T_fix=None,
                    Q_fix=None,
+                   Q_control=None,
                    state_type=None)
         G.add_node('TAir',
-                   C=mp['CAir'],
+                   C=mp['VAir'] * 1007 * 1.276,
                    T_fix=None,
                    Q_fix={'Q_sol_' + i: mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][i] for i in
                           ['N', 'E', 'S', 'W']},
-                   Q_control={'Q_hea': 1 - self.params['fra_rad']},
+                   Q_control={'Q_hea': 1 - self.params['fra_rad'].v()},
                    state_type='day'),
         G.add_node('TExt',
-                   C=mp['CExt'])
+                   C=mp['CExt'],
+                   T_fix=None,
+                   Q_fix=None,
+                   Q_control=None,
+                   state_type=None)
         G.add_node('TFloor',
-                   C=mp['CFloor'])
+                   C=mp['CFloor'],
+                   T_fix=None,
+                   Q_fix=None,
+                   Q_control=None,
+                   state_type='floor')
         G.add_node('TInt',
-                   C=mp['CInt'])
+                   C=mp['CInt'],
+                   T_fix=None,
+                   Q_fix=None,
+                   Q_control=None,
+                   state_type=None)
 
         # Radiation nodes
         G.add_node('TRoofRad',
+                   C=None,
+                   T_fix=None,
                    Q_fix=fixedHeat('ARoof', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['ARoof']})
+                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['ARoof']},
+                   state_type=None)
         G.add_node('TWinRad',
+                   C=None,
+                   T_fix=None,
                    Q_fix=fixedHeat('ATotWin', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['ATotWin']})
+                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['ATotWin']},
+                   state_type=None)
         G.add_node('TExtRad',
+                   C=None,
+                   T_fix=None,
                    Q_fix=fixedHeat('ATotExt', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['ATotExt']})
+                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['ATotExt']},
+                   state_type=None)
         G.add_node('TFloorRad',
+                   C=None,
+                   T_fix=None,
                    Q_fix=fixedHeat('AFloor', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['AFloor']})
+                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['AFloor']},
+                   state_type=None)
         G.add_node('TIntRad',
+                   C=None,
+                   T_fix=None,
                    Q_fix=fixedHeat('AInt', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'] * sfInt['AInt']})
+                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['AInt']},
+                   state_type=None)
 
         # Fixed temperatures
         G.add_node('Te',
@@ -415,10 +442,10 @@ class TeaserFourElement(Component):
 
         # Ventilation
         G.add_edge('TAir', 'Te',
-                   U=self.params['ACH'] * mp['VAir'] * 1007 * 1.276)
+                   U=self.params['ACH'].v() * mp['VAir'] * 1007 * 1.276)
 
         # Radiation network
-        for node_from, node_to in itertools.combination(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
+        for node_from, node_to in itertools.combinations(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
             # all possible combinations of two elements from list, which yields all needed radiation connections
             A_from = mp['A' + node_from] if not isinstance(mp['A' + node_from], dict) else sum(
                 mp['A' + node_from].values())
@@ -515,7 +542,7 @@ class TeaserFourElement(Component):
                 return b.StateHeatFlows[s, t] == 0
             else:
                 return b.StateTemperatures[s, t + 1] == b.StateTemperatures[s, t] + \
-                   b.StateHeatFlows[s, t] / self.states[s].C * self.params['time_step'].v()
+                       b.StateHeatFlows[s, t] / self.states[s].C * self.params['time_step'].v()
 
         self.block.temp_change = Constraint(self.block.control_states, self.TIME, rule=_temp_change)
 
