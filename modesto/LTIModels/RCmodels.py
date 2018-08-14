@@ -351,7 +351,7 @@ class TeaserFourElement(Component):
                    T_fix=None,
                    Q_fix=None,
                    Q_control=None,
-                   state_type='floor')
+                   state_type=None)
         G.add_node('TInt',
                    C=mp['CInt'],
                    T_fix=None,
