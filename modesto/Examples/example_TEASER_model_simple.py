@@ -78,7 +78,7 @@ def construct_model():
 
     ws_building_params = {'TAir0': 20 + 273.15,
                           'delta_T': 20,
-                          'mult': 1,
+                          'mult': 10,
                           'day_min_temperature': day_min,
                           'day_max_temperature': day_max,
                           'floor_min_temperature': floor_min,
@@ -86,7 +86,7 @@ def construct_model():
                           'streetName': 'Gierenshof',
                           'buildingName': 'Gierenshof_17_1589280',
                           'Q_int': Q_int_D,
-                          'max_heat': 60000,
+                          'max_heat': 15000,
                           'fra_rad': 0.3,
                           'ACH': 0.4
                           }
@@ -105,7 +105,7 @@ def construct_model():
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 1.5e9,
+                   'Qmax': 1.5e6,
                    'ramp_cost': 0.00,
                    'ramp': 1e6}
 
@@ -155,8 +155,17 @@ if __name__ == '__main__':
     TiEx = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
                                comp='buildingD', index='TExt', state=True)
 
+    TiFlRa = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
+                               comp='buildingD', index='TFloorRad', state=True)
+    TiRoRa = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
+                               comp='buildingD', index='TRoofRad', state=True)
+    TiExRa = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
+                               comp='buildingD', index='TExtRad', state=True)
+
     Q_hea_ws = optmodel.get_result('ControlHeatFlows', node='waterscheiGarden',
                                    comp='buildingD', index='Q_hea')
+
+    Q_hea_prod = optmodel.get_result('heat_flow', node='waterscheiGarden', comp='plant')
 
     # Objectives
     print '\nObjective function'
@@ -184,16 +193,23 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(2, 1, sharex=True)
 
-    ax[0].plot(TiD_ws, label='Air')
-    ax[0].plot(TiFl, label='Floor')
-    ax[0].plot(TiRo, label='Roof')
-    ax[0].plot(TiEx, label='Ext')
+    ax[0].plot(TiD_ws-273.15, label='Air')
+    ax[0].plot(TiFl-273.15, label='Floor')
+    ax[0].plot(TiRo-273.15, label='Roof')
+    ax[0].plot(TiEx-273.15, label='Ext')
+
+    ax[0].plot(TiFlRa - 273.15, ':', label='FloorRad')
+    ax[0].plot(TiRoRa - 273.15, ':', label='RoofRad')
+    ax[0].plot(TiExRa - 273.15, ':', label='ExtRad')
 
     ax[0].legend()
 
-    ax[0].plot(day_min, 'k--')
-    ax[0].plot(day_max, 'k--')
+    ax[0].plot(day_min-273.15, 'k--')
+    ax[0].plot(day_max-273.15, 'k--')
 
     ax[1].plot(Q_hea_ws, label='Waterschei')
+    ax[1].plot(Q_hea_prod, label='Production')
+
+    ax[1].legend()
 
     plt.show()
