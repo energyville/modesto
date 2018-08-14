@@ -131,7 +131,7 @@ def construct_model():
 if __name__ == '__main__':
     optmodel = construct_model()
     optmodel.compile(start_time=start_time)
-    optmodel.set_objective('cost')
+    optmodel.set_objective('energy')
 
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
@@ -156,11 +156,11 @@ if __name__ == '__main__':
                                comp='buildingD', index='TExt', state=True)
 
     TiFlRa = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
-                               comp='buildingD', index='TFloorRad', state=True)
+                                 comp='buildingD', index='TFloorRad', state=True)
     TiRoRa = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
-                               comp='buildingD', index='TRoofRad', state=True)
+                                 comp='buildingD', index='TRoofRad', state=True)
     TiExRa = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
-                               comp='buildingD', index='TExtRad', state=True)
+                                 comp='buildingD', index='TExtRad', state=True)
 
     Q_hea_ws = optmodel.get_result('ControlHeatFlows', node='waterscheiGarden',
                                    comp='buildingD', index='Q_hea')
@@ -174,10 +174,10 @@ if __name__ == '__main__':
     print 'Cost:  ', optmodel.get_objective('cost')
     print 'Active:', optmodel.get_objective()
 
-    df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv').loc[
-                 '20140104':'20140107']
-    df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv').loc[
-                       '20140104':'20140107']
+    df_weather = ut.read_period_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv',
+                                     time_step=time_step, horizon=n_steps * time_step, start_time=start_time)
+    df_userbehaviour = ut.read_period_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
+                                           time_step=time_step, horizon=n_steps * time_step, start_time=start_time)
 
     t_amb = df_weather['Te']
     t_g = df_weather['Tg']
@@ -193,10 +193,10 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(2, 1, sharex=True)
 
-    ax[0].plot(TiD_ws-273.15, label='Air')
-    ax[0].plot(TiFl-273.15, label='Floor')
-    ax[0].plot(TiRo-273.15, label='Roof')
-    ax[0].plot(TiEx-273.15, label='Ext')
+    ax[0].plot(TiD_ws - 273.15, label='Air')
+    ax[0].plot(TiFl - 273.15, '-.', label='Floor')
+    ax[0].plot(TiRo - 273.15, label='Roof')
+    ax[0].plot(TiEx - 273.15, label='Ext')
 
     ax[0].plot(TiFlRa - 273.15, ':', label='FloorRad')
     ax[0].plot(TiRoRa - 273.15, ':', label='RoofRad')
@@ -204,8 +204,10 @@ if __name__ == '__main__':
 
     ax[0].legend()
 
-    ax[0].plot(day_min-273.15, 'k--')
-    ax[0].plot(day_max-273.15, 'k--')
+    ax[0].plot(day_min - 273.15, 'k--')
+    ax[0].plot(day_max - 273.15, 'k--')
+    ax[0].plot(floor_min - 273.15, 'g--')
+    ax[0].plot(floor_max - 273.15, 'g--')
 
     ax[1].plot(Q_hea_ws, label='Waterschei')
     ax[1].plot(Q_hea_prod, label='Production')
