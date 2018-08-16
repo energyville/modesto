@@ -18,6 +18,16 @@ from modesto.component import Component
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
 
 
+def mutParam(value):
+    """
+    Return pyomo mutable Param object with given value
+
+    :param value:
+    :return:
+    """
+    return Param(default=value, mutable=True)
+
+
 def str_to_comp(string):
     """
     Convert string to class initializer
@@ -133,23 +143,6 @@ def readTeaserParam(streetName, buildingName, path=resource_filename('modesto', 
     return dict_out
 
 
-def fixedHeat(id, sfSol, sfInt):
-    """
-    Generate dictionary with correct heat multiplication factors.
-
-    :param id: Impinging surface identifier.
-    :param sfSol: Split factors for solar radiation.
-    :param sfInt: Split factors for internal heat gains
-    :return:
-    """
-    heat_dict = {'Q_int': sfInt[id]}
-
-    for ori in ['N', 'E', 'S', 'W']:
-        heat_dict['Q_sol_' + ori] = sfSol[id][ori]
-
-    return heat_dict
-
-
 # TODO improve inheritance in this file. RCModel and Teaser have a lot of shared code in common.
 
 class TeaserFourElement(Component):
@@ -182,55 +175,55 @@ class TeaserFourElement(Component):
                                      'K',
                                      init_type='fixedVal',
                                      slack=True,
-                                     val=20+273.15),
+                                     val=20 + 273.15),
             'TExt0': StateParameter('TExt0',
-                                     'Begin temperature at state TExt',
-                                     'K',
-                                     init_type='fixedVal',
-                                     slack=True,
-                                     val=20 + 273.15),
+                                    'Begin temperature at state TExt',
+                                    'K',
+                                    init_type='fixedVal',
+                                    slack=True,
+                                    val=20 + 273.15),
             'TInt0': StateParameter('TInt0',
-                                     'Begin temperature at state TInt',
-                                     'K',
-                                     init_type='fixedVal',
-                                     slack=True,
-                                     val=20 + 273.15),
+                                    'Begin temperature at state TInt',
+                                    'K',
+                                    init_type='fixedVal',
+                                    slack=True,
+                                    val=20 + 273.15),
             'TFloor0': StateParameter('TFloor0',
-                                     'Begin temperature at state TFloor',
-                                     'K',
-                                     init_type='fixedVal',
-                                     slack=True,
-                                     val=20 + 273.15),
+                                      'Begin temperature at state TFloor',
+                                      'K',
+                                      init_type='fixedVal',
+                                      slack=True,
+                                      val=20 + 273.15),
             'TRoofRad0': StateParameter('TRoofRad0',
-                                     'Begin temperature at state TRoofRad. Default free initialization',
-                                     'K',
-                                     init_type='free',
-                                     slack=True,
-                                     val=20 + 273.15),
+                                        'Begin temperature at state TRoofRad. Default free initialization',
+                                        'K',
+                                        init_type='free',
+                                        slack=True,
+                                        val=20 + 273.15),
             'TWinRad0': StateParameter('TWinRad0',
-                                     'Begin temperature at state TWinRad. Default free initialization',
-                                     'K',
-                                     init_type='free',
-                                     slack=True,
-                                     val=20 + 273.15),
+                                       'Begin temperature at state TWinRad. Default free initialization',
+                                       'K',
+                                       init_type='free',
+                                       slack=True,
+                                       val=20 + 273.15),
             'TExtRad0': StateParameter('TExtRad0',
-                                     'Begin temperature at state TExtRad. Default free initialization',
-                                     'K',
-                                     init_type='free',
-                                     slack=True,
-                                     val=20 + 273.15),
+                                       'Begin temperature at state TExtRad. Default free initialization',
+                                       'K',
+                                       init_type='free',
+                                       slack=True,
+                                       val=20 + 273.15),
             'TFloorRad0': StateParameter('TFloorRad0',
-                                     'Begin temperature at state TFloorRad. Default free initialization',
-                                     'K',
-                                     init_type='free',
-                                     slack=True,
-                                     val=20 + 273.15),
+                                         'Begin temperature at state TFloorRad. Default free initialization',
+                                         'K',
+                                         init_type='free',
+                                         slack=True,
+                                         val=20 + 273.15),
             'TIntRad0': StateParameter('TIntRad0',
-                                     'Begin temperature at state TIntRad. Default free initialization',
-                                     'K',
-                                     init_type='free',
-                                     slack=True,
-                                     val=20 + 273.15),
+                                       'Begin temperature at state TIntRad. Default free initialization',
+                                       'K',
+                                       init_type='free',
+                                       slack=True,
+                                       val=20 + 273.15),
 
             'delta_T': DesignParameter('delta_T',
                                        'Temperature difference across substation',
@@ -300,60 +293,43 @@ class TeaserFourElement(Component):
         })
         return params
 
-    def get_model_data(self):
+    def build_graph(self):
         """
         Set up networkX object describing model structure
 
         :param model_type: Type of model indicating parameters of a specific type of model
         :return: NetworkX object
         """
-
-        self.model_params = readTeaserParam(self.params['streetName'].v(), self.params['buildingName'].v())
-        mp = self.model_params
-
-        AExt = mp['AExt']
-        AWin = mp['AWin']
-        AFloor = mp['AFloor']
-        ARoof = mp['ARoof']
-        AInt = mp['AInt']
-
-        ATotExt = sum(AExt.values())
-        ATotWin = sum(AWin.values())
-        AArray = {'ATotExt': ATotExt, 'ATotWin': ATotWin, 'AInt': AInt, 'AFloor': AFloor, 'ARoof': ARoof}
-
-        sfSol = splitFactor(AArray, AExt, AWin)
-        sfInt = splitFactor(AArray)
-
         G = nx.Graph()
 
         # States
         G.add_node('TRoof',
-                   C=mp['CRoof'],
+                   C=self.block.CRoof,
                    T_fix=None,
                    Q_fix=None,
                    Q_control=None,
                    state_type=None)
         G.add_node('TAir',
-                   C=mp['VAir'] * 1007 * 1.276,
+                   C=self.block.CAir,
                    T_fix=None,
-                   Q_fix={'Q_sol_' + i: mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][i] for i in
+                   Q_fix={'Q_sol_' + i: self.block.ratioWinConRad for i in
                           ['N', 'E', 'S', 'W']},
                    Q_control={'Q_hea': 1 - self.params['fra_rad'].v()},
                    state_type='day'),
         G.add_node('TExt',
-                   C=mp['CExt'],
+                   C=self.block.CExt,
                    T_fix=None,
                    Q_fix=None,
                    Q_control=None,
                    state_type=None)
         G.add_node('TFloor',
-                   C=mp['CFloor'],
+                   C=self.block.CFloor,
                    T_fix=None,
                    Q_fix=None,
                    Q_control=None,
                    state_type=None)
         G.add_node('TInt',
-                   C=mp['CInt'],
+                   C=self.block.CInt,
                    T_fix=None,
                    Q_fix=None,
                    Q_control=None,
@@ -363,32 +339,32 @@ class TeaserFourElement(Component):
         G.add_node('TRoofRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=fixedHeat('ARoof', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['ARoof']},
+                   Q_fix=self.block.fFix['ARoof', :],
+                   Q_control={'Q_hea': self.block.fControl['ARoof']},
                    state_type=None)
         G.add_node('TWinRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=fixedHeat('ATotWin', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['ATotWin']},
+                   Q_fix=self.block.fFix['ATotWin', :],
+                   Q_control={'Q_hea': self.block.fControl['ATotWin']},
                    state_type=None)
         G.add_node('TExtRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=fixedHeat('ATotExt', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['ATotExt']},
+                   Q_fix=self.block.fFix['ATotExt', :],
+                   Q_control={'Q_hea': self.block.fControl['ATotExt']},
                    state_type=None)
         G.add_node('TFloorRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=fixedHeat('AFloor', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['AFloor']},
+                   Q_fix=self.block.fFix['AFloor', :],
+                   Q_control={'Q_hea': self.block.fControl['AFloor']},
                    state_type=None)
         G.add_node('TIntRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=fixedHeat('AInt', sfSol, sfInt),
-                   Q_control={'Q_hea': self.params['fra_rad'].v() * sfInt['AInt']},
+                   Q_fix=self.block.fFix['AInt', :],
+                   Q_control={'Q_hea': self.block.fControl['AInt']},
                    state_type=None)
 
         # Fixed temperatures
@@ -405,46 +381,107 @@ class TeaserFourElement(Component):
                    Q_control=None,
                    state_type=None)
 
-        alphaOut = 23
-
         # CONNECTIONS
         # Fixed temperatures to model
         G.add_edge('Te', 'TRoof',
-                   U=1 / (1 / (alphaOut * ARoof) + mp['RRoof']))
+                   U=self.block.UeRoof)
         G.add_edge('Te', 'TFloor',
-                   U=1 / (1 / (alphaOut * AFloor) + mp['RFloor']))
+                   U=self.block.UeFloor)
         G.add_edge('Te', 'TWinRad',
-                   U=1 / (1 / (alphaOut * ATotWin) + mp['RWin']))
+                   U=self.block.UeWin)
         G.add_edge('Te', 'TExt',
-                   U=1 / (1 / (alphaOut * ATotExt) + mp['RExtRem']))
+                   U=self.block.UeExt)
 
         # Conduction to radiation nodes
         G.add_edge('TRoof', 'TRoofRad',
-                   U=1 / mp['RRoofRem'])
+                   U=self.block.URoofRad)
         G.add_edge('TExt', 'TExtRad',
-                   U=1 / mp['RExt'])
+                   U=self.block.UExtRad)
         G.add_edge('TFloor', 'TFloorRad',
-                   U=1 / mp['RFloorRem'])
+                   U=self.block.UFloorRad)
         G.add_edge('TInt', 'TIntRad',
-                   U=1 / mp['RInt'])
+                   U=self.block.UIntRad)
 
         # Convection to air node
         G.add_edge('TRoofRad', 'TAir',
-                   U=mp['alphaRoof'] * ARoof)
+                   U=self.block.URoofAir)
         G.add_edge('TWinRad', 'TAir',
-                   U=mp['alphaWin'] * ATotWin)
+                   U=self.block.UWinAir)
         G.add_edge('TExtRad', 'TAir',
-                   U=mp['alphaExt'] * ATotExt)
+                   U=self.block.UExtAir)
         G.add_edge('TFloorRad', 'TAir',
-                   U=mp['alphaFloor'] * AFloor)
+                   U=self.block.UFloorAir)
         G.add_edge('TIntRad', 'TAir',
-                   U=mp['alphaInt'] * AInt)
+                   U=self.block.UIntAir)
 
         # Ventilation
         G.add_edge('TAir', 'Te',
-                   U=self.params['ACH'].v() * mp['VAir'] * 1007 * 1.276/3600)
+                   U=self.block.UVent)
 
         # Radiation network
+        for node_from, node_to in itertools.combinations(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
+            G.add_edge('T{}Rad'.format(node_from), 'T{}Rad'.format(node_to),
+                       U=self.block.__getattr__('U{}_{}'.format(node_from, node_to)))
+
+        self.structure = G
+        self.controlVariables += ['Q_hea']
+
+    def init_model_params(self):
+        """
+        Create all pyomo parameters needed to describe the model structure.
+        This method uses the building as declared in the model parameter dictionary.
+
+        :return:
+        """
+        # Load parameters
+        self.model_params = readTeaserParam(self.params['streetName'].v(), self.params['buildingName'].v())
+        mp = self.model_params
+
+        # parameters in csv
+        for key, val in self.model_params.iteritems():
+            if not isinstance(key, dict):
+                self.block.add_component(key, mutParam(val))
+            else:
+                self.block.add_component(key, Param(val.keys(), initialize=val, mutable=True))
+
+        # derived parameters
+        AExt = mp['AExt']
+        AWin = mp['AWin']
+        AFloor = mp['AFloor']
+        ARoof = mp['ARoof']
+        AInt = mp['AInt']
+
+        ATotExt = sum(AExt.values())
+        ATotWin = sum(AWin.values())
+        AArray = {'ATotExt': ATotExt, 'ATotWin': ATotWin, 'AInt': AInt, 'AFloor': AFloor, 'ARoof': ARoof}
+
+        sfSol = splitFactor(AArray, AExt, AWin)
+        sfInt = splitFactor(AArray)
+
+        # Air capacity
+        self.block.CAir = mutParam(mp['VAir'] * 1007 * 1.276)
+
+        # U values
+        alphaOut = 23
+
+        self.block.UeRoof = mutParam(1 / (1 / (alphaOut * ARoof) + mp['RRoof']))
+        self.block.UeFloor = mutParam(1 / (1 / (alphaOut * AFloor) + mp['RFloor']))
+        self.block.UeWin = mutParam(1 / (1 / (alphaOut * ATotWin) + mp['RWin']))
+        self.block.UeExt = mutParam(1 / (1 / (alphaOut * ATotExt) + mp['RExtRem']))
+
+        self.block.URoofRad = mutParam(1 / mp['RRoofRem'])
+        self.block.UExtRad = mutParam(1 / mp['RExt'])
+        self.block.UFloorRad = mutParam(1 / mp['RFloorRem'])
+        self.block.UIntRad = mutParam(1 / mp['RInt'])
+
+        self.block.URoofAir = mutParam(mp['alphaRoof'] * ARoof)
+        self.block.UWinAir = mutParam(mp['alphaWin'] * ATotWin)
+        self.block.UExtAir = mutParam(mp['alphaExt'] * ATotExt)
+        self.block.UFloorAir = mutParam(mp['alphaFloor'] * AFloor)
+        self.block.UIntAir = mutParam(mp['alphaInt'] * AInt)
+
+        self.block.UVent = mutParam(self.params['ACH'].v() * mp['VAir'] * 1007 * 1.276 / 3600)
+
         for node_from, node_to in itertools.combinations(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
             # all possible combinations of two elements from list, which yields all needed radiation connections
             A_from = mp['A' + node_from] if not isinstance(mp['A' + node_from], dict) else sum(
@@ -453,14 +490,48 @@ class TeaserFourElement(Component):
 
             A_rad = min(A_from, A_to)
 
-            G.add_edge('T{}Rad'.format(node_from), 'T{}Rad'.format(node_to),
-                       U=A_rad * mp['alphaRad'])
+            self.block.add_component('U{}_{}'.format(node_from, node_to), mutParam(A_rad * mp['alphaRad']))
 
-        self.structure = G
-        self.controlVariables += ['Q_hea']
+        # Heat factors
+        def rule_fSolWin(area, ori):
+            return (1 - mp['ratioWinConRad']) * mp['gWin'] * mp['ATransparent'][ori] * sfSol[area][ori]
+
+        def fixedHeat(model, id, heat):
+            """
+            Generate dictionary with correct heat multiplication factors.
+
+            :param id: Impinging surface identifier.
+            :param sfSol: Split factors for solar radiation.
+            :param sfInt: Split factors for internal heat gains
+            :return:
+            """
+            if heat == 'Q_int':
+                return sfInt[id]
+
+            else:
+                return rule_fSolWin(id, heat[-1])
+
+        self.block.fFix = Param(AArray.keys(), ['Q_int', 'Q_sol_N', 'Q_sol_E', 'Q_sol_S', 'Q_sol_W'],
+                                rule=fixedHeat, mutable=True)
+
+        def controlHeat(model, id):
+            return self.params['fra_rad'].v() * sfInt[id]
+
+        self.block.fControl = Param(AArray.keys(), rule=controlHeat, mutable=True)
+
+    def change_model_params(self, streetName, buildingName):
+        """
+        After initialization, change parameters of the model without recompiling.
+
+        :param streetName:
+        :param buildingName:
+        :return:
+        """
+        self.model_params = readTeaserParam(streetName=streetName, buildingName=buildingName)
 
     def build(self):
-        self.get_model_data()
+        self.init_model_params()
+        self.build_graph()
         for state in self.structure.nodes():
             self.states[state] = State(name=state,
                                        node_object=self.structure.nodes[state])
