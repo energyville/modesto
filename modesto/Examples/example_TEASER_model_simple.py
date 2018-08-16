@@ -20,9 +20,9 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 time_step = 3600
-n_steps = 24 * 4 * int(3600 / time_step)
+n_steps = 24 * 365 * int(3600 / time_step)
 
-start_time = pd.Timestamp('20140204')
+start_time = pd.Timestamp('20140101')
 
 
 def construct_model():
@@ -44,8 +44,9 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
-    df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv')
+    df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv', expand=True)
+    df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
+                                         expand=True)
 
     t_amb = df_weather['Te']
     t_g = df_weather['Tg']
@@ -133,9 +134,9 @@ if __name__ == '__main__':
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('energy')
 
-    optmodel.model.OBJ_ENERGY.pprint()
-    optmodel.model.OBJ_COST.pprint()
-    optmodel.model.OBJ_CO2.pprint()
+    # optmodel.model.OBJ_ENERGY.pprint()
+    # optmodel.model.OBJ_COST.pprint()
+    # optmodel.model.OBJ_CO2.pprint()
 
     optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi')
 
