@@ -22,7 +22,7 @@ logger = logging.getLogger('Main.py')
 time_step = 3600
 n_steps = 24 * 4 * int(3600 / time_step)
 
-start_time = pd.Timestamp('20140104')
+start_time = pd.Timestamp('20140204')
 
 
 def construct_model():
@@ -86,7 +86,7 @@ def construct_model():
                           'streetName': 'Gierenshof',
                           'buildingName': 'Gierenshof_17_1589280',
                           'Q_int': Q_int_D,
-                          'max_heat': 15000,
+                          'max_heat': 60000,
                           'fra_rad': 0.3,
                           'ACH': 0.4
                           }
