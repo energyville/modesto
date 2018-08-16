@@ -22,7 +22,7 @@ logger = logging.getLogger('Main.py')
 
 n_steps = 24 * 4
 time_step = 3600
-start_time = pd.Timestamp('20140104')
+start_time = pd.Timestamp('20140404')
 
 
 def construct_model():
@@ -51,7 +51,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(pipe_model='ExtensivePipe', graph=G)
+    optmodel = Modesto(pipe_model='SimplePipe', graph=G)
 
     ##################################
     # Fill in the parameters         #
@@ -99,7 +99,7 @@ def construct_model():
                           'streetName': 'Gierenshof',
                           'buildingName': 'Gierenshof_17_1589280',
                           'Q_int': Q_int_D,
-                          'max_heat': 6000,
+                          'max_heat': 150000,
                           'fra_rad': 0.3,
                           'ACH': 0.4
                           }
@@ -119,9 +119,9 @@ def construct_model():
     # optmodel.change_init_type(node='zwartbergNE', comp='buildingD',
     #                           state='TiD0', new_type='cyclic')
 
-    bbThor_params = {'diameter': 500,
-                     'temperature_supply': 80 + 273.15,
-                     'temperature_return': 60 + 273.15}
+    bbThor_params = {'diameter': 500}# ,
+                     #'temperature_supply': 80 + 273.15,
+                     #'temperature_return': 60 + 273.15}
     spWaterschei_params = bbThor_params.copy()
     spWaterschei_params['diameter'] = 500
     spZwartbergNE_params = bbThor_params.copy()
@@ -150,13 +150,6 @@ def construct_model():
     optmodel.change_params(dict=stor_design, node='waterscheiGarden',
                            comp='storage')
 
-    optmodel.change_state_bounds('heat_stor',
-                                 new_ub=10 ** 12,
-                                 new_lb=0,
-                                 slack=False,
-                                 node='waterscheiGarden',
-                                 comp='storage')
-
     # Production parameters
 
     c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
@@ -169,8 +162,8 @@ def construct_model():
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 1.5e7,
-                   'ramp_cost': 0.01,
-                   'ramp': 1e6 / 3600}
+                   'ramp_cost': 0,
+                   'ramp': 1e6}
 
     optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
@@ -194,7 +187,7 @@ def construct_model():
 if __name__ == '__main__':
     optmodel = construct_model()
     optmodel.compile(start_time=start_time)
-    optmodel.set_objective('cost')
+    optmodel.set_objective('energy')
 
     optmodel.model.OBJ_ENERGY.pprint()
     optmodel.model.OBJ_COST.pprint()
@@ -220,6 +213,18 @@ if __name__ == '__main__':
     Q_hea_ws = optmodel.get_result('ControlHeatFlows', node='waterscheiGarden',
                                    comp='buildingD', index='Q_hea')
 
+    SOC_stor = optmodel.get_result('soc', node='waterscheiGarden', comp='storage')
+
+    # Fixed data
+
+    df_weather = ut.read_period_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv',
+                                     start_time=start_time, horizon=n_steps * time_step, time_step=time_step)
+    df_userbehaviour = ut.read_period_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
+                                           start_time=start_time, horizon=n_steps * time_step, time_step=time_step)
+
+    day_max = df_userbehaviour['day_max']
+    day_min = df_userbehaviour['day_min']
+
     # Objectives
     print '\nObjective function'
     print 'Slack: ', optmodel.model.Slack.value
@@ -227,12 +232,25 @@ if __name__ == '__main__':
     print 'Cost:  ', optmodel.get_objective('cost')
     print 'Active:', optmodel.get_objective()
 
-    fig, ax = plt.subplots(2, 1, sharex=True)
+    fig, ax = plt.subplots(3, 1, sharex=True)
 
-    ax[0].plot(TiD_ws, label='Waterschei')
-    ax[0].plot(TiD_zw, label='Zwartberg')
+    ax[0].plot(TiD_ws - 273.15, label='Waterschei')
+    ax[0].plot(TiD_zw - 273.15, label='Zwartberg')
+
+    ax[0].legend()
+    ax[0].grid(alpha=0.7, ls=':')
+
+    ax[0].plot(day_max - 273.15, 'k--')
+    ax[0].plot(day_min - 273.15, 'k--')
 
     ax[1].plot(Q_hea_ws, label='Waterschei')
     ax[1].plot(Q_hea_zw, label='Zwartberg')
+
+    ax[1].legend()
+    ax[1].grid(alpha=0.7, ls=':')
+
+    ax[2].plot(SOC_stor)
+    ax[2].grid(alpha=0.7, ls=':')
+
 
     plt.show()
