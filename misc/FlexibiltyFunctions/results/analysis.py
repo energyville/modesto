@@ -223,7 +223,6 @@ def energy_use_kwh(neigh, model, results, flex_case):
 def difference(use1, use2):
     return use1 - use2
 
-
 def resample(data, new_time_step, last_point):
     resampled = data.resample(str(new_time_step) + 'S').pad()
     resampled = resampled.ix[~(resampled.index > last_point)]
@@ -428,6 +427,7 @@ def plot_congestion(results, simulation_name, show=False):
     if show:
         plt.show()
 
+
 if __name__ == '__main__':
     makedir(sim_name)
     results = load_obj(sim_name + '.pkl')
@@ -437,9 +437,9 @@ if __name__ == '__main__':
 
     # neigh_cases = results.keys()
     # model_cases = results[neigh_cases[0]].keys()
-    plot_response_functions(street_cases, model_cases, results, sim_name, False, name='streets')
-    plot_response_functions(district_cases, model_cases, results, sim_name, False, name='districts')
-    plot_response_functions(city_cases, model_cases, results, sim_name, False, name='city')
+    plot_response_functions(street_cases, model_cases, results, sim_name, show=False, combine=True, name='streets')
+    plot_response_functions(district_cases, model_cases, results, sim_name, show=False, combine=True, name='districts')
+    plot_response_functions(city_cases, model_cases, results, sim_name, show=False, combine=True, name='city')
     plot_congestion(results, sim_name, True)
 
     output = network_characteristics(neigh_cases)

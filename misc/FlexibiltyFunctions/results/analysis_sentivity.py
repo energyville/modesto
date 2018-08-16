@@ -23,6 +23,9 @@ class SensitivityAnalysis:
         self.model_cases = self.data['selected_model_cases']
         self.neigh_cases = self.data['selected_street_cases'] + self.data['selected_district_cases']
         self.sens_values = self.data['sensitivity_values']
+        self.solutions = ['energy_use_difference', 'energy_use_ref', 'energy_use_flex',
+                          'energy_cost_ref', 'energy_cost_flex', 'energy_cost_difference',
+                          'upward_energy', 'downward_energy']
 
         self.results = self.load_results()
         self.pit = self.find_price_increase_time(self.data)
@@ -46,14 +49,15 @@ class SensitivityAnalysis:
         if not os.path.exists(name):
             os.makedirs(name)
 
-    def make_dataframe(self, sens_cases, sens_values, model_cases):
-        sens_case_lists = [[key]*len(sens_values[key]) for key in sens_cases]
-        sens_case_list = [item for sublist in sens_case_lists for item in sublist]
-        sens_value_lists = [sens_values[key] for key in sens_cases]
-        sens_value_list = [item for sublist in sens_value_lists for item in sublist]
-        tuples = list(zip(*[sens_case_list, sens_value_list]))
-        index = pd.MultiIndex.from_tuples(tuples, names=['Sensitivity cases', 'Sensitivity values'])
-        return pd.DataFrame(index=index, columns=model_cases)
+    def make_dataframe(self, sens_case, index1, columns):
+        index2 = self.sens_values[sens_case]
+        index1_lists = [[key]*len(index2) for key in index1]
+        index1_list = [item for sublist in index1_lists for item in sublist]
+        index2_lists = [index2*len(index1)]
+        index2_list = [item for sublist in index2_lists for item in sublist]
+        tuples = list(zip(*[index1_list, index2_list]))
+        index = pd.MultiIndex.from_tuples(tuples, names=['Result type', 'Sensitivity values'])
+        return pd.DataFrame(index=index, columns=columns)
 
     def save_xls(self, dict_dfs, file_name):
         xls_path = os.path.join(self.target_dir, file_name)
@@ -64,7 +68,7 @@ class SensitivityAnalysis:
 
         for sheet in book.sheetnames:
             if 'Sheet' in sheet:
-                book.remove_sheet(book.get_sheet_by_name(sheet))
+                book.remove(book[sheet])
 
         writer = ExcelWriter(xls_path, engine='openpyxl')
         writer.book = book
@@ -144,28 +148,22 @@ class SensitivityAnalysis:
         if model_cases is None:
             model_cases = self.model_cases
 
-        output = {
-            'energy_use_difference': self.make_dataframe(sens_cases, self.sens_values, model_cases),
-            'energy_use_ref': self.make_dataframe(sens_cases, self.sens_values, model_cases),
-            'energy_use_flex': self.make_dataframe(sens_cases, self.sens_values, model_cases),
-            'energy_cost_ref': self.make_dataframe(sens_cases, self.sens_values, model_cases),
-            'energy_cost_flex': self.make_dataframe(sens_cases, self.sens_values, model_cases),
-            'energy_cost_difference': self.make_dataframe(sens_cases, self.sens_values, model_cases),
-            'upward_energy': self.make_dataframe(sens_cases, self.sens_values, model_cases),
-            'downward_energy': self.make_dataframe(sens_cases, self.sens_values, model_cases)
-        }
+        output = {}
+
+        for sens in sens_cases:
+            output[sens] = self.make_dataframe(sens, self.solutions, model_cases)
 
         for sens in sens_cases:
             for sens_val in self.sens_values[sens]:
                 for neigh in neigh_cases:
                     for model in model_cases:
 
-                        def change_element(df, new_val):
-                            df.loc[(sens, sens_val), model] = new_val
+                        def change_element(df, new_val, sol_type):
+                            df.loc[(sol_type, sens_val), model] = new_val
                             return df
 
-                        def get_element(df):
-                            return df.loc[(sens, sens_val), model]
+                        def get_element(df, sol_type):
+                            return df.loc[(sol_type, sens_val), model]
 
                         case_results_flex = self.find_result(sens_case=sens,
                                                              neigh_case=neigh,
@@ -179,36 +177,38 @@ class SensitivityAnalysis:
                                                             sens_val=sens_val)
 
                         if case_results_flex is not None and case_results_ref is not None:
+                            sens_output = output[sens]
                             time_step = self.find_time_step(model)
                             price = self.resample(self.data['price_profiles']['step'], time_step, self.find_last_point())
-                            output['energy_use_ref'] = change_element(
-                                output['energy_use_ref'],
-                                self.energy_use_kwh(case_results_ref['heat_injection'], time_step))
-                            output['energy_use_flex'] = change_element(
-                                output['energy_use_flex'],
-                                self.energy_use_kwh(case_results_flex['heat_injection'], time_step))
-                            output['energy_use_difference'] = change_element(
-                                output['energy_use_flex'],
-                                self.energy_use_kwh(case_results_flex['heat_injection'], time_step))
-                            output['energy_use_difference'] = change_element(
-                                output['energy_use_difference'],
-                                self.difference(get_element(output['energy_use_ref']),
-                                                get_element(output['energy_use_flex'])))
-                            output['energy_cost_ref'] = change_element(
-                                output['energy_cost_ref'],
-                                self.energy_cost(case_results_ref['heat_injection'], price, time_step))
-                            output['energy_cost_flex'] = change_element(
-                                output['energy_cost_flex'],
-                                self.energy_cost(case_results_flex['heat_injection'], price, time_step))
-                            output['energy_cost_difference'] = change_element(
-                                output['energy_cost_difference'],
-                                self.difference(get_element(output['energy_cost_ref']),
-                                                get_element(output['energy_cost_flex'])))
+                            sens_output = change_element(
+                                sens_output,
+                                self.energy_use_kwh(case_results_ref['heat_injection'], time_step), 'energy_use_ref')
+                            sens_output = change_element(
+                                sens_output,
+                                self.energy_use_kwh(case_results_flex['heat_injection'], time_step), 'energy_use_flex')
+                            sens_output = change_element(
+                                sens_output,
+                                self.difference(get_element(sens_output, 'energy_use_flex'),
+                                                get_element(sens_output, 'energy_use_ref')),
+                                'energy_use_difference')
+                            sens_output = change_element(
+                                sens_output,
+                                self.energy_cost(case_results_ref['heat_injection'], price, time_step),
+                                'energy_cost_ref')
+                            sens_output = change_element(
+                                sens_output,
+                                self.energy_cost(case_results_flex['heat_injection'], price, time_step),
+                                'energy_cost_flex')
+                            sens_output = change_element(
+                                sens_output,
+                                self.difference(get_element(sens_output, 'energy_cost_ref'),
+                                                get_element(sens_output, 'energy_cost_flex')),
+                                'energy_cost_difference')
 
                             upward_energy, downward_energy = self.upward_downward_power_kwh(
                                 case_results_flex['heat_injection'], case_results_ref['heat_injection'], self.pit, time_step)
-                            output['upward_energy'] = change_element(output['upward_energy'], upward_energy)
-                            output['downward_energy'] = change_element(output['downward_energy'], downward_energy)
+                            sens_output = change_element(sens_output, upward_energy,'upward_energy')
+                            sens_output = change_element(sens_output, downward_energy, 'downward_energy')
 
                         else:
                             print 'WARNING: There is no data for case {}: {} - {} - {}'.format(sens, sens_val, neigh, model)

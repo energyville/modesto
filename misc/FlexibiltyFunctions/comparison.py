@@ -22,7 +22,7 @@ Settings
 
 """
 
-sim_name = 'Sensitivity_analysis_2806'
+sim_name = 'Sensitivity_analysis_pos_step_35'
 
 n_buildings = 10
 n_streets = 3
@@ -92,7 +92,7 @@ max_heat = {'SFH_D_5_ins_TAB': 8900,
             'SFH_D_3_2zone_REF1': 8659,
             'SFH_D_3_2zone_TAB': 20000}
 
-pos = 2.75/7
+pos = 3.5/7
 price_profiles = {'constant': pd.Series(1, index=time_index),
                   'step': pd.Series([1]*int(len(time_index)*pos) + [2]*(len(time_index)-int(len(time_index)*pos)),
                                     index=time_index)}
@@ -1137,11 +1137,11 @@ def get_sensity_parameter_values(name):
 
 if __name__ == '__main__':
     # run_sensitivity_analysis('Genk', 'pipe_lengths')
-    # run_sensitivity_analysis('Genk', 'pipe_diameters')
-    # run_sensitivity_analysis('Genk', 'heat_demand')
+    run_sensitivity_analysis('Genk', 'pipe_diameters')
+    run_sensitivity_analysis('Genk', 'heat_demand')
     run_sensitivity_analysis('Genk', 'supply_temp_level')
     run_sensitivity_analysis('Genk', 'supply_temp_reach')
     run_sensitivity_analysis('Genk', 'substation_temp_difference')
-    run_sensitivity_analysis('Genk', 'network_size')  # TODO Aggregatie gebouwen
+    # run_sensitivity_analysis('Genk', 'network_size')  # TODO Aggregatie gebouwen
 
     plt.show()
