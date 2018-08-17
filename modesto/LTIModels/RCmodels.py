@@ -9,6 +9,7 @@ import itertools
 import os
 import sys
 
+import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 from pkg_resources import resource_filename
@@ -25,7 +26,7 @@ def mutParam(value):
     :param value:
     :return:
     """
-    return Param(default=value, mutable=True)
+    return Param(initialize=value, mutable=True)
 
 
 def str_to_comp(string):
@@ -160,6 +161,7 @@ class TeaserFourElement(Component):
         self.states = {}
         self.edges = {}
         self.controlVariables = []
+        self.f_fix_heat = None
 
     def create_params(self):
         params = Component.create_params(self)
@@ -312,8 +314,7 @@ class TeaserFourElement(Component):
         G.add_node('TAir',
                    C=self.block.CAir,
                    T_fix=None,
-                   Q_fix={'Q_sol_' + i: self.block.ratioWinConRad for i in
-                          ['N', 'E', 'S', 'W']},
+                   Q_fix=self.f_fix_air,
                    Q_control={'Q_hea': 1 - self.params['fra_rad'].v()},
                    state_type='day'),
         G.add_node('TExt',
@@ -339,31 +340,31 @@ class TeaserFourElement(Component):
         G.add_node('TRoofRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=self.block.fFix['ARoof', :],
+                   Q_fix=self.f_fix_heat['ARoof'],
                    Q_control={'Q_hea': self.block.fControl['ARoof']},
                    state_type=None)
         G.add_node('TWinRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=self.block.fFix['ATotWin', :],
+                   Q_fix=self.f_fix_heat['ATotWin'],
                    Q_control={'Q_hea': self.block.fControl['ATotWin']},
                    state_type=None)
         G.add_node('TExtRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=self.block.fFix['ATotExt', :],
+                   Q_fix=self.f_fix_heat['ATotExt'],
                    Q_control={'Q_hea': self.block.fControl['ATotExt']},
                    state_type=None)
         G.add_node('TFloorRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=self.block.fFix['AFloor', :],
+                   Q_fix=self.f_fix_heat['AFloor'],
                    Q_control={'Q_hea': self.block.fControl['AFloor']},
                    state_type=None)
         G.add_node('TIntRad',
                    C=None,
                    T_fix=None,
-                   Q_fix=self.block.fFix['AInt', :],
+                   Q_fix=self.f_fix_heat['AInt'],
                    Q_control={'Q_hea': self.block.fControl['AInt']},
                    state_type=None)
 
@@ -385,7 +386,7 @@ class TeaserFourElement(Component):
         # Fixed temperatures to model
         G.add_edge('Te', 'TRoof',
                    U=self.block.UeRoof)
-        G.add_edge('Te', 'TFloor',
+        G.add_edge('Tg', 'TFloor',
                    U=self.block.UeFloor)
         G.add_edge('Te', 'TWinRad',
                    U=self.block.UeWin)
@@ -421,9 +422,12 @@ class TeaserFourElement(Component):
         # Radiation network
         for node_from, node_to in itertools.combinations(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
             G.add_edge('T{}Rad'.format(node_from), 'T{}Rad'.format(node_to),
-                       U=self.block.__getattr__('U{}_{}'.format(node_from, node_to)))
+                       U=getattr(self.block, 'U{}_{}'.format(node_from, node_to)))
 
         self.structure = G
+        nx.draw_networkx(G)
+
+        plt.show()
         self.controlVariables += ['Q_hea']
 
     def init_model_params(self):
@@ -437,12 +441,9 @@ class TeaserFourElement(Component):
         self.model_params = readTeaserParam(self.params['streetName'].v(), self.params['buildingName'].v())
         mp = self.model_params
 
-        # parameters in csv
-        for key, val in self.model_params.iteritems():
-            if not isinstance(key, dict):
-                self.block.add_component(key, mutParam(val))
-            else:
-                self.block.add_component(key, Param(val.keys(), initialize=val, mutable=True))
+        for param in mp:
+            if param.startswith('C'):
+                self.block.add_component(param, mutParam(mp[param]))
 
         # derived parameters
         AExt = mp['AExt']
@@ -493,31 +494,25 @@ class TeaserFourElement(Component):
             self.block.add_component('U{}_{}'.format(node_from, node_to), mutParam(A_rad * mp['alphaRad']))
 
         # Heat factors
-        def rule_fSolWin(area, ori):
-            return (1 - mp['ratioWinConRad']) * mp['gWin'] * mp['ATransparent'][ori] * sfSol[area][ori]
+        def construct_fix(id):
+            dict_out = {'Q_int': mutParam(sfInt[id])}
+            for ori in ['N', 'E', 'S', 'W']:
+                dict_out['Q_sol_' + ori] = mutParam(
+                    (1 - mp['ratioWinConRad']) * mp['gWin'] * mp['ATransparent'][ori] * sfSol[id][ori])
+            return dict_out
 
-        def fixedHeat(model, id, heat):
-            """
-            Generate dictionary with correct heat multiplication factors.
-
-            :param id: Impinging surface identifier.
-            :param sfSol: Split factors for solar radiation.
-            :param sfInt: Split factors for internal heat gains
-            :return:
-            """
-            if heat == 'Q_int':
-                return sfInt[id]
-
-            else:
-                return rule_fSolWin(id, heat[-1])
-
-        self.block.fFix = Param(AArray.keys(), ['Q_int', 'Q_sol_N', 'Q_sol_E', 'Q_sol_S', 'Q_sol_W'],
-                                rule=fixedHeat, mutable=True)
+        self.f_fix_heat = dict()
+        for id in AArray.keys():
+            self.f_fix_heat[id] = construct_fix(id)
 
         def controlHeat(model, id):
             return self.params['fra_rad'].v() * sfInt[id]
 
         self.block.fControl = Param(AArray.keys(), rule=controlHeat, mutable=True)
+
+        self.f_fix_air = dict()
+        for ori in ['N', 'E', 'S', 'W']:
+            self.f_fix_air['Q_sol_' + ori] = mutParam(mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori])
 
     def change_model_params(self, streetName, buildingName):
         """
@@ -582,6 +577,7 @@ class TeaserFourElement(Component):
         self.block.directions = Param(self.block.state_names, self.block.edge_names, rule=decl_edge_direction)
 
         def decl_state_heat(b, s, t):
+            print s, ',', t
             obj = self.states[s]
             incoming_heat_names = obj.input['heat_fix']
             return sum(self.params[i].v(t) * obj.get_q_factor(i) for i in incoming_heat_names)
