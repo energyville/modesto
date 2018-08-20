@@ -51,6 +51,7 @@ class Submodel(object):
             param.change_start_time(start_time)
             param.change_time_step(time_step)
             param.change_horizon(horizon)
+            param.resample()
 
         if not horizon % time_step == 0:
             raise Exception("The horizon should be a multiple of the time step ({}).".format(self.name))
