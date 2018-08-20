@@ -9,7 +9,6 @@ import itertools
 import os
 import sys
 
-import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 from pkg_resources import resource_filename
@@ -26,7 +25,7 @@ def mutParam(value):
     :param value:
     :return:
     """
-    return Param(initialize=value, mutable=True)
+    return Param(initialize=value, mutable=True, default=0.1)
 
 
 def str_to_comp(string):
@@ -425,9 +424,6 @@ class TeaserFourElement(Component):
                        U=getattr(self.block, 'U{}_{}'.format(node_from, node_to)))
 
         self.structure = G
-        nx.draw_networkx(G)
-
-        plt.show()
         self.controlVariables += ['Q_hea']
 
     def init_model_params(self):
@@ -495,10 +491,12 @@ class TeaserFourElement(Component):
 
         # Heat factors
         def construct_fix(id):
-            dict_out = {'Q_int': mutParam(sfInt[id])}
+            self.block.add_component('Q_int_f_' + id, mutParam(sfInt[id]))
+            dict_out = {'Q_int': getattr(self.block, 'Q_int_f_' + id)}
             for ori in ['N', 'E', 'S', 'W']:
-                dict_out['Q_sol_' + ori] = mutParam(
-                    (1 - mp['ratioWinConRad']) * mp['gWin'] * mp['ATransparent'][ori] * sfSol[id][ori])
+                self.block.add_component('Q_sol_f_{}_{}'.format(id, ori), mutParam(
+                    (1 - mp['ratioWinConRad']) * mp['gWin'] * mp['ATransparent'][ori] * sfSol[id][ori]))
+                dict_out['Q_sol_' + ori] = getattr(self.block, 'Q_sol_f_{}_{}'.format(id, ori))
             return dict_out
 
         self.f_fix_heat = dict()
@@ -511,8 +509,11 @@ class TeaserFourElement(Component):
         self.block.fControl = Param(AArray.keys(), rule=controlHeat, mutable=True)
 
         self.f_fix_air = dict()
+
         for ori in ['N', 'E', 'S', 'W']:
-            self.f_fix_air['Q_sol_' + ori] = mutParam(mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori])
+            self.block.add_component('f_air_' + ori, mutParam(
+                mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori]))
+            self.f_fix_air['Q_sol_' + ori] = getattr(self.block, 'f_air_' + ori)
 
     def change_model_params(self, streetName, buildingName):
         """
@@ -523,6 +524,71 @@ class TeaserFourElement(Component):
         :return:
         """
         self.model_params = readTeaserParam(streetName=streetName, buildingName=buildingName)
+        mp = self.model_params
+
+        for param in mp:
+            if param.startswith('C'):
+                setattr(self.block, param, mp[param])
+
+        # derived parameters
+        AExt = mp['AExt']
+        AWin = mp['AWin']
+        AFloor = mp['AFloor']
+        ARoof = mp['ARoof']
+        AInt = mp['AInt']
+
+        ATotExt = sum(AExt.values())
+        ATotWin = sum(AWin.values())
+        AArray = {'ATotExt': ATotExt, 'ATotWin': ATotWin, 'AInt': AInt, 'AFloor': AFloor, 'ARoof': ARoof}
+
+        sfSol = splitFactor(AArray, AExt, AWin)
+        sfInt = splitFactor(AArray)
+
+        # Air capacity
+        self.block.CAir = mp['VAir'] * 1007 * 1.276
+
+        # U values
+        alphaOut = 23
+
+        self.block.UeRoof = 1 / (1 / (alphaOut * ARoof) + mp['RRoof'])
+        self.block.UeFloor = 1 / (1 / (alphaOut * AFloor) + mp['RFloor'])
+        self.block.UeWin = 1 / (1 / (alphaOut * ATotWin) + mp['RWin'])
+        self.block.UeExt = 1 / (1 / (alphaOut * ATotExt) + mp['RExtRem'])
+
+        self.block.URoofRad = (1 / mp['RRoofRem'])
+        self.block.UExtRad = (1 / mp['RExt'])
+        self.block.UFloorRad = (1 / mp['RFloorRem'])
+        self.block.UIntRad = (1 / mp['RInt'])
+
+        self.block.URoofAir = (mp['alphaRoof'] * ARoof)
+        self.block.UWinAir = (mp['alphaWin'] * ATotWin)
+        self.block.UExtAir = (mp['alphaExt'] * ATotExt)
+        self.block.UFloorAir = (mp['alphaFloor'] * AFloor)
+        self.block.UIntAir = (mp['alphaInt'] * AInt)
+
+        self.block.UVent = (self.params['ACH'].v() * mp['VAir'] * 1007 * 1.276 / 3600)
+
+        for node_from, node_to in itertools.combinations(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
+            # all possible combinations of two elements from list, which yields all needed radiation connections
+            A_from = mp['A' + node_from] if not isinstance(mp['A' + node_from], dict) else sum(
+                mp['A' + node_from].values())
+            A_to = mp['A' + node_to] if not isinstance(mp['A' + node_to], dict) else sum(mp['A' + node_to].values())
+
+            A_rad = min(A_from, A_to)
+
+            setattr(self.block, 'U{}_{}'.format(node_from, node_to), A_rad * mp['alphaRad'])
+
+        # Heat factors
+
+        for id in AArray.keys():
+            setattr(self.block, 'Q_int_f_' + id, sfInt[id])
+            for ori in ['N', 'E', 'S', 'W']:
+                setattr(self.block, 'Q_sol_f_{}_{}'.format(id, ori),
+                        (1 - mp['ratioWinConRad']) * mp['gWin'] * mp['ATransparent'][ori] * sfSol[id][ori])
+            self.block.fControl[id] = self.params['fra_rad'].v() * sfInt[id]
+
+        for ori in ['N', 'E', 'S', 'W']:
+            setattr(self.block, 'f_air_' + ori, mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori])
 
     def build(self):
         self.init_model_params()
@@ -577,10 +643,13 @@ class TeaserFourElement(Component):
         self.block.directions = Param(self.block.state_names, self.block.edge_names, rule=decl_edge_direction)
 
         def decl_state_heat(b, s, t):
-            print s, ',', t
+            # print s, ',', t
             obj = self.states[s]
             incoming_heat_names = obj.input['heat_fix']
-            return sum(self.params[i].v(t) * obj.get_q_factor(i) for i in incoming_heat_names)
+
+            if not incoming_heat_names == []:
+                i = incoming_heat_names[0]
+            return sum(obj.get_q_factor(i) * self.params[i].v(t) for i in incoming_heat_names)  # *
 
         self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat)
 
@@ -594,7 +663,7 @@ class TeaserFourElement(Component):
         ##### State energy balances
 
         def _energy_balance(b, s, t):
-            return sum(b.ControlHeatFlows[i, t] * self.states[s].get_q_factor(i) for i in b.control_variables) \
+            return sum(self.states[s].get_q_factor(i) * b.ControlHeatFlows[i, t] for i in b.control_variables) \
                    + b.fixed_state_heat[s, t] + \
                    sum(b.EdgeHeatFlows[e, t] * b.directions[s, e] for e in b.edge_names) == \
                    b.StateHeatFlows[s, t]
@@ -609,7 +678,7 @@ class TeaserFourElement(Component):
                 return b.StateHeatFlows[s, t] == 0
             else:
                 return b.StateTemperatures[s, t + 1] == b.StateTemperatures[s, t] + \
-                       b.StateHeatFlows[s, t] / self.states[s].C * self.params['time_step'].v()
+                       1 / self.states[s].C * b.StateHeatFlows[s, t] * self.params['time_step'].v()
 
         self.block.temp_change = Constraint(self.block.control_states, self.TIME, rule=_temp_change)
 
@@ -638,7 +707,7 @@ class TeaserFourElement(Component):
                 stop_temp = b.StateTemperatures[e_ob.stop, t]
             else:
                 stop_temp = b.FixedTemperatures[e_ob.stop, t]
-            return b.EdgeHeatFlows[e, t] == (start_temp - stop_temp) * e_ob.U
+            return b.EdgeHeatFlows[e, t] == e_ob.U * (start_temp - stop_temp)
 
         self.block.edge_heat_flow = Constraint(self.block.edge_names, self.TIME, rule=_edge_heat_flow)
 

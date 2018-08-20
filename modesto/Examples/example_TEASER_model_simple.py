@@ -10,7 +10,7 @@ from pkg_resources import resource_filename
 import modesto.utils as ut
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.WARNING,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
@@ -20,7 +20,7 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 time_step = 3600
-n_steps = 3 #24 * 365 * int(3600 / time_step)
+n_steps = 24 * 365 * int(3600 / time_step)
 
 start_time = pd.Timestamp('20140101')
 
@@ -130,15 +130,26 @@ def construct_model():
 ##################################
 
 if __name__ == '__main__':
+    from time import clock
+
+    start = clock()
+
     optmodel = construct_model()
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('energy')
+
+    comp_finish = clock()
 
     # optmodel.model.OBJ_ENERGY.pprint()
     # optmodel.model.OBJ_COST.pprint()
     # optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi')
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='cplex')
+
+    finish = clock()
+    print '\n========================'
+    print 'Total computation time is {} s.'.format(finish - start)
+    print 'Compilation took {} s.'.format(comp_finish - start)
 
     ##################################
     # Collect result                 #
@@ -214,5 +225,21 @@ if __name__ == '__main__':
     ax[1].plot(Q_hea_prod, label='Production')
 
     ax[1].legend()
+
+    optmodel.components['waterscheiGarden.buildingD'].change_model_params(streetName='Gierenshof',
+                                                                          buildingName='Gierenshof_9_4753099')
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='cplex', warmstart=True)
+    TiD_ws_2 = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
+                                   comp='buildingD', index='TAir', state=True)
+
+    Q_hea_ws_2 = optmodel.get_result('ControlHeatFlows', node='waterscheiGarden',
+                                     comp='buildingD', index='Q_hea')
+
+    fig, ax = plt.subplots(2, 1, sharex=True)
+    ax[0].plot(TiD_ws)
+    ax[0].plot(TiD_ws_2)
+
+    ax[1].plot(Q_hea_ws)
+    ax[1].plot(Q_hea_ws_2)
 
     plt.show()
