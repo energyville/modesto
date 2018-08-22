@@ -53,6 +53,7 @@ def read_time_data(path, name, expand=False, expand_year=2014):
 
     return df
 
+
 def read_xlsx_data(filepath, use_sheet=None, index_col=0):
     """
     Read data contained in an excel file
@@ -81,7 +82,10 @@ def resample(df, new_sample_time, old_sample_time=None, method=None):
     :return: The resampled dataFrame
     """
     if old_sample_time is None:
-        old_sample_time = (df.index[1] - df.index[0]).total_seconds()
+        try:
+            old_sample_time = df.index.freq.delta.total_seconds()
+        except AttributeError:
+            old_sample_time = (df.index[1] - df.index[0]).total_seconds()
         # old_sample_time = pd.to_timedelta(to_offset(pd.infer_freq(df.index))).total_seconds()
 
     if (new_sample_time == old_sample_time) or (new_sample_time is None):

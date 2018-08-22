@@ -364,6 +364,7 @@ class TimeSeriesParameter(Parameter):
 
     def change_time_step(self, val):
         self.time_step = val
+        self.resample()
 
     def resample(self):
         """
