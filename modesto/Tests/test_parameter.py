@@ -67,7 +67,7 @@ def test_example_larger_sampling():
     from modesto.Examples import example
 
     model = example.construct_model()
-    model.change_general_param('time_step', 1800)
+    model.change_general_param('time_step', 300)
     model.compile('20140604')
     model.set_objective('cost')
 
