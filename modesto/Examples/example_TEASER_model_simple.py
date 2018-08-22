@@ -19,8 +19,8 @@ logger = logging.getLogger('Main.py')
 # Set up Graph of network #
 ###########################
 
-time_step = 3600
-n_steps = 24 * 365 * int(3600 / time_step)
+time_step = 900
+n_steps = 24 * 7 * int(3600 / time_step)
 
 start_time = pd.Timestamp('20140101')
 

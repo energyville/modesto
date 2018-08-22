@@ -456,7 +456,7 @@ class TeaserFourElement(Component):
         sfInt = splitFactor(AArray)
 
         # Air capacity
-        self.block.CAir = mutParam(mp['VAir'] * 1007 * 1.276)
+        self.block.CAir = mutParam(mp['VAir'] * 1007 * 1.293)
 
         # U values
         alphaOut = 23
@@ -477,7 +477,7 @@ class TeaserFourElement(Component):
         self.block.UFloorAir = mutParam(mp['alphaFloor'] * AFloor)
         self.block.UIntAir = mutParam(mp['alphaInt'] * AInt)
 
-        self.block.UVent = mutParam(self.params['ACH'].v() * mp['VAir'] * 1007 * 1.276 / 3600)
+        self.block.UVent = mutParam(self.params['ACH'].v() * mp['VAir'] * 1007 * 1.293 / 3600)
 
         for node_from, node_to in itertools.combinations(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
             # all possible combinations of two elements from list, which yields all needed radiation connections
@@ -646,9 +646,6 @@ class TeaserFourElement(Component):
             # print s, ',', t
             obj = self.states[s]
             incoming_heat_names = obj.input['heat_fix']
-
-            if not incoming_heat_names == []:
-                i = incoming_heat_names[0]
             return sum(obj.get_q_factor(i) * self.params[i].v(t) for i in incoming_heat_names)  # *
 
         self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat)
