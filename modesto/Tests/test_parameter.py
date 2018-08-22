@@ -60,3 +60,24 @@ def test_cost_data_extrap():
 def test_fixed_cost():
     param = SeriesParameter('cost', 'cost in function of volume', 'EUR', 'm3', val=10)
     assert param.v(1000) == 10000
+
+def test_example_larger_sampling():
+    from modesto.Examples import example
+
+    model = example.construct_model()
+    model.change_general_param('time_step', 1800)
+    model.compile('20140604')
+    model.set_objective('cost')
+
+    assert model.solve(tee=True, mipgap=0.01) == 0
+
+
+def test_example_smaller_sampling():
+    from modesto.Examples import example
+
+    model = example.construct_model()
+    model.change_general_param('time_step', 7200)
+    model.compile('20140604')
+    model.set_objective('cost')
+
+    assert model.solve(tee=True, mipgap=0.01) == 0

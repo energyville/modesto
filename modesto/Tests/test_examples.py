@@ -13,27 +13,6 @@ def test_example():
 
     assert model.solve(tee=True, mipgap=0.01) == 0
 
-def test_example_larger_sampling():
-    from modesto.Examples import example
-
-    model = example.construct_model()
-    model.change_general_param('time_step', 300)
-    model.compile('20140604')
-    model.set_objective('cost')
-
-    assert model.solve(tee=True, mipgap=0.01) == 0
-
-
-def test_example_smaller_sampling():
-    from modesto.Examples import example
-
-    model = example.construct_model()
-    model.change_general_param('time_step', 7200)
-    model.compile('20140604')
-    model.set_objective('cost')
-
-    assert model.solve(tee=True, mipgap=0.01) == 0
-
 
 def test_example_node_method():
     from modesto.Examples import example_node_method
