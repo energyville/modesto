@@ -3,7 +3,6 @@ from __future__ import division
 import logging
 
 import pandas as pd
-import numpy as np
 from scipy import interpolate
 
 import modesto.utils as ut
@@ -88,9 +87,6 @@ class Parameter(object):
 
         if self.value is None:
             self.logger.warning('{} does not have a value yet'.format(self.name))
-
-        if (time is not None) and (not isinstance(self.value, pd.DataFrame)):
-            self.logger.warning('{} is not a time series'.format(self.name))
 
         return self.value
 
@@ -240,7 +236,8 @@ class SeriesParameter(Parameter):
         :return:
         """
 
-        assert isinstance(new_val, pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(type(new_val))
+        assert isinstance(new_val, pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(
+            type(new_val))
 
         self.value = new_val
         self.value.index = self.value.index.astype('float')
@@ -258,7 +255,7 @@ class SeriesParameter(Parameter):
         if self.value is None:
             raise Exception('Parameter {} has no value yet'.format(self.name))
         elif isinstance(self.value, (int, float)):
-            return self.value*index
+            return self.value * index
         else:
             f = interpolate.interp1d(self.value.index.values, self.value.values, fill_value='extrapolate')
             return f(index)
@@ -284,13 +281,17 @@ class TimeSeriesParameter(Parameter):
         :param val:         Value of the parameter, if not given, it becomes None
         """
 
-        self.time_data = False  # Does the dataframe have a timeData index? TODO this would become obsolete
+        Parameter.__init__(self, name, description, unit, val=None)
+
         self.time_step = None
         self.horizon = None
         self.start_time = None
-        Parameter.__init__(self, name, description, unit, val)
+        if val is not None:
+            self.assign_value(val)
 
-    # todo indexed time variables (such as return/supply temperature profile could use two or more columns to distinguish between indexes instead of using multiple indexes. These parameters would become real TimeDataFrameParameters. Just an idea ;)
+    # todo indexed time variables (such as return/supply temperature profile could use two or more columns to
+    # distinguish between indexes instead of using multiple indexes. These parameters would become real
+    # TimeDataFrameParameters. Just an idea ;)
 
     def get_value(self, time=None):
         """
@@ -308,25 +309,35 @@ class TimeSeriesParameter(Parameter):
             raise Exception('No time step has been given to parameter {} yet'.format(self.name))
 
         if time is None:
-            if self.time_data:  # Data has a pd.DatetimeIndex
-                return ut.select_period_data(self.value, time_step=self.time_step, horizon=self.horizon,
-                                             start_time=self.start_time).values
-            elif not isinstance(self.value, pd.Series):
-                return [self.value] * int(self.horizon/self.time_step)
-            else:  # Data has a numbered index
-                return self.value.values
+            return ut.select_period_data(self.value, time_step=self.time_step, horizon=self.horizon,
+                                         start_time=self.start_time).values
 
         elif self.value is None:
             print 'Warning: {} does not have a value yet'.format(self.name)
             return None
         else:
-            if self.time_data:
-                timeindex = self.start_time + pd.Timedelta(seconds=time * self.time_step)
-                return self.value[timeindex]
-            elif not isinstance(self.value, pd.Series):
-                return self.value
+            return self.value[time]
+
+    def assign_value(self, val):
+        """
+        Assign a new value to TimeSeriesParameter. Checks if input is a pandas Series object or a single value and
+            automatically constructs a Series object with a generic time index.
+
+        :param val: input value
+        :return:
+        """
+        if not isinstance(val, pd.Series):
+            if self.time_step is not None and self.horizon is not None:
+                self.value = pd.Series(index=pd.DatetimeIndex(start=self.start_time,
+                                                              end=self.start_time + pd.Timedelta(seconds=self.horizon),
+                                                              freq=pd.Timedelta(seconds=self.time_step)), data=val,
+                                       name=self.name)
             else:
-                return self.value[time]
+                self.value = pd.Series(index=pd.DatetimeIndex(start='20140101', freq='1D', end='20150101'),
+                                       name=self.name, data=val)
+
+        else:
+            self.value = val
 
     def v(self, time=None):
         return self.get_value(time)
@@ -338,18 +349,7 @@ class TimeSeriesParameter(Parameter):
         :param new_val: New value of the parameter
         """
 
-        assert isinstance(new_val, pd.Series), \
-            'The new value of {} should be a pandas Series'.format(self.name)
-
-        if isinstance(new_val.index, pd.DatetimeIndex):
-            self.time_data = True
-        else:
-            self.time_data = False
-
-        if self.time_data:
-            new_val = ut.resample(new_val, new_sample_time=self.time_step)
-
-        self.value = new_val
+        self.assign_value(new_val)
 
     def change_start_time(self, val):
         if isinstance(val, pd.Timestamp):
@@ -371,8 +371,7 @@ class TimeSeriesParameter(Parameter):
 
         :return:
         """
-        if self.time_data: # TODO This is a TimeSeries Parameter, a Boolean indicating whether or not it contains time data should be unnecessary
-            self.value = ut.resample(self.value, new_sample_time=self.time_step)
+        self.value = ut.resample(self.value, new_sample_time=self.time_step)
 
 
 class UserDataParameter(TimeSeriesParameter):
