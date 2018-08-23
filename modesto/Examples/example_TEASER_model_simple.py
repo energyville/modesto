@@ -10,7 +10,7 @@ from pkg_resources import resource_filename
 import modesto.utils as ut
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.WARNING,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
@@ -19,10 +19,10 @@ logger = logging.getLogger('Main.py')
 # Set up Graph of network #
 ###########################
 
-time_step = 3600
-n_steps = 24 * 365 * int(3600 / time_step)
+time_step = 300
+n_steps = 24 * 3 * int(3600 / time_step)
 
-start_time = pd.Timestamp('20140101')
+start_time = pd.Timestamp('20140201')
 
 
 def construct_model():
@@ -78,6 +78,9 @@ def construct_model():
     # building parameters
 
     ws_building_params = {'TAir0': 20 + 273.15,
+                          'TExt0': 12 + 273.15,
+                          'TRoof0': 10 + 273.15,
+                          'TFloor0': 10 +273.15,
                           'delta_T': 20,
                           'mult': 10,
                           'day_min_temperature': day_min,
@@ -87,7 +90,7 @@ def construct_model():
                           'streetName': 'Gierenshof',
                           'buildingName': 'Gierenshof_17_1589280',
                           'Q_int': Q_int_D,
-                          'max_heat': 60000,
+                          'max_heat': 20000,
                           'fra_rad': 0.3,
                           'ACH': 0.4
                           }
@@ -214,5 +217,8 @@ if __name__ == '__main__':
     ax[1].plot(Q_hea_prod, label='Production')
 
     ax[1].legend()
+
+    fig, ax = plt.subplots(1,1)
+    ax.plot(TiD_ws)
 
     plt.show()
