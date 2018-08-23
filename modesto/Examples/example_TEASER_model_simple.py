@@ -20,9 +20,9 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 time_step = 300
-n_steps = 24 * 3 * int(3600 / time_step)
+n_steps = 24 * 5 * int(3600 / time_step)
 
-start_time = pd.Timestamp('20140201')
+start_time = pd.Timestamp('20140101')
 
 
 def construct_model():
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     # optmodel.model.OBJ_COST.pprint()
     # optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='cplex')
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi')
 
     finish = clock()
     print '\n========================'
@@ -231,7 +231,7 @@ if __name__ == '__main__':
 
     optmodel.components['waterscheiGarden.buildingD'].change_model_params(streetName='Gierenshof',
                                                                           buildingName='Gierenshof_9_4753099')
-    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='cplex', warmstart=True)
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi', warmstart=True)
     TiD_ws_2 = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
                                    comp='buildingD', index='TAir', state=True)
 
