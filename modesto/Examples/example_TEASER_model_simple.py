@@ -19,13 +19,8 @@ logger = logging.getLogger('Main.py')
 # Set up Graph of network #
 ###########################
 
-<<<<<<< HEAD
-time_step = 900
-n_steps = 24 * 7 * int(3600 / time_step)
-=======
 time_step = 300
 n_steps = 24 * 3 * int(3600 / time_step)
->>>>>>> master
 
 start_time = pd.Timestamp('20140201')
 
@@ -234,7 +229,6 @@ if __name__ == '__main__':
 
     ax[1].legend()
 
-<<<<<<< HEAD
     optmodel.components['waterscheiGarden.buildingD'].change_model_params(streetName='Gierenshof',
                                                                           buildingName='Gierenshof_9_4753099')
     optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='cplex', warmstart=True)
@@ -250,9 +244,8 @@ if __name__ == '__main__':
 
     ax[1].plot(Q_hea_ws)
     ax[1].plot(Q_hea_ws_2)
-=======
+
     fig, ax = plt.subplots(1,1)
     ax.plot(TiD_ws)
->>>>>>> master
 
     plt.show()
