@@ -14,6 +14,7 @@ import pandas as pd
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
+import modesto.utils as ut
 from modesto.component import Component
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
 
@@ -590,6 +591,27 @@ class TeaserFourElement(Component):
         for ori in ['N', 'E', 'S', 'W']:
             setattr(self.block, 'f_air_' + ori, mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori])
 
+    def change_input_profiles(self, start_time):
+        """
+        Reload input data series based on currently active list of model parameters.
+
+        :return:
+        """
+
+        def decl_state_heat(b, s, t):
+            # print s, ',', t
+            obj = self.states[s]
+            incoming_heat_names = obj.input['heat_fix']
+            return sum(obj.get_q_factor(i) * self.params[i].v(t) for i in incoming_heat_names)
+
+        # self.block.fixed_state_heat
+        # self.block.FixedTemperatures
+        #
+        # self.block.max_temp
+        # self.block.min_temp
+        #
+        # self.block.max_heat_flow
+
     def build(self):
         self.init_model_params()
         self.build_graph()
@@ -715,6 +737,18 @@ class TeaserFourElement(Component):
         uslack = {}
         lslack = {}
 
+        max_T = ut.select_period_data(self.params['day_max_temperature'].value,
+                                      time_step=self.params['time_step'].v(),
+                                      horizon=self.params['horizon'].v(),
+                                      start_time=start_time).values
+        min_T = ut.select_period_data(self.params['day_min_temperature'].value,
+                                      time_step=self.params['time_step'].v(),
+                                      horizon=self.params['horizon'].v(),
+                                      start_time=start_time).values
+
+        self.block.T_day_max = Param(self.X_TIME, initialize=max_T, mutable=True)
+        self.block.T_day_min = Param(self.X_TIME, initialize=min_T, mutable=True)
+
         for state in self.block.control_states:
             s_ob = self.states[state]
 
@@ -722,17 +756,8 @@ class TeaserFourElement(Component):
                 max_temp[state] = None
                 min_temp[state] = None
             elif s_ob.state_type == 'day':
-                max_temp[state] = self.params['day_max_temperature']
-                min_temp[state] = self.params['day_min_temperature']
-            elif s_ob.state_type == 'night':
-                max_temp[state] = self.params['night_max_temperature']
-                min_temp[state] = self.params['night_min_temperature']
-            elif s_ob.state_type == 'bathroom':
-                max_temp[state] = self.params['bathroom_max_temperature']
-                min_temp[state] = self.params['bathroom_min_temperature']
-            elif s_ob.state_type == 'floor':
-                max_temp[state] = self.params['floor_max_temperature']
-                min_temp[state] = self.params['floor_min_temperature']
+                max_temp[state] = self.block.T_day_max
+                min_temp[state] = self.block.T_day_min
             else:
                 raise Exception('{} was given a state type which is not valid'.format(s_ob.state_type))
 
@@ -747,7 +772,7 @@ class TeaserFourElement(Component):
             if max_temp[s] is None:
                 return Constraint.Skip
             return self.constrain_value(b.StateTemperatures[s, t],
-                                        max_temp[s].v(t),
+                                        b.T_day_max[t],
                                         ub=True,
                                         slack_variable=uslack[s][t])
 
@@ -755,7 +780,7 @@ class TeaserFourElement(Component):
             if min_temp[s] is None:
                 return Constraint.Skip
             return self.constrain_value(b.StateTemperatures[s, t],
-                                        min_temp[s].v(t),
+                                        b.T_day_min[t],
                                         ub=False,
                                         slack_variable=lslack[s][t])
 
@@ -764,9 +789,10 @@ class TeaserFourElement(Component):
 
         ##### Limit heat flows
 
+        self.block.max_heat_flow = mutParam(self.params['max_heat'].v())
+
         def _max_heat_flows(b, t):
-            return sum(b.ControlHeatFlows[i, t] for i in self.block.control_variables) <= self.params[
-                'max_heat'].v()
+            return sum(b.ControlHeatFlows[i, t] for i in self.block.control_variables) <= b.max_heat_flow
 
         def _min_heat_flows(b, i, t):
             return 0 <= b.ControlHeatFlows[i, t]
@@ -1038,8 +1064,10 @@ class RCmodel(Component):
 
         self.block.StateTemperatures = Var(self.block.control_states, self.X_TIME)
         self.block.StateHeatFlows = Var(self.block.control_states, self.TIME)
-        self.block.ControlHeatFlows = Var(self.block.control_variables, self.TIME)
-        self.block.EdgeHeatFlows = Var(self.block.edge_names, self.TIME)
+        self.block.ControlHeatFlows = Var(self.block.control_variables, self.TIME,
+                                          doc='Controlling heat flows, to be optimized')
+        self.block.EdgeHeatFlows = Var(self.block.edge_names, self.TIME,
+                                       doc='Variable heat flow rate between two nodes')
         self.block.mass_flow = Var(self.TIME)
         self.block.heat_flow = Var(self.TIME)
 
@@ -1055,14 +1083,14 @@ class RCmodel(Component):
             incoming_heat_names = obj.input['heat_fix']
             return sum(self.params[i].v(t) * obj.get_q_factor(i) for i in incoming_heat_names)
 
-        self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat)
+        self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat, mutable=True)
 
         def decl_fixed_temperature(b, s, t):
             temp = self.states[s].input['temperature']
             return self.params[temp].v(t)
 
         self.block.FixedTemperatures = Param(self.block.fixed_states,
-                                             self.TIME, rule=decl_fixed_temperature)
+                                             self.TIME, rule=decl_fixed_temperature, mutable=True)
 
         ##### State energy balances
 
