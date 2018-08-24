@@ -147,7 +147,7 @@ if __name__ == '__main__':
     # optmodel.model.OBJ_COST.pprint()
     # optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi')
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi', verbose=False)
 
     finish = clock()
     print '\n========================'

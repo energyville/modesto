@@ -19,6 +19,16 @@ from modesto.component import Component
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
 
 
+def list_to_dict(list):
+    """
+    Transform list to dict with integer keys from zero to length of list -1
+
+    :param list:
+    :return:
+    """
+    return {i: val for i, val in enumerate(list)}
+
+
 def mutParam(value):
     """
     Return pyomo mutable Param object with given value
@@ -737,17 +747,17 @@ class TeaserFourElement(Component):
         uslack = {}
         lslack = {}
 
-        max_T = ut.select_period_data(self.params['day_max_temperature'].value,
-                                      time_step=self.params['time_step'].v(),
-                                      horizon=self.params['horizon'].v(),
-                                      start_time=start_time).values
-        min_T = ut.select_period_data(self.params['day_min_temperature'].value,
-                                      time_step=self.params['time_step'].v(),
-                                      horizon=self.params['horizon'].v(),
-                                      start_time=start_time).values
+        max_T = list_to_dict(ut.select_period_data(self.params['day_max_temperature'].value,
+                                                   time_step=self.params['time_step'].v(),
+                                                   horizon=self.params['horizon'].v(),
+                                                   start_time=start_time).values)
+        min_T = list_to_dict(ut.select_period_data(self.params['day_min_temperature'].value,
+                                                   time_step=self.params['time_step'].v(),
+                                                   horizon=self.params['horizon'].v(),
+                                                   start_time=start_time).values)
 
-        self.block.T_day_max = Param(self.X_TIME, initialize=max_T, mutable=True)
-        self.block.T_day_min = Param(self.X_TIME, initialize=min_T, mutable=True)
+        self.block.T_day_max = Param(self.X_TIME, rule=max_T, mutable=True)
+        self.block.T_day_min = Param(self.X_TIME, rule=min_T, mutable=True)
 
         for state in self.block.control_states:
             s_ob = self.states[state]
