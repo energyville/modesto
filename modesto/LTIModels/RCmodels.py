@@ -691,9 +691,7 @@ class TeaserFourElement(Component):
             self.block.add_component('Q_sol_' + i, Param(self.TIME, mutable=True, rule=list_to_dict(
                 self.params['Q_sol_' + i].v()[:-1]  # value, horizon=self.params['horizon'].v(),
                 # start_time=start_time, time_step=self.params['time_step'].v()
-            )
-                                                         )
-                                     )
+            )))
 
         self.block.Q_int_rad = Param(self.TIME, mutable=True, rule=list_to_dict(self.params['Q_int_rad'].v()[:-1]))
         self.block.Q_int_con = Param(self.TIME, mutable=True, rule=list_to_dict(self.params['Q_int_con'].v()[:-1]))
