@@ -526,7 +526,7 @@ class TeaserFourElement(Component):
                 mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori]))
             self.f_fix_air['Q_sol_' + ori] = getattr(self.block, 'f_air_' + ori)
 
-    def change_model_params(self, streetName, buildingName):
+    def change_teaser_params(self, streetName, buildingName):
         """
         After initialization, change parameters of the model without recompiling.
 
@@ -601,12 +601,14 @@ class TeaserFourElement(Component):
         for ori in ['N', 'E', 'S', 'W']:
             setattr(self.block, 'f_air_' + ori, mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori])
 
-    def change_input_profiles(self, start_time):
+    def change_model_params(self, start_time):
         """
         Reload input data series based on currently active list of model parameters.
 
         :return:
         """
+
+        # TODO make sure the whole model uses the same start time in case it needs to be changed
 
         def decl_state_heat(b, s, t):
             # print s, ',', t
@@ -614,13 +616,27 @@ class TeaserFourElement(Component):
             incoming_heat_names = obj.input['heat_fix']
             return sum(obj.get_q_factor(i) * self.params[i].v(t) for i in incoming_heat_names)
 
+        # TODO make equations based on sol and int heat params which can be changed
+        for ori in ['N', 'E', 'S', 'W']:
+            q_sol = self.params['Q_sol_' + ori].v()
+            for t in self.TIME:
+                getattr(self.block, 'Q_sol_' + ori)[t] = q_sol[t]
+
+        q_int = self.params['Q_int'].v()
+        for t in self.TIME:
+            getattr(self.block, 'Q_int')[t] = q_int[t]
+
         # self.block.fixed_state_heat
         # self.block.FixedTemperatures
         #
-        # self.block.max_temp
-        # self.block.min_temp
-        #
-        # self.block.max_heat_flow
+        t_day_max = self.params['day_max_temperature'].v()
+        t_day_min = self.params['day_min_temperature'].v()
+
+        for t in self.X_TIME:
+            self.block.T_day_max[t] = t_day_max[t]
+            self.block.T_day_min[t] = t_day_min[t]
+
+        self.block.max_heat_flow = self.params['max_heat'].v()
 
     def build(self):
         self.init_model_params()
@@ -669,6 +685,16 @@ class TeaserFourElement(Component):
 
         ##### Parameters
 
+        for i in ['N', 'E', 'S', 'W']:
+            self.block.add_component('Q_sol_' + i, Param(self.TIME, mutable=True, rule=list_to_dict(
+                self.params['Q_sol_' + i].v()[:-1]  # value, horizon=self.params['horizon'].v(),
+                # start_time=start_time, time_step=self.params['time_step'].v()
+            )
+                                                         )
+                                     )
+
+        self.block.Q_int = Param(self.TIME, mutable=True, rule=list_to_dict(self.params['Q_int'].v()[:-1]))
+
         def decl_edge_direction(b, s, e):
             return self.edges[e].get_direction(s)
 
@@ -678,7 +704,7 @@ class TeaserFourElement(Component):
             # print s, ',', t
             obj = self.states[s]
             incoming_heat_names = obj.input['heat_fix']
-            return sum(obj.get_q_factor(i) * self.params[i].v(t) for i in incoming_heat_names)  # *
+            return sum(obj.get_q_factor(i) * getattr(b, i)[t] for i in incoming_heat_names)  # *
 
         self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat)
 
@@ -1093,7 +1119,8 @@ class RCmodel(Component):
             incoming_heat_names = obj.input['heat_fix']
             return sum(self.params[i].v(t) * obj.get_q_factor(i) for i in incoming_heat_names)
 
-        self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat, mutable=True)
+        self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat,
+                                            mutable=True)
 
         def decl_fixed_temperature(b, s, t):
             temp = self.states[s].input['temperature']
@@ -1275,7 +1302,6 @@ class RCmodel(Component):
             # self.block.init_temperatures = Constraint(self.lines, rule=_init_temperatures)
 
     def create_params(self):
-
         params = Component.create_params(self)
 
         params.update({
