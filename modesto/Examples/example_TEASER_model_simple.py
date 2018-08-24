@@ -89,7 +89,8 @@ def construct_model():
                           'floor_max_temperature': floor_max,
                           'streetName': 'Gierenshof',
                           'buildingName': 'Gierenshof_17_1589280',
-                          'Q_int': Q_int_D,
+                          'Q_int_rad': Q_int_D,
+                          'Q_int_con': Q_int_D,
                           'max_heat': 20000,
                           'fra_rad': 0.3,
                           'ACH': 0.4

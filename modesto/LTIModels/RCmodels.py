@@ -280,10 +280,13 @@ class TeaserFourElement(Component):
             'Q_sol_N': WeatherDataParameter('Q_sol_N',
                                             'Northern solar radiation',
                                             'W'),
-            'Q_int': UserDataParameter('Q_int',
-                                       'Internal heat gains',
-                                       'W'
-                                       ),
+            'Q_int_rad': UserDataParameter('Q_int_rad',
+                                           'Internal radiative heat gains',
+                                           'W'
+                                           ),
+            'Q_int_con': UserDataParameter('Q_int_con',
+                                           'Internal convective heat gains',
+                                           'W'),
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
                                        'K'),
@@ -503,7 +506,7 @@ class TeaserFourElement(Component):
         # Heat factors
         def construct_fix(id):
             self.block.add_component('Q_int_f_' + id, mutParam(sfInt[id]))
-            dict_out = {'Q_int': getattr(self.block, 'Q_int_f_' + id)}
+            dict_out = {'Q_int_rad': getattr(self.block, 'Q_int_f_' + id)}
             for ori in ['N', 'E', 'S', 'W']:
                 self.block.add_component('Q_sol_f_{}_{}'.format(id, ori), mutParam(
                     (1 - mp['ratioWinConRad']) * mp['gWin'] * mp['ATransparent'][ori] * sfSol[id][ori]))
@@ -525,6 +528,7 @@ class TeaserFourElement(Component):
             self.block.add_component('f_air_' + ori, mutParam(
                 mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori]))
             self.f_fix_air['Q_sol_' + ori] = getattr(self.block, 'f_air_' + ori)
+        self.f_fix_air['Q_int_con'] = 1
 
     def change_teaser_params(self, streetName, buildingName):
         """
@@ -610,21 +614,19 @@ class TeaserFourElement(Component):
 
         # TODO make sure the whole model uses the same start time in case it needs to be changed
 
-        def decl_state_heat(b, s, t):
-            # print s, ',', t
-            obj = self.states[s]
-            incoming_heat_names = obj.input['heat_fix']
-            return sum(obj.get_q_factor(i) * self.params[i].v(t) for i in incoming_heat_names)
-
-        # TODO make equations based on sol and int heat params which can be changed
         for ori in ['N', 'E', 'S', 'W']:
             q_sol = self.params['Q_sol_' + ori].v()
             for t in self.TIME:
                 getattr(self.block, 'Q_sol_' + ori)[t] = q_sol[t]
 
-        q_int = self.params['Q_int'].v()
+        q_int_rad = self.params['Q_int_rad'].v()
         for t in self.TIME:
-            getattr(self.block, 'Q_int')[t] = q_int[t]
+            getattr(self.block, 'Q_int_rad')[t] = q_int_rad[t]
+
+        q_int_con = self.params['Q_int_con'].v()
+        for t in self.TIME:
+            getattr(self.block, 'Q_int_con')[t] = q_int_con[t]
+        
 
         # self.block.fixed_state_heat
         # self.block.FixedTemperatures
@@ -693,7 +695,8 @@ class TeaserFourElement(Component):
                                                          )
                                      )
 
-        self.block.Q_int = Param(self.TIME, mutable=True, rule=list_to_dict(self.params['Q_int'].v()[:-1]))
+        self.block.Q_int_rad = Param(self.TIME, mutable=True, rule=list_to_dict(self.params['Q_int_rad'].v()[:-1]))
+        self.block.Q_int_con = Param(self.TIME, mutable=True, rule=list_to_dict(self.params['Q_int_con'].v()[:-1]))
 
         def decl_edge_direction(b, s, e):
             return self.edges[e].get_direction(s)
