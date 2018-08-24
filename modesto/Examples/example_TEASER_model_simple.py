@@ -80,7 +80,7 @@ def construct_model():
     ws_building_params = {'TAir0': 20 + 273.15,
                           'TExt0': 12 + 273.15,
                           'TRoof0': 10 + 273.15,
-                          'TFloor0': 10 +273.15,
+                          'TFloor0': 10 + 273.15,
                           'delta_T': 20,
                           'mult': 10,
                           'day_min_temperature': day_min,
@@ -229,8 +229,13 @@ if __name__ == '__main__':
 
     ax[1].legend()
 
-    optmodel.components['waterscheiGarden.buildingD'].change_model_params(streetName='Gierenshof',
-                                                                          buildingName='Gierenshof_9_4753099')
+    optmodel.components['waterscheiGarden.buildingD'].change_teaser_params(streetName='Gierenshof',
+                                                                           buildingName='Gierenshof_9_4753099')
+    optmodel.change_params({
+        'max_heat': 18000
+    }, node='waterscheiGarden', comp='buildingD')
+
+    optmodel.components['waterscheiGarden.buildingD'].change_model_params(start_time=start_time)
     optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi', warmstart=True)
     TiD_ws_2 = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
                                    comp='buildingD', index='TAir', state=True)
@@ -245,7 +250,7 @@ if __name__ == '__main__':
     ax[1].plot(Q_hea_ws)
     ax[1].plot(Q_hea_ws_2)
 
-    fig, ax = plt.subplots(1,1)
+    fig, ax = plt.subplots(1, 1)
     ax.plot(TiD_ws)
 
     plt.show()
