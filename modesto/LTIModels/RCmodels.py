@@ -470,7 +470,7 @@ class TeaserFourElement(Component):
         sfInt = splitFactor(AArray)
 
         # Air capacity
-        self.block.CAir = mutParam(mp['VAir'] * 1007 * 1.293)
+        self.block.CAir = mutParam(mp['VAir'] * 1007 * 1.293 * 5)
 
         # U values
         alphaOut = 23
@@ -626,7 +626,6 @@ class TeaserFourElement(Component):
         q_int_con = self.params['Q_int_con'].v()
         for t in self.TIME:
             getattr(self.block, 'Q_int_con')[t] = q_int_con[t]
-        
 
         # self.block.fixed_state_heat
         # self.block.FixedTemperatures
