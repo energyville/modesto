@@ -20,9 +20,9 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 time_step = 300
-n_steps = 24 * 365 * int(3600 / time_step)
+n_steps = 24 * 1 * int(3600 / time_step)
 
-start_time = pd.Timestamp('20140101')
+start_time = pd.Timestamp('20141231')
 
 df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv', expand=True)
 df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
@@ -108,7 +108,7 @@ def construct_model():
     # Production parameters
 
     c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
-                            name='DAM_electricity_prices-2014_BE.csv')['price_BE']
+                            name='DAM_electricity_prices-2014_BE.csv', expand=True)['price_BE']
     # cf = pd.Series(0.5, index=t_amb.index)
 
     prod_design = {'efficiency': 0.95,

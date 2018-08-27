@@ -20,9 +20,9 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 
-n_steps = 24 * 4
-time_step = 3600
-start_time = pd.Timestamp('20140404')
+n_steps = 24 * 7 * 12
+time_step = 300
+start_time = pd.Timestamp('20140204')
 
 
 def construct_model():
@@ -98,8 +98,9 @@ def construct_model():
                           'floor_max_temperature': floor_max,
                           'streetName': 'Gierenshof',
                           'buildingName': 'Gierenshof_17_1589280',
-                          'Q_int': Q_int_D,
-                          'max_heat': 150000,
+                          'Q_int_rad': Q_int_D,
+                          'Q_int_con': Q_int_D,
+                          'max_heat': 25000,
                           'fra_rad': 0.3,
                           'ACH': 0.4
                           }
@@ -116,12 +117,12 @@ def construct_model():
     optmodel.change_params(ws_building_params, node='waterscheiGarden',
                            comp='buildingD')
 
-    # optmodel.change_init_type(node='zwartbergNE', comp='buildingD',
-    #                           state='TiD0', new_type='cyclic')
+    optmodel.change_init_type(node='waterscheiGarden', comp='storage',
+                              state='heat_stor', new_type='cyclic')
 
-    bbThor_params = {'diameter': 500}# ,
-                     #'temperature_supply': 80 + 273.15,
-                     #'temperature_return': 60 + 273.15}
+    bbThor_params = {'diameter': 500}  # ,
+    # 'temperature_supply': 80 + 273.15,
+    # 'temperature_return': 60 + 273.15}
     spWaterschei_params = bbThor_params.copy()
     spWaterschei_params['diameter'] = 500
     spZwartbergNE_params = bbThor_params.copy()
@@ -153,7 +154,7 @@ def construct_model():
     # Production parameters
 
     c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
-                            name='DAM_electricity_prices-2014_BE.csv')['price_BE']
+                            name='DAM_electricity_prices-2014_BE.csv', expand=True)['price_BE']
     # cf = pd.Series(0.5, index=t_amb.index)
 
     prod_design = {'efficiency': 0.95,
@@ -189,9 +190,9 @@ if __name__ == '__main__':
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('energy')
 
-    optmodel.model.OBJ_ENERGY.pprint()
-    optmodel.model.OBJ_COST.pprint()
-    optmodel.model.OBJ_CO2.pprint()
+    # optmodel.model.OBJ_ENERGY.pprint()
+    # optmodel.model.OBJ_COST.pprint()
+    # optmodel.model.OBJ_CO2.pprint()
 
     optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi')
 
@@ -251,6 +252,5 @@ if __name__ == '__main__':
 
     ax[2].plot(SOC_stor)
     ax[2].grid(alpha=0.7, ls=':')
-
 
     plt.show()
