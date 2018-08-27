@@ -41,7 +41,7 @@ logger = logging.getLogger('SDH')
 # * **Name of the edge**
 #
 
-def setup_opt():
+def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
     G = nx.DiGraph()
 
     G.add_node('WaterscheiGarden', x=0, y=0, z=0,
@@ -83,8 +83,8 @@ def setup_opt():
     # * **Start time** (should be a pandas TimeStamp). Currently, weather and prixe data for 2014 are available in modesto.
     # * **Pipe model**: The type of model used to model the pipes. Only one type can be selected for the whole optimization problem (unlike the component model types). Possibilities: SimplePipe (= perfect pipe, no losses, no time delays), ExtensivePipe (limited mass flows and heat losses, no time delays) and NodeMethod (heat losses and time delays, but requires mass flow rates to be known in advance)
 
-    horizon = 365 * 24 * 3600
-    time_step = 6 * 3600
+    horizon = horizon
+    time_step = time_step
     pipe_model = 'ExtensivePipe'
 
     # And create the modesto object
