@@ -1,3 +1,6 @@
+from pyomo.core import ConcreteModel
+
+
 def test_rc_model():
     from modesto.LTIModels.RCmodels import RCmodel
     import pandas as pd
@@ -187,14 +190,16 @@ def test_teaser_four_element():
               'day_max_temperature': max_temp_room,
               'delta_T': 20,
               'mult': 100,
-              'horizon': horizon
+              'horizon': horizon,
+              'time_step': 100,
+              'horizon': 1000
               }
 
     for param in params:
         RCmodel.change_param(param, params[param])
 
     try:
-        RCmodel.build()
+        RCmodel.compile(start_time='20140201', model=ConcreteModel())
         return True
     except ValueError:
         return False
