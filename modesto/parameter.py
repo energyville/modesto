@@ -48,6 +48,9 @@ class Parameter(object):
         """
         self.value = new_val
 
+    def resample(self):
+        pass
+
     def check(self):
         """
         Check whether the value of the parameter is known, otherwise an error is raised
@@ -368,6 +371,14 @@ class TimeSeriesParameter(Parameter):
     def change_time_step(self, val):
         self.time_step = val
 
+    def resample(self):
+        """
+        Change the sampling time of the parameter
+
+        :return:
+        """
+        if self.time_data: # TODO This is a TimeSeries Parameter, a Boolean indicating whether or not it contains time data should be unnecessary
+            self.value = ut.resample(self.value, new_sample_time=self.time_step)
 
 class UserDataParameter(TimeSeriesParameter):
     def __init__(self, name, description, unit, val=None):

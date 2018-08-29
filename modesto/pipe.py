@@ -305,7 +305,6 @@ class ExtensivePipe(Pipe):
 
         self.block.mass_flow_forw = Var(self.TIME, within=NonNegativeReals, doc='Forward part of mass flow rate')
         self.block.mass_flow_back = Var(self.TIME, within=NonNegativeReals, doc='Backward part of mass flow rate')
-
         self.block.heat_loss_tot = Var(self.TIME, within=NonNegativeReals, doc='Total heat lost from pipe')
 
         self.make_slack('slack_heat_loss', self.TIME)

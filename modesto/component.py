@@ -277,14 +277,17 @@ class Component(Submodel):
         """
         return self.direction
 
+
     def obj_co2_cost(self):
         """
         Yield summation of CO2 cost
 
+        :param model: The main optimization model
+        :param block: The component block, part of the main optimization
+        :param start_time: STart_tine of the optimization
         :return:
         """
         return 0
-
 
     def compile(self, model, start_time):
         """
@@ -301,14 +304,6 @@ class Component(Submodel):
         self.update_time(start_time,
                          time_step=self.params['time_step'].v(),
                          horizon=self.params['horizon'].v())
-
-    def obj_bui_t(self):
-        """
-        Yield summation of building temperatures for objective function, but only for relevant component types
-
-        :return:
-        """
-        return 0
 
 
 class FixedProfile(Component):
