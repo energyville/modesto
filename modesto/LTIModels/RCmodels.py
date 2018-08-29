@@ -181,7 +181,7 @@ class TeaserFourElement(Component):
                                     'Begin temperature at state TAir',
                                     'K',
                                     init_type='fixedVal',
-                                    slack=False),
+                                    slack=True),
             'TRoof0': StateParameter('TRoof0',
                                      'Begin temperature at state TRoof',
                                      'K',
