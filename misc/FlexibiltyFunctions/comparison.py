@@ -14,7 +14,8 @@ import copy
 logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
-logger = logging.getLogger('Main.py')
+
+
 
 """
 
@@ -22,28 +23,19 @@ Settings
 
 """
 
-sim_name = 'Sensitivity_analysis_pos_step_35'
-
 n_buildings = 10
 n_streets = 3
-horizon = 24*7*3600
+horizon = 5*3600
 start_time = pd.Timestamp('20140101')
 
-time_index = pd.date_range(start=start_time, periods=int(horizon/3600)+1, freq='H')
 
-selected_flex_cases = ['Reference',  'Flexibility']
-selected_model_cases = ['Buildings - ideal network', 'Buildings', 'Network', 'Combined - LP']
-selected_street_cases = ['Mixed street']
-selected_district_cases = ['Series district', 'Parallel district', 'Genk']
 
-dist_pipe_length = 150
-street_pipe_length = 30
-service_pipe_length = 30
+
+
 
 old_building = 'SFH_D_3_2zone_TAB'
 mixed_building = 'SFH_D_3_2zone_REF1'
 new_building = 'SFH_D_5_ins_TAB'
-
 
 streets = ['Old street', 'Mixed street', 'New street']
 districts = ['Series district', 'Parallel district', 'Genk']
@@ -167,8 +159,8 @@ def select_parameters(neighb, modelcase, bparams, prodparams, dhwparams, pipepar
         b_key_list = ['delta_T', 'mult', 'night_min_temperature', 'night_max_temperature',
                       'day_min_temperature', 'day_max_temperature', 'bathroom_min_temperature',
                       'bathroom_max_temperature', 'floor_min_temperature', 'floor_max_temperature',
-                      'model_type', 'Q_sol_E', 'Q_sol_W', 'Q_sol_S', 'Q_sol_N',
-                      'Q_int_D', 'Q_int_N', 'Te', 'Tg', 'TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0',
+                      'model_type',
+                      'Q_int_D', 'Q_int_N', 'TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0',
                       'TfiN0', 'TiN0', 'TwiN0', 'TwN0', 'max_heat']
 
         dhw_key_list = ['delta_T', 'mult', 'heat_profile']
@@ -224,8 +216,8 @@ def select_parameters_sensitivity(neighb, modelcase, bparams, prodparams, dhwpar
         b_key_list = ['delta_T', 'mult', 'night_min_temperature', 'night_max_temperature',
                       'day_min_temperature', 'day_max_temperature', 'bathroom_min_temperature',
                       'bathroom_max_temperature', 'floor_min_temperature', 'floor_max_temperature',
-                      'model_type', 'Q_sol_E', 'Q_sol_W', 'Q_sol_S', 'Q_sol_N',
-                      'Q_int_D', 'Q_int_N', 'Te', 'Tg', 'TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0',
+                      'model_type',
+                      'Q_int_D', 'Q_int_N', 'TiD0', 'TflD0', 'TwiD0', 'TwD0', 'TfiD0',
                       'TfiN0', 'TiN0', 'TwiN0', 'TwN0', 'max_heat']
 
         dhw_key_list = ['delta_T', 'mult', 'heat_profile']
@@ -271,10 +263,13 @@ def set_up_modesto(network_graph, modelcase, bparams, prodparams, dhwparams, pip
     pipe_model = model_cases[modelcase]['pipe_model']
     time_step = model_cases[modelcase]['time_step']
 
+    optmodel = Modesto(pipe_model, network_graph)
+
+    optmodel.change_general_param('time_step', time_step)
+    optmodel.change_general_param('horizon', horizon)
+
     if pipe_model == 'NodeMethod':
-        optmodel = Modesto(horizon, time_step, pipe_model, network_graph)
-    else:
-        optmodel = Modesto(horizon + time_step, time_step, pipe_model, network_graph)
+        optmodel.change_general_param('horizon', time_step+horizon)
 
     optmodel.change_params(parameters.get_general_params())
 
@@ -314,7 +309,7 @@ def set_up_modesto_sensitivity(neighb, network_graph, modelcase, bparams, prodpa
                           dhw_key_list, p_key_list, prod_key_list)
 
 
-def solve_optimization(optmodel, timelim=None, tee=False):
+def solve_optimization(optmodel, timelim=None, tee=True):
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     status = optmodel.solve(timelim=timelim, tee=tee)
@@ -1137,11 +1132,12 @@ def get_sensity_parameter_values(name):
 
 if __name__ == '__main__':
     # run_sensitivity_analysis('Genk', 'pipe_lengths')
-    run_sensitivity_analysis('Genk', 'pipe_diameters')
-    run_sensitivity_analysis('Genk', 'heat_demand')
-    run_sensitivity_analysis('Genk', 'supply_temp_level')
-    run_sensitivity_analysis('Genk', 'supply_temp_reach')
-    run_sensitivity_analysis('Genk', 'substation_temp_difference')
+    # run_sensitivity_analysis('Genk', 'pipe_diameters')
+    # run_sensitivity_analysis('Genk', 'heat_demand')
+    # run_sensitivity_analysis('Genk', 'supply_temp_level')
+    # run_sensitivity_analysis('Genk', 'supply_temp_reach')
+    # run_sensitivity_analysis('Genk', 'substation_temp_difference')
     # run_sensitivity_analysis('Genk', 'network_size')  # TODO Aggregatie gebouwen
+    generate_response_functions()
 
     plt.show()

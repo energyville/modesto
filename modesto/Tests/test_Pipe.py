@@ -46,9 +46,7 @@ def setup_modesto(graph):
     start_time = pd.Timestamp('20140101')
     pipe_model = 'ExtensivePipe'
 
-    optmodel = Modesto(horizon=horizon,
-                       time_step=time_step,
-                       pipe_model=pipe_model,
+    optmodel = Modesto(pipe_model=pipe_model,
                        graph=graph
                        )
 
@@ -57,10 +55,20 @@ def setup_modesto(graph):
     wd = ut.read_time_data(datapath, name='Weather/weatherData.csv')
     t_amb = wd['Te']
     t_g = wd['Tg']
+    QsolN = wd['QsolN']
+    QsolE = wd['QsolS']
+    QsolS = wd['QsolN']
+    QsolW = wd['QsolW']
     c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
 
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': horizon}
     optmodel.change_params(general_params)
 
     Pnom = 4e6
@@ -70,7 +78,7 @@ def setup_modesto(graph):
     building_params = {
         'delta_T': 40,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 1, 0, 1] * 4 * numdays) * Pnom
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom
 
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
@@ -80,9 +88,9 @@ def setup_modesto(graph):
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': Pnom * 200,
+                   'Qmax': Pnom *1.5,
                    'ramp_cost': 0.01,
-                   'ramp': Pnom / 3600}
+                   'ramp': Pnom/3500}
 
     optmodel.change_params(prod_design, 'prod', 'prod')
 
@@ -142,7 +150,7 @@ if __name__ == '__main__':
     print opts
 
     for name, opt in opts.iteritems():
-        res = opt.solve(tee=True, mipgap=0.000001, solver='gurobi')
+        res = opt.solve(tee=True, mipgap=0.000001, solver='cplex')
         if not res == 0:
             raise Exception('Optimization {} failed to solve.'.format(name))
 
@@ -152,7 +160,17 @@ if __name__ == '__main__':
 
     import matplotlib.pyplot as plt
 
-    fig, axs = plt.subplots(3, 1, sharex=True)
+    print opts['for'].get_result('slack_heat_loss', comp='pipe')
+    print opts['for'].get_result('heat_flow_in', comp='pipe')
+    print opts['for'].get_result('heat_flow_out', comp='pipe')
+
+    print opts['for'].get_result('mass_flow_forw', comp='pipe')
+    print opts['for'].get_result('mass_flow_back', comp='pipe')
+
+    print "Objective slack"
+    print opts['for'].model.Slack.pprint()
+
+    fig, axs = plt.subplots(4, 1, sharex=True)
 
     for name, opt in opts.iteritems():
         axs[0].plot(opt.get_result('heat_flow', node='cons', comp='cons'), linestyle='--', label='cons_' + name)
@@ -161,14 +179,25 @@ if __name__ == '__main__':
         axs[0].set_ylabel('Heat flow [W]')
 
         axs[1].plot(opt.get_result('heat_loss_tot', comp='pipe'), label=name)
+        axs[1].plot(opt.get_result('heat_flow_in', comp='pipe') - opt.get_result('heat_flow_out', comp='pipe'),
+                    label=name)
         axs[1].set_ylabel('Heat loss [W]')
 
         axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name + '_in')
         axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name + '_out')
         axs[2].set_ylabel('Heat flow in/out [W]')
 
+        axs[3].plot(opt.get_result('mass_flow', comp='pipe'), label=name)
+        axs[3].set_ylabel('Mass flow rate [kg/s]')
+
     axs[0].legend()
     axs[1].legend()
     axs[2].legend()
+    axs[3].legend()
+
+    axs[-1].set_xlabel('Time')
+
+    for ax in axs:
+        ax.grid(alpha=0.3, linestyle=':')
 
     plt.show()

@@ -118,7 +118,11 @@ General parameters
 """
 
 general_params = {'Te': t_amb,
-                  'Tg': t_g}
+                  'Tg': t_g,
+                  'Q_sol_E': QsolE,
+                  'Q_sol_N': QsolE,
+                  'Q_sol_S': QsolE,
+                  'Q_sol_W': QsolE,}
 
 
 def get_general_params():
@@ -133,7 +137,7 @@ Building parameters
 
 def get_building_params():
 
-    output  = {'delta_T': delta_T,
+    output = {'delta_T': delta_T,
                'mult': None,
                'heat_profile': None,
                'temperature_return': return_temp,
@@ -149,14 +153,8 @@ def get_building_params():
                'floor_min_temperature': None,
                'floor_max_temperature': None,
                'model_type': None,
-               'Q_sol_E': QsolE,
-               'Q_sol_W': QsolW,
-               'Q_sol_S': QsolS,
-               'Q_sol_N': QsolN,
                'Q_int_D': None,
                'Q_int_N': None,
-               'Te': t_amb,
-               'Tg': t_g,
                'TiD0': None,
                'TflD0': None,
                'TwiD0': None,

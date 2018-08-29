@@ -4,8 +4,8 @@ Utility functions needed for modesto
 """
 
 import os.path
+
 import pandas as pd
-from pandas.tseries.frequencies import to_offset
 
 
 def read_file(path, name, timestamp):
@@ -53,6 +53,23 @@ def read_time_data(path, name, expand=False, expand_year=2014):
 
     return df
 
+def read_xlsx_data(filepath, use_sheet=None, index_col=0):
+    """
+    Read data contained in an excel file
+
+    :param filepath: File location
+    :paran use_sheet: indicate which sheet of the specified xslx file to use. If left blank, take the first sheet.
+    :param index_col: Which column to use as index.
+    :return: dataframe
+    """
+
+    if use_sheet is None:
+        sheet_name = 0
+    else:
+        sheet_name = use_sheet
+    df = pd.read_excel(filepath, sheet_name=sheet_name, index_col=index_col)
+    return df
+
 
 def resample(df, new_sample_time, old_sample_time=None, method=None):
     """
@@ -98,7 +115,8 @@ def read_period_data(path, name, time_step, horizon, start_time, method=None, se
 
     return df[start_time:end_time]
 
-def select_period_data(df, horizon, time_step, start_time):
+
+def select_period_data(df, horizon, time_step, start_time, method=None):
     """
     Select only relevant time span from existing dataframe
 
@@ -106,11 +124,13 @@ def select_period_data(df, horizon, time_step, start_time):
     :param time_step: time step in seconds
     :param horizon: horizon in seconds
     :param start_time: start time as pd.Timestamp
+    :param method: Resampling method. Default mean
     :return: df
     """
     end_time = start_time + pd.Timedelta(seconds=horizon)
+    df = df[start_time:end_time]
 
-    return df[start_time:end_time]
+    return resample(df=df, new_sample_time=time_step, method=method)
 
 
 def expand_df(df, start_year=2014):
