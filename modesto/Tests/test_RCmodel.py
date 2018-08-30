@@ -1,3 +1,6 @@
+from pyomo.core import ConcreteModel
+
+
 def test_rc_model():
     from modesto.LTIModels.RCmodels import RCmodel
     import pandas as pd
@@ -126,7 +129,7 @@ def test_readTeaserParam():
                  'S': 81.98799655851384,
                  'W': 82.30500574473892},
         'AFloor': 172.48484039299998,
-        'AInt': 1228.14713426,
+        'AInt': 1033.12064929,
         'ARoof': 221.966225606,
         'ATransparent': {'E': 22.835507350388625,
                          'N': 21.868839102889993,
@@ -138,20 +141,20 @@ def test_readTeaserParam():
                  'W': 20.57625143618473},
         'CExt': 54076622.6667,
         'CFloor': 60085317.5939,
-        'CInt': 114158540.02600001,
+        'CInt': 94926864.4212,
         'CRoof': 9839385.66679,
         'RExt': 9.75725503328e-05,
         'RExtRem': 0.00416154570566,
         'RFloor': 0.000264982602346,
         'RFloorRem': 0.00786087528982,
-        'RInt': 4.08826289311e-05,
+        'RInt': 4.68885650604e-05,
         'RRoof': 2.89047922504e-05,
         'RRoofRem': 0.006216146554649999,
         'RWin': 0.00162894973267,
         'VAir': 1514.03825189,
         'alphaExt': 2.7,
         'alphaFloor': 1.7,
-        'alphaInt': 2.13822743845,
+        'alphaInt': 2.03217929383,
         'alphaRad': 5.0,
         'alphaRoof': 1.7,
         'alphaWin': 2.7,
@@ -187,14 +190,16 @@ def test_teaser_four_element():
               'day_max_temperature': max_temp_room,
               'delta_T': 20,
               'mult': 100,
-              'horizon': horizon
+              'horizon': horizon,
+              'time_step': 100,
+              'horizon': 1000
               }
 
     for param in params:
         RCmodel.change_param(param, params[param])
 
     try:
-        RCmodel.build()
+        RCmodel.compile(start_time='20140201', model=ConcreteModel())
         return True
     except ValueError:
         return False

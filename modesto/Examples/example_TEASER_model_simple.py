@@ -19,10 +19,18 @@ logger = logging.getLogger('Main.py')
 # Set up Graph of network #
 ###########################
 
-time_step = 300
+time_step = 60
 n_steps = 24 * 3 * int(3600 / time_step)
 
-start_time = pd.Timestamp('20140201')
+start_time = pd.Timestamp('20141231')
+
+df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv', expand=True)
+df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
+                                     expand=True)
+df_Qcon = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='QCon.csv', expand=True)
+df_Qrad = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='QRad.csv', expand=True)
+
+df_sh_day = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='sh_day.csv', expand=True)
 
 
 def construct_model():
@@ -44,9 +52,6 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv', expand=True)
-    df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
-                                         expand=True)
 
     t_amb = df_weather['Te']
     t_g = df_weather['Tg']
@@ -55,10 +60,11 @@ def construct_model():
     QsolS = df_weather['QsolN']
     QsolW = df_weather['QsolW']
     day_max = df_userbehaviour['day_max']
-    day_min = df_userbehaviour['day_min']
+    day_min = df_sh_day['1'] + 273.15
     floor_max = df_userbehaviour['floor_max']
     floor_min = df_userbehaviour['floor_min']
-    Q_int_D = df_userbehaviour['Q_int_D']
+    Q_int_con = df_Qcon['1']
+    Q_int_rad = df_Qrad['1']
 
     optmodel.opt_settings(allow_flow_reversal=True)
 
@@ -80,7 +86,7 @@ def construct_model():
     ws_building_params = {'TAir0': 20 + 273.15,
                           'TExt0': 12 + 273.15,
                           'TRoof0': 10 + 273.15,
-                          'TFloor0': 10 +273.15,
+                          'TFloor0': 10 + 273.15,
                           'delta_T': 20,
                           'mult': 10,
                           'day_min_temperature': day_min,
@@ -89,7 +95,8 @@ def construct_model():
                           'floor_max_temperature': floor_max,
                           'streetName': 'Gierenshof',
                           'buildingName': 'Gierenshof_17_1589280',
-                          'Q_int': Q_int_D,
+                          'Q_int_rad': Q_int_rad,
+                          'Q_int_con': Q_int_con,
                           'max_heat': 20000,
                           'fra_rad': 0.3,
                           'ACH': 0.4
@@ -101,7 +108,7 @@ def construct_model():
     # Production parameters
 
     c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
-                            name='DAM_electricity_prices-2014_BE.csv')['price_BE']
+                            name='DAM_electricity_prices-2014_BE.csv', expand=True)['price_BE']
     # cf = pd.Series(0.5, index=t_amb.index)
 
     prod_design = {'efficiency': 0.95,
@@ -133,15 +140,26 @@ def construct_model():
 ##################################
 
 if __name__ == '__main__':
+    from time import clock
+
+    start = clock()
+
     optmodel = construct_model()
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('energy')
+
+    comp_finish = clock()
 
     # optmodel.model.OBJ_ENERGY.pprint()
     # optmodel.model.OBJ_COST.pprint()
     # optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi')
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi', verbose=False)
+
+    finish = clock()
+    print '\n========================'
+    print 'Total computation time is {} s.'.format(finish - start)
+    print 'Compilation took {} s.'.format(comp_finish - start)
 
     ##################################
     # Collect result                 #
@@ -190,10 +208,11 @@ if __name__ == '__main__':
     QsolS = df_weather['QsolN']
     QsolW = df_weather['QsolW']
     day_max = df_userbehaviour['day_max']
-    day_min = df_userbehaviour['day_min']
+    day_min = ut.select_period_data(df_sh_day['1'] + 273.15, horizon=n_steps*time_step, time_step=time_step, start_time=start_time)
     floor_max = df_userbehaviour['floor_max']
     floor_min = df_userbehaviour['floor_min']
-    Q_int_D = df_userbehaviour['Q_int_D']
+    Q_int_con = ut.select_period_data(df_Qcon['1'], horizon=n_steps*time_step, time_step=time_step, start_time=start_time)
+    Q_int_rad = ut.select_period_data(df_Qrad['1'], horizon=n_steps*time_step, time_step=time_step, start_time=start_time)
 
     fig, ax = plt.subplots(2, 1, sharex=True)
 
@@ -218,7 +237,36 @@ if __name__ == '__main__':
 
     ax[1].legend()
 
-    fig, ax = plt.subplots(1,1)
+    optmodel.components['waterscheiGarden.buildingD'].change_teaser_params(streetName='Gierenshof',
+                                                                           buildingName='Gierenshof_9_4753099')
+
+    day_min = df_sh_day['2'] + 273.15
+    Q_int_con = df_Qcon['2']
+    Q_int_rad = df_Qrad['2']
+
+    optmodel.change_params({
+        'Q_int_rad': Q_int_rad,
+        'Q_int_con': Q_int_con,
+        'day_min_temperature': day_min
+    }, node='waterscheiGarden', comp='buildingD')
+
+    optmodel.components['waterscheiGarden.buildingD'].change_model_params(start_time=start_time)
+    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi', warmstart=True)
+    TiD_ws_2 = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
+                                   comp='buildingD', index='TAir', state=True)
+
+    Q_hea_ws_2 = optmodel.get_result('ControlHeatFlows', node='waterscheiGarden',
+                                     comp='buildingD', index='Q_hea')
+
+    fig, ax = plt.subplots(2, 1, sharex=True)
+    ax[0].plot(TiD_ws)
+    ax[0].plot(TiD_ws_2)
+
+    ax[1].plot(Q_hea_ws)
+    ax[1].plot(Q_hea_ws_2)
+
+    fig, ax = plt.subplots(1, 1)
     ax.plot(TiD_ws)
+    ax.plot(TiD_ws_2)
 
     plt.show()
