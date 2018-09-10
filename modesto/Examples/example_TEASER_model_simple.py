@@ -93,6 +93,7 @@ def construct_model():
                           'day_max_temperature': day_max,
                           'floor_min_temperature': floor_min,
                           'floor_max_temperature': floor_max,
+                          'neighbName': 'OudWinterslag',
                           'streetName': 'Gierenshof',
                           'buildingName': 'Gierenshof_17_1589280',
                           'Q_int_rad': Q_int_rad,
@@ -237,8 +238,9 @@ if __name__ == '__main__':
 
     ax[1].legend()
 
-    optmodel.components['waterscheiGarden.buildingD'].change_teaser_params(streetName='Gierenshof',
-                                                                           buildingName='Gierenshof_9_4753099')
+    optmodel.components['waterscheiGarden.buildingD'].change_teaser_params(neighbName='OudWinterslag',
+                                                                           streetName='Gierenshof',
+                                                                           buildingName='Gierenshof_17_1589280')
 
     day_min = df_sh_day['2'] + 273.15
     Q_int_con = df_Qcon['2']
@@ -259,14 +261,16 @@ if __name__ == '__main__':
                                      comp='buildingD', index='Q_hea')
 
     fig, ax = plt.subplots(2, 1, sharex=True)
-    ax[0].plot(TiD_ws)
-    ax[0].plot(TiD_ws_2)
+    ax[0].plot(TiD_ws, label='First run')
+    ax[0].plot(TiD_ws_2, label='Second run')
+    ax[0].legend()
 
     ax[1].plot(Q_hea_ws)
     ax[1].plot(Q_hea_ws_2)
 
     fig, ax = plt.subplots(1, 1)
-    ax.plot(TiD_ws)
-    ax.plot(TiD_ws_2)
+    ax.plot(TiD_ws, label='First run')
+    ax.plot(TiD_ws_2, label='Second run')
+    ax.legend()
 
     plt.show()

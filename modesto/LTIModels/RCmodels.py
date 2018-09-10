@@ -85,7 +85,7 @@ def splitFactor(AArray, AExt=None, AWin=None):
     return splitFacValues
 
 
-def readTeaserParam(streetName, buildingName, path=resource_filename('modesto', 'Data/BuildingModels/TEASER')):
+def readTeaserParam(neighbName, streetName, buildingName, path=resource_filename('modesto', 'Data/BuildingModels/TEASER')):
     """
     Read data and construct parameter dictionary for TEASER building models.
 
@@ -95,7 +95,7 @@ def readTeaserParam(streetName, buildingName, path=resource_filename('modesto', 
     :return:
     """
 
-    filepath = os.path.join(path, streetName, streetName + '_standard_ROM.csv')
+    filepath = os.path.join(path, neighbName, streetName + '.csv')
 
     data = pd.read_csv(filepath, sep=';', index_col=0)
 
@@ -243,6 +243,9 @@ class TeaserFourElement(Component):
             'mult': DesignParameter('mult',
                                     'Number of buildings represented by building model',
                                     '-'),
+            'neighbName': DesignParameter('neighbName',
+                                          'Name of the neighborhood in which the street is located',
+                                          '-'),
             'streetName': DesignParameter('streetName',
                                           'Name of street where the TEASER building is located',
                                           '-'),
@@ -448,7 +451,7 @@ class TeaserFourElement(Component):
         :return:
         """
         # Load parameters
-        self.model_params = readTeaserParam(self.params['streetName'].v(), self.params['buildingName'].v())
+        self.model_params = readTeaserParam(self.params['neighbName'].v(), self.params['streetName'].v(), self.params['buildingName'].v())
         mp = self.model_params
 
         for param in mp:
@@ -530,7 +533,7 @@ class TeaserFourElement(Component):
             self.f_fix_air['Q_sol_' + ori] = getattr(self.block, 'f_air_' + ori)
         self.f_fix_air['Q_int_con'] = 1
 
-    def change_teaser_params(self, streetName, buildingName):
+    def change_teaser_params(self, neighbName, streetName, buildingName):
         """
         After initialization, change parameters of the model without recompiling.
 
@@ -538,7 +541,7 @@ class TeaserFourElement(Component):
         :param buildingName:
         :return:
         """
-        self.model_params = readTeaserParam(streetName=streetName, buildingName=buildingName)
+        self.model_params = readTeaserParam(neighbName=neighbName, streetName=streetName, buildingName=buildingName)
         mp = self.model_params
 
         for param in mp:
@@ -560,7 +563,7 @@ class TeaserFourElement(Component):
         sfInt = splitFactor(AArray)
 
         # Air capacity
-        self.block.CAir = mp['VAir'] * 1007 * 1.276
+        self.block.CAir = mp['VAir'] * 1007 * 1.293 * 5
 
         # U values
         alphaOut = 23

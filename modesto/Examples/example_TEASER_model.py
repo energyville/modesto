@@ -96,6 +96,7 @@ def construct_model():
                           'day_max_temperature': day_max,
                           'floor_min_temperature': floor_min,
                           'floor_max_temperature': floor_max,
+                          'neighbName': 'OudWinterslag',
                           'streetName': 'Gierenshof',
                           'buildingName': 'Gierenshof_17_1589280',
                           'Q_int_rad': Q_int_D,
