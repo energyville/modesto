@@ -20,9 +20,9 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 time_step = 1800
-n_steps = 24 * 3 * int(3600 / time_step)
+n_steps = int(24 * 365 * 3600 / time_step)
 
-start_time = pd.Timestamp('20141231')
+start_time = pd.Timestamp('20140101')
 
 df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv', expand=True)
 df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
