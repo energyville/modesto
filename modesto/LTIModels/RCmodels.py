@@ -584,7 +584,7 @@ class TeaserFourElement(Component):
         self.block.UFloorAir = (mp['alphaFloor'] * AFloor)
         self.block.UIntAir = (mp['alphaInt'] * AInt)
 
-        self.block.UVent = (self.params['ACH'].v() * mp['VAir'] * 1007 * 1.276 / 3600)
+        self.block.UVent = (self.params['ACH'].v() * mp['VAir'] * 1007 * 1.293 / 3600)
 
         for node_from, node_to in itertools.combinations(['Roof', 'Int', 'Ext', 'Floor', 'Win'], r=2):
             # all possible combinations of two elements from list, which yields all needed radiation connections
