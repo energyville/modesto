@@ -19,8 +19,8 @@ logger = logging.getLogger('Main.py')
 # Set up Graph of network #
 ###########################
 
-time_step = 1800
-n_steps = int(24 * 365 * 3600 / time_step)
+time_step = 900
+n_steps = int(6 * 1 * 3600 / time_step)
 
 start_time = pd.Timestamp('20140101')
 
@@ -155,7 +155,7 @@ if __name__ == '__main__':
     # optmodel.model.OBJ_COST.pprint()
     # optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi', verbose=False)
+    optmodel.solve(tee=True, mipfocus=None, solver='gurobi', verbose=True)
 
     finish = clock()
     print '\n========================'
@@ -253,7 +253,7 @@ if __name__ == '__main__':
     }, node='waterscheiGarden', comp='buildingD')
 
     optmodel.components['waterscheiGarden.buildingD'].change_model_params(start_time=start_time)
-    optmodel.solve(tee=True, mipgap=0.01, mipfocus=None, solver='gurobi', warmstart=True)
+    optmodel.solve(tee=True, solver='gurobi', warmstart=True, threads=None)
     TiD_ws_2 = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
                                    comp='buildingD', index='TAir', state=True)
 
