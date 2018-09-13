@@ -182,7 +182,7 @@ class Modesto:
         self.model.Slack = Var(within=NonNegativeReals)
 
         def _decl_slack(model):
-            return model.Slack == 10 ** 6 * sum(comp.obj_slack() for comp in self.iter_components())
+            return model.Slack == 10 ** 2 * sum(comp.obj_slack() for comp in self.iter_components())
 
         self.model.decl_slack = Constraint(rule=_decl_slack)
 
@@ -333,7 +333,7 @@ class Modesto:
         return self.components.values()
 
     def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi', warmstart=False, probe=False,
-              timelim=None):
+              timelim=None, threads=None):
         """
         Solve a new optimization
 
@@ -352,9 +352,10 @@ class Modesto:
             self.model.pprint()
 
         opt = SolverFactory(solver, warmstart=warmstart)
-        # opt.options["Threads"] = threads
+
         if solver == 'gurobi':
-            opt.options['ImproveStartTime'] = 10
+            # opt.options["Crossover"] = 0
+            # opt.options['ImproveStartTime'] = 10
             # opt.options['PumpPasses'] = 2
             if mipgap is not None:
                 opt.options["MIPGap"] = mipgap
@@ -364,6 +365,9 @@ class Modesto:
 
             if timelim is not None:
                 opt.options["TimeLimit"] = timelim
+
+            if threads is not None:
+                opt.options["Threads"] = threads
         elif solver == 'cplex':
             opt.options['mip display'] = 3
             if probe:
@@ -739,7 +743,7 @@ class Modesto:
         Change the start time of all parameters to ensure correct read out of data
 
         :param pd.Timestamp new_val: New start time
-        :return: 
+        :return:
         """
         for _, param in self.params.items():
             param.change_start_time(new_val)
@@ -887,10 +891,10 @@ class Node(Submodel):
 
     def compile(self, model, start_time):
         """
-        
+
         :param pd.Timestamp start_time: start time of optimization
-        :param model: 
-        :return: 
+        :param model:
+        :return:
         """
         self.set_time_axis()
         self._make_block(model)
@@ -1111,11 +1115,11 @@ class Edge(object):
 
     def compile(self, model, start_time):
         """
-        
-        
+
+
         :param pd.Timestamp start_time: Start time of optimization
-        :param model: 
-        :return: 
+        :param model:
+        :return:
         """
         self.pipe.compile(model, start_time)
 
