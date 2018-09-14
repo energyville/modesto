@@ -20,9 +20,9 @@ logger = logging.getLogger('Main.py')
 ###########################
 
 time_step = 900
-n_steps = int(6 * 1 * 3600 / time_step)
+n_steps = int(24 * 36 * 3600 / time_step)
 
-start_time = pd.Timestamp('20140101')
+start_time = pd.Timestamp('20131226')
 
 df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv', expand=True)
 df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
@@ -52,7 +52,6 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-
     t_amb = df_weather['Te']
     t_g = df_weather['Tg']
     QsolN = df_weather['QsolN']
@@ -60,11 +59,11 @@ def construct_model():
     QsolS = df_weather['QsolN']
     QsolW = df_weather['QsolW']
     day_max = df_userbehaviour['day_max']
-    day_min = df_sh_day['1'] + 273.15
+    day_min = ut.expand_df(df_sh_day['1'] + 273.15)
     floor_max = df_userbehaviour['floor_max']
     floor_min = df_userbehaviour['floor_min']
-    Q_int_con = df_Qcon['1']
-    Q_int_rad = df_Qrad['1']
+    Q_int_con = ut.expand_df(df_Qcon['1'])
+    Q_int_rad = ut.expand_df(df_Qrad['1'])
 
     optmodel.opt_settings(allow_flow_reversal=True)
 
@@ -155,7 +154,7 @@ if __name__ == '__main__':
     # optmodel.model.OBJ_COST.pprint()
     # optmodel.model.OBJ_CO2.pprint()
 
-    optmodel.solve(tee=True, mipfocus=None, solver='gurobi', verbose=True)
+    optmodel.solve(tee=True, mipfocus=None, solver='gurobi', verbose=False)
 
     finish = clock()
     print '\n========================'
@@ -209,11 +208,14 @@ if __name__ == '__main__':
     QsolS = df_weather['QsolN']
     QsolW = df_weather['QsolW']
     day_max = df_userbehaviour['day_max']
-    day_min = ut.select_period_data(df_sh_day['1'] + 273.15, horizon=n_steps*time_step, time_step=time_step, start_time=start_time)
+    day_min = ut.select_period_data(df_sh_day['1'] + 273.15, horizon=n_steps * time_step, time_step=time_step,
+                                    start_time=start_time)
     floor_max = df_userbehaviour['floor_max']
     floor_min = df_userbehaviour['floor_min']
-    Q_int_con = ut.select_period_data(df_Qcon['1'], horizon=n_steps*time_step, time_step=time_step, start_time=start_time)
-    Q_int_rad = ut.select_period_data(df_Qrad['1'], horizon=n_steps*time_step, time_step=time_step, start_time=start_time)
+    Q_int_con = ut.select_period_data(df_Qcon['1'], horizon=n_steps * time_step, time_step=time_step,
+                                      start_time=start_time)
+    Q_int_rad = ut.select_period_data(df_Qrad['1'], horizon=n_steps * time_step, time_step=time_step,
+                                      start_time=start_time)
 
     fig, ax = plt.subplots(2, 1, sharex=True)
 
@@ -242,9 +244,9 @@ if __name__ == '__main__':
                                                                            streetName='Gierenshof',
                                                                            buildingName='Gierenshof_17_1589280')
 
-    day_min = df_sh_day['2'] + 273.15
-    Q_int_con = df_Qcon['2']
-    Q_int_rad = df_Qrad['2']
+    day_min = ut.expand_df(df_sh_day['1'])
+    Q_int_con = ut.expand_df(df_Qcon['1'])
+    Q_int_rad = ut.expand_df(df_Qrad['1'])
 
     optmodel.change_params({
         'Q_int_rad': Q_int_rad,
@@ -252,7 +254,7 @@ if __name__ == '__main__':
         'day_min_temperature': day_min
     }, node='waterscheiGarden', comp='buildingD')
 
-    optmodel.components['waterscheiGarden.buildingD'].change_model_params(start_time=start_time)
+    optmodel.components['waterscheiGarden.buildingD'].change_model_params(start_time=pd.Timestamp('20140126'))
     optmodel.solve(tee=True, solver='gurobi', warmstart=True, threads=None)
     TiD_ws_2 = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
                                    comp='buildingD', index='TAir', state=True)
