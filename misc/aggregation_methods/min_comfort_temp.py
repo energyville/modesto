@@ -38,7 +38,7 @@ Optimization setting
 
 """
 
-horizon = 24*3600*7 + 900  # Time period for which average temperature is required
+horizon = 24*3600*7 + 10*900  # Time period for which average temperature is required
 time_step = 900  # Time step between different points in the aggregated profile
 n_buildings = 50  # Number of buildings to be aggergated
 start_time = '20140101'  # Start time
@@ -157,10 +157,17 @@ def calc_min_temp(start_building, end_building, building_model):
 
     G.add_edge('Producer', 'Building', name='pipe')
 
-    optmodel = Modesto(horizon, time_step, 'SimplePipe', G)
+    optmodel = Modesto('SimplePipe', G)
 
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'horizon': horizon,
+                      'time_step': time_step,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN,
+                      }
 
     optmodel.change_params(general_params)
 
@@ -201,14 +208,8 @@ def calc_min_temp(start_building, end_building, building_model):
                            'floor_min_temperature': floor_min[bui_nr],
                            'floor_max_temperature': floor_max[bui_nr],
                            'model_type': building_model,
-                           'Q_sol_E': QsolE,
-                           'Q_sol_W': QsolW,
-                           'Q_sol_S': QsolS,
-                           'Q_sol_N': QsolN,
                            'Q_int_D': Q_int_D[bui_nr],
                            'Q_int_N': Q_int_N[bui_nr],
-                           'Te': t_amb,
-                           'Tg': t_g,
                            'TiD0': day_min[bui_nr][0],
                            'TflD0': day_min[bui_nr][0],
                            'TwiD0': day_min[bui_nr][0],
@@ -224,16 +225,6 @@ def calc_min_temp(start_building, end_building, building_model):
         optmodel.change_params(building_params, node='Building',
                                comp='building')
 
-        optmodel.change_init_type('TiD0', 'free', 'Building', 'building')
-        optmodel.change_init_type('TflD0', 'free', 'Building', 'building')
-        optmodel.change_init_type('TwiD0', 'free', 'Building', 'building')
-        optmodel.change_init_type('TwD0', 'free', 'Building', 'building')
-        optmodel.change_init_type('TfiD0', 'free', 'Building', 'building')
-        optmodel.change_init_type('TfiN0', 'free', 'Building', 'building')
-        optmodel.change_init_type('TiN0', 'free', 'Building', 'building')
-        optmodel.change_init_type('TwiN0', 'free', 'Building', 'building')
-        optmodel.change_init_type('TwN0', 'free', 'Building', 'building')
-
         optmodel.compile(start_time)
         optmodel.set_objective('building_temp')
         optmodel.solve()
@@ -243,15 +234,15 @@ def calc_min_temp(start_building, end_building, building_model):
         night_t[bui_nr] = optmodel.get_result('StateTemperatures', node='Building',
                                               comp='building', index='TiN', state=True)
         Q_hea_D[bui_nr] = optmodel.get_result('ControlHeatFlows', node='Building',
-                                      comp='building', index='Q_hea_D')
+                                              comp='building', index='Q_hea_D')
         Q_hea_N[bui_nr] = optmodel.get_result('ControlHeatFlows', node='Building',
-                                      comp='building', index='Q_hea_N')
+                                              comp='building', index='Q_hea_N')
 
     return day_t, night_t
 
 
 n_buildings = 50
-for i, building_model in enumerate(['SFH_D_5_ins_TAB']):
+for i, building_model in enumerate(['SFH_D_5_ins_TAB', 'SFH_D_3_2zone_REF1', 'SFH_D_3_2zone_TAB']):
     print building_model
     day_t, night_t = calc_min_temp(0, n_buildings, building_model)
 

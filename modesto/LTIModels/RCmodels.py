@@ -1104,6 +1104,9 @@ class RCmodel(Component):
             # self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
             # self.block.init_temperatures = Constraint(self.lines, rule=_init_temperatures)
 
+    def obj_bui_t(self):
+        return sum(sum(self.block.StateTemperatures[s, t] for s in self.block.control_states) for t in self.X_TIME)
+
     def create_params(self):
 
         params = Component.create_params(self)
