@@ -129,7 +129,7 @@ class ResponseFunctionGenerator:
         self.dr.read_data([mixed_building, old_building, new_building]
                           )
 
-    def find_building_mf_rate(self, district_case, model_case, node_nr, sens_case=None, value=None):
+    def find_node_mf_rate(self, district_case, model_case, node_nr, sens_case=None, value=None):
         heat_profile_type = model_case.get_heat_profile()
         if heat_profile_type:
             mult = district_case.get_node_mult(node_nr)
@@ -144,29 +144,24 @@ class ResponseFunctionGenerator:
     def add_mass_flow_rates(self, district_case, model_case, sens_case=None, value=None):
         self.check_time_settings()
         mfcalc = MfCalculation(district_case.graph,
-                               self.time_step,
+                               self.get_model_case('Buildings').get_time_step(),
                                self.horizon)
 
         for i in range(district_case.get_nr_of_nodes()):
             node_name = district_case.get_building_name(i)
             mfcalc.add_mf(node=node_name, name='building',
-                          mf_df=self.find_building_mf_rate(district_case, model_case, i, sens_case, value))
+                          mf_df=self.find_node_mf_rate(district_case, model_case, i, sens_case, value))
+
+
             mfcalc.add_mf(node=node_name, name='DHW',
                           mf_df=self.dr.get_dhw_use(district_case.aggregated,
                                                     district_case.get_node_mult(i),
-                                                    building_number=i, return_heat_profile=False))
+                                                    building_number=i, return_heat_profile=False) *
+                          district_case.get_node_mult(i))
 
         mfcalc.set_producer_node('Producer')
         mfcalc.set_producer_component('plant')
         mfcalc.calculate_mf()
-
-        for i in range(district_case.get_nr_of_nodes()):
-            node_name = district_case.get_building_name(i)
-            self.model.change_param(node=node_name, comp='building', param='mass_flow',
-                                    val=mfcalc.get_comp_mf(node=node_name, comp='building'))
-
-            self.model.change_param(node=node_name, comp='DHW', param='mass_flow',
-                                    val=mfcalc.get_comp_mf(node=node_name, comp='DHW'))
 
         for pipe in district_case.get_pipe_names():
             self.model.change_param(node=None, comp=pipe, param='mass_flow', val=mfcalc.get_edge_mf(pipe))
@@ -208,7 +203,6 @@ class ResponseFunctionGenerator:
             b_params['heat_profile'] = self.find_heat_profile(district_case,
                                                               heat_profile_type, node_nr, sens_case, value)
             b_params['mult'] = 1
-
 
         return self.select_parameters(b_params, model_case.get_building_params())
 
@@ -326,7 +320,6 @@ class ResponseFunctionGenerator:
                                         pipe_params, model_case, district_case)
 
         return general, build_params, prod_params, dhw_params, pipe_params
-
 
     def solve_optimization(self, timelim=None, tee=False):
         self.model.compile(start_time=self.start_time)
@@ -517,7 +510,7 @@ class ResponseFunctionGenerator:
     def find_price_increase_time(self):
         return self.time_index[int(self.get_flex_case('Flexibility').get_pos() * len(self.time_index))]
 
-    def plot(self, zoom='Genk'):
+    def plot_response_functions(self, zoom=None):
 
         fig1, axarr1 = plt.subplots(len(self.district_cases), 1, sharex=True)
         fig2, axarr2 = plt.subplots(len(self.model_cases), len(self.district_cases), sharex=True)
@@ -528,31 +521,32 @@ class ResponseFunctionGenerator:
 
         fig4, axarr4 = plt.subplots(1, 2, sharex=True)
 
-        n_pipes_1 = int(len(pipe_names)/2)
-        n_pipes_2 = len(pipe_names) - n_pipes_1
-        fig5a, axarr5a = plt.subplots(n_pipes_1, 2, sharex=True)
-        fig5b, axarr5b = plt.subplots(n_pipes_2, 2, sharex=True)
-        fig3a, axarr3a = plt.subplots(n_pipes_1, 2, sharex=True)
-        fig3b, axarr3b = plt.subplots(n_pipes_2, 2, sharex=True)
-
-        j = 0
-        for m, model in enumerate(self.model_cases):
-            if model.is_node_method():
-                results = self.results[zoom][model.name]
-                self.plot_plant_temperature(fig4, axarr4[j], results, model.name)
-
-                for p, pipe in enumerate(pipe_names):
-                    if p == n_pipes_1 - 1 or p == len(pipe_names) - 1:
-                        ylabel = True
-                    else:
-                        ylabel = False
-                    if p < n_pipes_1:
-                        self.plot_water_speed(fig5a, axarr5a[p, j], pipe, results, ylabel)
-                        self.plot_network_temperatures(fig3a, axarr3a[p, j], pipe, results)
-                    else:
-                        self.plot_water_speed(fig5b, axarr5b[p - n_pipes_1, j], pipe, results, ylabel)
-                        self.plot_network_temperatures(fig3b, axarr3b[p - n_pipes_1, j], pipe, results)
-                j += 1
+        # n_pipes_1 = int(len(pipe_names)/2)
+        # n_pipes_2 = len(pipe_names) - n_pipes_1
+        #
+        # fig5a, axarr5a = plt.subplots(n_pipes_1, 2, sharex=True)
+        # fig5b, axarr5b = plt.subplots(n_pipes_2, 2, sharex=True)
+        # fig3a, axarr3a = plt.subplots(n_pipes_1, 2, sharex=True)
+        # fig3b, axarr3b = plt.subplots(n_pipes_2, 2, sharex=True)
+        #
+        # j = 0
+        # for m, model in enumerate(self.model_cases):
+        #     if model.is_node_method():
+        #         results = self.results[zoom][model.name]
+        #         self.plot_plant_temperature(fig4, axarr4[j], results, model.name)
+        #
+        #         for p, pipe in enumerate(pipe_names):
+        #             if p == n_pipes_1 - 1 or p == len(pipe_names) - 1:
+        #                 ylabel = True
+        #             else:
+        #                 ylabel = False
+        #             if p < n_pipes_1:
+        #                 self.plot_water_speed(fig5a, axarr5a[p, j], pipe, results, ylabel)
+        #                 self.plot_network_temperatures(fig3a, axarr3a[p, j], pipe, results)
+        #             else:
+        #                 self.plot_water_speed(fig5b, axarr5b[p - n_pipes_1, j], pipe, results, ylabel)
+        #                 self.plot_network_temperatures(fig3b, axarr3b[p - n_pipes_1, j], pipe, results)
+        #         j += 1
 
         for l, dist in enumerate(self.district_cases):
             for m, model in enumerate(self.model_cases):
@@ -565,7 +559,30 @@ class ResponseFunctionGenerator:
 
         plt.show()
 
-    def generate_response_functions(self):
+    def plot_sensitivity(self, sens_case, district_case):
+
+        sens_values = sens_case.get_values()
+
+        fig1, axarr1 = plt.subplots(len(self.model_cases), 1, sharex=True)
+        fig2, axarr2 = plt.subplots(len(self.model_cases), len(sens_values), sharex=True)
+
+        for l, value in enumerate(sens_values):
+            for m, model in enumerate(self.model_cases):
+
+                results = self.results[district_case.name][model.name][sens_case.name][value]
+
+                if results['Reference'] is None or results['Flexibility'] is None:
+                    print 'Case skipped: {}.{}.{}'.format(district_case.name, model.name, sens_case.name + ':' + str(value))
+                else:
+                    self.plot_heat_injection(fig1, fig2, axarr2[m, l], axarr1[m], results, model.name,
+                                             district_case.name, label=value)
+
+        for ax in axarr1:
+            ax.set_title(model.name)
+
+        plt.show()
+
+    def generate_response_functions(self, tee=False):
         self.collect_data()
         self.results = {}
         n_cases = len(self.model_cases) * len(self.district_cases) * len(self.flex_cases)
@@ -584,15 +601,15 @@ class ResponseFunctionGenerator:
 
                     self.set_up_modesto(dist, model, flex)
 
-                    self.solve_optimization()
+                    self.solve_optimization(tee=tee)
                     self.results[dist.name][model.name][flex.name] = self.collect_results(dist, model)
 
                     n += 1
 
-        self.plot()
+        self.plot_response_functions(zoom=self.district_cases[0].name)
         self.save_obj(self.results, self.name)
 
-    def run_sensitivity_analysis(self):
+    def run_sensitivity_analysis(self, tee=False):
         self.collect_data()
         self.results = {}
         n_cases = len(self.model_cases) * len(self.district_cases) * len(self.flex_cases) * \
@@ -617,15 +634,16 @@ class ResponseFunctionGenerator:
 
                             self.set_up_modesto(dist, model, flex, sens_case=sens, value=value)
 
-                            self.solve_optimization()
+                            self.solve_optimization(tee=tee)
                             self.results[dist.name][model.name][sens.name][value][flex.name] = \
                                 self.collect_results(dist, model)
 
                             n += 1
 
-        # TODO plot
-        # self.plot()
-        # self.save_obj(self.results, self.name)
+        for sens in self.sens_cases:
+            self.plot_sensitivity(sens, self.district_cases[0])
+
+        self.save_obj(self.results, self.name)
 
     def save_obj(self, obj, name):
         with open('results/' + name + '.pkl', 'wb') as f:
@@ -641,6 +659,12 @@ class ResponseFunctionGenerator:
         for flex in self.flex_cases:
             if name == flex.name:
                 return flex
+        raise KeyError('{} is not a valid district name'.format(name))
+
+    def get_model_case(self, name):
+        for model in self.model_cases:
+            if name == model.name:
+                return model
         raise KeyError('{} is not a valid district name'.format(name))
 
 
@@ -1470,8 +1494,8 @@ class SensitivityCase:
         edge_diam = {}
         for edge in edge_mf:
             for diam, vflo in vflomax.items():
+                edge_diam[edge] = diam
                 if vflo > edge_mf[edge]:
-                    edge_diam[edge] = diam
                     break
 
         return edge_diam
@@ -1481,7 +1505,7 @@ class NetworkSize(SensitivityCase):
 
     def __init__(self):
         name = 'Network size'
-        values = [0.001, 0.01, 0.1, 1]
+        values = [0.001, 0.01]  #
         SensitivityCase.__init__(self, name, values, pipe_length=True,
                                  pipe_diameter_cont=True, heat_demand=True)
 
@@ -1490,7 +1514,7 @@ class PipeLength(SensitivityCase):
 
     def __init__(self):
         name = 'Pipe length'
-        values = [0.8, 0.9, 1, 1.1, 1.2]
+        values = [0.1, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 10]
         SensitivityCase.__init__(self, name, values, pipe_length=True)
 
 
@@ -1604,16 +1628,19 @@ class DataReader:
                                                 horizon=self.horizon,
                                                 time_step=self.time_step,
                                                 start_time=self.start_time) + 273.15
+
         self.QCon_df = ut.read_period_data(self.get_data_path('UserBehaviour\Strobe_profiles'),
                                            name='QCon.csv',
                                            horizon=self.horizon,
                                            time_step=self.time_step,
                                            start_time=self.start_time)
+
         self.QRad_df = ut.read_period_data(self.get_data_path('UserBehaviour\Strobe_profiles'),
                                            name='QRad.csv',
                                            horizon=self.horizon,
                                            time_step=self.time_step,
                                            start_time=self.start_time)
+
         self.m_DHW_df = ut.read_period_data(self.get_data_path('UserBehaviour\Strobe_profiles'),
                                            name='mDHW.csv',
                                            horizon=self.horizon,
@@ -1625,8 +1652,9 @@ class DataReader:
                 os.path.join(self.modesto_path, 'misc', 'aggregation_methods'),
                 name='day_t_' + building_type + '.csv',
                 horizon=self.horizon,
-            time_step=self.time_step,
-            start_time=self.start_time)
+                time_step=self.time_step,
+                start_time=self.start_time)
+
             self.night_min[building_type] = ut.read_period_data(
                 os.path.join(self.modesto_path, 'misc', 'aggregation_methods'),
                 name='night_t_' + building_type + '.csv',
@@ -1709,12 +1737,12 @@ class DataReader:
                 building_number = 0
                 mult = 50
 
-            mass_flow = self.aggregate_StROBe(self.m_DHW_df, building_number, mult)
-            heat_profile = mass_flow / 60 * 4186 * (38 - 10)
+            mass_flow = self.aggregate_StROBe(self.m_DHW_df, building_number, mult) / 60 / (38-10) * delta_T
+            heat_profile = mass_flow * 4186 * delta_T
 
         else:
-            mass_flow = self.m_DHW_df.iloc[:, building_number]
-            heat_profile = mass_flow / 60 * 4186 * (38 - 10)
+            mass_flow = self.m_DHW_df.iloc[:, building_number] / 60 / (38-10) * delta_T
+            heat_profile = mass_flow * 4186 * delta_T
 
         if return_heat_profile:
             return heat_profile

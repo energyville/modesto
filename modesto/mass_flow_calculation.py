@@ -61,8 +61,12 @@ class MfCalculation(object):
         else:
             sign = 1
         self.mass_flows[node][name] = ut.resample(sign*mf_df, self.time_step)
-        self.index = mf_df.index
-        self.time = range(0, len(self.index))
+        if (self.time is None):
+            self.time = range(0, len(mf_df.index))
+            self.index = mf_df.index
+        elif len(mf_df.index) < len(self.time):
+            self.time = range(0, len(self.index))
+            self.index = mf_df.index
 
     def get_comp_mf(self, node, comp, index=None):
         if index is None:
