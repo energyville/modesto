@@ -16,7 +16,8 @@ from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 import modesto.utils as ut
 from modesto.component import Component
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter, \
+    TimeSeriesParameter
 
 
 def list_to_dict(list):
@@ -616,6 +617,9 @@ class TeaserFourElement(Component):
         """
 
         # TODO make sure the whole model uses the same start time in case it needs to be changed
+        for name, param in self.params.iteritems():
+            param.change_start_time(start_time)
+
 
         for ori in ['N', 'E', 'S', 'W']:
             q_sol = self.params['Q_sol_' + ori].v()
