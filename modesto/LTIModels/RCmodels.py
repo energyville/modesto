@@ -476,6 +476,12 @@ class TeaserFourElement(Component):
         # Air capacity
         self.block.CAir = mutParam(mp['VAir'] * 1007 * 1.293 * 5)
 
+        # Initial temperatures
+        inits = ['TAir0', 'TFloor0', 'TRoof0', 'TExt0', 'TInt0']
+        self.block.InitTemp = Param(inits, mutable=True)
+        for s in inits:
+            self.block.InitTemp[s] = self.params[s].v()
+
         # U values
         alphaOut = 23
 
@@ -533,6 +539,8 @@ class TeaserFourElement(Component):
                 mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori]))
             self.f_fix_air['Q_sol_' + ori] = getattr(self.block, 'f_air_' + ori)
         self.f_fix_air['Q_int_con'] = 1
+
+
 
     def change_teaser_params(self, neighbName, streetName, buildingName):
         """
@@ -620,6 +628,9 @@ class TeaserFourElement(Component):
         for name, param in self.params.iteritems():
             param.change_start_time(start_time)
 
+        inits = ['TAir0', 'TFloor0', 'TRoof0', 'TExt0', 'TInt0']
+        for s in inits:
+            self.block.InitTemp[s] = self.params[s].v()
 
         for ori in ['N', 'E', 'S', 'W']:
             q_sol = self.params['Q_sol_' + ori].v()
@@ -746,7 +757,7 @@ class TeaserFourElement(Component):
 
         def _init_temp(b, s):
             if self.params[s + '0'].get_init_type() == 'fixedVal':
-                return b.StateTemperatures[s, 0] == self.params[s + '0'].v()
+                return b.StateTemperatures[s, 0] == b.InitTemp[s + '0']
             elif self.params[s + '0'].get_init_type() == 'cyclic':
                 return b.StateTemperatures[s, 0] == b.StateTemperatures[s, self.X_TIME[-1]]
             elif self.params[s + '0'].get_init_type() == 'free':
