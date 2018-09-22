@@ -11,12 +11,12 @@ from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constrain
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 
-from modesto.LTIModels import RCmodels as rc
 import component as co
 import pipe as pip
-from submodel import Submodel
+from modesto.LTIModels import RCmodels as rc
 # noinspection PyUnresolvedReferences
 from parameter import *
+from submodel import Submodel
 
 
 class Modesto:
@@ -133,8 +133,8 @@ class Modesto:
             # Create the node
             assert node not in self.components, "Node %s already exists" % node.name
             self.components[node] = (Node(name=node,
-                                     node=self.graph.nodes[node],
-                                     temperature_driven=self.temperature_driven))
+                                          node=self.graph.nodes[node],
+                                          temperature_driven=self.temperature_driven))
 
             # Add the new components
             self.components.update(self.components[node].get_components())
@@ -394,14 +394,14 @@ class Modesto:
             print self.results.solver.termination_condition
 
         if (self.results.solver.status == SolverStatus.ok) and (
-                    self.results.solver.termination_condition == TerminationCondition.optimal):
+                self.results.solver.termination_condition == TerminationCondition.optimal):
             status = 0
             self.logger.info('Model solved.')
         elif (self.results.solver.status == SolverStatus.aborted):
             status = -3
             self.logger.info('Solver aborted.')
         elif (self.results.solver.status == SolverStatus.ok) and not (
-            self.results.solver.termination_condition == TerminationCondition.infeasible):
+                self.results.solver.termination_condition == TerminationCondition.infeasible):
             status = 2
             self.logger.info('Model solved but termination condition not optimal.')
             self.logger.info('Termination condition: {}'.format(self.results.solver.termination_condition))
@@ -748,6 +748,10 @@ class Modesto:
         for _, param in self.params.items():
             param.change_start_time(new_val)
 
+        for comp in self.components:
+            self.components[comp].update_time(start_time=new_val, horizon=self.params['horizon'].v(),
+                                              time_step=self.params['time_step'].v())
+
 
 class Node(Submodel):
     def __init__(self, name, node, temperature_driven=False):
@@ -875,18 +879,18 @@ class Node(Submodel):
 
         params = {'time_step':
                       DesignParameter('time_step',
-                                       unit='s',
-                                       description='Time step with which the component model will be discretized'),
+                                      unit='s',
+                                      description='Time step with which the component model will be discretized'),
                   'horizon':
-                       DesignParameter('horizon',
-                                       unit='s',
-                                       description='Horizon of the optimization problem'),
+                      DesignParameter('horizon',
+                                      unit='s',
+                                      description='Horizon of the optimization problem'),
                   'lines': DesignParameter('lines',
-                                          unit='-',
-                                          description='List of names of the lines that can be found in the network, e.g. '
-                                                      '\'supply\' and \'return\'',
-                                          val=['supply', 'return'])
-                    }
+                                           unit='-',
+                                           description='List of names of the lines that can be found in the network, e.g. '
+                                                       '\'supply\' and \'return\'',
+                                           val=['supply', 'return'])
+                  }
         return params
 
     def compile(self, model, start_time):
@@ -949,7 +953,7 @@ class Node(Submodel):
 
                     return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t, l) for comp in c) +
                                                 sum(p[pipe].get_temperature(self.name, t, l) for pipe in p)) / (
-                                                   len(p) + len(c))
+                                   len(p) + len(c))
 
 
                 else:  # mass flow rate through the node
@@ -1008,7 +1012,7 @@ class Node(Submodel):
             def _heat_bal(b, t):
                 return 0 == sum(
                     self.components[i].get_heat(t) for i in self.components) \
-                            + sum(
+                       + sum(
                     pipe.get_edge_heat(self.name, t) for pipe in p.values())
 
             self.block.ineq_heat_bal = Constraint(self.TIME,
@@ -1017,7 +1021,7 @@ class Node(Submodel):
             def _mass_bal(b, t):
                 return 0 == sum(
                     self.components[i].get_mflo(t) for i in self.components) \
-                            + sum(
+                       + sum(
                     pipe.get_edge_mflo(self.name, t) for pipe in p.values())
 
             self.block.ineq_mass_bal = Constraint(self.TIME,

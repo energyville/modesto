@@ -44,6 +44,7 @@ class Component(Submodel):
             raise ValueError('Direction should be -1 or 1.')
         self.direction = direction
 
+
     def create_params(self):
         """
         Create all required parameters to set up the model
@@ -203,6 +204,16 @@ class Component(Submodel):
             raise Exception("{} is not recognized as a valid parameter for {}".format(param, self.name))
 
         self.params[param].change_value(new_data)
+
+    def change_params(self, params):
+        """
+        Change value of multiple parameters
+
+        :param params:
+        :return:
+        """
+
+        self.params.update(params)
 
     def check_data(self):
         """

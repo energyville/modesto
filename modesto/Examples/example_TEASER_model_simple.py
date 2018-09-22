@@ -22,7 +22,7 @@ logger = logging.getLogger('Main.py')
 time_step = 900
 n_steps = int(24 * 3 * 3600 / time_step)
 
-start_time = pd.Timestamp('20131226')
+start_time = pd.Timestamp('20140101')
 
 df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv', expand=True)
 df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
@@ -252,10 +252,12 @@ if __name__ == '__main__':
         'Q_int_rad': Q_int_rad,
         'Q_int_con': Q_int_con,
         'day_min_temperature': day_min,
-        'TAir0': 18+273.15
+        'TAir0': 16+273.15
     }, node='waterscheiGarden', comp='buildingD')
 
-    optmodel.components['waterscheiGarden.buildingD'].change_model_params(start_time=pd.Timestamp('20140126'))
+    optmodel.update_time(pd.Timestamp('20140201'))
+
+    optmodel.components['waterscheiGarden.buildingD'].change_model_params()
     optmodel.solve(tee=True, solver='gurobi', warmstart=True, threads=None)
     TiD_ws_2 = optmodel.get_result('StateTemperatures', node='waterscheiGarden',
                                    comp='buildingD', index='TAir', state=True)

@@ -617,16 +617,12 @@ class TeaserFourElement(Component):
         for ori in ['N', 'E', 'S', 'W']:
             setattr(self.block, 'f_air_' + ori, mp['ratioWinConRad'] * mp['gWin'] * mp['ATransparent'][ori])
 
-    def change_model_params(self, start_time):
+    def change_model_params(self):
         """
         Reload input data series based on currently active list of model parameters.
 
         :return:
         """
-
-        # TODO make sure the whole model uses the same start time in case it needs to be changed
-        for name, param in self.params.iteritems():
-            param.change_start_time(start_time)
 
         inits = ['TAir0', 'TFloor0', 'TRoof0', 'TExt0', 'TInt0']
         for s in inits:
