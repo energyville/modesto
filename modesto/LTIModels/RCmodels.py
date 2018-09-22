@@ -16,8 +16,7 @@ from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 import modesto.utils as ut
 from modesto.component import Component
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter, \
-    TimeSeriesParameter
+from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
 
 
 def list_to_dict(list):
@@ -86,7 +85,8 @@ def splitFactor(AArray, AExt=None, AWin=None):
     return splitFacValues
 
 
-def readTeaserParam(neighbName, streetName, buildingName, path=resource_filename('modesto', 'Data/BuildingModels/TEASER')):
+def readTeaserParam(neighbName, streetName, buildingName,
+                    path=resource_filename('modesto', 'Data/BuildingModels/TEASER')):
     """
     Read data and construct parameter dictionary for TEASER building models.
 
@@ -452,7 +452,8 @@ class TeaserFourElement(Component):
         :return:
         """
         # Load parameters
-        self.model_params = readTeaserParam(self.params['neighbName'].v(), self.params['streetName'].v(), self.params['buildingName'].v())
+        self.model_params = readTeaserParam(self.params['neighbName'].v(), self.params['streetName'].v(),
+                                            self.params['buildingName'].v())
         mp = self.model_params
 
         for param in mp:
@@ -540,14 +541,13 @@ class TeaserFourElement(Component):
             self.f_fix_air['Q_sol_' + ori] = getattr(self.block, 'f_air_' + ori)
         self.f_fix_air['Q_int_con'] = 1
 
-
-
     def change_teaser_params(self, neighbName, streetName, buildingName):
         """
         After initialization, change parameters of the model without recompiling.
 
-        :param streetName:
-        :param buildingName:
+        :param neighbName: Name of the new neighbourhood
+        :param streetName: Name of the new street
+        :param buildingName: Name of the new building
         :return:
         """
         self.model_params = readTeaserParam(neighbName=neighbName, streetName=streetName, buildingName=buildingName)

@@ -42,6 +42,7 @@ class Modesto:
             self.temperature_driven = False
 
         self.allow_flow_reversal = True
+        self.start_time = None
 
         self.graph = graph
         self.edges = {}
@@ -745,6 +746,9 @@ class Modesto:
         :param pd.Timestamp new_val: New start time
         :return:
         """
+        assert isinstance(new_val, pd.Timestamp), 'Make sure the new start time is an instance of pd.Timestamp.'
+        self.start_time = new_val
+
         for _, param in self.params.items():
             param.change_start_time(new_val)
 

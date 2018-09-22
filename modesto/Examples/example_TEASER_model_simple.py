@@ -251,10 +251,9 @@ if __name__ == '__main__':
     optmodel.change_params({
         'Q_int_rad': Q_int_rad,
         'Q_int_con': Q_int_con,
-        'day_min_temperature': day_min,
-        'TAir0': 16+273.15
+        'day_min_temperature': day_min+273.15,
+        'TAir0': 24+273.15
     }, node='waterscheiGarden', comp='buildingD')
-
     optmodel.update_time(pd.Timestamp('20140201'))
 
     optmodel.components['waterscheiGarden.buildingD'].change_model_params()
