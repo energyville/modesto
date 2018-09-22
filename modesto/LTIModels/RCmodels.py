@@ -9,14 +9,13 @@ import itertools
 import os
 import sys
 
+import modesto.utils as ut
 import networkx as nx
 import pandas as pd
-from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
-
-import modesto.utils as ut
 from modesto.component import Component
 from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, WeatherDataParameter
+from pkg_resources import resource_filename
+from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 
 def list_to_dict(list):
@@ -653,6 +652,18 @@ class TeaserFourElement(Component):
 
         self.block.max_heat_flow = self.params['max_heat'].v()
 
+        for s in self.block.fixed_states:
+            temp = self.states[s].input['temperature']
+            for t in self.X_TIME:
+                self.block.FixedTemperatures[s, t] = self.params[temp].v(t)
+
+        for s in self.block.control_states:
+            obj = self.states[s]
+            incoming_heat_names = obj.input['heat_fix']
+            for t in self.TIME:
+                self.block.fixed_state_heat[s, t] = sum(
+                    obj.get_q_factor(i) * getattr(self.block, i)[t] for i in incoming_heat_names)
+
     def build(self):
         self.init_model_params()
         self.build_graph()
@@ -720,14 +731,16 @@ class TeaserFourElement(Component):
             incoming_heat_names = obj.input['heat_fix']
             return sum(obj.get_q_factor(i) * getattr(b, i)[t] for i in incoming_heat_names)  # *
 
-        self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat)
+        #TODO check if get_q_factor is also changed with new model parameters
+
+        self.block.fixed_state_heat = Param(self.block.control_states, self.TIME, rule=decl_state_heat, mutable=True)
 
         def decl_fixed_temperature(b, s, t):
             temp = self.states[s].input['temperature']
             return self.params[temp].v(t)
 
         self.block.FixedTemperatures = Param(self.block.fixed_states,
-                                             self.TIME, rule=decl_fixed_temperature)
+                                             self.X_TIME, rule=decl_fixed_temperature, mutable=True)
 
         ##### State energy balances
 

@@ -254,7 +254,7 @@ if __name__ == '__main__':
         'day_min_temperature': day_min+273.15,
         'TAir0': 24+273.15
     }, node='waterscheiGarden', comp='buildingD')
-    optmodel.update_time(pd.Timestamp('20140201'))
+    optmodel.update_time(pd.Timestamp('20140801'))
 
     optmodel.components['waterscheiGarden.buildingD'].change_model_params()
     optmodel.solve(tee=True, solver='gurobi', warmstart=True, threads=None)
