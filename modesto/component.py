@@ -205,15 +205,6 @@ class Component(Submodel):
 
         self.params[param].change_value(new_data)
 
-    def change_params(self, params):
-        """
-        Change value of multiple parameters
-
-        :param params:
-        :return:
-        """
-
-        self.params.update(params)
 
     def check_data(self):
         """
