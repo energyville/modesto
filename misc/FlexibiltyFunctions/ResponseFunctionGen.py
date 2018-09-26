@@ -7,7 +7,6 @@ import pandas as pd
 from modesto.main import Modesto
 from modesto.mass_flow_calculation import MfCalculation
 import modesto.utils as ut
-import parameters
 import math
 import numpy as np
 import os
@@ -139,7 +138,7 @@ class ResponseFunctionGenerator:
             mult = 0
             heat_profile = pd.Series(0, self.time_index)
 
-        return mult*heat_profile/4186/delta_T
+        return heat_profile/4186/delta_T
 
     def add_mass_flow_rates(self, district_case, model_case, sens_case=None, value=None):
         self.check_time_settings()
@@ -149,15 +148,16 @@ class ResponseFunctionGenerator:
 
         for i in range(district_case.get_nr_of_nodes()):
             node_name = district_case.get_building_name(i)
+
             mfcalc.add_mf(node=node_name, name='building',
                           mf_df=self.find_node_mf_rate(district_case, model_case, i, sens_case, value))
-
 
             mfcalc.add_mf(node=node_name, name='DHW',
                           mf_df=self.dr.get_dhw_use(district_case.aggregated,
                                                     district_case.get_node_mult(i),
                                                     building_number=i, return_heat_profile=False) *
                           district_case.get_node_mult(i))
+
 
         mfcalc.set_producer_node('Producer')
         mfcalc.set_producer_component('plant')
@@ -282,6 +282,7 @@ class ResponseFunctionGenerator:
 
         general, build_params, prod_params, dhw_params, pipe_params = \
             self.collect_parameters(district_case, model_case, flex_case, sens_case, value)
+
         self.model.change_params(general)
 
         for i in district_case.get_building_names():
@@ -305,7 +306,13 @@ class ResponseFunctionGenerator:
         if model_case.is_node_method():
             self.add_mass_flow_rates(district_case, model_case, sens_case, value)
 
+
     def collect_parameters(self, district_case, model_case, flex_case, sens_case=None, value=None):
+
+        if sens_case.heat_demand:  # TODO prettier
+            for i in range(district_case.get_nr_of_nodes()):
+                district_case.change_mult(value, i)
+
         general = self.get_general_parameters()
         build_params = {name: self.get_building_params(district_case, model_case, i, sens_case, value)
                         for i, name in enumerate(district_case.get_building_names())}
@@ -350,7 +357,8 @@ class ResponseFunctionGenerator:
 
         for i in node_names:
             result[i] = self.model.get_result('StateTemperatures', node=i,
-                                            comp='building', index=statename, state=True)
+                                               comp='building', index=statename, state=True)
+
 
         return result
 
@@ -905,6 +913,8 @@ class DistrictCase:
         self.building_types = building_types
         self.building_mult = building_mult
 
+        self.changed_mult = copy.copy(building_mult)  #Used in case of sensitivity analyses that change the mult parameter
+
         self.pipe_names = pipe_names
         self.pipe_diameters = pipe_diameters
 
@@ -928,7 +938,7 @@ class DistrictCase:
         pass
 
     def get_node_mult(self, node_nr):
-        return self.building_mult[node_nr]
+        return self.changed_mult[node_nr]
 
     def get_building_type(self, node_nr):
         return self.building_types[node_nr]
@@ -947,6 +957,9 @@ class DistrictCase:
 
     def get_pipe_names(self):
         return self.pipe_names
+
+    def change_mult(self, factor, node_nr):
+        self.changed_mult[node_nr] = int(factor*self.building_mult[node_nr])
 
 
 class ParallelCase(DistrictCase):
@@ -1292,12 +1305,13 @@ class SensitivityCase:
         if self.pipe_diameter_discrete:
             self.change_pipe_diameter_discrete(value, pipe_params)
         if self.heat_demand:
-            self.change_heat_demand(value, build_params, dhw_params, model_case)
+            self.change_heat_demand(value, build_params, dhw_params, model_case, district_case)
         if self.supply_temp_level:
             self.change_supply_temp_level(value, build_params, prod_params, dhw_params, pipe_params)
         if self.supply_temp_reach:
             self.change_supply_temp_reach(value, prod_params)
         if self.substation_temp_difference:
+            self.change_substation_temp_difference(value, build_params, prod_params, dhw_params, pipe_params)
             self.change_substation_temp_difference(value, build_params, prod_params, dhw_params, pipe_params)
 
         return build_params, prod_params, dhw_params, pipe_params
@@ -1358,14 +1372,18 @@ class SensitivityCase:
 
         return pipe_params
 
-    def change_heat_demand(self, value, build_params, dhw_params, model_case):
-        if model_case.is_rc_model():
-            for b in build_params:
-                # if bparams[b]['mult'] is not None:
-                build_params[b]['mult'] = value * build_params[b]['mult']
-
-        for dhw in dhw_params:
-            dhw_params[dhw]['mult'] = value * dhw_params[dhw]['mult']
+    def change_heat_demand(self, value, build_params, dhw_params, model_case, district_case):
+        pass
+        # if model_case.is_rc_model():
+        #     for i, b in enumerate(build_params):
+        #         # if bparams[b]['mult'] is not None:
+        #         build_params[b]['mult'] = int(value * build_params[b]['mult'])
+        #
+        #     for i in range(district_case.get_nr_of_nodes()):
+        #         district_case.change_mult(value, i)
+        #
+        # for dhw in dhw_params:
+        #     dhw_params[dhw]['mult'] = int(value * dhw_params[dhw]['mult'])
 
         return build_params, dhw_params
 
@@ -1505,7 +1523,7 @@ class NetworkSize(SensitivityCase):
 
     def __init__(self):
         name = 'Network size'
-        values = [0.001, 0.01]  #
+        values = [0.001, 0.01]  # , 0.01
         SensitivityCase.__init__(self, name, values, pipe_length=True,
                                  pipe_diameter_cont=True, heat_demand=True)
 
@@ -1514,7 +1532,7 @@ class PipeLength(SensitivityCase):
 
     def __init__(self):
         name = 'Pipe length'
-        values = [0.1, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 10]
+        values = [0.1, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 10] # 0.1, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 10
         SensitivityCase.__init__(self, name, values, pipe_length=True)
 
 
@@ -1522,7 +1540,7 @@ class PipeDiameter(SensitivityCase):
 
     def __init__(self):
         name = 'Pipe diameter'
-        values = [-1, 0, 1]
+        values = [1, -1, 0,] #
         SensitivityCase.__init__(self, name, values, pipe_diameter_discrete=True)
 
 
@@ -1530,7 +1548,7 @@ class HeatDemand(SensitivityCase):
 
     def __init__(self):
         name = 'Heat demand'
-        values = [0.8, 0.9, 0.95, 1, 1.05, 1.1, 1.2]
+        values = [0.7, 0.8, 0.9, 0.95, 1, 1.05, 1.1, 1.2, 1.3, 2]  #
         SensitivityCase.__init__(self, name, values, heat_demand=True)
 
 
@@ -1538,7 +1556,7 @@ class SupplyTempLevel(SensitivityCase):
 
     def __init__(self):
         name = 'Supply temp level'
-        values = [i + 273.15 for i in [50, 60, 70, 80, 90]]
+        values = [i + 273.15 for i in [50, 60, 70, 80, 90]] #
         SensitivityCase.__init__(self, name, values, supply_temp_level=False)
 
 
@@ -1546,7 +1564,7 @@ class SupplyTempReach(SensitivityCase):
 
     def __init__(self):
         name = 'Supply temperature reach'
-        values = [5, 7.5, 10, 12.5, 15, 17.5, 20]
+        values = [5, 7.5, 10, 12.5, 15, 17.5, 20] #
         SensitivityCase.__init__(self, name, values, supply_temp_reach=False)
 
 
@@ -1554,7 +1572,7 @@ class SubstationTempDiff(SensitivityCase):
 
     def __init__(self):
         name = 'Substation temperature difference'
-        values = [15, 20, 25, 30, 35, 40]
+        values = [15, 20, 25, 30, 35, 40] #
         SensitivityCase.__init__(self, name, values, substation_temp_difference=False)
 
 # TODO Add fail-safe if optimization fails!
@@ -1642,10 +1660,10 @@ class DataReader:
                                            start_time=self.start_time)
 
         self.m_DHW_df = ut.read_period_data(self.get_data_path('UserBehaviour\Strobe_profiles'),
-                                           name='mDHW.csv',
-                                           horizon=self.horizon,
-                                           time_step=self.time_step,
-                                           start_time=self.start_time)
+                                            name='mDHW.csv',
+                                            horizon=self.horizon,
+                                            time_step=self.time_step,
+                                            start_time=self.start_time)
 
         for building_type in building_types:
             self.day_min[building_type] = ut.read_period_data(
@@ -1685,17 +1703,18 @@ class DataReader:
         output = {}
 
         if aggregated:
+
             if building_type is None:
                 raise Exception('In case aggregated user behaviour is required, two extra inputs -district_number- and '
                                 '-building_type- are required')
-            if mult > 50:
-                building_number = 0
-                mult = 50
+
+            building_number = 0
+            mult = 50
 
             # TODO Improve city user behaviour: different profiles for different city districts
 
             output['day_min_temperature'] = self.aggregate_min_temp('day', building_type, building_number, mult)
-            output['night_min_temperature'] = self.aggregate_min_temp('night',building_type, building_number, mult)
+            output['night_min_temperature'] = self.aggregate_min_temp('night', building_type, building_number, mult)
             QCon = self.aggregate_StROBe(self.QCon_df, building_number, mult)
             QRad = self.aggregate_StROBe(self.QRad_df, building_number, mult)
 
@@ -1733,9 +1752,9 @@ class DataReader:
 
     def get_dhw_use(self, aggregated, mult, building_number=None, return_heat_profile=True):
         if aggregated:
-            if mult > 50:
-                building_number = 0
-                mult = 50
+            # TODO Improve this agregation
+            building_number = 0
+            mult = 50
 
             mass_flow = self.aggregate_StROBe(self.m_DHW_df, building_number, mult) / 60 / (38-10) * delta_T
             heat_profile = mass_flow * 4186 * delta_T

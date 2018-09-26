@@ -344,10 +344,6 @@ class FixedProfile(Component):
         })
 
         if self.temperature_driven:
-            params['mass_flow'] = UserDataParameter('mass_flow',
-                                                    'Mass flow through one (average) building substation',
-                                                    'kg/s'
-                                                    )
             params['temperature_supply'] = StateParameter('temperature_supply',
                                                           'Initial supply temperature at the component',
                                                           'K',
