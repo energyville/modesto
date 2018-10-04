@@ -279,6 +279,7 @@ class ResponseFunctionGenerator:
         if self.model is not None:
             del self.model
         self.model = Modesto(model_case.get_pipe_model(), district_case.graph)
+        self.model.opt_settings(allow_flow_reversal=False)
 
         general, build_params, prod_params, dhw_params, pipe_params = \
             self.collect_parameters(district_case, model_case, flex_case, sens_case, value)
@@ -446,7 +447,9 @@ class ResponseFunctionGenerator:
         self.plot_price_increase_time(ax)
         # fig.tight_layout()
 
-    def plot_building_temperatures(self, axarr, bparams, nresults):
+    def plot_building_temperatures(self, bparams, nresults):
+
+        fig, axarr = plt.subplots(len(bparams), 2)
 
         for i, build in enumerate(bparams):
             axarr[i, 0].plot(bparams[build]['day_min_temperature'], linestyle=':', color='k')
@@ -584,6 +587,12 @@ class ResponseFunctionGenerator:
                 else:
                     self.plot_heat_injection(fig1, fig2, axarr2[m, l], axarr1[m], results, model.name,
                                              district_case.name, label=value)
+                if not model.is_node_method():
+                    #self.plot_building_temperatures()
+                    pass
+                else:
+                    fig3, ax3 = plt.subplots(1, 1)
+                    self.plot_plant_temperature(fig3, ax3,results, model.name)
 
         for ax in axarr1:
             ax.set_title(model.name)
@@ -642,16 +651,20 @@ class ResponseFunctionGenerator:
 
                             self.set_up_modesto(dist, model, flex, sens_case=sens, value=value)
 
-                            self.solve_optimization(tee=tee)
-                            self.results[dist.name][model.name][sens.name][value][flex.name] = \
-                                self.collect_results(dist, model)
+                            status = self.solve_optimization(tee=tee)
+                            if status:
+                                self.results[dist.name][model.name][sens.name][value][flex.name] = \
+                                    self.collect_results(dist, model)
+                            else:
+                                self.results[dist.name][model.name][sens.name][value][flex.name] = None
+                                print 'WARNING: This case did not converge'
 
                             n += 1
 
+        self.save_obj(self.results, self.name)
+
         for sens in self.sens_cases:
             self.plot_sensitivity(sens, self.district_cases[0])
-
-        self.save_obj(self.results, self.name)
 
     def save_obj(self, obj, name):
         with open('results/' + name + '.pkl', 'wb') as f:
@@ -1555,8 +1568,8 @@ class HeatDemand(SensitivityCase):
 class SupplyTempLevel(SensitivityCase):
 
     def __init__(self):
-        name = 'Supply temp level'
-        values = [i + 273.15 for i in [50, 60, 70, 80, 90]] #
+        name = 'Supply temperature level'
+        values = [i + 273.15 for i in [50, 60]]  # , 70, 80, 90
         SensitivityCase.__init__(self, name, values, supply_temp_level=False)
 
 
