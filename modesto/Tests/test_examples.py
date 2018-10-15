@@ -32,4 +32,4 @@ def test_example_RCmodel():
     model.compile('20140104')
     model.set_objective('cost')
 
-    assert model.solve(tee=True, mipgap=0.01, solver='cplex') == 0
+    assert model.solve(tee=True, mipgap=0.01, solver='gurobi') == 0

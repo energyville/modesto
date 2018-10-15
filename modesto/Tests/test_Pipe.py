@@ -40,7 +40,7 @@ def setup_modesto(graph):
     :return:
     """
 
-    numdays = 1
+    numdays = 5
     horizon = numdays * 24 * 3600
     time_step = 3600
     start_time = pd.Timestamp('20140101')
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     print opts
 
     for name, opt in opts.iteritems():
-        res = opt.solve(tee=True, mipgap=0.000001, solver='cplex')
+        res = opt.solve(tee=True, mipgap=0.000001, solver='gurobi')
         if not res == 0:
             raise Exception('Optimization {} failed to solve.'.format(name))
 
