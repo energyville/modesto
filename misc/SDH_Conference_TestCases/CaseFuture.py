@@ -188,8 +188,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    'Qmax': 15e7,
-                   'ramp_cost': 0.01,
-                   'ramp': 1e6 / 3600}
+                   'ramp_cost': 0.00,
+                   'ramp': 15e7}
 
     model.change_params(prod_design, 'Production', 'backup')
     STOR_COST = resource_filename('modesto', 'Data/Investment/Storage.xlsx')
@@ -217,10 +217,10 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     stor_design = {
         'Thi': 70 + 273.15,
         'Tlo': 30 + 273.15,
-        'mflo_max': 1100,
-        'mflo_min': -1100,
+        'mflo_max': 11000,
+        'mflo_min': -11000,
         'mflo_use': pd.Series(0, index=t_amb.index),
-        'volume': 1500e3,
+        'volume': 150e3,
         'ar': 1,
         'dIns': 1,
         'kIns': 0.024,
@@ -237,10 +237,10 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
             {
                 'Thi': 70 + 273.15,
                 'Tlo': 30 + 273.15,
-                'mflo_max': 1100,
-                'mflo_min': -1100,
+                'mflo_max': 11000,
+                'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
-                'volume': 200e3,
+                'volume': 20e3,
                 'ar': 1,
                 'dIns': 1,
                 'kIns': 0.024,
@@ -251,8 +251,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
             {
                 'Thi': 70 + 273.15,
                 'Tlo': 30 + 273.15,
-                'mflo_max': 1100,
-                'mflo_min': -1100,
+                'mflo_max': 11000,
+                'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
                 'volume': 600e3,
                 'ar': 1,
@@ -300,15 +300,15 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
 if __name__ == '__main__':
 
-    report_timing()
+    #report_timing()
 
-    start_time = pd.Timestamp('20140101')
+    start_time = pd.Timestamp('20140301')
 
-    optmodel = setup_opt(time_step=3600, horizon=6*3600)#*24*365)
+    optmodel = setup_opt(time_step=3600, horizon=3600*24*30)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
-    sol = optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=1)
+    sol = optmodel.solve(tee=True, mipgap=0.006, solver='gurobi', probe=True, timelim=45)
     print 'Status: {}'.format(sol)
     # ## Collecting results
 
@@ -414,12 +414,11 @@ if __name__ == '__main__':
 
     axs[0].plot(inputs['Production'] / (mass_flows['Production'] * 4180), label='Heat flow')
     axs[0].axhline(40)
-    axs[0].set_ylim(0, 200)
 
-    axs[0].set_ylabel('Heat flow [W]')
+    axs[0].set_ylabel('Effective temperature difference [K]')
 
     axs[1].semilogy(inputs['Production'] / (mass_flows['Production'] * 4180) - 40)
-    axs[1].set_ylabel('Difference [W]')
+    axs[1].set_ylabel('Difference in $\Delta T$ [K]')
 
     for ax in axs:
         ax.legend()
@@ -463,4 +462,9 @@ if __name__ == '__main__':
 
     fig.savefig('img/Future/StoragePlot.png', dpi=300)
 
+    df = pd.DataFrame()
+    df['hf'] = optmodel.get_result('heat_flow',comp='backup', node='Production')
+    df['mf'] = optmodel.get_result('mass_flow',comp='backup', node='Production')
+
+    df.to_csv('results.txt')
     plt.show()
