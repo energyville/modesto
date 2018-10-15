@@ -356,7 +356,7 @@ class Modesto:
         opt = SolverFactory(solver, warmstart=warmstart)
         # opt.options["Threads"] = threads
         if solver == 'gurobi':
-            opt.options['ImproveStartTime'] = 10
+            # opt.options['ImproveStartTime'] = 10
             # opt.options['PumpPasses'] = 2
             if mipgap is not None:
                 opt.options["MIPGap"] = mipgap
