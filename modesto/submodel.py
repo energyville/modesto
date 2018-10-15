@@ -78,7 +78,7 @@ class Submodel(object):
 
     def change_param_object(self, name, new_object):
         """
-        Change a parameter object (used in case of general parameters that are needed in componenet models)
+        Change a parameter object (used in case of general parameters that are needed in component models)
 
         :param name:
         :return:

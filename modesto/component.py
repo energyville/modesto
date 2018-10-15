@@ -44,7 +44,6 @@ class Component(Submodel):
             raise ValueError('Direction should be -1 or 1.')
         self.direction = direction
 
-
     def create_params(self):
         """
         Create all required parameters to set up the model
@@ -204,7 +203,6 @@ class Component(Submodel):
             raise Exception("{} is not recognized as a valid parameter for {}".format(param, self.name))
 
         self.params[param].change_value(new_data)
-
 
     def check_data(self):
         """
@@ -511,7 +509,27 @@ class ProducerFixed(FixedProfile):
         return True
 
 
-class ProducerVariable(Component):
+class VariableComponent(Component):
+    """
+    Class that describes a component in which mass flow rate and heat flow rate are not strictly linked, but a slight
+    virtual variation in delta_T is allowed.
+
+    :param name: Name of this component
+    :param temperature_driven: True if temperature drive, false if fixed delta_T
+    :param heat_var: Relative variation allowed in delta_T
+    :param direction: Design direction of flow.
+    """
+
+    def __init__(self, name, temperature_driven=False, heat_var=0.05, direction=1):
+        Component.__init__(
+            name=name,
+            temperature_driven=temperature_driven,
+            direction=direction
+        )
+        self.heat_var = heat_var
+
+
+class ProducerVariable(VariableComponent):
     def __init__(self, name, temperature_driven=False, heat_var=0.05):
         """
         Class that describes a variable producer
@@ -519,13 +537,13 @@ class ProducerVariable(Component):
         :param name: Name of the building
         """
 
-        Component.__init__(self,
-                           name=name,
-                           direction=1,
-                           temperature_driven=temperature_driven)
+        VariableComponent.__init__(self,
+                                   name=name,
+                                   direction=1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var)
 
         self.params = self.create_params()
-        self.heat_var = heat_var
 
         self.logger = logging.getLogger('modesto.components.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
@@ -657,12 +675,8 @@ class ProducerVariable(Component):
         def _mass_lb(m, t):
             return m.mass_flow[t] * self.cp * self.params['delta_T'].v() <= m.heat_flow[t]
 
-
         self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
         self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
-
-
-
 
         def _decl_upward_ramp(b, t):
             if t == 0:
@@ -819,20 +833,21 @@ class ProducerVariable(Component):
             self.TIME)
 
 
-class SolarThermalCollector(Component):
+class SolarThermalCollector(VariableComponent):
     def __init__(self, name, temperature_driven=False, heat_var=0.05):
         """
         Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
 
         :param name: Name of the solar panel
         :param temperature_driven: Boolean that denotes if the temperatures are allowed to vary (fixed mass flow rates)
-        :param heat_var:
+        :param heat_var: Relative variation allowed in delta_T
         """
-        Component.__init__(self, name=name, direction=1,
-                           temperature_driven=temperature_driven)
+        VariableComponent.__init__(self, name=name,
+                                   direction=1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var)
 
         self.params = self.create_params()
-        self.heat_var = heat_var
 
         self.logger = logging.getLogger('modesto.components.SolThermCol')
         self.logger.info('Initializing SolarThermalCollector {}'.format(name))
@@ -916,18 +931,21 @@ class StorageFixed(FixedProfile):
                            temperature_driven=temperature_driven)
 
 
-class StorageVariable(Component):
-    def __init__(self, name, temperature_driven=False):
+class StorageVariable(VariableComponent):
+    def __init__(self, name, temperature_driven=False, heat_var=0.05):
         """
         Class that describes a variable storage
 
         :param name: Name of the building
+        :param temperature_driven:
+        :param heat_var: Relative variation allowed in delta_T
         """
 
-        Component.__init__(self,
-                           name=name,
-                           direction=-1,
-                           temperature_driven=temperature_driven)
+        VariableComponent.__init__(self,
+                                   name=name,
+                                   direction=-1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var)
 
         self.params = self.create_params()
         self.max_en = 0
