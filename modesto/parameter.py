@@ -3,7 +3,6 @@ from __future__ import division
 import logging
 
 import pandas as pd
-import numpy as np
 from scipy import interpolate
 
 import modesto.utils as ut
@@ -47,6 +46,9 @@ class Parameter(object):
         :return:
         """
         self.value = new_val
+
+    def resample(self):
+        pass
 
     def check(self):
         """
@@ -237,7 +239,8 @@ class SeriesParameter(Parameter):
         :return:
         """
 
-        assert isinstance(new_val, pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(type(new_val))
+        assert isinstance(new_val, pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(
+            type(new_val))
 
         self.value = new_val
         self.value.index = self.value.index.astype('float')
@@ -255,7 +258,7 @@ class SeriesParameter(Parameter):
         if self.value is None:
             raise Exception('Parameter {} has no value yet'.format(self.name))
         elif isinstance(self.value, (int, float)):
-            return self.value*index
+            return self.value * index
         else:
             f = interpolate.interp1d(self.value.index.values, self.value.values, fill_value='extrapolate')
             return f(index)
@@ -309,7 +312,7 @@ class TimeSeriesParameter(Parameter):
                 return ut.select_period_data(self.value, time_step=self.time_step, horizon=self.horizon,
                                              start_time=self.start_time).values
             elif not isinstance(self.value, pd.Series):
-                return [self.value] * int(self.horizon/self.time_step)
+                return [self.value] * int(self.horizon / self.time_step)
             else:  # Data has a numbered index
                 return self.value.values
 
@@ -361,6 +364,15 @@ class TimeSeriesParameter(Parameter):
 
     def change_time_step(self, val):
         self.time_step = val
+
+    def resample(self):
+        """
+        Change the sampling time of the parameter
+
+        :return:
+        """
+        if self.time_data:  # TODO This is a TimeSeries Parameter, a Boolean indicating whether or not it contains time data should be unnecessary
+            self.value = ut.resample(self.value, new_sample_time=self.time_step)
 
 
 class UserDataParameter(TimeSeriesParameter):

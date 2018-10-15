@@ -128,7 +128,9 @@ def select_period_data(df, horizon, time_step, start_time, method=None):
     :return: df
     """
     end_time = start_time + pd.Timedelta(seconds=horizon)
-    df = df[start_time:end_time]
+    df = df.loc[str(start_time):str(end_time)]
+
+    # str representation needed because otherwise slicing strobe data fails for some obscure reason.
 
     return resample(df=df, new_sample_time=time_step, method=method)
 

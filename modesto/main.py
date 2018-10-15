@@ -6,19 +6,17 @@ from math import sqrt
 import networkx as nx
 # noinspection PyUnresolvedReferences
 import pyomo.environ
-from pyomo.core.base import ConcreteModel, Objective, minimize, value, Set, Param, Block, Constraint, Var, \
+from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constraint, Var, \
     NonNegativeReals
-from pyomo.core.base.param import IndexedParam
-from pyomo.core.base.var import IndexedVar
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 
-import RCmodels as rc
 import component as co
 import pipe as pip
-from submodel import Submodel
+from modesto.LTIModels import RCmodels as rc
 # noinspection PyUnresolvedReferences
 from parameter import *
+from submodel import Submodel
 
 
 class Modesto:
@@ -44,6 +42,7 @@ class Modesto:
             self.temperature_driven = False
 
         self.allow_flow_reversal = True
+        self.start_time = None
 
         self.graph = graph
         self.edges = {}
@@ -135,8 +134,8 @@ class Modesto:
             # Create the node
             assert node not in self.components, "Node %s already exists" % node.name
             self.components[node] = (Node(name=node,
-                                     node=self.graph.nodes[node],
-                                     temperature_driven=self.temperature_driven))
+                                          node=self.graph.nodes[node],
+                                          temperature_driven=self.temperature_driven))
 
             # Add the new components
             self.components.update(self.components[node].get_components())
@@ -184,7 +183,7 @@ class Modesto:
         self.model.Slack = Var(within=NonNegativeReals)
 
         def _decl_slack(model):
-            return model.Slack == 10 ** 6 * sum(comp.obj_slack() for comp in self.iter_components())
+            return model.Slack == 10 ** 2 * sum(comp.obj_slack() for comp in self.iter_components())
 
         self.model.decl_slack = Constraint(rule=_decl_slack)
 
@@ -335,7 +334,7 @@ class Modesto:
         return self.components.values()
 
     def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False, solver='gurobi', warmstart=False, probe=False,
-              timelim=None):
+              timelim=None, threads=None):
         """
         Solve a new optimization
 
@@ -354,9 +353,10 @@ class Modesto:
             self.model.pprint()
 
         opt = SolverFactory(solver, warmstart=warmstart)
-        # opt.options["Threads"] = threads
+
         if solver == 'gurobi':
-            opt.options['ImproveStartTime'] = 10
+            # opt.options["Crossover"] = 0
+            # opt.options['ImproveStartTime'] = 10
             # opt.options['PumpPasses'] = 2
             if mipgap is not None:
                 opt.options["MIPGap"] = mipgap
@@ -366,6 +366,9 @@ class Modesto:
 
             if timelim is not None:
                 opt.options["TimeLimit"] = timelim
+
+            if threads is not None:
+                opt.options["Threads"] = threads
         elif solver == 'cplex':
             opt.options['mip display'] = 3
             if probe:
@@ -392,14 +395,14 @@ class Modesto:
             print self.results.solver.termination_condition
 
         if (self.results.solver.status == SolverStatus.ok) and (
-                    self.results.solver.termination_condition == TerminationCondition.optimal):
+                self.results.solver.termination_condition == TerminationCondition.optimal):
             status = 0
             self.logger.info('Model solved.')
         elif (self.results.solver.status == SolverStatus.aborted):
             status = -3
             self.logger.info('Solver aborted.')
         elif (self.results.solver.status == SolverStatus.ok) and not (
-            self.results.solver.termination_condition == TerminationCondition.infeasible):
+                self.results.solver.termination_condition == TerminationCondition.infeasible):
             status = 2
             self.logger.info('Model solved but termination condition not optimal.')
             self.logger.info('Termination condition: {}'.format(self.results.solver.termination_condition))
@@ -741,10 +744,17 @@ class Modesto:
         Change the start time of all parameters to ensure correct read out of data
 
         :param pd.Timestamp new_val: New start time
-        :return: 
+        :return:
         """
+        assert isinstance(new_val, pd.Timestamp), 'Make sure the new start time is an instance of pd.Timestamp.'
+        self.start_time = new_val
+
         for _, param in self.params.items():
             param.change_start_time(new_val)
+
+        for comp in self.components:
+            self.components[comp].update_time(start_time=new_val, horizon=self.params['horizon'].v(),
+                                              time_step=self.params['time_step'].v())
 
 
 class Node(Submodel):
@@ -873,26 +883,26 @@ class Node(Submodel):
 
         params = {'time_step':
                       DesignParameter('time_step',
-                                       unit='s',
-                                       description='Time step with which the component model will be discretized'),
+                                      unit='s',
+                                      description='Time step with which the component model will be discretized'),
                   'horizon':
-                       DesignParameter('horizon',
-                                       unit='s',
-                                       description='Horizon of the optimization problem'),
+                      DesignParameter('horizon',
+                                      unit='s',
+                                      description='Horizon of the optimization problem'),
                   'lines': DesignParameter('lines',
-                                          unit='-',
-                                          description='List of names of the lines that can be found in the network, e.g. '
-                                                      '\'supply\' and \'return\'',
-                                          val=['supply', 'return'])
-                    }
+                                           unit='-',
+                                           description='List of names of the lines that can be found in the network, e.g. '
+                                                       '\'supply\' and \'return\'',
+                                           val=['supply', 'return'])
+                  }
         return params
 
     def compile(self, model, start_time):
         """
-        
+
         :param pd.Timestamp start_time: start time of optimization
-        :param model: 
-        :return: 
+        :param model:
+        :return:
         """
         self.set_time_axis()
         self._make_block(model)
@@ -947,7 +957,7 @@ class Node(Submodel):
 
                     return b.mix_temp[t, l] == (sum(c[comp].get_temperature(t, l) for comp in c) +
                                                 sum(p[pipe].get_temperature(self.name, t, l) for pipe in p)) / (
-                                                   len(p) + len(c))
+                                   len(p) + len(c))
 
 
                 else:  # mass flow rate through the node
@@ -1006,7 +1016,7 @@ class Node(Submodel):
             def _heat_bal(b, t):
                 return 0 == sum(
                     self.components[i].get_heat(t) for i in self.components) \
-                            + sum(
+                       + sum(
                     pipe.get_edge_heat(self.name, t) for pipe in p.values())
 
             self.block.ineq_heat_bal = Constraint(self.TIME,
@@ -1015,7 +1025,7 @@ class Node(Submodel):
             def _mass_bal(b, t):
                 return 0 == sum(
                     self.components[i].get_mflo(t) for i in self.components) \
-                            + sum(
+                       + sum(
                     pipe.get_edge_mflo(self.name, t) for pipe in p.values())
 
             self.block.ineq_mass_bal = Constraint(self.TIME,
@@ -1113,11 +1123,11 @@ class Edge(object):
 
     def compile(self, model, start_time):
         """
-        
-        
+
+
         :param pd.Timestamp start_time: Start time of optimization
-        :param model: 
-        :return: 
+        :param model:
+        :return:
         """
         self.pipe.compile(model, start_time)
 
