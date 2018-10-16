@@ -522,6 +522,7 @@ class VariableComponent(Component):
 
     def __init__(self, name, temperature_driven=False, heat_var=0.05, direction=1):
         Component.__init__(
+            self,
             name=name,
             temperature_driven=temperature_driven,
             direction=direction
@@ -1210,7 +1211,11 @@ class StorageVariable(VariableComponent):
 
         ## Mass flow and heat flow link
         def _heat_bal(b, t):
-            return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
+            return self.cp * b.mass_flow[t] * self.temp_diff >= b.heat_flow[t]
+
+        ## leq allows that heat losses in the network are supplied from storage tank only when discharging.
+        ## In charging mode, this will probably not be used.
+
 
         self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
 
