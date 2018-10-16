@@ -1211,7 +1211,7 @@ class StorageVariable(VariableComponent):
 
         ## Mass flow and heat flow link
         def _heat_bal(b, t):
-            return self.cp * b.mass_flow[t] * self.temp_diff >= b.heat_flow[t]
+            return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
 
         ## leq allows that heat losses in the network are supplied from storage tank only when discharging.
         ## In charging mode, this will probably not be used.

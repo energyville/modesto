@@ -38,9 +38,11 @@ def setup_graph_stor():
     G.add_node('prod', x=0, y=0, z=0, comps={'prod': 'ProducerVariable'})
     G.add_node('stor', x=500, y=0, z=0, comps={'stor': 'StorageVariable'})
     G.add_node('cons', x=1000, y=0, z=0, comps={'cons': 'BuildingFixed'})
+    G.add_node('stor2', x=500, y=500, z=0, comps={'stor': 'StorageVariable'})
 
     G.add_edge('prod', 'stor', name='pipe1')
     G.add_edge('stor', 'cons', name='pipe2')
+    G.add_edge('stor', 'stor2', name='pipe3')
 
     return G
 
@@ -105,17 +107,17 @@ def setup_modesto_with_stor(graph):
     stor_design = {'Thi': 60 + 273.15,
                    'Tlo': 20 + 273.15,
                    'mflo_max': 10000,
-                   'mflo_min': -10000,
-                   'volume': 100000,
-                   'heat_stor': 100000,
+                   'mflo_min': -1000,
+                   'volume': 1000,
+                   'heat_stor': 10,
                    'ar': 2,
                    'dIns': 0.2,
                    'kIns': 0.0024,
                    'mflo_use': pd.Series(index=c_f.index, data=0)}
 
-    optmodel.change_params(stor_design, 'stor', 'stor')
-
-    optmodel.change_init_type('heat_stor', 'free', 'stor', 'stor')
+    for stor in ['stor', 'stor2']:
+        optmodel.change_params(stor_design, stor, 'stor')
+        #optmodel.change_init_type('heat_stor', 'free', stor, 'stor')
     # Pipe parameters
     params = {
         'diameter': 150
@@ -125,7 +127,7 @@ def setup_modesto_with_stor(graph):
         params['temperature_supply'] = 60 + 273.15
         params['temperature_return'] = 20 + 273.15
 
-    for p in ['pipe1', 'pipe2']: optmodel.change_params(params, node=None, comp=p)
+    for p in ['pipe1', 'pipe2', 'pipe3']: optmodel.change_params(params, node=None, comp=p)
 
     optmodel.compile(start_time=start_time)
 
@@ -326,21 +328,26 @@ if __name__ == '__main__':
                          solver='gurobi')
 
         stor = opt.get_result('heat_flow', 'stor', 'stor')
+        stor2 = opt.get_result('heat_flow', 'stor2', 'stor')
         prod = opt.get_result('heat_flow', 'prod', 'prod')
         cons = opt.get_result('heat_flow', 'cons', 'cons')
 
         if pipe_type is 'ExtensivePipe':
             dq1 = opt.get_result('heat_loss_tot', None, 'pipe1')
             dq2 = opt.get_result('heat_loss_tot', None, 'pipe2')
+            dq3 = opt.get_result('heat_loss_tot', None, 'pipe3')
 
         stor_soc = opt.get_result('soc', 'stor', 'stor', state=True)
+        stor2_soc = opt.get_result('soc', 'stor2', 'stor', state=True)
 
         m_prod = opt.get_result('mass_flow', 'prod', 'prod')
         m_stor = opt.get_result('mass_flow', 'stor', 'stor')
         m_cons = opt.get_result('mass_flow', 'cons', 'cons')
+        m_stor2 = opt.get_result('mass_flow', 'stor2', 'stor')
 
         fig, axs = plt.subplots(3, 1, sharex=True)
         axs[0].plot(-stor, label='-Storage')
+        axs[0].plot(stor2, label='Storage2')
         axs[0].plot(prod, label='Production')
         axs[0].plot(cons, label='Demand')
 
@@ -356,10 +363,14 @@ if __name__ == '__main__':
         axs[0].legend()
         axs[0].set_ylabel('Heat flow [W]')
 
-        axs[1].plot(stor_soc)
+        axs[1].plot(stor_soc, label='1')
+        axs[1].plot(stor2_soc, label='2')
+        axs[1].legend()
+
         axs[1].set_ylabel('State of charge [%]')
 
         axs[2].plot(-m_stor, label='-Storage')
+        axs[2].plot(-m_stor2, label='-Storage2')
         axs[2].plot(m_prod, label='Production')
         axs[2].plot(m_cons, label='Demand')
 
