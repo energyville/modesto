@@ -314,7 +314,7 @@ class ExtensivePipe(Pipe):
         ##############
 
         def _eq_heat_loss_tot(b, t):
-            return b.heat_loss_tot[t] == b.heat_loss[t] * self.length - b.slack_heat_loss[t]
+            return b.heat_loss_tot[t] == b.heat_loss[t] * (1 - b.slack_heat_loss[t]) * self.length
 
         self.block.eq_heat_loss_tot = Constraint(self.TIME, rule=_eq_heat_loss_tot)
 
@@ -343,23 +343,23 @@ class ExtensivePipe(Pipe):
 
         def _ineq_heat_in_upper(b, t):
             return b.heat_flow_in[t] <= (
-                        (1 + self.heat_var) * b.mass_flow_forw[t] - (1 - self.heat_var) * b.mass_flow_back[
-                    t]) * self.cp * (self.temp_sup - self.temp_ret)
+                    (1 + self.heat_var) * b.mass_flow_forw[t] - (1 - self.heat_var) * b.mass_flow_back[
+                t]) * self.cp * (self.temp_sup - self.temp_ret)
 
         def _ineq_heat_in_lower(b, t):
             return b.heat_flow_in[t] >= (
-                        (1 - self.heat_var) * b.mass_flow_forw[t] - (1 + self.heat_var) * b.mass_flow_back[
-                    t]) * self.cp * (self.temp_sup - self.temp_ret)
+                    (1 - self.heat_var) * b.mass_flow_forw[t] - (1 + self.heat_var) * b.mass_flow_back[
+                t]) * self.cp * (self.temp_sup - self.temp_ret)
 
         def _ineq_heat_out_upper(b, t):
             return b.heat_flow_out[t] <= (
-                        (1 + self.heat_var) * b.mass_flow_forw[t] - (1 - self.heat_var) * b.mass_flow_back[
-                    t]) * self.cp * (self.temp_sup - self.temp_ret)
+                    (1 + self.heat_var) * b.mass_flow_forw[t] - (1 - self.heat_var) * b.mass_flow_back[
+                t]) * self.cp * (self.temp_sup - self.temp_ret)
 
         def _ineq_heat_out_lower(b, t):
             return b.heat_flow_out[t] >= (
-                        (1 - self.heat_var) * b.mass_flow_forw[t] - (1 + self.heat_var) * b.mass_flow_back[
-                    t]) * self.cp * (self.temp_sup - self.temp_ret)
+                    (1 - self.heat_var) * b.mass_flow_forw[t] - (1 + self.heat_var) * b.mass_flow_back[
+                t]) * self.cp * (self.temp_sup - self.temp_ret)
 
         self.block.ineq_heat_in_upper = Constraint(self.TIME, rule=_ineq_heat_in_upper)
         self.block.ineq_heat_in_lower = Constraint(self.TIME, rule=_ineq_heat_in_lower)
