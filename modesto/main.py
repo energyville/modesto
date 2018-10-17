@@ -184,7 +184,7 @@ class Modesto:
         self.model.Slack = Var(within=NonNegativeReals)
 
         def _decl_slack(model):
-            return model.Slack == 10 ** 3 * sum(comp.obj_slack() for comp in self.iter_components())
+            return model.Slack == 10 ** 2 * sum(comp.obj_slack() for comp in self.iter_components())
 
         self.model.decl_slack = Constraint(rule=_decl_slack)
 
@@ -366,6 +366,7 @@ class Modesto:
 
             if timelim is not None:
                 opt.options["TimeLimit"] = timelim
+            opt.options["ConcurrentMIP"] = 5
         elif solver == 'cplex':
             opt.options['mip display'] = 3
             if probe:
@@ -742,7 +743,7 @@ class Modesto:
         Change the start time of all parameters to ensure correct read out of data
 
         :param pd.Timestamp new_val: New start time
-        :return: 
+        :return:
         """
         for _, param in self.params.items():
             param.change_start_time(new_val)
@@ -890,10 +891,10 @@ class Node(Submodel):
 
     def compile(self, model, start_time):
         """
-        
+
         :param pd.Timestamp start_time: start time of optimization
-        :param model: 
-        :return: 
+        :param model:
+        :return:
         """
         self.set_time_axis()
         self._make_block(model)
@@ -1114,11 +1115,11 @@ class Edge(object):
 
     def compile(self, model, start_time):
         """
-        
-        
+
+
         :param pd.Timestamp start_time: Start time of optimization
-        :param model: 
-        :return: 
+        :param model:
+        :return:
         """
         self.pipe.compile(model, start_time)
 
