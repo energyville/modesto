@@ -314,7 +314,7 @@ class ExtensivePipe(Pipe):
         ##############
 
         def _eq_heat_loss_tot(b, t):
-            return b.heat_loss_tot[t] == b.heat_loss[t] * (1 - b.slack_heat_loss[t]) * self.length
+            return b.heat_loss_tot[t] == b.heat_loss[t] * self.length - b.slack_heat_loss[t]/1.1
 
         self.block.eq_heat_loss_tot = Constraint(self.TIME, rule=_eq_heat_loss_tot)
 

@@ -106,9 +106,9 @@ def setup_modesto_with_stor(graph):
     # Storage parameters
     stor_design = {'Thi': 60 + 273.15,
                    'Tlo': 20 + 273.15,
-                   'mflo_max': 10000,
-                   'mflo_min': -1000,
-                   'volume': 1000,
+                   'mflo_max': 100,
+                   'mflo_min': -100,
+                   'volume': 50,
                    'heat_stor': 10,
                    'ar': 2,
                    'dIns': 0.2,
@@ -117,10 +117,13 @@ def setup_modesto_with_stor(graph):
 
     for stor in ['stor', 'stor2']:
         optmodel.change_params(stor_design, stor, 'stor')
-        #optmodel.change_init_type('heat_stor', 'free', stor, 'stor')
+        optmodel.change_init_type('heat_stor', 'free', stor, 'stor')
+
+    optmodel.change_param('stor', 'stor', 'dIns', 0.01)
+
     # Pipe parameters
     params = {
-        'diameter': 150
+        'diameter': 25
     }
 
     if pipe_model is 'ExtensivePipe':
@@ -378,4 +381,12 @@ if __name__ == '__main__':
 
         for ax in axs: ax.grid(ls=':', lw=0.5)
 
+        if pipe_type is 'ExtensivePipe':
+            fig, ax = plt.subplots(2, 1, sharex=True)
+            for pip in ['pipe1', 'pipe2', 'pipe3']:
+                ax[0].plot(opt.get_result('slack_heat_loss', None, pip)*1.1, ls=':', label= 'Slack '+pip)
+                ax[1].plot(opt.get_result('heat_loss_tot', None, pip), label=pip)
+            for a in ax:
+                a.legend()
+                a.grid(ls=':')
         plt.show()
