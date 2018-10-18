@@ -670,14 +670,15 @@ class ProducerVariable(VariableComponent):
         else:
             self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
 
-        def _mass_ub(m, t):
-            return m.mass_flow[t] * (1 + self.heat_var) * self.cp * self.params['delta_T'].v() >= m.heat_flow[t]
+        if not self.temperature_driven:
+            def _mass_ub(m, t):
+                return m.mass_flow[t] * (1 + self.heat_var) * self.cp * self.params['delta_T'].v() >= m.heat_flow[t]
 
-        def _mass_lb(m, t):
-            return m.mass_flow[t] * self.cp * self.params['delta_T'].v() <= m.heat_flow[t]
+            def _mass_lb(m, t):
+                return m.mass_flow[t] * self.cp * self.params['delta_T'].v() <= m.heat_flow[t]
 
-        self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
-        self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+            self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+            self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
 
         def _decl_upward_ramp(b, t):
             if t == 0:
