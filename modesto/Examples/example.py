@@ -145,7 +145,8 @@ def construct_model():
     c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
                             name='DAM_electricity_prices-2014_BE.csv')['price_BE']
 
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'delta_T': 20,
+                   'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,

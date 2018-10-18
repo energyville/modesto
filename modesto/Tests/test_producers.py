@@ -52,7 +52,8 @@ def test_producer():
 
     c_f = pd.Series(1, time_index)
 
-    params = {'efficiency': 0.95,
+    params = {'delta_T': 20,
+              'efficiency': 0.95,
               'PEF': 1,
               'CO2': 0.2052,
               'fuel_cost': c_f,

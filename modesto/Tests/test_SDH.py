@@ -16,7 +16,7 @@ def test_case_base():
 
 def test_case_future():
     from misc.SDH_Conference_TestCases.CaseFuture import setup_opt
-    model = setup_opt(horizon=24*5*3600, time_step=3600)
+    model = setup_opt(horizon=7*24*3600,time_step=3600)
     start_time = pd.Timestamp('20140101')
     model.compile(start_time=start_time)
     model.set_objective('cost')

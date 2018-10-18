@@ -44,7 +44,6 @@ class Component(Submodel):
             raise ValueError('Direction should be -1 or 1.')
         self.direction = direction
 
-
     def create_params(self):
         """
         Create all required parameters to set up the model
@@ -204,7 +203,6 @@ class Component(Submodel):
             raise Exception("{} is not recognized as a valid parameter for {}".format(param, self.name))
 
         self.params[param].change_value(new_data)
-
 
     def check_data(self):
         """
@@ -511,18 +509,40 @@ class ProducerFixed(FixedProfile):
         return True
 
 
-class ProducerVariable(Component):
-    def __init__(self, name, temperature_driven=False):
+class VariableComponent(Component):
+    """
+    Class that describes a component in which mass flow rate and heat flow rate are not strictly linked, but a slight
+    virtual variation in delta_T is allowed.
+
+    :param name: Name of this component
+    :param temperature_driven: True if temperature drive, false if fixed delta_T
+    :param heat_var: Relative variation allowed in delta_T
+    :param direction: Design direction of flow.
+    """
+
+    def __init__(self, name, temperature_driven=False, heat_var=0.05, direction=1):
+        Component.__init__(
+            self,
+            name=name,
+            temperature_driven=temperature_driven,
+            direction=direction
+        )
+        self.heat_var = heat_var
+
+
+class ProducerVariable(VariableComponent):
+    def __init__(self, name, temperature_driven=False, heat_var=0.05):
         """
         Class that describes a variable producer
 
         :param name: Name of the building
         """
 
-        Component.__init__(self,
-                           name=name,
-                           direction=1,
-                           temperature_driven=temperature_driven)
+        VariableComponent.__init__(self,
+                                   name=name,
+                                   direction=1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var)
 
         self.params = self.create_params()
 
@@ -594,6 +614,11 @@ class ProducerVariable(Component):
                                               description='List of names of the lines that can be found in the network, e.g. '
                                                           '\'supply\' and \'return\'',
                                               val=['supply', 'return'])
+        else:
+            params['delta_T'] = DesignParameter('delta_T',
+                                                'Temperature difference between supply and return of the heat source',
+                                                'K')
+
         return params
 
     def compile(self, model, start_time):
@@ -604,7 +629,7 @@ class ProducerVariable(Component):
         """
         Component.compile(self, model, start_time)
 
-        self.block.heat_flow = Var(self.TIME)
+        self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
         self.block.ramping_cost = Var(self.TIME)
 
         if not self.params['Qmin'].v() == 0:
@@ -644,6 +669,16 @@ class ProducerVariable(Component):
 
         else:
             self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
+
+        if not self.temperature_driven:
+            def _mass_ub(m, t):
+                return m.mass_flow[t] * (1 + self.heat_var) * self.cp * self.params['delta_T'].v() >= m.heat_flow[t]
+
+            def _mass_lb(m, t):
+                return m.mass_flow[t] * self.cp * self.params['delta_T'].v() <= m.heat_flow[t]
+
+            self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+            self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
 
         def _decl_upward_ramp(b, t):
             if t == 0:
@@ -690,8 +725,9 @@ class ProducerVariable(Component):
                 elif b.mass_flow[t] == 0:
                     return Constraint.Skip
                 else:
-                    return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / b.mass_flow[
-                        t] / self.cp
+                    return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / \
+                           b.mass_flow[
+                               t] / self.cp
 
             def _init_temperature(b, l):
                 return b.temperatures[l, 0] == self.params['temperature_' + l].v()
@@ -795,19 +831,23 @@ class ProducerVariable(Component):
         co2_price = self.params['CO2_price'].v()
 
         return sum(
-            co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+            co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in
+            self.TIME)
 
 
-class SolarThermalCollector(Component):
-    def __init__(self, name, temperature_driven=False):
+class SolarThermalCollector(VariableComponent):
+    def __init__(self, name, temperature_driven=False, heat_var=0.05):
         """
         Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
 
         :param name: Name of the solar panel
-        :param temperature_driven:
+        :param temperature_driven: Boolean that denotes if the temperatures are allowed to vary (fixed mass flow rates)
+        :param heat_var: Relative variation allowed in delta_T
         """
-        Component.__init__(self, name=name, direction=1,
-                           temperature_driven=temperature_driven)
+        VariableComponent.__init__(self, name=name,
+                                   direction=1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var)
 
         self.params = self.create_params()
 
@@ -859,11 +899,15 @@ class SolarThermalCollector(Component):
         def _heat_bal(m, t):
             return m.heat_flow[t] + m.heat_flow_curt[t] == self.params['area'].v() * m.heat_flow_max[t]
 
-        def _ener_bal(m, t):
-            return m.mass_flow[t] == m.heat_flow[t] / self.cp / self.params['delta_T'].v()
+        def _mass_lb(m, t):
+            return m.mass_flow[t] >= m.heat_flow[t] / self.cp / self.params['delta_T'].v() / (1 + self.heat_var)
+
+        def _mass_ub(m, t):
+            return m.mass_flow[t] <= m.heat_flow[t] / self.cp / self.params['delta_T'].v()
 
         self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
-        self.block.eq_ener_bal = Constraint(self.TIME, rule=_ener_bal)
+        self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+        self.block.eq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
 
     def get_investment_cost(self):
         """
@@ -889,18 +933,21 @@ class StorageFixed(FixedProfile):
                            temperature_driven=temperature_driven)
 
 
-class StorageVariable(Component):
-    def __init__(self, name, temperature_driven=False):
+class StorageVariable(VariableComponent):
+    def __init__(self, name, temperature_driven=False, heat_var=0.05):
         """
         Class that describes a variable storage
 
         :param name: Name of the building
+        :param temperature_driven:
+        :param heat_var: Relative variation allowed in delta_T
         """
 
-        Component.__init__(self,
-                           name=name,
-                           direction=-1,
-                           temperature_driven=temperature_driven)
+        VariableComponent.__init__(self,
+                                   name=name,
+                                   direction=-1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var)
 
         self.params = self.create_params()
         self.max_en = 0
@@ -1167,6 +1214,10 @@ class StorageVariable(Component):
         def _heat_bal(b, t):
             return self.cp * b.mass_flow[t] * self.temp_diff == b.heat_flow[t]
 
+        ## leq allows that heat losses in the network are supplied from storage tank only when discharging.
+        ## In charging mode, this will probably not be used.
+
+
         self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
 
         self.logger.info('Optimization model Storage {} compiled'.format(self.name))
@@ -1254,7 +1305,8 @@ class StorageCondensed(StorageVariable):
             elif t == 0:
                 return b.heat_stor[t, r] == b.heat_stor[tlast, r - 1]
             else:
-                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (b.heat_flow[t - 1] / mult - b.heat_loss_ct[
+                return b.heat_stor[t, r] == zH * b.heat_stor[t - 1, r] + (
+                        b.heat_flow[t - 1] / mult - b.heat_loss_ct[
                     t - 1]) * self.params['time_step'].v() / 3600 / 1000
 
         self.block.state_eq = Constraint(self.X_TIME, self.block.reps, rule=_state_eq)
