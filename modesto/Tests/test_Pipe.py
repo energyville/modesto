@@ -160,12 +160,8 @@ if __name__ == '__main__':
 
     import matplotlib.pyplot as plt
 
-    print opts['for'].get_result('slack_heat_loss', comp='pipe')
     print opts['for'].get_result('heat_flow_in', comp='pipe')
     print opts['for'].get_result('heat_flow_out', comp='pipe')
-
-    print opts['for'].get_result('mass_flow_forw', comp='pipe')
-    print opts['for'].get_result('mass_flow_back', comp='pipe')
 
     print "Objective slack"
     print opts['for'].model.Slack.pprint()
