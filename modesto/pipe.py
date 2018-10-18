@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals, Binary
+from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 from component import Component
 from modesto import utils
@@ -203,6 +203,8 @@ class ExtensivePipe(Pipe):
         self.dn = None
         self.heat_var = heat_var
 
+        self.hl_setting = 2 / 3  # Fraction of max mass flow where heat losses are equal to nominal value
+
         self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K')
         self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K')
 
@@ -276,7 +278,7 @@ class ExtensivePipe(Pipe):
                  Rs
             return dq
 
-        self.block.heat_loss = Param(self.TIME, rule=_heat_loss)
+        self.block.heat_loss_nom = Param(self.TIME, rule=_heat_loss)
 
         """
         Variables
@@ -292,14 +294,7 @@ class ExtensivePipe(Pipe):
         self.block.mass_flow = Var(self.TIME, bounds=mflo_ub,
                                    doc='Mass flow rate entering in-node and exiting out-node')
 
-        self.block.mass_flow_forw = Var(self.TIME, within=NonNegativeReals, doc='Forward part of mass flow rate')
-        self.block.mass_flow_back = Var(self.TIME, within=NonNegativeReals, doc='Backward part of mass flow rate')
-
         self.block.heat_loss_tot = Var(self.TIME, within=NonNegativeReals, doc='Total heat lost from pipe')
-
-        self.make_slack('slack_heat_loss', self.TIME)
-
-        self.block.flow_dir = Var(self.TIME, within=Binary, doc='Decision variable for flow direction')
 
         if self.allow_flow_reversal:
             self.block.heat_flow_back = Var(self.TIME, within=NonNegativeReals,
@@ -313,16 +308,6 @@ class ExtensivePipe(Pipe):
         # EQUALITIES #
         ##############
 
-        def _eq_heat_loss_tot(b, t):
-            return b.heat_loss_tot[t] == b.heat_loss[t] * self.length - b.slack_heat_loss[t]/1.1
-
-        self.block.eq_heat_loss_tot = Constraint(self.TIME, rule=_eq_heat_loss_tot)
-
-        def _eq_mass_flow_sum(b, t):
-            return b.mass_flow[t] == b.mass_flow_forw[t] - b.mass_flow_back[t]
-
-        self.block.eq_mass_flow_sum = Constraint(self.TIME, rule=_eq_mass_flow_sum)
-
         def _eq_heat_flow_bal(b, t):
             return b.heat_flow_in[t] == b.heat_loss_tot[t] + b.heat_flow_out[t]
 
@@ -332,40 +317,16 @@ class ExtensivePipe(Pipe):
         # INEQUALITIES #
         ################
 
-        def _ineq_mass_flow_forw(b, t):
-            return b.mass_flow_forw[t] <= b.flow_dir[t] * b.mass_flow_max
+        def _eq_heat_loss_forw(b, t):
+            return b.heat_loss_tot[t] >= b.heat_loss_nom[t] * b.mass_flow[t] / (
+                    self.hl_setting * b.mass_flow_max) * self.length
 
-        def _ineq_mass_flow_back(b, t):
-            return b.mass_flow_back[t] <= (1 - b.flow_dir[t]) * b.mass_flow_max
+        def _eq_heat_loss_rev(b, t):
+            return b.heat_loss_tot[t] >= - b.heat_loss_nom[t] * b.mass_flow[t] / (
+                    self.hl_setting * b.mass_flow_max) * self.length
 
-        self.block.ineq_mflo_forw = Constraint(self.TIME, rule=_ineq_mass_flow_forw)
-        self.block.ineq_mflo_back = Constraint(self.TIME, rule=_ineq_mass_flow_back)
-
-        def _ineq_heat_in_upper(b, t):
-            return b.heat_flow_in[t] <= (
-                    (1 + self.heat_var) * b.mass_flow_forw[t] - (1 - self.heat_var) * b.mass_flow_back[
-                t]) * self.cp * (self.temp_sup - self.temp_ret)
-
-        def _ineq_heat_in_lower(b, t):
-            return b.heat_flow_in[t] >= (
-                    (1 - self.heat_var) * b.mass_flow_forw[t] - (1 + self.heat_var) * b.mass_flow_back[
-                t]) * self.cp * (self.temp_sup - self.temp_ret)
-
-        def _ineq_heat_out_upper(b, t):
-            return b.heat_flow_out[t] <= (
-                    (1 + self.heat_var) * b.mass_flow_forw[t] - (1 - self.heat_var) * b.mass_flow_back[
-                t]) * self.cp * (self.temp_sup - self.temp_ret)
-
-        def _ineq_heat_out_lower(b, t):
-            return b.heat_flow_out[t] >= (
-                    (1 - self.heat_var) * b.mass_flow_forw[t] - (1 + self.heat_var) * b.mass_flow_back[
-                t]) * self.cp * (self.temp_sup - self.temp_ret)
-
-        self.block.ineq_heat_in_upper = Constraint(self.TIME, rule=_ineq_heat_in_upper)
-        self.block.ineq_heat_in_lower = Constraint(self.TIME, rule=_ineq_heat_in_lower)
-
-        self.block.ineq_heat_out_upper = Constraint(self.TIME, rule=_ineq_heat_out_upper)
-        self.block.ineq_heat_out_lower = Constraint(self.TIME, rule=_ineq_heat_out_lower)
+        self.block.eq_heat_loss_forw = Constraint(self.TIME, rule=_eq_heat_loss_forw)
+        self.block.eq_heat_loss_rev = Constraint(self.TIME, rule=_eq_heat_loss_rev)
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))

@@ -36,9 +36,9 @@ def setup_graph_stor():
     G = nx.DiGraph()
 
     G.add_node('prod', x=0, y=0, z=0, comps={'prod': 'ProducerVariable'})
-    G.add_node('stor', x=500, y=0, z=0, comps={'stor': 'StorageVariable'})
-    G.add_node('cons', x=1000, y=0, z=0, comps={'cons': 'BuildingFixed'})
-    G.add_node('stor2', x=500, y=500, z=0, comps={'stor': 'StorageVariable'})
+    G.add_node('stor', x=250, y=0, z=0, comps={'stor': 'StorageVariable'})
+    G.add_node('cons', x=500, y=0, z=0, comps={'cons': 'BuildingFixed'})
+    G.add_node('stor2', x=250, y=250, z=0, comps={'stor': 'StorageVariable'})
 
     G.add_edge('prod', 'stor', name='pipe1')
     G.add_edge('stor', 'cons', name='pipe2')
@@ -99,7 +99,7 @@ def setup_modesto_with_stor(graph):
                    'fuel_cost': c_f,
                    'Qmax': Pnom,
                    'ramp_cost': 0.00,
-                   'ramp': Pnom * 3500}
+                   'ramp': Pnom}
 
     optmodel.change_params(prod_design, 'prod', 'prod')
 
@@ -119,11 +119,13 @@ def setup_modesto_with_stor(graph):
         optmodel.change_params(stor_design, stor, 'stor')
         optmodel.change_init_type('heat_stor', 'free', stor, 'stor')
 
-    optmodel.change_param('stor', 'stor', 'dIns', 0.01)
+    # optmodel.change_param('stor', 'stor', 'dIns', 0.001)
+    # optmodel.change_param('stor', 'stor', 'kIns', 0.01)
+
 
     # Pipe parameters
     params = {
-        'diameter': 25
+        'diameter': 150
     }
 
     if pipe_model is 'ExtensivePipe':
@@ -274,18 +276,8 @@ if __name__ == '__main__':
             if not res == 0:
                 raise Exception('Optimization {} failed to solve.'.format(name))
 
-        for name, opt in opts.iteritems():
-            print ''
-            print name, str(opt.get_objective('energy'))
-
-        import matplotlib.pyplot as plt
-
-        print opts['for'].get_result('slack_heat_loss', comp='pipe')
         print opts['for'].get_result('heat_flow_in', comp='pipe')
         print opts['for'].get_result('heat_flow_out', comp='pipe')
-
-        print opts['for'].get_result('mass_flow_forw', comp='pipe')
-        print opts['for'].get_result('mass_flow_back', comp='pipe')
 
         print "Objective slack"
         print opts['for'].model.Slack.pprint()
@@ -324,11 +316,13 @@ if __name__ == '__main__':
     else:
         import matplotlib.pyplot as plt
 
+
         gr = setup_graph_stor()
         opt = setup_modesto_with_stor(gr)
 
         res1 = opt.solve(tee=True,
                          solver='gurobi')
+        print opt.model.Slack.value
 
         stor = opt.get_result('heat_flow', 'stor', 'stor')
         stor2 = opt.get_result('heat_flow', 'stor2', 'stor')
@@ -377,6 +371,8 @@ if __name__ == '__main__':
         axs[2].plot(m_prod, label='Production')
         axs[2].plot(m_cons, label='Demand')
 
+        axs[2].set_ylabel('Mass flow rate [kg/s]')
+
         axs[2].legend()
 
         for ax in axs: ax.grid(ls=':', lw=0.5)
@@ -384,7 +380,6 @@ if __name__ == '__main__':
         if pipe_type is 'ExtensivePipe':
             fig, ax = plt.subplots(2, 1, sharex=True)
             for pip in ['pipe1', 'pipe2', 'pipe3']:
-                ax[0].plot(opt.get_result('slack_heat_loss', None, pip)*1.1, ls=':', label= 'Slack '+pip)
                 ax[1].plot(opt.get_result('heat_loss_tot', None, pip), label=pip)
             for a in ax:
                 a.legend()
