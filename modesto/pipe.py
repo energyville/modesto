@@ -93,7 +93,7 @@ class Pipe(Component):
             'PEF_el': DesignParameter('PEF_el',
                                       'Factor to convert electric energy to primary energy',
                                       '-',
-                                      val=2.0),
+                                      val=2.1),
             'eta_mech': DesignParameter('eta_mech',
                                         'Mechanical efficiency of circulation pump',
                                         '-',
