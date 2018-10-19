@@ -97,7 +97,7 @@ def make_graph(repr=False):
     return G
 
 
-def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600*24, time_step=3600):
+def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, time_step=3600):
     """
     Set all necessary parameters (can still be changed before compilation).
 
@@ -304,7 +304,7 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600*24, ti
     return model
 
 
-def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
+def setup_opt(horizon=365 * 24 * 3600, time_step=3600, verbose=False):
     """
     set-up optimization problem
 
