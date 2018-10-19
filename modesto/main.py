@@ -7,7 +7,7 @@ import networkx as nx
 # noinspection PyUnresolvedReferences
 import pyomo.environ
 from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constraint, Var, \
-    NonNegativeReals
+    NonNegativeReals, Block
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 

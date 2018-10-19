@@ -705,12 +705,12 @@ class ProducerVariable(VariableComponent):
                 return b.ramping_cost[t] >= (b.heat_flow[t - 1] - b.heat_flow[t]) * self.params['ramp_cost'].v()
 
         if not self.params['ramp']>=self.params['Qmax']:
-            self.block.decl_upward_ramp = Constraint(self.model.TIME, rule=_decl_upward_ramp)
-            self.block.decl_downward_ramp = Constraint(self.model.TIME, rule=_decl_downward_ramp)
+            self.block.decl_upward_ramp = Constraint(self.TIME, rule=_decl_upward_ramp)
+            self.block.decl_downward_ramp = Constraint(self.TIME, rule=_decl_downward_ramp)
 
         if not self.params['ramp_cost'] == 0:
-            self.block.decl_downward_ramp_cost = Constraint(self.model.TIME, rule=_decl_downward_ramp_cost)
-            self.block.decl_upward_ramp_cost = Constraint(self.model.TIME, rule=_decl_upward_ramp_cost)
+            self.block.decl_downward_ramp_cost = Constraint(self.TIME, rule=_decl_downward_ramp_cost)
+            self.block.decl_upward_ramp_cost = Constraint(self.TIME, rule=_decl_upward_ramp_cost)
 
         if self.temperature_driven:
 
@@ -1438,6 +1438,6 @@ class StorageCondensed(StorageVariable):
         """
         out = []
         for r in self.block.reps:
-            for n in self.model.TIME:
+            for n in self.TIME:
                 out.append(value(self.block.heat_loss[n, r]))
         return out

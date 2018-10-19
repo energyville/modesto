@@ -1,4 +1,7 @@
+from pkg_resources import resource_filename
 from pyomo.core import ConcreteModel
+
+import modesto.utils as ut
 
 
 def test_rc_model():
@@ -123,50 +126,52 @@ def test_splitfactor_solgains():
 def test_readTeaserParam():
     from modesto.LTIModels.RCmodels import readTeaserParam
 
-    assert readTeaserParam(streetName='Gierenshof', buildingName='Gierenshof_22_1589272') == {
-        'AExt': {'E': 91.3420294015545,
-                 'N': 87.54625601713141,
-                 'S': 81.98799655851384,
-                 'W': 82.30500574473892},
-        'AFloor': 172.48484039299998,
-        'AInt': 1033.12064929,
-        'ARoof': 221.966225606,
-        'ATransparent': {'E': 22.835507350388625,
-                         'N': 21.868839102889993,
-                         'S': 20.49699913962846,
-                         'W': 20.57625143618473},
-        'AWin': {'E': 22.835507350388625,
-                 'N': 21.868839102889993,
-                 'S': 20.49699913962846,
-                 'W': 20.57625143618473},
-        'CExt': 54076622.6667,
-        'CFloor': 60085317.5939,
-        'CInt': 94926864.4212,
-        'CRoof': 9839385.66679,
-        'RExt': 9.75725503328e-05,
-        'RExtRem': 0.00416154570566,
-        'RFloor': 0.000264982602346,
-        'RFloorRem': 0.00786087528982,
-        'RInt': 4.68885650604e-05,
-        'RRoof': 2.89047922504e-05,
-        'RRoofRem': 0.006216146554649999,
-        'RWin': 0.00162894973267,
-        'VAir': 1514.03825189,
-        'alphaExt': 2.7,
-        'alphaFloor': 1.7,
-        'alphaInt': 2.03217929383,
-        'alphaRad': 5.0,
-        'alphaRoof': 1.7,
-        'alphaWin': 2.7,
-        'gWin': 0.78,
-        'mSenFac': 5L,
-        'nExt': 1L,
-        'nFloor': 1L,
-        'nInt': 1L,
-        'nOrientations': 4L,
-        'nPorts': 2L,
-        'nRoof': 1L,
-        'ratioWinConRad': 0.03}
+    print readTeaserParam(neighbName='OudWinterslag', streetName='Gierenshof', buildingName='Gierenshof_22_1589272')
+
+    assert readTeaserParam(neighbName='OudWinterslag', streetName='Gierenshof',
+                           buildingName='Gierenshof_22_1589272') == {'AExt': {'E': 91.3420294015545,
+                                                                              'N': 87.54625601713141,
+                                                                              'S': 81.98799655851384,
+                                                                              'W': 82.30500574473892},
+                                                                     'AFloor': 172.48484039299996,
+                                                                     'AInt': 1033.12064929,
+                                                                     'ARoof': 221.966225606,
+                                                                     'ATransparent': {'E': 22.835507350388625,
+                                                                                      'N': 21.868839102889993,
+                                                                                      'S': 20.49699913962846,
+                                                                                      'W': 20.57625143618473},
+                                                                     'AWin': {'E': 22.835507350388625,
+                                                                              'N': 21.868839102889993,
+                                                                              'S': 20.49699913962846,
+                                                                              'W': 20.57625143618473},
+                                                                     'CExt': 54076622.6667,
+                                                                     'CFloor': 60085317.5939,
+                                                                     'CInt': 94926864.4212,
+                                                                     'CRoof': 9839385.66679,
+                                                                     'RExt': 9.75725503328e-05,
+                                                                     'RExtRem': 0.00416154570566,
+                                                                     'RFloor': 0.000264982602346,
+                                                                     'RFloorRem': 0.00786087528982,
+                                                                     'RInt': 4.68885650604e-05,
+                                                                     'RRoof': 2.89047922504e-05,
+                                                                     'RRoofRem': 0.006216146554649999,
+                                                                     'RWin': 0.00162894973267,
+                                                                     'VAir': 1514.03825189,
+                                                                     'alphaExt': 2.7,
+                                                                     'alphaFloor': 1.7,
+                                                                     'alphaInt': 2.03217929383,
+                                                                     'alphaRad': 5.0,
+                                                                     'alphaRoof': 1.7,
+                                                                     'alphaWin': 2.7,
+                                                                     'gWin': 0.78,
+                                                                     'mSenFac': 5L,
+                                                                     'nExt': 1L,
+                                                                     'nFloor': 1L,
+                                                                     'nInt': 1L,
+                                                                     'nOrientations': 4L,
+                                                                     'nPorts': 2L,
+                                                                     'nRoof': 1L,
+                                                                     'ratioWinConRad': 0.03}
 
 
 def test_teaser_four_element():
@@ -187,8 +192,8 @@ def test_teaser_four_element():
     datapath = resource_filename('modesto', 'Data')
     c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
 
-
-    params = {'streetName': 'Gierenshof',
+    params = {'neighbName': 'OudWinterslag',
+              'streetName': 'Gierenshof',
               'buildingName': 'Gierenshof_22_1589272',
               'day_min_temperature': min_temp_room,
               'day_max_temperature': max_temp_room,
@@ -196,8 +201,7 @@ def test_teaser_four_element():
               'mult': 100,
               'horizon': horizon,
               'time_step': 100,
-              'horizon': 1000,
-              'elec_cost': c_f
+              'horizon': 1000
               }
 
     for param in params:

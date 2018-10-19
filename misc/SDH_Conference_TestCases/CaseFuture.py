@@ -97,7 +97,7 @@ def make_graph(repr=False):
     return G
 
 
-def set_params(model, pipe_model, verbose=False, repr=False):
+def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600*24, time_step=3600):
     """
     Set all necessary parameters (can still be changed before compilation).
 
@@ -318,23 +318,10 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # And create the modesto object
 
-    model = Modesto(horizon=horizon,
-                    time_step=time_step,
-                    pipe_model=pipe_model,
+    model = Modesto(pipe_model=pipe_model,
                     graph=G)
 
-    # # Adding data
-
-    # modesto is now aware of the position and interconnections between components, nodes and edges, but still needs information rergarding, weather, prices, customer demands, component sizing, etc.
-    #
-
-    # ## Collect data
-
-    # modesto provides some useful data handling methods (found in modesto.utils). Most notable is read_time_data, that can load time-variable data from a csv file. In this example, the data that is available in the folder modesto/Data is used.
-
-    # #### Weather data:
-
-    model = set_params(model, pipe_model)
+    model = set_params(model, pipe_model, horizon, time_step)
 
     return model
 
@@ -387,7 +374,7 @@ if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=3600*24*365)
+    optmodel = setup_opt(time_step=3600, horizon=3600 * 24 * 365)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('energy')
     optmodel.opt_settings(allow_flow_reversal=True)
@@ -551,8 +538,8 @@ if __name__ == '__main__':
     fig.savefig('img/Future/StoragePlot.png', dpi=300)
 
     df = pd.DataFrame()
-    df['hf'] = optmodel.get_result('heat_flow',comp='backup', node='Production')
-    df['mf'] = optmodel.get_result('mass_flow',comp='backup', node='Production')
+    df['hf'] = optmodel.get_result('heat_flow', comp='backup', node='Production')
+    df['mf'] = optmodel.get_result('mass_flow', comp='backup', node='Production')
 
     df.to_csv('results.txt')
     plt.show()
