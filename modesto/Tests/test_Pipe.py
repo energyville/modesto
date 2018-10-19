@@ -255,9 +255,10 @@ def test_heat_var_stor():
 
 if __name__ == '__main__':
     import logging
+    import matplotlib.pyplot as plt
 
     pipe_type = 'ExtensivePipe'
-    nostor = False
+    nostor = True
 
     if nostor:
         logging.getLogger()
@@ -276,11 +277,14 @@ if __name__ == '__main__':
             if not res == 0:
                 raise Exception('Optimization {} failed to solve.'.format(name))
 
-        print opts['for'].get_result('heat_flow_in', comp='pipe')
-        print opts['for'].get_result('heat_flow_out', comp='pipe')
+        # print opts['for'].get_result('heat_flow_in', comp='pipe')
+        # print opts['for'].get_result('heat_flow_out', comp='pipe')
 
-        print "Objective slack"
-        print opts['for'].model.Slack.pprint()
+        # print "Objective slack"
+        # print opts['for'].model.Slack.pprint()
+
+        print 'Are heat losses equal?'
+        print opts['for'].get_result('heat_loss_tot', comp='pipe').equals(opts['rev'].get_result('heat_loss_tot', comp='pipe'))
 
         fig, axs = plt.subplots(4, 1, sharex=True)
 
@@ -380,6 +384,7 @@ if __name__ == '__main__':
         if pipe_type is 'ExtensivePipe':
             fig, ax = plt.subplots(2, 1, sharex=True)
             for pip in ['pipe1', 'pipe2', 'pipe3']:
+                ax[0].plot(opt.get_result('pumping_power', None, pip), label=pip)
                 ax[1].plot(opt.get_result('heat_loss_tot', None, pip), label=pip)
             for a in ax:
                 a.legend()
