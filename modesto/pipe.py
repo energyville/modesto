@@ -12,7 +12,8 @@ from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 from component import Component
 from modesto import utils
-from parameter import DesignParameter, StateParameter, UserDataParameter, SeriesParameter, WeatherDataParameter
+from parameter import DesignParameter, StateParameter, UserDataParameter, SeriesParameter, WeatherDataParameter, \
+    TimeSeriesParameter
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
@@ -102,7 +103,10 @@ class Pipe(Component):
             'eta_elmo': DesignParameter('eta_elmo',
                                         'Electric motor efficiency',
                                         '-',
-                                        val=0.9)
+                                        val=0.9),
+            'elec_cost': TimeSeriesParameter('elec_cost',
+                                             'Electricity cost, used for pumping power',
+                                             'EUR/kWh')
         })
 
         return params
@@ -395,6 +399,14 @@ class ExtensivePipe(Pipe):
 
         return pef_el / eta_mech / eta_elmo * sum(
             self.block.pumping_power[t] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+
+    def obj_elec_cost(self):
+        cost = self.params['elec_cost'].v()
+        eta_mech = self.params['eta_mech'].v()
+        eta_elmo = self.params['eta_elmo'].v()
+
+        return 1 / eta_mech / eta_elmo * sum(
+            cost[t] * self.block.pumping_power[t] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
 
 
 class NodeMethod(Pipe):

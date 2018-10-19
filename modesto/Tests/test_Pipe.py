@@ -47,7 +47,7 @@ def setup_graph_stor():
     return G
 
 
-def setup_modesto_with_stor(graph):
+def setup_modesto_with_stor(graph, objtype='cost'):
     numdays = 1
     horizon = numdays * 24 * 3600
     time_step = 3600
@@ -76,7 +76,8 @@ def setup_modesto_with_stor(graph):
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': horizon}
+                      'horizon': horizon,
+                      'elec_cost': c_f}
     optmodel.change_params(general_params)
 
     Pnom = 4e4
@@ -136,13 +137,13 @@ def setup_modesto_with_stor(graph):
 
     optmodel.compile(start_time=start_time)
 
-    optmodel.set_objective('energy')
+    optmodel.set_objective(objtype)
     optmodel.opt_settings(allow_flow_reversal=True)
 
     return optmodel
 
 
-def setup_modesto(graph):
+def setup_modesto(graph, objtype='cost'):
     """
     Instantiate and compile Modesto object using network graph supplied.
 
@@ -178,7 +179,8 @@ def setup_modesto(graph):
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': horizon}
+                      'horizon': horizon,
+                      'elec_cost': c_f}
     optmodel.change_params(general_params)
 
     Pnom = 4e6
@@ -215,18 +217,18 @@ def setup_modesto(graph):
 
     optmodel.compile(start_time=start_time)
 
-    optmodel.set_objective('cost')
+    optmodel.set_objective(objtype)
     optmodel.opt_settings(allow_flow_reversal=True)
 
     return optmodel
 
 
-def run():
+def run(objtype):
     G_for = setup_graph(True)
     G_rev = setup_graph(False)
 
-    opt_for = setup_modesto(G_for)
-    opt_rev = setup_modesto(G_rev)
+    opt_for = setup_modesto(G_for, objtype)
+    opt_rev = setup_modesto(G_rev, objtype)
 
     res1 = opt_for.solve(tee=True, mipgap=0.000001, solver='gurobi')
     res2 = opt_rev.solve(tee=True, mipgap=0.000001, solver='gurobi')
@@ -234,8 +236,19 @@ def run():
     return opt_for, opt_rev
 
 
-def test_pipe():
-    opt_for, opt_rev = run()
+def test_pipe_cost():
+    opt_for, opt_rev = run('cost')
+
+    res1 = opt_for.get_result('heat_flow', node='cons', comp='cons')
+    res2 = opt_rev.get_result('heat_flow', node='cons', comp='cons')
+
+    print res1
+    print res2
+
+    assert res1.equals(res2)
+
+def test_pipe_en():
+    opt_for, opt_rev = run('energy')
 
     res1 = opt_for.get_result('heat_flow', node='cons', comp='cons')
     res2 = opt_rev.get_result('heat_flow', node='cons', comp='cons')
@@ -246,11 +259,21 @@ def test_pipe():
     assert res1.equals(res2)
 
 
-def test_heat_var_stor():
+def test_heat_var_stor_en():
     gr = setup_graph_stor()
-    opt = setup_modesto_with_stor(gr)
+    opt = setup_modesto_with_stor(gr, objtype='energy')
 
     res1 = opt.solve(tee=True, mipgap=0.01, solver='gurobi')
+
+    assert res1 == 0
+
+def test_heat_var_stor_cost():
+    gr = setup_graph_stor()
+    opt = setup_modesto_with_stor(gr, objtype='cost')
+
+    res1 = opt.solve(tee=True, mipgap=0.01, solver='gurobi')
+
+    assert res1 == 0
 
 
 if __name__ == '__main__':
