@@ -3,7 +3,6 @@ from __future__ import division
 import logging
 
 import pandas as pd
-import numpy as np
 from scipy import interpolate
 
 import modesto.utils as ut
@@ -33,6 +32,12 @@ class Parameter(object):
         pass
         # TODO change start time is only relevant for time indexed parameters
 
+    def change_time_step(self, val):
+        pass
+
+    def change_horizon(self, val):
+        pass
+
     def change_value(self, new_val):
         """
         Change the value of the parameter
@@ -41,6 +46,9 @@ class Parameter(object):
         :return:
         """
         self.value = new_val
+
+    def resample(self):
+        pass
 
     def check(self):
         """
@@ -61,6 +69,15 @@ class Parameter(object):
             return 'Description: {}\nUnit: {}'.format(self.description, self.unit)
         else:
             return 'Description: {}\nUnit: {}\nValue: {}'.format(self.description, self.unit, self.value)
+
+    def get_all_values(self):
+        """
+        :return: All stored values of the parameter, regardless of optimization start or horizon
+        """
+        if self.value is None:
+            self.logger.warning('{} does not have a value yet'.format(self.name))
+
+        return self.value
 
     def get_value(self, time=None):
         """
@@ -222,7 +239,8 @@ class SeriesParameter(Parameter):
         :return:
         """
 
-        assert isinstance(new_val, pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(type(new_val))
+        assert isinstance(new_val, pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(
+            type(new_val))
 
         self.value = new_val
         self.value.index = self.value.index.astype('float')
@@ -238,9 +256,9 @@ class SeriesParameter(Parameter):
         :return:
         """
         if self.value is None:
-            raise Exception('Parameter {} has no value yet'.format(name))
+            raise Exception('Parameter {} has no value yet'.format(self.name))
         elif isinstance(self.value, (int, float)):
-            return self.value*index
+            return self.value * index
         else:
             f = interpolate.interp1d(self.value.index.values, self.value.values, fill_value='extrapolate')
             return f(index)
@@ -256,22 +274,19 @@ class SeriesParameter(Parameter):
 
 
 class TimeSeriesParameter(Parameter):
-    def __init__(self, name, description, unit, time_step, horizon, val=None):
+    def __init__(self, name, description, unit, val=None):
         """
         Class that describes a parameter with a value consisting of a dataframe
 
         :param name:        Name of the parameter (str)
         :param description: Description of the parameter (str)
         :param unit:        Unit of the parameter (e.g. K, W, m...) (str)
-        :param time_step:   Sampling time of the optimization problem
         :param val:         Value of the parameter, if not given, it becomes None
         """
-        if isinstance(val, pd.Series):
-            raise TypeError('The value of this parameter (user/weather data)should be a pandas Series')
 
         self.time_data = False  # Does the dataframe have a timeData index? TODO this would become obsolete
-        self.time_step = time_step
-        self.horizon = horizon
+        self.time_step = None
+        self.horizon = None
         self.start_time = None
         Parameter.__init__(self, name, description, unit, val)
 
@@ -287,11 +302,17 @@ class TimeSeriesParameter(Parameter):
 
         if self.start_time is None:
             raise Exception('No start time has been given to parameter {} yet'.format(self.name))
+        if self.horizon is None:
+            raise Exception('No horizon has been given to parameter {} yet'.format(self.name))
+        if self.time_step is None:
+            raise Exception('No time step has been given to parameter {} yet'.format(self.name))
 
         if time is None:
             if self.time_data:  # Data has a pd.DatetimeIndex
                 return ut.select_period_data(self.value, time_step=self.time_step, horizon=self.horizon,
                                              start_time=self.start_time).values
+            elif not isinstance(self.value, pd.Series):
+                return [self.value] * int(self.horizon / self.time_step)
             else:  # Data has a numbered index
                 return self.value.values
 
@@ -302,6 +323,8 @@ class TimeSeriesParameter(Parameter):
             if self.time_data:
                 timeindex = self.start_time + pd.Timedelta(seconds=time * self.time_step)
                 return self.value[timeindex]
+            elif not isinstance(self.value, pd.Series):
+                return self.value
             else:
                 return self.value[time]
 
@@ -336,9 +359,24 @@ class TimeSeriesParameter(Parameter):
         else:
             raise TypeError('New start time should be pandas timestamp or string representation of a timestamp')
 
+    def change_horizon(self, val):
+        self.horizon = val
+
+    def change_time_step(self, val):
+        self.time_step = val
+
+    def resample(self):
+        """
+        Change the sampling time of the parameter
+
+        :return:
+        """
+        if self.time_data:  # TODO This is a TimeSeries Parameter, a Boolean indicating whether or not it contains time data should be unnecessary
+            self.value = ut.resample(self.value, new_sample_time=self.time_step)
+
 
 class UserDataParameter(TimeSeriesParameter):
-    def __init__(self, name, description, unit, time_step, horizon, val=None):
+    def __init__(self, name, description, unit, val=None):
         """
         Class that describes a user data parameter
 
@@ -349,11 +387,11 @@ class UserDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, time_step, horizon, val)
+        TimeSeriesParameter.__init__(self, name, description, unit, val)
 
 
 class WeatherDataParameter(TimeSeriesParameter):
-    def __init__(self, name, description, unit, time_step, horizon, val=None):
+    def __init__(self, name, description, unit, val=None):
         """
         Class that describes a weather data parameter
 
@@ -364,4 +402,4 @@ class WeatherDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, time_step, horizon, val)
+        TimeSeriesParameter.__init__(self, name, description, unit, val)

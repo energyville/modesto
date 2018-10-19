@@ -116,7 +116,7 @@ def read_period_data(path, name, time_step, horizon, start_time, method=None, se
     return df[start_time:end_time]
 
 
-def select_period_data(df, horizon, time_step, start_time):
+def select_period_data(df, horizon, time_step, start_time, method=None):
     """
     Select only relevant time span from existing dataframe
 
@@ -124,11 +124,15 @@ def select_period_data(df, horizon, time_step, start_time):
     :param time_step: time step in seconds
     :param horizon: horizon in seconds
     :param start_time: start time as pd.Timestamp
+    :param method: Resampling method. Default mean
     :return: df
     """
     end_time = start_time + pd.Timedelta(seconds=horizon)
+    df = df.loc[str(start_time):str(end_time)]
 
-    return df[start_time:end_time]
+    # str representation needed because otherwise slicing strobe data fails for some obscure reason.
+
+    return resample(df=df, new_sample_time=time_step, method=method)
 
 
 def expand_df(df, start_year=2014):

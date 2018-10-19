@@ -20,7 +20,7 @@ from matplotlib.dates import DateFormatter
 from modesto import utils
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.WARNING,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('SDH')
@@ -29,13 +29,13 @@ logger = logging.getLogger('SDH')
 # # Network graph
 
 # A first step is to make a networkX object of the network you would like to optimize:
-# 
+#
 # For the model to load correctly into modesto, you need to add some attributes to each of the nodes and edges.
-# 
+#
 # For the nodes (besides the name of the node):
 # * **x, y, and z**: coordinates of the node in meter
 # * **comps**: a dictionary containing all components (except the network pipes) that are connected to the nodes. The keys of the dictionary are the names of the components, the values are the types of the components.
-# 
+#
 # For the edges (besides names of the nodes where the edge starts and stops):
 # * **Name of the edge**
 #
@@ -105,6 +105,17 @@ def set_params(model, pipe_model, verbose=False, repr=False):
     :param pipe_model: Type of pipe model.
     :return:
     """
+
+    # # Adding data
+
+    # modesto is now aware of the position and interconnections between components, nodes and edges, but still needs information rergarding, weather, prices, customer demands, component sizing, etc.
+    #
+
+    # ## Collect data
+
+    # modesto provides some useful data handling methods (found in modesto.utils). Most notable is read_time_data, that can load time-variable data from a csv file. In this example, the data that is available in the folder modesto/Data is used.
+
+    # #### Weather data:
     from pkg_resources import resource_filename
 
     datapath = resource_filename('modesto', 'Data')
@@ -112,6 +123,10 @@ def set_params(model, pipe_model, verbose=False, repr=False):
     wd = utils.read_time_data(datapath, name='Weather/weatherData.csv', expand=repr)
     t_amb = wd['Te']
     t_g = wd['Tg']
+    QsolN = wd['QsolN']
+    QsolE = wd['QsolS']
+    QsolS = wd['QsolN']
+    QsolW = wd['QsolW']
 
     # #### Electricity price
 
@@ -125,7 +140,14 @@ def set_params(model, pipe_model, verbose=False, repr=False):
     # In order to solve the problem, all parameters of the optimization probkem need to get a value. A list of the parameters that modesto needs and their description can be found with the following command:
 
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': horizon,
+                      'elec_cost': c_f}
 
     model.change_params(general_params)
 
@@ -157,12 +179,13 @@ def set_params(model, pipe_model, verbose=False, repr=False):
 
     # ### Heat generation unit
 
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'delta_T': 40,
+                   'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': 6e7,
-                   'ramp_cost': 0.01,
+                   'Qmax': 15e7,
+                   'ramp_cost': 0.00,
                    'ramp': 15e7}
 
     model.change_params(prod_design, 'Production', 'backup')
@@ -196,10 +219,10 @@ def set_params(model, pipe_model, verbose=False, repr=False):
     stor_design = {
         'Thi': 70 + 273.15,
         'Tlo': 30 + 273.15,
-        'mflo_max': 1100,
-        'mflo_min': -1100,
+        'mflo_max': 11000,
+        'mflo_min': -11000,
         'mflo_use': pd.Series(0, index=t_amb.index),
-        'volume': 1500e3,
+        'volume': 150e3,
         'ar': 1,
         'dIns': 1,
         'kIns': 0.024,
@@ -214,10 +237,10 @@ def set_params(model, pipe_model, verbose=False, repr=False):
             {
                 'Thi': 70 + 273.15,
                 'Tlo': 30 + 273.15,
-                'mflo_max': 1100,
-                'mflo_min': -1100,
+                'mflo_max': 11000,
+                'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
-                'volume': 200e3,
+                'volume': 20e3,
                 'ar': 1,
                 'dIns': 1,
                 'kIns': 0.024,
@@ -228,8 +251,8 @@ def set_params(model, pipe_model, verbose=False, repr=False):
             {
                 'Thi': 70 + 273.15,
                 'Tlo': 30 + 273.15,
-                'mflo_max': 1100,
-                'mflo_min': -1100,
+                'mflo_max': 11000,
+                'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
                 'volume': 600e3,
                 'ar': 1,
@@ -360,14 +383,16 @@ if __name__ == '__main__':
 
     # report_timing()
 
+    logging.getLogger()
+
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=6 * 3600)  # *24*365)
+    optmodel = setup_opt(time_step=3600, horizon=3600*24*365)
     optmodel.compile(start_time=start_time)
-    optmodel.set_objective('cost')
+    optmodel.set_objective('energy')
     optmodel.opt_settings(allow_flow_reversal=True)
     start = time.clock()
-    sol = optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=100)
+    sol = optmodel.solve(tee=True, solver='gurobi')
     end = time.clock()
     print 'Status: {}'.format(sol)
 
@@ -477,12 +502,11 @@ if __name__ == '__main__':
 
     axs[0].plot(inputs['Production'] / (mass_flows['Production'] * 4180), label='Heat flow')
     axs[0].axhline(40)
-    axs[0].set_ylim(0, 200)
 
-    axs[0].set_ylabel('Heat flow [W]')
+    axs[0].set_ylabel('Effective temperature difference [K]')
 
     axs[1].semilogy(inputs['Production'] / (mass_flows['Production'] * 4180) - 40)
-    axs[1].set_ylabel('Difference [W]')
+    axs[1].set_ylabel('Difference in $\Delta T$ [K]')
 
     for ax in axs:
         ax.legend()
@@ -526,4 +550,9 @@ if __name__ == '__main__':
 
     fig.savefig('img/Future/StoragePlot.png', dpi=300)
 
+    df = pd.DataFrame()
+    df['hf'] = optmodel.get_result('heat_flow',comp='backup', node='Production')
+    df['mf'] = optmodel.get_result('mass_flow',comp='backup', node='Production')
+
+    df.to_csv('results.txt')
     plt.show()
