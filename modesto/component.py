@@ -566,7 +566,7 @@ class ProducerVariable(VariableComponent):
                                    'amount of CO2 released when using primary energy source',
                                    'kg/kWh'),
             'fuel_cost': UserDataParameter('fuel_cost',
-                                           'cost of fuel/electricity to generate heat',
+                                           'cost of fuel to generate heat',
                                            'euro/kWh'),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',

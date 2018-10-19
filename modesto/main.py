@@ -101,7 +101,14 @@ class Modesto:
             'CO2_price': UserDataParameter('CO2_price',
                                            'CO2 price',
                                            'euro/kg CO2',
-                                           val=0)
+                                           val=0),
+            'PEF_el': DesignParameter('PEF_el',
+                                      'Factor to convert electric energy to primary energy',
+                                      '-',
+                                      val=2.1),
+            'elec_cost': TimeSeriesParameter('elec_cost',
+                                             'Electricity cost, used for pumping power',
+                                             'EUR/kWh')
         }
 
         return params
@@ -191,7 +198,8 @@ class Modesto:
             return model.Slack + sum(comp.obj_energy() for comp in self.iter_components())
 
         def obj_cost(model):
-            return model.Slack + sum(comp.obj_fuel_cost() for comp in self.iter_components())
+            return model.Slack + sum(comp.obj_fuel_cost() for comp in self.iter_components()) + sum(
+                comp.obj_elec_cost() for comp in self.iter_components())
 
         def obj_cost_ramp(model):
             return model.Slack + sum(comp.obj_cost_ramp() for comp in self.iter_components())

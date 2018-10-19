@@ -130,7 +130,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': horizon}
+                      'horizon': horizon,
+                      'elec_cost': c_f}
 
     model.change_params(general_params)
 

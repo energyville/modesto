@@ -3,6 +3,7 @@ from __future__ import division
 import os
 import sys
 import warnings
+from math import pi
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,8 @@ from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 from component import Component
 from modesto import utils
-from parameter import DesignParameter, StateParameter, UserDataParameter, SeriesParameter, WeatherDataParameter
+from parameter import DesignParameter, StateParameter, UserDataParameter, SeriesParameter, WeatherDataParameter, \
+    TimeSeriesParameter
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
@@ -57,6 +59,8 @@ class Pipe(Component):
         self.temp_sup = None
         self.temp_ret = None
 
+        self.f = 0.03  # Moody friction factor, between 0.015 and 0.04. Includes bends.
+
     @staticmethod
     def get_pipe_catalog():
         df = pd.read_csv(os.path.join(CATALOG_PATH, 'IsoPlusDoubleStandard.csv'), sep=';',
@@ -86,7 +90,23 @@ class Pipe(Component):
                                             resource_filename('modesto', 'Data/Investment/Pipe.xlsx'))['Cost_m']),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
-                                       'K')
+                                       'K'),
+            'PEF_el': DesignParameter('PEF_el',
+                                      'Factor to convert electric energy to primary energy',
+                                      '-',
+                                      val=2.1),
+            'eta_mech': DesignParameter('eta_mech',
+                                        'Mechanical efficiency of circulation pump',
+                                        '-',
+                                        val=0.8),
+            # Normally between 0.7 and 0.9 for big systems, down to 0.3 for smaller scale
+            'eta_elmo': DesignParameter('eta_elmo',
+                                        'Electric motor efficiency',
+                                        '-',
+                                        val=0.9),
+            'elec_cost': TimeSeriesParameter('elec_cost',
+                                             'Electricity cost, used for pumping power',
+                                             'EUR/kWh')
         })
 
         return params
@@ -199,11 +219,14 @@ class ExtensivePipe(Pipe):
 
         pipe_catalog = self.get_pipe_catalog()
         self.Rs = pipe_catalog['Rs']
+        self.di = pipe_catalog['Di']
         self.allow_flow_reversal = allow_flow_reversal
         self.dn = None
         self.heat_var = heat_var
 
         self.hl_setting = 2 / 3  # Fraction of max mass flow where heat losses are equal to nominal value
+
+        self.n_pump_constr = 3  # Number of linear pieces in pumping power approximation
 
         self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K')
         self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K')
@@ -328,6 +351,8 @@ class ExtensivePipe(Pipe):
         self.block.eq_heat_loss_forw = Constraint(self.TIME, rule=_eq_heat_loss_forw)
         self.block.eq_heat_loss_rev = Constraint(self.TIME, rule=_eq_heat_loss_rev)
 
+        self.construct_pumping_constraints()
+
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
 
@@ -341,6 +366,47 @@ class ExtensivePipe(Pipe):
             return self.dn
         else:
             return None
+
+    def calc_pump_power(self, mf):
+        di = self.di[self.dn]
+
+        return 2 * self.f * self.length * mf ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
+
+    def construct_pumping_constraints(self):
+        """
+        Construct a set of constraints
+        :param n_segments: How many linear segments should be used to approximate the pumping power curve
+
+        :return:
+        """
+        n_segments = self.n_pump_constr
+        mfs = np.linspace(0, self.block.mass_flow_max, n_segments + 1)
+        pps = self.calc_pump_power(mfs)
+
+        self.block.pumping_power = Var(self.TIME, within=NonNegativeReals)
+
+        for i in range(n_segments):
+            def _ineq_pumping(b, t):
+                return b.pumping_power[t] >= (b.mass_flow[t] - mfs[i]) / (mfs[i + 1] - mfs[i]) * (pps[i + 1] - pps[i]) + \
+                       pps[i]
+
+            self.block.add_component('ineq_pumping_' + str(i), Constraint(self.TIME, rule=_ineq_pumping))
+
+    def obj_energy(self):
+        pef_el = self.params['PEF_el'].v()
+        eta_mech = self.params['eta_mech'].v()
+        eta_elmo = self.params['eta_elmo'].v()
+
+        return pef_el / eta_mech / eta_elmo * sum(
+            self.block.pumping_power[t] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+
+    def obj_elec_cost(self):
+        cost = self.params['elec_cost'].v()
+        eta_mech = self.params['eta_mech'].v()
+        eta_elmo = self.params['eta_elmo'].v()
+
+        return 1 / eta_mech / eta_elmo * sum(
+            cost[t] * self.block.pumping_power[t] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
 
 
 class NodeMethod(Pipe):

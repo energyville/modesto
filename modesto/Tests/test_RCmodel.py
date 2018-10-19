@@ -184,6 +184,10 @@ def test_teaser_four_element():
     min_temp_room = pd.Series(16 + 273.15, index=time_index)
     max_temp_room = pd.Series(24 + 273.15, index=time_index)
 
+    datapath = resource_filename('modesto', 'Data')
+    c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+
+
     params = {'streetName': 'Gierenshof',
               'buildingName': 'Gierenshof_22_1589272',
               'day_min_temperature': min_temp_room,
@@ -192,7 +196,8 @@ def test_teaser_four_element():
               'mult': 100,
               'horizon': horizon,
               'time_step': 100,
-              'horizon': 1000
+              'horizon': 1000,
+              'elec_cost': c_f
               }
 
     for param in params:

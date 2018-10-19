@@ -75,6 +75,8 @@ def construct_model():
 
     # general parameters
 
+    c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+
     general_params = {'Te': t_amb,
                       'Tg': t_g,
                       'Q_sol_E': QsolE,
@@ -82,7 +84,8 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps*time_step}
+                      'horizon': n_steps*time_step,
+                      'elec_cost': c_f}
 
     optmodel.change_params(general_params)
 
