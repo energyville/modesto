@@ -19,7 +19,7 @@ from matplotlib.dates import DateFormatter
 from modesto import utils
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.WARNING,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('SDH')
@@ -294,13 +294,15 @@ if __name__ == '__main__':
 
     # report_timing()
 
-    start_time = pd.Timestamp('20140301')
+    logging.getLogger()
 
-    optmodel = setup_opt(time_step=3600, horizon=3600*24*30)
+    start_time = pd.Timestamp('20140101')
+
+    optmodel = setup_opt(time_step=3600, horizon=3600*24*365)
     optmodel.compile(start_time=start_time)
-    optmodel.set_objective('cost')
+    optmodel.set_objective('energy')
     optmodel.opt_settings(allow_flow_reversal=True)
-    sol = optmodel.solve(tee=True, mipgap=0.006, solver='gurobi', probe=True, timelim=45)
+    sol = optmodel.solve(tee=True, solver='gurobi')
     print 'Status: {}'.format(sol)
     # ## Collecting results
 
