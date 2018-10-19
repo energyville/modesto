@@ -321,7 +321,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=3600, verbose=False):
     model = Modesto(pipe_model=pipe_model,
                     graph=G)
 
-    model = set_params(model, pipe_model, horizon, time_step)
+    model = set_params(model, pipe_model=pipe_model, horizon=horizon, time_step=time_step)
 
     return model
 
