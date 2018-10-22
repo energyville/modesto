@@ -10,7 +10,7 @@ from pyomo.opt import TerminationCondition, SolverStatus
 
 from misc.SDH_Conference_TestCases import CaseFuture
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('runFullOpt.py')

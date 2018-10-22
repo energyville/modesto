@@ -1,8 +1,8 @@
 # coding: utf-8
 
 # Problem: heat losses depend on current state of charge of the storage vessel; how large error is made when a fixed percentage is assumed? Fixed heat loss value?
-# 
-# Possible solution: make the losses for a certain representative period equal to that based on the average SoC for that period ==> i.e. the mean between beginning and end state. This is of course not the true average value, depending on the actual profile lying in between. 
+#
+# Possible solution: make the losses for a certain representative period equal to that based on the average SoC for that period ==> i.e. the mean between beginning and end state. This is of course not the true average value, depending on the actual profile lying in between.
 
 # In[1]:
 from __future__ import division
@@ -57,8 +57,7 @@ def representative(duration_repr, selection, VWat=75000,
     epoch = pd.Timestamp('20140101')
     for start_day, duration in selection.iteritems():
         start_time = epoch + pd.Timedelta(days=start_day)
-        optmodel = Modesto(horizon=duration_repr * unit_sec, time_step=time_step,
-                           graph=netGraph, pipe_model=pipe_model)
+        optmodel = Modesto(graph=netGraph, pipe_model=pipe_model)
         for comp in optmodel.get_node_components(filter_type='StorageCondensed').values():
             comp.set_reps(num_reps=int(duration))
         topmodel.add_component(name='repr_' + str(start_day),
@@ -68,7 +67,7 @@ def representative(duration_repr, selection, VWat=75000,
         # Assign parameters #
         #####################
 
-        optmodel = CaseFuture.set_params(optmodel, pipe_model, repr=True)
+        optmodel = CaseFuture.set_params(optmodel, pipe_model=pipe_model, repr=True, horizon=duration_repr * unit_sec, time_step=time_step,)
         optmodel.change_param(node='SolarArray', comp='solar', param='area', val=solArea)
         optmodel.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
         optmodel.change_param(node='WaterscheiGarden', comp='tank', param='volume', val=VWat)
@@ -182,10 +181,10 @@ def get_curt_energy(optimizers, sel):
 def get_network_loss(optimizers, sel):
     """
     Get network heat losses for the optimized period
-    
-    :param optimizers: 
-    :param sel: 
-    :return: 
+
+    :param optimizers:
+    :param sel:
+    :return:
     """
     return sum(sel[startday] * sum(
         optmodel.get_result('heat_loss_tot', node=None, comp=pip, check_results=False).sum() / 1000 for pip in

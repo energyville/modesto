@@ -61,11 +61,11 @@ if __name__ == '__main__':
     input_data = {
         '7dnewsol': {
             'dur': 7,
-            'sel': get_json('C:/Users/u0094934/Research/TimeSliceSelection/Scripts/solutions7.txt')
+            'sel': get_json('/home/thesysi/TimeSliceSelection/Scripts/solutions7.txt')
         },
         '3dnewsol': {
             'dur': 3,
-            'sel': get_json('C:/Users/u0094934/Research/TimeSliceSelection/Scripts/solutions3.txt')
+            'sel': get_json('/home/thesysi/TimeSliceSelection/Scripts/solutions3.txt')
         }
     }
 
