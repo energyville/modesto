@@ -58,7 +58,7 @@ if __name__ == '__main__':
     # logging.basicConfig(level=logging.WARNING,
     #                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
     #                     datefmt='%m-%d %H:%M')
-    time_step = 6 * 3600
+    time_step = 3600
     input_data = {
         '7dnewsol': {
             'dur': 7,
@@ -105,6 +105,7 @@ if __name__ == '__main__':
                         energy_stor_loss_repr = None
                         energy_curt_repr = None
                         energy_net_loss_repr = None
+                        energy_net_pump_repr = None
 
                         start = time.clock()
                         status = RepresentativeWeeks.solve_repr(repr_model, solver='gurobi', mipgap=0.02,
@@ -121,6 +122,7 @@ if __name__ == '__main__':
                             energy_sol_repr = RepresentativeWeeks.get_sol_energy(
                                 optimizers, selection)
                             energy_net_loss_repr = RepresentativeWeeks.get_network_loss(optimizers, selection)
+                            energy_net_pump_repr = RepresentativeWeeks.get_network_pump(optimizers, selection)
                             fig1 = RepresentativeWeeks.plot_representative(
                                 optimizers, selection, duration_repr=duration_repr, time_step=time_step)
                             if not os.path.isdir(

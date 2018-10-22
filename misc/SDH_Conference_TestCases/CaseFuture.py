@@ -186,7 +186,7 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, 
                    'fuel_cost': c_f,
                    'Qmax': 15e7,
                    'ramp_cost': 0.00,
-                   'ramp': 15e7}
+                   'ramp': 16e7}
 
     model.change_params(prod_design, 'Production', 'backup')
     STOR_COST = resource_filename('modesto', 'Data/Investment/Storage.xlsx')
@@ -355,6 +355,14 @@ def get_network_loss(optmodel):
     """
 
     return sum(optmodel.get_result('heat_loss_tot', node=None, comp=pip).sum() / 1000 for pip in ['backBone', 'servWat',
+                                                                                                  'servTer',
+                                                                                                  'servPro',
+                                                                                                  'servSol',
+                                                                                                  'servBox'])
+
+
+def get_network_pumping(optmodel):
+    return sum(optmodel.get_result('pumping_power', node=None, comp=pip).sum() / 1000 for pip in ['backBone', 'servWat',
                                                                                                   'servTer',
                                                                                                   'servPro',
                                                                                                   'servSol',
