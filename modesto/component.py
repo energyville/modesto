@@ -1079,7 +1079,7 @@ class StorageVariable(VariableComponent):
 
         ############################################################################################
         # Initialize block
-
+        self.calculate_static_parameters()
         Component.compile(self, model, start_time)
 
         # Fixed heat loss
@@ -1117,7 +1117,6 @@ class StorageVariable(VariableComponent):
         :return:
         """
         self.update_time(start_time, self.params['time_step'].v(), self.params['horizon'].v())
-        self.calculate_static_parameters()
         self.initial_compilation(model, start_time)
         mult = self.params['mult'].v()
 
@@ -1288,7 +1287,6 @@ class StorageCondensed(StorageVariable):
 
         self.update_time(start_time, self.params['time_step'].v(), self.params['horizon'].v())
         self.initial_compilation(model, start_time)
-        self.calculate_static_parameters()
 
         self.heat_loss_coeff = exp(
             -self.params['time_step'].v() / self.tau)  # State dependent heat loss such that x_n = hlc*x_n-1

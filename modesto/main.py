@@ -46,6 +46,7 @@ class Modesto:
 
         self.graph = graph
         self.edges = {}
+        self.nodes = {}
         self.components = {}
         self.params = self.create_params()
 
@@ -678,19 +679,25 @@ class Modesto:
             edges.append(dict[tuple])
         return edges
 
-    def get_node_components(self, node):
+    def get_node_components(self, node=None, filter_type=None):
         """
-        Returns a dict with all components belonging to one node
+        Returns a dict with all components belonging to one node. If filter_type is a string referring to a component
+        class name, only components of this class are returned.
 
 
         :return:
         """
-        if node not in self.get_nodes():
+        if node is not None and node not in self.get_nodes():
             raise KeyError('{} is not an exiting node'.format(node))
 
-        node_obj = self.components[node]
-
-        return node_obj.get_components()
+        if node is not None:
+            return self.components[node].get_components(filter_type=filter_type)
+        else:
+            out = {}
+            for node_name in self.get_nodes():
+                for comp_name, comp in self.components[node_name].get_components(filter_type=filter_type).iteritems():
+                    out[comp_name] = comp
+            return out
 
     # TODO these pipe parameter getters should be defined in the relevant pipe classes.
     def get_pipe_diameter(self, pipe):
@@ -731,21 +738,6 @@ class Modesto:
 
         for node_name, node_obj in self.nodes.iteritems():
             for comp_name, comp_obj in node_obj.get_heat_stor().iteritems():
-                out['.'.join([node_name, comp_name])] = comp_obj
-
-        return out
-
-    def get_node_components(self, filter_type=None):
-        """
-        Return dictionary of all node components in this Modesto model. With filter_type, select only components of a certain type.
-
-        :param filter_type: filter_type: string or class name of components to be returned
-        :return:
-        """
-
-        out = {}
-        for node_name, node_obj in self.nodes.iteritems():
-            for comp_name, comp_obj in node_obj.get_components(filter_type=filter_type).iteritems():
                 out['.'.join([node_name, comp_name])] = comp_obj
 
         return out
