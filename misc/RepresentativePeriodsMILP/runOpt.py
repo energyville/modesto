@@ -9,8 +9,9 @@ from collections import OrderedDict
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from pkg_resources import resource_filename
 
-import RepresentativeWeeks
+from misc.RepresentativePeriodsMILP import RepresentativeWeeks
 
 
 def get_json(filepath):
@@ -61,11 +62,11 @@ if __name__ == '__main__':
     input_data = {
         '7dnewsol': {
             'dur': 7,
-            'sel': get_json('/home/thesysi/TimeSliceSelection/Scripts/solutions7.txt')
+            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/solutions7.txt'))
         },
         '3dnewsol': {
             'dur': 3,
-            'sel': get_json('/home/thesysi/TimeSliceSelection/Scripts/solutions3.txt')
+            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/solutions3.txt'))
         }
     }
 
@@ -154,7 +155,7 @@ if __name__ == '__main__':
                         #                               '{}w_{}A_{}V_{}P_full.png'.format(
                         #                                   num, A, V, P)),
                         #                  dpi=100, figsize=(8, 6))
-                        print 'Full time:', str(repr_solution_and_comm+compilation_time)
+                        print 'Full time:', str(repr_solution_and_comm + compilation_time)
                         df = df.append({'A': A, 'VSTC': VSTC, 'VWat': VWat,
                                         'E_backup_full': float(
                                             result_full['E_backup_full']),
