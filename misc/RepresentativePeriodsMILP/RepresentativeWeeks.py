@@ -67,7 +67,8 @@ def representative(duration_repr, selection, VWat=75000,
         # Assign parameters #
         #####################
 
-        optmodel = CaseFuture.set_params(optmodel, pipe_model=pipe_model, repr=True, horizon=duration_repr * unit_sec, time_step=time_step,)
+        optmodel = CaseFuture.set_params(optmodel, pipe_model=pipe_model, repr=True, horizon=duration_repr * unit_sec,
+                                         time_step=time_step, )
         optmodel.change_param(node='SolarArray', comp='solar', param='area', val=solArea)
         optmodel.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
         optmodel.change_param(node='WaterscheiGarden', comp='tank', param='volume', val=VWat)
@@ -194,6 +195,15 @@ def get_network_loss(optimizers, sel):
          'servSol',
          'servBox']) for startday, optmodel in optimizers.iteritems())
 
+
+def get_network_pump(optimizers, sel):
+    return sum(sel[startday] * sum(
+        optmodel.get_result('pumping_power', node=None, comp=pip, check_results=False).sum() / 1000 for pip in
+        ['backBone', 'servWat',
+         'servTer',
+         'servPro',
+         'servSol',
+         'servBox']) for startday, optmodel in optimizers.iteritems())
 
 def get_sol_energy(optimizers, sel):
     """
@@ -426,7 +436,8 @@ if __name__ == '__main__':
     time_step = 3600 * 6
     duration_repr = 7
     model, optimizers = representative(duration_repr=duration_repr,
-                                       selection=selection, VWat=75000, solArea=150000, VSTC=100000, time_step=time_step)
+                                       selection=selection, VWat=75000, solArea=150000, VSTC=100000,
+                                       time_step=time_step)
     solve_repr(model, probe=False, solver='gurobi')
 
     # ## Post-processing
