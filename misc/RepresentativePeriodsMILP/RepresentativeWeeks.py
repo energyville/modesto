@@ -18,7 +18,7 @@ import modesto.utils as ut
 from misc.SDH_Conference_TestCases import CaseFuture
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 

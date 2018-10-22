@@ -6,6 +6,7 @@ import json
 import os
 import time
 from collections import OrderedDict
+import logging
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -55,9 +56,9 @@ def json_str2int(ordereddict):
 
 if __name__ == '__main__':
     dffull = pd.read_csv('refresult.txt', sep=' ')
-    # logging.basicConfig(level=logging.WARNING,
-    #                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
-    #                     datefmt='%m-%d %H:%M')
+    logging.basicConfig(level=logging.WARNING,
+                        format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
+                        datefmt='%m-%d %H:%M')
     time_step = 3600
     input_data = {
         '7dnewsol': {
