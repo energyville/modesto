@@ -39,7 +39,7 @@ for path in ['3dnewsol', '7dnewsol']:
             data[['A', 'VWat', 'VSTC']] = data[[ 'A', 'VWat', 'VSTC']].astype(int)
             data = data.rename(columns={'A': 'Solar coll. area', 'VWat': 'Storage Wat.', 'VSTC': 'Storage STC'})
 
-            resultname = 'backup'
+            resultname = 'net_loss'
             fullname = 'E_{}_full'.format(resultname)
             reprname = 'E_{}_repr'.format(resultname)
 
@@ -61,7 +61,7 @@ for path in ['3dnewsol', '7dnewsol']:
                 ax.set_xlim(limmin, limmax)
                 ax.set_ylim(limmin, limmax)
 
-                #
+
                 # now plot both limits against eachother
                 g.axes[axnum].plot([limmin, limmax], [limmin, limmax], 'w-', linewidth=2, alpha=0.75, zorder=0)
                 z = g.axes[axnum].fill_between([limmin, limmax], [(1 - acc) * limmin, (1 - acc) * limmax],
@@ -78,5 +78,5 @@ for path in ['3dnewsol', '7dnewsol']:
 
             if not os.path.isdir(os.path.join('img', path, resultname)):
                 os.makedirs(os.path.join('img', path, resultname))
-            g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.png'), dpi=1200)
+            g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.pdf'))
             plt.close()
