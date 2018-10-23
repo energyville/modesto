@@ -113,7 +113,6 @@ class DesignParameter(Parameter):
 
         Parameter.__init__(self, name, description, unit, val)
 
-
 class StateParameter(Parameter):
     def __init__(self, name, description, unit, init_type, val=None, ub=None, lb=None, slack=False):
         """

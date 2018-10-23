@@ -704,11 +704,11 @@ class ProducerVariable(VariableComponent):
             else:
                 return b.ramping_cost[t] >= (b.heat_flow[t - 1] - b.heat_flow[t]) * self.params['ramp_cost'].v()
 
-        if not self.params['ramp']>=self.params['Qmax']:
+        if not self.params['ramp'].v() >= self.params['Qmax'].v() and self.params['ramp'].v() > 0:
             self.block.decl_upward_ramp = Constraint(self.TIME, rule=_decl_upward_ramp)
             self.block.decl_downward_ramp = Constraint(self.TIME, rule=_decl_downward_ramp)
 
-        if not self.params['ramp_cost'] == 0:
+        if self.params['ramp_cost'].v() > 0:
             self.block.decl_downward_ramp_cost = Constraint(self.TIME, rule=_decl_downward_ramp_cost)
             self.block.decl_upward_ramp_cost = Constraint(self.TIME, rule=_decl_upward_ramp_cost)
 
@@ -1218,7 +1218,6 @@ class StorageVariable(VariableComponent):
 
         ## leq allows that heat losses in the network are supplied from storage tank only when discharging.
         ## In charging mode, this will probably not be used.
-
 
         self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
 
