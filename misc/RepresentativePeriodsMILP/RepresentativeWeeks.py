@@ -236,7 +236,8 @@ def get_stor_loss(optimizers, sel):
     return sum(sum(sel[startday] *
                    optmodel.get_result('heat_flow', node=node, comp='tank',
                                        check_results=False).sum() for startday, optmodel in
-                   optimizers.iteritems()) for node in ['SolarArray', 'TermienWest', 'WaterscheiGarden']) / 1000
+                   optimizers.iteritems()) for node in
+               ['SolarArray', 'TermienWest', 'WaterscheiGarden', 'Production']) / 1000
 
 
 def get_demand_energy(optimizers, sel):

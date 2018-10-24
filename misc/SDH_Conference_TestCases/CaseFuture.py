@@ -65,7 +65,7 @@ def make_graph(repr=False):
                       'tank': tank_type})
 
     G.add_node('Production', x=6000, y=4000, z=0, comps={'backup': 'ProducerVariable',
-                                                         'tank': 'StorageVariable'})
+                                                         'tank': tank_type})
     G.add_node('TermienEast', x=5400, y=200, z=0, comps={'neighb': 'BuildingFixed'})
 
     G.add_edge('SolarArray', 'p1', name='servSol')
@@ -343,7 +343,7 @@ def get_sol_energy(optmodel):
 def get_stor_loss(optmodel):
     return sum(optmodel.get_result('heat_flow', node=node,
                                    comp='tank').sum() / 1000 for node in
-               ['SolarArray', 'TermienWest', 'WaterscheiGarden'])
+               ['SolarArray', 'TermienWest', 'WaterscheiGarden', 'Production'])
 
 
 def get_network_loss(optmodel):
