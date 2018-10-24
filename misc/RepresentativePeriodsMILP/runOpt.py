@@ -67,7 +67,7 @@ if __name__ == '__main__':
         }
     }
 
-    for time_duration in ['1dnewsol']:#['7dnewsol', '3dnewsol']:  # ['time_duration', 'nocorr']:
+    for time_duration in ['1dnewsol', '7dnewsol', '3dnewsol']:  # ['time_duration', 'nocorr']:
         sels = input_data[time_duration]['sel']
         duration_repr = input_data[time_duration]['dur']
 
