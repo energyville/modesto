@@ -39,7 +39,7 @@ for path in ['3dnewsol', '7dnewsol']:
             data[['A', 'VWat', 'VSTC']] = data[[ 'A', 'VWat', 'VSTC']].astype(int)
             data = data.rename(columns={'A': 'Solar coll. area', 'VWat': 'Storage Wat.', 'VSTC': 'Storage STC'})
 
-            resultname = 'sol'
+            resultname = 'backup'
             fullname = 'E_{}_full'.format(resultname)
             reprname = 'E_{}_repr'.format(resultname)
 
@@ -58,16 +58,19 @@ for path in ['3dnewsol', '7dnewsol']:
                 limmin = np.min([ax.get_xlim(), ax.get_ylim()])
                 limmax = np.max([ax.get_xlim(), ax.get_ylim()])
 
-                ax.set_xlim(limmin, limmax)
-                ax.set_ylim(limmin, limmax)
-
-
+                xlim = ax.get_xlim()
+                ylim = ax.get_ylim()
                 # now plot both limits against eachother
                 g.axes[axnum].plot([limmin, limmax], [limmin, limmax], 'w-', linewidth=2, alpha=0.75, zorder=0)
                 z = g.axes[axnum].fill_between([limmin, limmax], [(1 - acc) * limmin, (1 - acc) * limmax],
                                                [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.15,
                                                color='b',
                                                label='$\pm$' + str(100 * acc) + '%')
+
+
+
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
 
             g.add_legend(title='Storage volume', bbox_to_anchor=(1, 0.5))
 
