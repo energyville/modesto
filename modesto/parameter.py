@@ -3,13 +3,14 @@ from __future__ import division
 import logging
 
 import pandas as pd
+from pyomo.core import Param
 from scipy import interpolate
 
 import modesto.utils as ut
 
 
 class Parameter(object):
-    def __init__(self, name, description, unit, val=None):
+    def __init__(self, name, description, unit, val=None, mutable=False):
         """
         Class describing a parameter
 
@@ -27,6 +28,12 @@ class Parameter(object):
 
         self.logger = logging.getLogger('modesto.parameter.Parameter')
         self.logger.info('Initializing Parameter {}'.format(name))
+
+        self.mutable = mutable
+        self.constructed = False
+
+        self.param = None
+        self.block = None
 
     def change_start_time(self, val):
         pass
@@ -46,6 +53,16 @@ class Parameter(object):
         :return:
         """
         self.value = new_val
+        if not self.mutable:
+            self.logger.INFO(
+                'Changing value in parameter {}. Model needs to be recompiled for changes to take effect.'.format(
+                    self.name))
+
+    def is_mutable(self):
+        return self.mutable
+
+    def is_constructed(self):
+        return self.constructed
 
     def resample(self):
         pass
@@ -96,12 +113,39 @@ class Parameter(object):
     def v(self, time=None):
         return self.get_value(time)
 
+    def set_block(self, block):
+        self.block = block
+
+    def construct(self):
+        """
+        Construct Parameter object. If no Param exists, it is initiated, if it exists, its value is updated.
+        Only for mutable parameters.
+
+        :param block: Block to which the Param should be added.
+        :return:
+        """
+        if self.mutable:
+            if not self.is_constructed():
+                self.constructed = True
+                self.block.add_component(self.name, self.make_param())
+                self.param = getattr(self.block, self.name)
+                return
+            else:
+                # Change parameter value
+                self.param = self.v()
+                return
+        else:
+            pass
+
+    def make_param(self):
+        return Param(mutable=True, initialize=self.v())
+
     def __str__(self):
         return str(self.value)
 
 
 class DesignParameter(Parameter):
-    def __init__(self, name, description, unit, val=None):
+    def __init__(self, name, description, unit, val=None, mutable=False):
         """
         Class that describes a design parameter
 
@@ -111,11 +155,11 @@ class DesignParameter(Parameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        Parameter.__init__(self, name, description, unit, val)
+        Parameter.__init__(self, name, description, unit, val=val, mutable=mutable)
 
 
 class StateParameter(Parameter):
-    def __init__(self, name, description, unit, init_type, val=None, ub=None, lb=None, slack=False):
+    def __init__(self, name, description, unit, init_type, val=None, ub=None, lb=None, slack=False, mutable=False):
         """
         Class that describes an initial state parameter
 
@@ -130,7 +174,7 @@ class StateParameter(Parameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        Parameter.__init__(self, name, description, unit, val)
+        Parameter.__init__(self, name, description, unit, val, mutable=mutable)
 
         self.init_types = ['fixedVal', 'cyclic', 'free']
         # TODO FixedVal, documentation!
@@ -226,7 +270,7 @@ class SeriesParameter(Parameter):
                             values. Becomes None if not specified.
         """
 
-        Parameter.__init__(self, name, description, unit, val)
+        Parameter.__init__(self, name, description, unit, val, mutable=False)
         if isinstance(self.value, pd.Series):
             self.value = self.value.astype('float')
         self.unit_index = unit_index
@@ -274,7 +318,7 @@ class SeriesParameter(Parameter):
 
 
 class TimeSeriesParameter(Parameter):
-    def __init__(self, name, description, unit, val=None):
+    def __init__(self, name, description, unit, val=None, mutable=False):
         """
         Class that describes a parameter with a value consisting of a dataframe
 
@@ -288,7 +332,7 @@ class TimeSeriesParameter(Parameter):
         self.time_step = None
         self.horizon = None
         self.start_time = None
-        Parameter.__init__(self, name, description, unit, val)
+        Parameter.__init__(self, name, description, unit, val, mutable=mutable)
 
     # todo indexed time variables (such as return/supply temperature profile could use two or more columns to distinguish between indexes instead of using multiple indexes. These parameters would become real TimeDataFrameParameters. Just an idea ;)
 
@@ -376,7 +420,7 @@ class TimeSeriesParameter(Parameter):
 
 
 class UserDataParameter(TimeSeriesParameter):
-    def __init__(self, name, description, unit, val=None):
+    def __init__(self, name, description, unit, val=None, mutable=False):
         """
         Class that describes a user data parameter
 
@@ -387,11 +431,11 @@ class UserDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, val)
+        TimeSeriesParameter.__init__(self, name, description, unit, val, mutable=mutable)
 
 
 class WeatherDataParameter(TimeSeriesParameter):
-    def __init__(self, name, description, unit, val=None):
+    def __init__(self, name, description, unit, val=None, mutable=False):
         """
         Class that describes a weather data parameter
 
@@ -402,4 +446,4 @@ class WeatherDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, val)
+        TimeSeriesParameter.__init__(self, name, description, unit, val, mutable=mutable)
