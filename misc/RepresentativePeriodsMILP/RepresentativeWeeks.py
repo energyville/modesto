@@ -205,6 +205,7 @@ def get_network_pump(optimizers, sel):
          'servSol',
          'servBox']) for startday, optmodel in optimizers.iteritems())
 
+
 def get_sol_energy(optimizers, sel):
     """
 
@@ -249,11 +250,9 @@ def get_demand_energy(optimizers, sel):
 
     """
     return sum(sum(sel[startday] *
-                   optmodel.get_result('heat_flow', node=node, comp='neighb',
-                                       check_results=False).sum() for startday, optmodel in
-                   optimizers.iteritems(
-
-                   )) for node in ['TermienEast', 'TermienWest', 'WaterscheiGarden']) / 1000
+                   optmodel.get_result('heat_flow', node=node, comp='neighb', check_results=False).sum() for
+                   startday, optmodel in optimizers.iteritems()) for node in
+               ['TermienEast', 'TermienWest', 'WaterscheiGarden']) / 1000
 
 
 def solve_repr(model, solver='cplex', mipgap=0.1, probe=False, mipfocus=None, timelim=None):
