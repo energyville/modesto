@@ -31,14 +31,6 @@ def json_str2int(ordereddict):
     """
     Transform string keys to int keys in json representation
 
-    >>> od = OrderedDict([(u'37', 5.0),
-    ...                   (u'45', 9.0),
-    ...                   (u'118', 10.0),
-    ...                   (u'231', 13.0),
-    ...                   (u'267', 4.0),
-    ...                   (u'311', 11.0)])
-    >>> read_json_selection(od)
-    OrderedDict([(37, 5.0), (45, 9.0), (118, 10.0), (231, 13.0), (267, 4.0), (311, 11.0)])
 
     :param ordereddict: input ordered dict to be transformed
     :return:
