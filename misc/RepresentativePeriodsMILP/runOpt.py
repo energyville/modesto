@@ -63,11 +63,11 @@ if __name__ == '__main__':
     input_data = {
         '7dnewsol': {
             'dur': 7,
-            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/solutions7.txt'))
+            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/MILP/solutions7.txt'))
         },
         '3dnewsol': {
             'dur': 3,
-            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/solutions3.txt'))
+            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/MILP/solutions3.txt'))
         }
     }
 
