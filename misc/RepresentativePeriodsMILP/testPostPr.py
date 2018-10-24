@@ -39,7 +39,7 @@ for path in ['3dnewsol', '7dnewsol']:
             data[['A', 'VWat', 'VSTC']] = data[[ 'A', 'VWat', 'VSTC']].astype(int)
             data = data.rename(columns={'A': 'Solar coll. area', 'VWat': 'Storage Wat.', 'VSTC': 'Storage STC'})
 
-            resultname = 'net_loss'
+            resultname = 'sol'
             fullname = 'E_{}_full'.format(resultname)
             reprname = 'E_{}_repr'.format(resultname)
 

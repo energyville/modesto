@@ -220,7 +220,7 @@ def get_sol_energy(optimizers, sel):
                                    check_results=False).sum() / 1000 for startday, optmodel in
                optimizers.iteritems(
 
-               )) / 1000
+               ))
 
 
 def get_stor_loss(optimizers, sel):
