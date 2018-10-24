@@ -3,10 +3,10 @@
 Run representative cases with varying number of representative weeks.
 """
 import json
+import logging
 import os
 import time
 from collections import OrderedDict
-import logging
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -116,6 +116,7 @@ if __name__ == '__main__':
                                 optimizers, selection)
                             energy_net_loss_repr = RepresentativeWeeks.get_network_loss(optimizers, selection)
                             energy_net_pump_repr = RepresentativeWeeks.get_network_pump(optimizers, selection)
+                            energy_demand_repr = RepresentativeWeeks.get_demand_energy(optimizers, selection)
                             fig1 = RepresentativeWeeks.plot_representative(
                                 optimizers, selection, duration_repr=duration_repr, time_step=time_step)
                             if not os.path.isdir(
@@ -168,6 +169,8 @@ if __name__ == '__main__':
                                         'E_net_loss_repr': energy_net_loss_repr,
                                         'E_net_pump_full': float(result_full['E_net_pump_full']),
                                         'E_net_pump_repr': energy_net_pump_repr,
+                                        'E_demand_full': float(result_full['E_demand_full']),
+                                        'E_demand_repr': energy_demand_repr,
                                         't_repr': repr_solution_and_comm + compilation_time,
                                         't_comp': compilation_time},
                                        ignore_index=True)
