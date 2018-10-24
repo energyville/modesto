@@ -43,6 +43,7 @@ class Component(Submodel):
         elif direction not in [-1, 1]:
             raise ValueError('Direction should be -1 or 1.')
         self.direction = direction
+        self.compiled = False
 
     def create_params(self):
         """
@@ -54,11 +55,13 @@ class Component(Submodel):
         params = {'time_step':
                       DesignParameter('time_step',
                                       unit='s',
-                                      description='Time step with which the component model will be discretized'),
+                                      description='Time step with which the component model will be discretized',
+                                      mutable=False),
                   'horizon':
                       DesignParameter('horizon',
                                       unit='s',
-                                      description='Horizon of the optimization problem')}
+                                      description='Horizon of the optimization problem',
+                                      mutable=False)}
         return params
 
     def change_param_object(self, name, new_object):
@@ -294,12 +297,22 @@ class Component(Submodel):
         :param start_time: STart_tine of the optimization
         :return:
         """
+        if self.compiled:
+            self.update_time(start_time=start_time,
+                             time_step=self.params['time_step'].v(),
+                             horizon=self.params['horizon'].v())
+            for param in self.params:
+                self.params[param].construct()
 
-        self.set_time_axis()
-        self._make_block(model)
-        self.update_time(start_time,
-                         time_step=self.params['time_step'].v(),
-                         horizon=self.params['horizon'].v())
+        else:
+            self.set_time_axis()
+            self._make_block(model)
+            self.update_time(start_time,
+                             time_step=self.params['time_step'].v(),
+                             horizon=self.params['horizon'].v())
+            for param in self.params:
+                self.params[param].set_block(self.block)
+                self.params[param].construct()
 
 
 class FixedProfile(Component):
@@ -381,14 +394,19 @@ class FixedProfile(Component):
         delta_T = self.params['delta_T']
         heat_profile = self.params['heat_profile']
 
-        def _mass_flow(b, t):
-            return mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
+        if not self.compiled:
+            def _mass_flow(b, t):
+                return mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
 
-        def _heat_flow(b, t):
-            return mult.v() * heat_profile.v(t)
+            def _heat_flow(b, t):
+                return mult.v() * heat_profile.v(t)
 
-        self.block.mass_flow = Param(self.TIME, rule=_mass_flow)
-        self.block.heat_flow = Param(self.TIME, rule=_heat_flow)
+            self.block.mass_flow = Param(self.TIME, rule=_mass_flow, mutable=True)
+            self.block.heat_flow = Param(self.TIME, rule=_heat_flow, mutable=True)
+        else:
+            for t in self.TIME:
+                self.block.mass_flow[t] = mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
+                self.block.heat_flow[t] = mult.v() * heat_profile.v(t)
 
         if self.temperature_driven:
             lines = self.params['lines'].v()
@@ -1216,7 +1234,6 @@ class StorageVariable(VariableComponent):
 
         ## leq allows that heat losses in the network are supplied from storage tank only when discharging.
         ## In charging mode, this will probably not be used.
-
 
         self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
 

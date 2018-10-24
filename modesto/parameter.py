@@ -54,7 +54,7 @@ class Parameter(object):
         """
         self.value = new_val
         if not self.mutable:
-            self.logger.INFO(
+            self.logger.info(
                 'Changing value in parameter {}. Model needs to be recompiled for changes to take effect.'.format(
                     self.name))
 
