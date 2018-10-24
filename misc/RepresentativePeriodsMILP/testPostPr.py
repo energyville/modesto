@@ -7,7 +7,7 @@ import seaborn as sns
 
 sns.set_style('darkgrid')
 
-for path in ['3dnewsol', '7dnewsol']:
+for path in ['1dnewsol', '3dnewsol', '7dnewsol']:
     filepath = os.path.join('../RepresentativePeriodsMILP/results', path)
     for filename in os.listdir(filepath):
         if not filename == 'summary.txt':
@@ -36,7 +36,7 @@ for path in ['3dnewsol', '7dnewsol']:
 
             data = data.dropna()
 
-            data[['A', 'VWat', 'VSTC']] = data[[ 'A', 'VWat', 'VSTC']].astype(int)
+            data[['A', 'VWat', 'VSTC']] = data[['A', 'VWat', 'VSTC']].astype(int)
             data = data.rename(columns={'A': 'Solar coll. area', 'VWat': 'Storage Wat.', 'VSTC': 'Storage STC'})
 
             resultname = 'backup'
@@ -81,5 +81,6 @@ for path in ['3dnewsol', '7dnewsol']:
 
             if not os.path.isdir(os.path.join('img', path, resultname)):
                 os.makedirs(os.path.join('img', path, resultname))
-            g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.pdf'))
+            g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.pdf'),
+                      bbox_inches='tight')
             plt.close()

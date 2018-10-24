@@ -53,17 +53,21 @@ if __name__ == '__main__':
                         datefmt='%m-%d %H:%M')
     time_step = 3600
     input_data = {
+        '1dnewsol': {
+            'dur' : 1,
+            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/MILP/solutions1.txt'))
+        },
         '7dnewsol': {
             'dur': 7,
-            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/solutions7.txt'))
+            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/MILP/solutions7.txt'))
         },
         '3dnewsol': {
             'dur': 3,
-            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/solutions3.txt'))
+            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/MILP/solutions3.txt'))
         }
     }
 
-    for time_duration in ['7dnewsol', '3dnewsol']:  # ['time_duration', 'nocorr']:
+    for time_duration in ['1dnewsol']:#['7dnewsol', '3dnewsol']:  # ['time_duration', 'nocorr']:
         sels = input_data[time_duration]['sel']
         duration_repr = input_data[time_duration]['dur']
 
