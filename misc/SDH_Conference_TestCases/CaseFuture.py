@@ -370,8 +370,9 @@ def get_network_pumping(optmodel):
 
 
 def get_demand_energy(optmodel):
-    return optmodel.get_result('heat_flow', node='Node',
-                               comp='demand').sum() / 1000
+    return sum(optmodel.get_result('heat_flow', node=neighb,
+                                   comp='neighb').sum() / 1000 for neighb in ['WaterscheiGarden', 'TermienWest',
+                                                                              'TermienEast'])
 
 
 if __name__ == '__main__':
