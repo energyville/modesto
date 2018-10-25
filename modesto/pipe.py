@@ -80,7 +80,7 @@ class Pipe(Component):
         params.update({
             'diameter': DesignParameter('diameter',
                                         'Pipe diameter',
-                                        'DN (mm)'),
+                                        'DN (mm)', mutable=True),
             'cost_inv': SeriesParameter(name='cost_inv',
                                         description='Investment cost per length as a function of diameter.'
                                                     'Default value supplied.',
@@ -172,14 +172,17 @@ class SimplePipe(Pipe):
         """
         Component.compile(self, model, start_time)
 
-        self.block.heat_flow_in = Var(self.TIME)
-        self.block.heat_flow_out = Var(self.TIME)
-        self.block.mass_flow = Var(self.TIME)
+        if not self.compiled:
+            self.block.heat_flow_in = Var(self.TIME)
+            self.block.heat_flow_out = Var(self.TIME)
+            self.block.mass_flow = Var(self.TIME)
 
-        def _heat_flow(b, t):
-            return b.heat_flow_in[t] == b.heat_flow_out[t]
+            def _heat_flow(b, t):
+                return b.heat_flow_in[t] == b.heat_flow_out[t]
 
-        self.block.heat_flow = Constraint(self.TIME, rule=_heat_flow)
+            self.block.heat_flow = Constraint(self.TIME, rule=_heat_flow)
+
+        self.compiled = True
 
 
 class ExtensivePipe(Pipe):
@@ -228,8 +231,10 @@ class ExtensivePipe(Pipe):
 
         self.n_pump_constr = 3  # Number of linear pieces in pumping power approximation
 
-        self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K')
-        self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K')
+        self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K',
+                                                            mutable=True)
+        self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K',
+                                                            mutable=True)
 
     def compile(self, model, start_time):
         """
@@ -240,15 +245,6 @@ class ExtensivePipe(Pipe):
         :return:
         """
 
-        Component.compile(self, model, start_time)
-
-        Tg = self.params["Tg"].v()
-
-        self.dn = self.params['diameter'].v()
-        if self.dn is None:
-            self.logger.info('No dn set. Optimizing diameter.')
-
-        # TODO Leave this here?
         vflomax = {  # Maximal volume flow rate per DN in m3/h
             # Taken from IsoPlus Double-Pipe catalog p. 7
             20: 1.547,
@@ -275,87 +271,93 @@ class ExtensivePipe(Pipe):
             1000: 14000 * 1.55
         }
 
-        """
-        Parameters and sets
-        """
-        if self.dn is None:
-            raise ValueError('Pipe diameter should be specified.')
+        Component.compile(self, model, start_time)
+        self.dn = self.params['diameter'].v()
 
+        self.mflo_max = vflomax[self.dn] * 1000 / 3600
+
+        Tg = self.params["Tg"].v()
         Rs = self.Rs[self.dn]
-        self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
 
         self.temp_sup = self.params['temperature_supply'].v()
         self.temp_ret = self.params['temperature_return'].v()
 
-        # Maximal heat loss per unit length
-        def _heat_loss(b, t):
+        if self.compiled:
+            for t in self.TIME:
+                self.block.heat_loss_nom[t] = (self.temp_sup + self.temp_ret - 2 * Tg[t]) / Rs
+
+            self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
+            self.construct_pumping_constraints()
+        else:
             """
-            Rule to calculate maximal heat loss per unit length
-
-            :param b: block identifier
-            :param t: time index
-            :param dn: DN index
-            :return: Heat loss in W/m
+            Parameters and sets
             """
-            dq = (self.temp_sup + self.temp_ret - 2 * Tg[t]) / \
-                 Rs
-            return dq
+            self.block.mass_flow_max = Param(initialize=vflomax[self.dn] * 1000 / 3600, mutable=True)
 
-        self.block.heat_loss_nom = Param(self.TIME, rule=_heat_loss)
+            # Maximal heat loss per unit length
+            def _heat_loss(b, t):
+                """
+                Rule to calculate maximal heat loss per unit length
 
-        """
-        Variables
-        """
+                :param b: block identifier
+                :param t: time index
+                :param dn: DN index
+                :return: Heat loss in W/m
+                """
+                dq = (self.temp_sup + self.temp_ret - 2 * Tg[t]) / Rs
+                return dq
 
-        mflo_ub = (-self.block.mass_flow_max,
-                   self.block.mass_flow_max) if self.allow_flow_reversal else (0, self.block.mass_flow_max)
+            self.block.heat_loss_nom = Param(self.TIME, rule=_heat_loss, mutable=True)
 
-        # Real valued
-        self.block.heat_flow_in = Var(self.TIME, doc='Heat flow entering in-node')
-        self.block.heat_flow_out = Var(self.TIME, doc='Heat flow exiting out-node')
+            """
+            Variables
+            """
 
-        self.block.mass_flow = Var(self.TIME, bounds=mflo_ub,
-                                   doc='Mass flow rate entering in-node and exiting out-node')
+            mflo_ub = (-self.block.mass_flow_max,
+                       self.block.mass_flow_max) if self.allow_flow_reversal else (0, self.block.mass_flow_max)
 
-        self.block.heat_loss_tot = Var(self.TIME, within=NonNegativeReals, doc='Total heat lost from pipe')
+            # Real valued
+            self.block.heat_flow_in = Var(self.TIME, doc='Heat flow entering in-node')
+            self.block.heat_flow_out = Var(self.TIME, doc='Heat flow exiting out-node')
 
-        if self.allow_flow_reversal:
-            self.block.heat_flow_back = Var(self.TIME, within=NonNegativeReals,
-                                            doc='Heat flow from out- to in-node')
+            self.block.mass_flow = Var(self.TIME, bounds=mflo_ub,
+                                       doc='Mass flow rate entering in-node and exiting out-node')
 
-        """
-        Pipe model
-        """
+            self.block.heat_loss_tot = Var(self.TIME, within=NonNegativeReals, doc='Total heat lost from pipe')
 
-        ##############
-        # EQUALITIES #
-        ##############
+            """
+            Pipe model
+            """
 
-        def _eq_heat_flow_bal(b, t):
-            return b.heat_flow_in[t] == b.heat_loss_tot[t] + b.heat_flow_out[t]
+            ##############
+            # EQUALITIES #
+            ##############
 
-        self.block.eq_heat_flow_bal = Constraint(self.TIME, rule=_eq_heat_flow_bal)
+            def _eq_heat_flow_bal(b, t):
+                return b.heat_flow_in[t] == b.heat_loss_tot[t] + b.heat_flow_out[t]
 
-        ################
-        # INEQUALITIES #
-        ################
+            self.block.eq_heat_flow_bal = Constraint(self.TIME, rule=_eq_heat_flow_bal)
 
-        def _eq_heat_loss_forw(b, t):
-            return b.heat_loss_tot[t] >= b.heat_loss_nom[t] * b.mass_flow[t] / (
-                    self.hl_setting * b.mass_flow_max) * self.length
+            ################
+            # INEQUALITIES #
+            ################
 
-        def _eq_heat_loss_rev(b, t):
-            return b.heat_loss_tot[t] >= - b.heat_loss_nom[t] * b.mass_flow[t] / (
-                    self.hl_setting * b.mass_flow_max) * self.length
+            def _eq_heat_loss_forw(b, t):
+                return b.heat_loss_tot[t] >= b.heat_loss_nom[t] * b.mass_flow[t] / (
+                        self.hl_setting * b.mass_flow_max) * self.length
 
-        self.block.eq_heat_loss_forw = Constraint(self.TIME, rule=_eq_heat_loss_forw)
-        self.block.eq_heat_loss_rev = Constraint(self.TIME, rule=_eq_heat_loss_rev)
+            def _eq_heat_loss_rev(b, t):
+                return b.heat_loss_tot[t] >= - b.heat_loss_nom[t] * b.mass_flow[t] / (
+                        self.hl_setting * b.mass_flow_max) * self.length
 
-        self.construct_pumping_constraints()
+            self.block.eq_heat_loss_forw = Constraint(self.TIME, rule=_eq_heat_loss_forw)
+            self.block.eq_heat_loss_rev = Constraint(self.TIME, rule=_eq_heat_loss_rev)
 
-        self.logger.info(
-            'Optimization model Pipe {} compiled'.format(self.name))
-        self.compiled = True
+            self.construct_pumping_constraints()
+
+            self.logger.info(
+                'Optimization model Pipe {} compiled'.format(self.name))
+            self.compiled = True
 
     def get_diameter(self):
         """
@@ -368,11 +370,6 @@ class ExtensivePipe(Pipe):
         else:
             return None
 
-    def calc_pump_power(self, mf):
-        di = self.di[self.dn]
-
-        return 2 * self.f * self.length * mf ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
-
     def construct_pumping_constraints(self):
         """
         Construct a set of constraints
@@ -380,18 +377,30 @@ class ExtensivePipe(Pipe):
 
         :return:
         """
-        n_segments = self.n_pump_constr
-        mfs = np.linspace(0, self.block.mass_flow_max, n_segments + 1)
-        pps = self.calc_pump_power(mfs)
+        di = self.di[self.dn]
 
-        self.block.pumping_power = Var(self.TIME, within=NonNegativeReals)
+        if self.compiled:
+            for n in self.n_pump:
+                self.block.pps[n] = 2 * self.f * self.length * (
+                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
+        else:
+            n_segments = self.n_pump_constr
+            self.n_pump = range(n_segments + 1)
+            self.mfs_ratio = np.linspace(0, 1, n_segments + 1)
+            self.block.pps = Param(self.n_pump, mutable=True)
 
-        for i in range(n_segments):
-            def _ineq_pumping(b, t):
-                return b.pumping_power[t] >= (b.mass_flow[t] - mfs[i]) / (mfs[i + 1] - mfs[i]) * (pps[i + 1] - pps[i]) + \
-                       pps[i]
+            for n in self.n_pump:
+                self.block.pps[n] = 2 * self.f * self.length * (
+                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
 
-            self.block.add_component('ineq_pumping_' + str(i), Constraint(self.TIME, rule=_ineq_pumping))
+            self.block.pumping_power = Var(self.TIME, within=NonNegativeReals)
+
+            for i in range(n_segments):
+                def _ineq_pumping(b, t):
+                    return b.pumping_power[t] >= (b.mass_flow[t] / b.mass_flow_max - self.mfs_ratio[i]) / (
+                                self.mfs_ratio[i + 1] - self.mfs_ratio[i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
+
+                self.block.add_component('ineq_pumping_' + str(i), Constraint(self.TIME, rule=_ineq_pumping))
 
     def obj_energy(self):
         pef_el = self.params['PEF_el'].v()

@@ -267,7 +267,6 @@ class Modesto:
                     self.components[comp].reinit()
                 self.logger.info('Recompiling model.')
 
-
         # Check whether all necessary parameters are there
         self.check_data()
         self.update_time(self.start_time)
@@ -799,6 +798,8 @@ class Node(Submodel):
         self.components = {}
         self.pipes = {}
 
+        self.compiled = False
+
         self.build()
 
     def contains_heat_source(self):
@@ -924,15 +925,31 @@ class Node(Submodel):
         :param model:
         :return:
         """
-        self.set_time_axis()
-        self._make_block(model)
+        if self.compiled:
+            for name, comp in self.components.items():
+                comp.compile(model, start_time)
 
-        for name, comp in self.components.items():
-            comp.compile(model, start_time)
+        else:
+            self.set_time_axis()
+            self._make_block(model)
 
-        self._add_bal()
+            for name, comp in self.components.items():
+                comp.compile(model, start_time)
 
-        self.logger.info('Compilation of {} finished'.format(self.name))
+            self._add_bal()
+
+            self.logger.info('Compilation of {} finished'.format(self.name))
+
+        self.compiled = True
+
+    def reinit(self):
+        """
+        Reinitialize component and its parameters
+
+        :return:
+        """
+        if self.compiled:
+            self.compiled = False
 
     def _add_bal(self):
         """

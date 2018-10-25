@@ -416,8 +416,8 @@ class FixedProfile(Component):
             self.block.heat_flow = Param(self.TIME, rule=_heat_flow, mutable=True)
         else:
             for t in self.TIME:
-                self.block.mass_flow[t] = mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
-                self.block.heat_flow[t] = mult.v() * heat_profile.v(t)
+                self.block.mass_flow[t] = self.block.mult * heat_profile.v(t) / self.cp / self.block.delta_T
+                self.block.heat_flow[t] = self.block.mult * heat_profile.v(t)
 
         if self.temperature_driven:
             lines = self.params['lines'].v()
@@ -941,7 +941,7 @@ class SolarThermalCollector(VariableComponent):
 
         heat_profile = self.params['heat_profile'].v()
 
-        if self.compiled
+        if self.compiled:
             for t in self.TIME:
                 self.block.heat_flow_max[t] = heat_profile[t]
 
@@ -988,10 +988,10 @@ class StorageFixed(FixedProfile):
         :param name: Name of the building
         :param pd.Timestamp start_time: Start time of optimization horizon.
         """
-        Component.__init__(self,
-                           name=name,
-                           direction=-1,
-                           temperature_driven=temperature_driven)
+        FixedProfile.__init__(self,
+                              name=name,
+                              direction=-1,
+                              temperature_driven=temperature_driven)
 
 
 class StorageVariable(VariableComponent):
@@ -1040,10 +1040,12 @@ class StorageVariable(VariableComponent):
         params.update({
             'Thi': DesignParameter('Thi',
                                    'High temperature in tank',
-                                   'K'),
+                                   'K',
+                                   mutable=True),
             'Tlo': DesignParameter('Tlo',
                                    'Low temperature in tank',
-                                   'K', ),
+                                   'K',
+                                   mutable=True),
             'mflo_max': DesignParameter('mflo_max',
                                         'Maximal mass flow rate to and from storage vessel',
                                         'kg/s'),
@@ -1052,16 +1054,20 @@ class StorageVariable(VariableComponent):
                                         'kg/s'),
             'volume': DesignParameter('volume',
                                       'Storage volume',
-                                      'm3'),
+                                      'm3',
+                                      mutable=True),
             'ar': DesignParameter('ar',
                                   'Aspect ratio (height/width)',
-                                  '-'),
+                                  '-',
+                                  mutable=True),
             'dIns': DesignParameter('dIns',
                                     'Insulation thickness',
-                                    'm'),
+                                    'm',
+                                    mutable=True),
             'kIns': DesignParameter('kIns',
                                     'Thermal conductivity of insulation material',
-                                    'W/(m.K)'),
+                                    'W/(m.K)',
+                                    mutable=True),
             'heat_stor': StateParameter(name='heat_stor',
                                         description='Heat stored in the thermal storage unit',
                                         unit='kWh',
@@ -1081,7 +1087,8 @@ class StorageVariable(VariableComponent):
             'mult': DesignParameter(name='mult',
                                     description='Multiplication factor indicating number of DHW tanks',
                                     unit='-',
-                                    val=1)
+                                    val=1,
+                                    mutable=True)
         })
 
         return params
