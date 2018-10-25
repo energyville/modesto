@@ -356,7 +356,7 @@ class Submodel(object):
             return None
 
         timeindex = pd.DatetimeIndex(start=start_time,
-                                     freq=str(self.params['time_step']) + 'S',
+                                     freq=str(self.params['time_step'].v()) + 'S',
                                      periods=len(result))
 
         return pd.Series(data=result, index=timeindex, name=resname)
