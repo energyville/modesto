@@ -31,7 +31,7 @@ class Modesto:
         :param graph: networkx object, describing the structure of the network
         """
 
-        self.model = ConcreteModel()
+        self.model = ConcreteModel(name=Modesto)
 
         self.results = None
 
@@ -273,15 +273,20 @@ class Modesto:
 
         # Components
         for name in self.get_edges():
-            obj = self.get_component(name=name)
-            obj.compile(self.model, start_time)
-        for name in self.get_nodes():
-            obj = self.get_component(name=name)
-            obj.compile(self.model, start_time)
+            edge_obj = self.get_component(name=name)
+            edge_obj.compile(self.model, start_time)
+
+        nodes = self.get_nodes()
+
+        for node in nodes:
+            node_obj = self.get_component(name=node)
+            node_obj.compile(self.model, start_time)
 
         self.__build_objectives()
 
         self.compiled = True  # Change compilation flag
+
+        return
 
     def check_data(self):
         """
@@ -942,6 +947,8 @@ class Node(Submodel):
 
         self.compiled = True
 
+        return
+
     def reinit(self):
         """
         Reinitialize component and its parameters
@@ -974,20 +981,20 @@ class Node(Submodel):
                 incoming_pipes = collections.defaultdict(list)
 
                 for name, comp in c.items():
-                    if comp.get_mflo(t) >= 0:
+                    if value(comp.get_mflo(t)) >= 0:
                         incoming_comps['supply'].append(name)
                     else:
                         incoming_comps['return'].append(name)
 
                 for name, pipe in p.items():
-                    if pipe.get_edge_mflo(self.name, t) >= 0:
+                    if value(pipe.get_edge_mflo(self.name, t)) >= 0:
                         incoming_pipes['supply'].append(name)
                     else:
                         incoming_pipes['return'].append(name)
                 # Zero mass flow rate:
-                if sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) + \
+                if value(sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) + \
                         sum(p[pipe].get_edge_mflo(self.name, t) for pipe in
-                            incoming_pipes[l]) == 0:
+                            incoming_pipes[l])) == 0:
                     # mixed temperature is average of all joined pipes, actual value should not matter,
                     # because packages in pipes of this time step will have zero size and components do not take over
                     # mixed temperature in case there is no mass flow

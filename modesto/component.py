@@ -412,8 +412,8 @@ class FixedProfile(Component):
             def _heat_flow(b, t):
                 return b.mult * heat_profile.v(t)
 
-            self.block.mass_flow = Param(self.TIME, rule=_mass_flow, mutable=True)
-            self.block.heat_flow = Param(self.TIME, rule=_heat_flow, mutable=True)
+            self.block.mass_flow = Param(self.TIME, rule=_mass_flow, mutable=not self.temperature_driven)
+            self.block.heat_flow = Param(self.TIME, rule=_heat_flow, mutable=not self.temperature_driven)
         else:
             for t in self.TIME:
                 self.block.mass_flow[t] = self.block.mult * heat_profile.v(t) / self.cp / self.block.delta_T
@@ -677,9 +677,57 @@ class ProducerVariable(VariableComponent):
         """
         VariableComponent.compile(self, model, start_time)
 
-        if not self.compiled:
+        if self.temperature_driven:
             self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
             self.block.ramping_cost = Var(self.TIME)
+            lines = self.params['lines'].v()
+
+            def _mass_flow(b, t):
+                return self.params['mass_flow'].v(t)
+
+            self.block.mass_flow = Param(self.TIME, rule=_mass_flow)
+
+            def _decl_init_heat_flow(b):
+                return b.heat_flow[0] == (self.params['temperature_supply'].v() -
+                                          self.params['temperature_return'].v()) * \
+                       self.cp * b.mass_flow[0]
+
+            self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
+
+            self.block.temperatures = Var(lines, self.TIME)
+
+            def _limit_temperatures(b, t):
+                return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
+                    'temperature_max'].v()
+
+            self.block.limit_temperatures = Constraint(self.TIME, rule=_limit_temperatures)
+
+            def _decl_temperatures(b, t):
+                if t == 0:
+                    return Constraint.Skip
+                elif b.mass_flow[t] == 0:
+                    return Constraint.Skip
+                else:
+                    return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / \
+                           b.mass_flow[
+                               t] / self.cp
+
+            def _init_temperature(b, l):
+                return b.temperatures[l, 0] == self.params['temperature_' + l].v()
+
+            def _decl_temp_mf0(b, t):
+                if (not t == 0) and b.mass_flow[t] == 0:
+                    return b.temperatures['supply', t] == b.temperatures['supply', t - 1]
+                else:
+                    return Constraint.Skip
+
+            self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
+            self.block.init_temperatures = Constraint(lines, rule=_init_temperature)
+            self.block.dec_temp_mf0 = Constraint(self.TIME, rule=_decl_temp_mf0)
+
+        elif not self.compiled:
+            self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+            self.block.ramping_cost = Var(self.TIME, initialize=0, within=NonNegativeReals)
 
             if not self.params['Qmin'].v() == 0:
                 self.block.on = Var(self.TIME, within=Binary)
@@ -700,25 +748,7 @@ class ProducerVariable(VariableComponent):
             self.block.min_heat = Constraint(self.TIME, rule=_min_heat)
             self.block.max_heat = Constraint(self.TIME, rule=_max_heat)
 
-        if not self.temperature_driven and not self.compiled:
             self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
-
-        elif self.temperature_driven:
-            self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
-            self.block.ramping_cost = Var(self.TIME)
-            lines = self.params['lines'].v()
-
-            def _mass_flow(b, t):
-                return self.params['mass_flow'].v(t)
-
-            self.block.mass_flow = Param(self.TIME, rule=_mass_flow)
-
-            def _decl_init_heat_flow(b):
-                return b.heat_flow[0] == (self.params['temperature_supply'].v() -
-                                          self.params['temperature_return'].v()) * \
-                       self.cp * b.mass_flow[0]
-
-            self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
 
             def _mass_ub(m, t):
                 return m.mass_flow[t] * (1 + self.heat_var) * self.cp * m.delta_T >= m.heat_flow[t]
@@ -761,39 +791,6 @@ class ProducerVariable(VariableComponent):
             if self.params['ramp_cost'].v() > 0:
                 self.block.decl_downward_ramp_cost = Constraint(self.TIME, rule=_decl_downward_ramp_cost)
                 self.block.decl_upward_ramp_cost = Constraint(self.TIME, rule=_decl_upward_ramp_cost)
-
-        if self.temperature_driven:
-
-            self.block.temperatures = Var(lines, self.TIME)
-
-            def _limit_temperatures(b, t):
-                return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
-                    'temperature_max'].v()
-
-            self.block.limit_temperatures = Constraint(self.TIME, rule=_limit_temperatures)
-
-            def _decl_temperatures(b, t):
-                if t == 0:
-                    return Constraint.Skip
-                elif b.mass_flow[t] == 0:
-                    return Constraint.Skip
-                else:
-                    return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / \
-                           b.mass_flow[
-                               t] / self.cp
-
-            def _init_temperature(b, l):
-                return b.temperatures[l, 0] == self.params['temperature_' + l].v()
-
-            def _decl_temp_mf0(b, t):
-                if (not t == 0) and b.mass_flow[t] == 0:
-                    return b.temperatures['supply', t] == b.temperatures['supply', t - 1]
-                else:
-                    return Constraint.Skip
-
-            self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
-            self.block.init_temperatures = Constraint(lines, rule=_init_temperature)
-            self.block.dec_temp_mf0 = Constraint(self.TIME, rule=_decl_temp_mf0)
 
         self.compiled = True
 
