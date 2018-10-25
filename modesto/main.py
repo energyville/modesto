@@ -257,7 +257,7 @@ class Modesto:
 
         # Check if not compiled already
         if self.compiled:
-            if not recompile:
+            if not recompile and not self.temperature_driven:
                 self.logger.info('Model was already compiled. Only changing mutable parameters.')
 
             else:
