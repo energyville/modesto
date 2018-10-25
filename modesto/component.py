@@ -314,6 +314,17 @@ class Component(Submodel):
                 self.params[param].set_block(self.block)
                 self.params[param].construct()
 
+    def reinit(self):
+        """
+        Reinitialize component and its parameters
+
+        :return:
+        """
+        if self.compiled:
+            self.compiled = False
+            for param in self.params:
+                self.params[param].reinit()
+
 
 class FixedProfile(Component):
     def __init__(self, name=None, direction=None,

@@ -137,11 +137,25 @@ class Parameter(object):
         else:
             pass
 
+    def reinit(self):
+        """
+        Reinitialize parameter. Remove mutable parameters.
+
+        :return:
+        """
+        if self.constructed and self.mutable:
+            self.constructed = False
+            self.block.del_component(self.param)
+            self.param = None
+            return
+        else:
+            return
+
     def make_param(self):
         return Param(mutable=True, initialize=self.v())
 
     def __str__(self):
-        return str(self.value)
+        return self.name + ': ' + str(self.value)
 
 
 class DesignParameter(Parameter):

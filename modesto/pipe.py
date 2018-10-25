@@ -355,6 +355,7 @@ class ExtensivePipe(Pipe):
 
         self.logger.info(
             'Optimization model Pipe {} compiled'.format(self.name))
+        self.compiled = True
 
     def get_diameter(self):
         """

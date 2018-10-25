@@ -236,12 +236,13 @@ class Modesto:
 
             self.objectives['temp'] = self.model.OBJ_TEMP
 
-    def compile(self, start_time='20140101'):
+    def compile(self, start_time='20140101', recompile=False):
         """
         Compile the optimization problem
 
         :param start_time: Start time of this modesto instance. Either a pandas Timestamp object or a string of format
             'yyyymmdd'. Default '20140101'.
+        :param recompile: True if model should be recompiled. If False, only mutable parameters are reloaded.
         :return:
         """
 
@@ -256,8 +257,16 @@ class Modesto:
 
         # Check if not compiled already
         if self.compiled:
-            self.logger.warning('Model was already compiled. Only changing mutable parameters.')
-            # self.model = ConcreteModel()
+            if not recompile:
+                self.logger.info('Model was already compiled. Only changing mutable parameters.')
+
+            else:
+                self.model = ConcreteModel()
+                self.compiled = False
+                for comp in self.components:
+                    self.components[comp].reinit()
+                self.logger.info('Recompiling model.')
+
 
         # Check whether all necessary parameters are there
         self.check_data()
@@ -1025,7 +1034,6 @@ class Node(Submodel):
         else:
 
             def _heat_bal(b, t):
-                print t
                 return 0 == sum(
                     self.components[i].get_heat(t) for i in self.components) \
                        + sum(
