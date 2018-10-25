@@ -343,12 +343,14 @@ class FixedProfile(Component):
         params.update({
             'delta_T': DesignParameter('delta_T',
                                        'Temperature difference across substation',
-                                       'K'),
+                                       'K',
+                                       mutable=True),
             'mult': DesignParameter('mult',
                                     'Number of buildings in the cluster',
-                                    '-'),
+                                    '-',
+                                    mutable=True),
             'heat_profile': UserDataParameter('heat_profile',
-                                              'Heat use in one (average) building',
+                                              'Heat use in one (average) building. This is mutable even without the mutable flag set to true because of how the model is constructed',
                                               'W'),
         })
 
@@ -390,16 +392,12 @@ class FixedProfile(Component):
         """
         Component.compile(self, model, start_time)
 
-        mult = self.params['mult']
-        delta_T = self.params['delta_T']
-        heat_profile = self.params['heat_profile']
-
         if not self.compiled:
             def _mass_flow(b, t):
-                return mult.v() * heat_profile.v(t) / self.cp / delta_T.v()
+                return b.mult * heat_profile.v(t) / self.cp / b.delta_T
 
             def _heat_flow(b, t):
-                return mult.v() * heat_profile.v(t)
+                return b.mult * heat_profile.v(t)
 
             self.block.mass_flow = Param(self.TIME, rule=_mass_flow, mutable=True)
             self.block.heat_flow = Param(self.TIME, rule=_heat_flow, mutable=True)
@@ -491,13 +489,13 @@ class BuildingFixed(FixedProfile):
 
         :param name: Name of the building
         """
-        Component.__init__(self,
+        FixedProfile.__init__(self,
                            name=name,
                            direction=-1,
                            temperature_driven=temperature_driven)
 
     def compile(self, model, start_time):
-        Component.compile(self, model, start_time)
+        FixedProfile.compile(self, model, start_time)
         self.compiled = True
 
 
