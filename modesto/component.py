@@ -451,6 +451,8 @@ class FixedProfile(Component):
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
 
+        self.compiled = True
+
 
 class VariableProfile(Component):
     # TODO Assuming that variable profile means State-Space model
@@ -479,6 +481,7 @@ class VariableProfile(Component):
         """
 
         Component.compile(self, model, start_time)
+        self.compiled = True
 
 
 class BuildingFixed(FixedProfile):
@@ -493,6 +496,10 @@ class BuildingFixed(FixedProfile):
                            direction=-1,
                            temperature_driven=temperature_driven)
 
+    def compile(self, model, start_time):
+        Component.compile(self, model, start_time)
+        self.compiled = True
+
 
 class BuildingVariable(Component):
 
@@ -506,6 +513,10 @@ class BuildingVariable(Component):
                            name=name,
                            direction=-1,
                            temperature_driven=temperature_driven)
+
+    def compile(self, model, start_time):
+        Component.compile(self, model, start_time)
+        self.compiled = True
 
 
 class ProducerFixed(FixedProfile):
@@ -525,6 +536,10 @@ class ProducerFixed(FixedProfile):
 
     def is_heat_source(self):
         return True
+
+    def compile(self, model, start_time):
+        Component.compile(self, model, start_time)
+        self.compiled = True
 
 
 class VariableComponent(Component):
@@ -546,6 +561,10 @@ class VariableComponent(Component):
             direction=direction
         )
         self.heat_var = heat_var
+
+    def compile(self, model, start_time):
+        Component.compile(self, model, start_time)
+        self.compiled = True
 
 
 class ProducerVariable(VariableComponent):
@@ -588,11 +607,13 @@ class ProducerVariable(VariableComponent):
                                            'euro/kWh'),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
-                                    'W'),
-            'Qmin': DesignParameter('Qmax',
+                                    'W',
+                                    mutable=True),
+            'Qmin': DesignParameter('Qmin',
                                     'Minimum possible heat output',
                                     'W',
-                                    val=0),
+                                    val=0,
+                                    mutable=True),
             'ramp': DesignParameter('ramp',
                                     'Maximum ramp (increase in heat output)',
                                     'W/s'),
@@ -635,7 +656,8 @@ class ProducerVariable(VariableComponent):
         else:
             params['delta_T'] = DesignParameter('delta_T',
                                                 'Temperature difference between supply and return of the heat source',
-                                                'K')
+                                                'K',
+                                                mutable=True)
 
         return params
 
@@ -654,17 +676,17 @@ class ProducerVariable(VariableComponent):
             self.block.on = Var(self.TIME, within=Binary)
 
             def _min_heat(b, t):
-                return self.params['Qmin'].v() * b.on[t] <= b.heat_flow[t]
+                return b.Qmin * b.on[t] <= b.heat_flow[t]
 
             def _max_heat(b, t):
-                return b.heat_flow[t] <= self.params['Qmax'].v() * b.on[t]
+                return b.heat_flow[t] <= b.Qmax * b.on[t]
 
         else:
             def _min_heat(b, t):
-                return b.heat_flow[t] >= self.params['Qmin'].v()
+                return b.heat_flow[t] >= 0
 
             def _max_heat(b, t):
-                return b.heat_flow[t] <= self.params['Qmax'].v()
+                return b.heat_flow[t] <= b.Qmax
 
         self.block.min_heat = Constraint(self.TIME, rule=_min_heat)
         self.block.max_heat = Constraint(self.TIME, rule=_max_heat)
@@ -690,10 +712,10 @@ class ProducerVariable(VariableComponent):
 
         if not self.temperature_driven:
             def _mass_ub(m, t):
-                return m.mass_flow[t] * (1 + self.heat_var) * self.cp * self.params['delta_T'].v() >= m.heat_flow[t]
+                return m.mass_flow[t] * (1 + self.heat_var) * self.cp * m.delta_T >= m.heat_flow[t]
 
             def _mass_lb(m, t):
-                return m.mass_flow[t] * self.cp * self.params['delta_T'].v() <= m.heat_flow[t]
+                return m.mass_flow[t] * self.cp * m.delta_T <= m.heat_flow[t]
 
             self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
             self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
@@ -759,6 +781,8 @@ class ProducerVariable(VariableComponent):
             self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
             self.block.init_temperatures = Constraint(lines, rule=_init_temperature)
             self.block.dec_temp_mf0 = Constraint(self.TIME, rule=_decl_temp_mf0)
+
+        self.compiled = True
 
     def get_ramp_cost(self, t):
         return self.block.ramping_cost[t]
