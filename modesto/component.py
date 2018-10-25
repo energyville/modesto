@@ -403,6 +403,8 @@ class FixedProfile(Component):
         """
         Component.compile(self, model, start_time)
 
+        heat_profile = self.params['heat_profile']
+
         if not self.compiled:
             def _mass_flow(b, t):
                 return b.mult * heat_profile.v(t) / self.cp / b.delta_T
