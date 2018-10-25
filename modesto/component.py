@@ -503,13 +503,12 @@ class BuildingFixed(FixedProfile):
         :param name: Name of the building
         """
         FixedProfile.__init__(self,
-                           name=name,
-                           direction=-1,
-                           temperature_driven=temperature_driven)
+                              name=name,
+                              direction=-1,
+                              temperature_driven=temperature_driven)
 
     def compile(self, model, start_time):
         FixedProfile.compile(self, model, start_time)
-        self.compiled = True
 
 
 class BuildingVariable(Component):
@@ -538,10 +537,10 @@ class ProducerFixed(FixedProfile):
 
         :param name: Name of the building
         """
-        Component.__init__(self,
-                           name=name,
-                           direction=1,
-                           temperature_driven=temperature_driven)
+        FixedProfile.__init__(self,
+                              name=name,
+                              direction=1,
+                              temperature_driven=temperature_driven)
 
         self.params['mult'].change_value(1)
 
@@ -549,8 +548,7 @@ class ProducerFixed(FixedProfile):
         return True
 
     def compile(self, model, start_time):
-        Component.compile(self, model, start_time)
-        self.compiled = True
+        FixedProfile.compile(self, model, start_time)
 
 
 class VariableComponent(Component):
@@ -575,7 +573,6 @@ class VariableComponent(Component):
 
     def compile(self, model, start_time):
         Component.compile(self, model, start_time)
-        self.compiled = True
 
 
 class ProducerVariable(VariableComponent):
@@ -678,32 +675,37 @@ class ProducerVariable(VariableComponent):
 
         :return:
         """
-        Component.compile(self, model, start_time)
+        VariableComponent.compile(self, model, start_time)
 
-        self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
-        self.block.ramping_cost = Var(self.TIME)
+        if not self.compiled:
+            self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+            self.block.ramping_cost = Var(self.TIME)
 
-        if not self.params['Qmin'].v() == 0:
-            self.block.on = Var(self.TIME, within=Binary)
+            if not self.params['Qmin'].v() == 0:
+                self.block.on = Var(self.TIME, within=Binary)
 
-            def _min_heat(b, t):
-                return b.Qmin * b.on[t] <= b.heat_flow[t]
+                def _min_heat(b, t):
+                    return b.Qmin * b.on[t] <= b.heat_flow[t]
 
-            def _max_heat(b, t):
-                return b.heat_flow[t] <= b.Qmax * b.on[t]
+                def _max_heat(b, t):
+                    return b.heat_flow[t] <= b.Qmax * b.on[t]
 
-        else:
-            def _min_heat(b, t):
-                return b.heat_flow[t] >= 0
+            else:
+                def _min_heat(b, t):
+                    return b.heat_flow[t] >= 0
 
-            def _max_heat(b, t):
-                return b.heat_flow[t] <= b.Qmax
+                def _max_heat(b, t):
+                    return b.heat_flow[t] <= b.Qmax
 
-        self.block.min_heat = Constraint(self.TIME, rule=_min_heat)
-        self.block.max_heat = Constraint(self.TIME, rule=_max_heat)
+            self.block.min_heat = Constraint(self.TIME, rule=_min_heat)
+            self.block.max_heat = Constraint(self.TIME, rule=_max_heat)
 
-        if self.temperature_driven:
+        if not self.temperature_driven and not self.compiled:
+            self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
 
+        elif self.temperature_driven:
+            self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+            self.block.ramping_cost = Var(self.TIME)
             lines = self.params['lines'].v()
 
             def _mass_flow(b, t):
@@ -718,10 +720,6 @@ class ProducerVariable(VariableComponent):
 
             self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
 
-        else:
-            self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
-
-        if not self.temperature_driven:
             def _mass_ub(m, t):
                 return m.mass_flow[t] * (1 + self.heat_var) * self.cp * m.delta_T >= m.heat_flow[t]
 
@@ -731,34 +729,38 @@ class ProducerVariable(VariableComponent):
             self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
             self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
 
-        def _decl_upward_ramp(b, t):
-            if t == 0:
-                return Constraint.Skip
-            else:
-                return b.heat_flow[t] - b.heat_flow[t - 1] <= self.params['ramp'].v() * self.params['time_step'].v()
+        if not self.compiled:
+            def _decl_upward_ramp(b, t):
+                if t == 0:
+                    return Constraint.Skip
+                else:
+                    return b.heat_flow[t] - b.heat_flow[t - 1] <= self.params['ramp'].v() * self.params['time_step'].v()
 
-        def _decl_downward_ramp(b, t):
-            if t == 0:
-                return Constraint.Skip
-            else:
-                return b.heat_flow[t - 1] - b.heat_flow[t] <= self.params['ramp'].v() * self.params['time_step'].v()
+            def _decl_downward_ramp(b, t):
+                if t == 0:
+                    return Constraint.Skip
+                else:
+                    return b.heat_flow[t - 1] - b.heat_flow[t] <= self.params['ramp'].v() * self.params['time_step'].v()
 
-        def _decl_upward_ramp_cost(b, t):
-            if t == 0:
-                return b.ramping_cost[t] == 0
-            else:
-                return b.ramping_cost[t] >= (b.heat_flow[t] - b.heat_flow[t - 1]) * self.params['ramp_cost'].v()
+            def _decl_upward_ramp_cost(b, t):
+                if t == 0:
+                    return b.ramping_cost[t] == 0
+                else:
+                    return b.ramping_cost[t] >= (b.heat_flow[t] - b.heat_flow[t - 1]) * self.params['ramp_cost'].v()
 
-        def _decl_downward_ramp_cost(b, t):
-            if t == 0:
-                return Constraint.Skip
-            else:
-                return b.ramping_cost[t] >= (b.heat_flow[t - 1] - b.heat_flow[t]) * self.params['ramp_cost'].v()
+            def _decl_downward_ramp_cost(b, t):
+                if t == 0:
+                    return Constraint.Skip
+                else:
+                    return b.ramping_cost[t] >= (b.heat_flow[t - 1] - b.heat_flow[t]) * self.params['ramp_cost'].v()
 
-        self.block.decl_upward_ramp = Constraint(self.TIME, rule=_decl_upward_ramp)
-        self.block.decl_downward_ramp = Constraint(self.TIME, rule=_decl_downward_ramp)
-        self.block.decl_downward_ramp_cost = Constraint(self.TIME, rule=_decl_downward_ramp_cost)
-        self.block.decl_upward_ramp_cost = Constraint(self.TIME, rule=_decl_upward_ramp_cost)
+            if self.params['ramp'].v() > 0 or self.params['ramp'].v() * self.params['time_step'].v() > self.params[
+                'Qmax'].v():
+                self.block.decl_upward_ramp = Constraint(self.TIME, rule=_decl_upward_ramp)
+                self.block.decl_downward_ramp = Constraint(self.TIME, rule=_decl_downward_ramp)
+            if self.params['ramp_cost'].v() > 0:
+                self.block.decl_downward_ramp_cost = Constraint(self.TIME, rule=_decl_downward_ramp_cost)
+                self.block.decl_upward_ramp_cost = Constraint(self.TIME, rule=_decl_upward_ramp_cost)
 
         if self.temperature_driven:
 
@@ -911,8 +913,9 @@ class SolarThermalCollector(VariableComponent):
         params = Component.create_params(self)
 
         params.update({
-            'area': DesignParameter('area', 'Surface area of panels', 'm2'),
-            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K'),
+            'area': DesignParameter('area', 'Surface area of panels', 'm2',
+                                    mutable=True),
+            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K', mutable=True),
             'heat_profile': UserDataParameter(name='heat_profile',
                                               description='Maximum heat generation per unit area of the solar panel',
                                               unit='W/m2'),
@@ -938,29 +941,34 @@ class SolarThermalCollector(VariableComponent):
 
         heat_profile = self.params['heat_profile'].v()
 
-        def _heat_flow_max(m, t):
-            return heat_profile[t]
+        if self.compiled
+            for t in self.TIME:
+                self.block.heat_flow_max[t] = heat_profile[t]
 
-        self.block.heat_flow_max = Param(self.TIME, rule=_heat_flow_max)
-        self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
-        self.block.heat_flow_curt = Var(self.TIME, within=NonNegativeReals)
+        else:
+            def _heat_flow_max(m, t):
+                return heat_profile[t]
 
-        self.block.mass_flow = Var(self.TIME)
+            self.block.heat_flow_max = Param(self.TIME, rule=_heat_flow_max, mutable=True)
+            self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+            self.block.heat_flow_curt = Var(self.TIME, within=NonNegativeReals)
 
-        # Equations
+            self.block.mass_flow = Var(self.TIME)
 
-        def _heat_bal(m, t):
-            return m.heat_flow[t] + m.heat_flow_curt[t] == self.params['area'].v() * m.heat_flow_max[t]
+            # Equations
 
-        def _mass_lb(m, t):
-            return m.mass_flow[t] >= m.heat_flow[t] / self.cp / self.params['delta_T'].v() / (1 + self.heat_var)
+            def _heat_bal(m, t):
+                return m.heat_flow[t] + m.heat_flow_curt[t] == m.area * m.heat_flow_max[t]
 
-        def _mass_ub(m, t):
-            return m.mass_flow[t] <= m.heat_flow[t] / self.cp / self.params['delta_T'].v()
+            def _mass_lb(m, t):
+                return m.mass_flow[t] >= m.heat_flow[t] / self.cp / m.delta_T / (1 + self.heat_var)
 
-        self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
-        self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
-        self.block.eq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+            def _mass_ub(m, t):
+                return m.mass_flow[t] <= m.heat_flow[t] / self.cp / m.delta_T
+
+            self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
+            self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+            self.block.eq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
 
     def get_investment_cost(self):
         """
