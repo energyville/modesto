@@ -256,8 +256,8 @@ class Modesto:
 
         # Check if not compiled already
         if self.compiled:
-            self.logger.warning('Model was already compiled.')
-            self.model = ConcreteModel()
+            self.logger.warning('Model was already compiled. Only changing mutable parameters.')
+            # self.model = ConcreteModel()
 
         # Check whether all necessary parameters are there
         self.check_data()
@@ -265,9 +265,11 @@ class Modesto:
 
         # Components
         for name in self.get_edges():
-            self.get_component(name=name).compile(self.model, start_time)
+            obj = self.get_component(name=name)
+            obj.compile(self.model, start_time)
         for name in self.get_nodes():
-            self.get_component(name=name).compile(self.model, start_time)
+            obj = self.get_component(name=name)
+            obj.compile(self.model, start_time)
 
         self.__build_objectives()
 
@@ -1023,6 +1025,7 @@ class Node(Submodel):
         else:
 
             def _heat_bal(b, t):
+                print t
                 return 0 == sum(
                     self.components[i].get_heat(t) for i in self.components) \
                        + sum(
