@@ -25,6 +25,15 @@ logging.basicConfig(level=logging.WARNING,
 DATAPATH = resource_filename('modesto', 'Data')
 
 
+def changeParams(optimizers, VWat, VSTC, solArea):
+    for name, opt in optimizers.iteritems():
+        opt.change_param(node='SolarArray', comp='solar', param='area', val=solArea)
+        opt.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
+        opt.change_param(node='WaterscheiGarden', comp='tank', param='volume', val=VWat)
+
+        opt.compile()
+
+
 def representative(duration_repr, selection, VWat=75000,
                    solArea=2 * (18300 + 15000), VSTC=75000, pipe_model='ExtensivePipe', time_step=3600):
     """
@@ -300,7 +309,7 @@ def solve_repr(model, solver='cplex', mipgap=0.1, probe=False, mipfocus=None, ti
             opt.options['timelimit'] = timelim
         opt.options['mip strategy fpheur'] = 0
         opt.options['parallel'] = -1
-    results = opt.solve(model, tee=True)
+    results = opt.solve(model, tee=False)
 
     # In[ ]:
 
