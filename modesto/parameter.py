@@ -207,7 +207,7 @@ class StateParameter(Parameter):
         """
 
         if new_type not in self.init_types:
-            raise IndexError('%s is not an allowed type of initialization constraint')
+            raise IndexError('{} is not an allowed type of initialization constraint'.format(new_type))
 
         self.init_type = new_type
 

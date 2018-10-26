@@ -967,6 +967,8 @@ class SolarThermalCollector(VariableComponent):
             self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
             self.block.eq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
 
+        self.compiled = True
+
     def get_investment_cost(self):
         """
         Return investment cost of solar thermal collector for the installed area.
@@ -1141,7 +1143,7 @@ class StorageVariable(VariableComponent):
             self.block.exp_ttau = exp(-self.params['time_step'].v() / self.tau)
 
             for t in self.TIME:
-                self.block.heat_loss_ct = self.UAw * (self.temp_sup - Te[t]) + \
+                self.block.heat_loss_ct[t] = self.UAw * (self.temp_sup - Te[t]) + \
                                           self.UAtb * (self.temp_sup + self.temp_ret - 2 * Te[t])
         else:
             self.block.max_en = Param(mutable=True, initialize=self.max_en)
