@@ -54,3 +54,101 @@ def test_example_RCmodel():
     model.set_objective('cost')
 
     assert model.solve(tee=True, mipgap=0.01, solver='cplex') == 0
+
+def test_recompilation_stor():
+    from modesto.Examples import example_recompilation
+    G = example_recompilation.setup_graph()
+    model_recomp = example_recompilation.setup_modesto(n_steps=24)
+    model_mutable = example_recompilation.setup_modesto(n_steps=24)
+
+    model_recomp.compile()
+    model_mutable.compile()
+
+    model_recomp.set_objective('energy')
+    model_mutable.set_objective('energy')
+
+    model_mutable.solve()
+    soc_mut_first = model_mutable.get_result('soc', node='demand', comp='stor')
+
+    model_recomp.change_param(node='demand', comp='stor', param='volume', val=20000)
+    model_recomp.compile(recompile=True)
+
+    model_mutable.change_param(node='demand', comp='stor', param='volume', val=20000)
+    model_mutable.compile()
+
+    model_recomp.set_objective('energy')
+    model_mutable.set_objective('energy')
+
+    model_mutable.solve()
+    model_recomp.solve()
+
+    assert model_mutable.get_result('soc', node='demand', comp='stor').equals(model_recomp.get_result('soc', node='demand', comp='stor'))
+    assert not model_mutable.get_result('soc', node='demand', comp='stor').equals(soc_mut_first)
+
+
+def test_recompilation_solar():
+    from modesto.Examples import example_recompilation
+    G = example_recompilation.setup_graph()
+    model_recomp = example_recompilation.setup_modesto(n_steps=100)
+    model_mutable = example_recompilation.setup_modesto(n_steps=100)
+
+    model_recomp.compile()
+    model_mutable.compile()
+
+    model_recomp.set_objective('energy')
+    model_mutable.set_objective('energy')
+
+    model_mutable.solve()
+    heat_mut_first = model_mutable.get_result('heat_flow', node='STC', comp='solar')
+
+    model_recomp.change_param(node='STC', comp='solar', param='area', val=3000)
+    model_recomp.compile(recompile=True)
+
+    model_mutable.change_param(node='STC', comp='solar', param='area', val=3000)
+    model_mutable.compile()
+
+    model_recomp.set_objective('energy')
+    model_mutable.set_objective('energy')
+
+    model_mutable.solve()
+    model_recomp.solve()
+
+    assert model_mutable.get_result('heat_flow', node='STC', comp='solar').equals(model_recomp.get_result('heat_flow', node='STC', comp='solar'))
+    assert not model_mutable.get_result('heat_flow', node='STC', comp='solar').equals(heat_mut_first)
+
+def test_recompilation_qmax():
+    from modesto.Examples import example_recompilation
+    G = example_recompilation.setup_graph()
+    model_recomp = example_recompilation.setup_modesto(n_steps=100)
+    model_mutable = example_recompilation.setup_modesto(n_steps=100)
+
+    model_recomp.compile()
+    model_mutable.compile()
+
+    model_recomp.set_objective('energy')
+    model_mutable.set_objective('energy')
+
+    model_mutable.solve()
+    heat_mut_first = model_mutable.get_result('heat_flow', node='STC', comp='backup')
+
+    model_recomp.change_param(node='STC', comp='backup', param='Qmax', val=7.5e6)
+    model_recomp.compile(recompile=True)
+
+    model_mutable.change_param(node='STC', comp='backup', param='Qmax', val=7.5e6)
+    model_mutable.compile()
+
+    model_recomp.set_objective('energy')
+    model_mutable.set_objective('energy')
+
+    model_mutable.solve()
+    mut_after = model_mutable.get_result('heat_flow', node='STC', comp='backup')
+
+    model_recomp.solve()
+    recomp_after = model_recomp.get_result('heat_flow', node='STC', comp='backup')
+
+    assert mut_after.equals(recomp_after)
+    assert not mut_after.equals(heat_mut_first)
+
+
+if __name__ == '__main__':
+    test_recompilation_qmax()
