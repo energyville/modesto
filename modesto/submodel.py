@@ -1,7 +1,7 @@
 from __future__ import division
 
 from pyomo.core.base import Block,  Var, NonNegativeReals, value
-from pyomo.core.base.param import IndexedParam
+from pyomo.core.base.param import IndexedParam, _ParamData
 from pyomo.core.base.var import IndexedVar
 
 import pandas as pd
@@ -346,6 +346,8 @@ class Submodel(object):
 
         elif isinstance(obj, IndexedParam):
             result = obj.values()
+            if isinstance(result[0], _ParamData):
+                result = [i.value for i in result]
 
             resname = self.name + '.' + name
 

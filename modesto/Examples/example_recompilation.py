@@ -99,7 +99,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
         'PEF': 1,
         'CO2': 0.178,
         'fuel_cost': elec_cost,
-        'Qmax': 1.3e7,
+        'Qmax': 9e6,
         'ramp_cost': 0,
         'ramp': 0
     }
@@ -134,6 +134,15 @@ if __name__ == '__main__':
     h_sol_rec = optmodel_rec.get_result('heat_flow', node='STC', comp='solar')
     h_sol_mut = optmodel_mut.get_result('heat_flow', node='STC', comp='solar')
 
+    q_dem_rec = optmodel_rec.get_result('heat_flow', node='demand', comp='build')
+    q_dem_mut = optmodel_mut.get_result('heat_flow', node='demand', comp='build')
+
+    q_rec = optmodel_rec.get_result('heat_flow', node='STC', comp='backup')
+    q_mut = optmodel_mut.get_result('heat_flow', node='STC', comp='backup')
+
+    soc_rec = optmodel_rec.get_result('soc', node='demand', comp='stor')
+    soc_mut = optmodel_mut.get_result('soc', node='demand', comp='stor')
+
     print h_sol_mut.equals(h_sol_rec)
     print 'Mutable object'
     print optmodel_mut.components['STC.solar'].block.area.value
@@ -141,10 +150,19 @@ if __name__ == '__main__':
     print 'Recompiled object'
     print optmodel_rec.components['STC.solar'].block.area.value
 
-    fig, ax = plt.subplots()
-    ax.plot(h_sol_rec, '-', label='Recompiled')
-    ax.plot(h_sol_mut, '--', label='Mutable')
+    fig, ax = plt.subplots(2,1, sharex=True)
+    ax[0].plot(h_sol_rec, '-', label='Sol Recompiled')
+    ax[0].plot(h_sol_mut, '--', label='Sol Mutable')
 
-    ax.legend()
+    ax[0].plot(q_rec)
+    ax[0].plot(q_mut, '--')
+
+    ax[0].plot(q_dem_rec)
+    ax[0].plot(q_dem_mut, '--')
+
+    ax[1].plot(soc_rec)
+    ax[1].plot(soc_mut, '--')
+
+    ax[0].legend()
 
     plt.show()
