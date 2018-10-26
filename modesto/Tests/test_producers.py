@@ -31,6 +31,7 @@ def test_producer():
 
     optmodel = Modesto(pipe_model='SimplePipe', graph=construct_model())
 
+
     datapath = resource_filename('modesto', 'Data')
     c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
 
@@ -77,7 +78,7 @@ def test_producer():
                                    node='user', comp='building')
             optmodel.compile(start_time)
             optmodel.set_objective('cost')
-            flags.append(optmodel.solve())
+            flags.append(optmodel.solve(tee=True))
 
         if flags == [0, 1, 1]:
             return True
