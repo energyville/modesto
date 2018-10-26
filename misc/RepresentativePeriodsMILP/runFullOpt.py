@@ -22,8 +22,8 @@ df = pd.DataFrame(
 
 full_model = CaseFuture.setup_opt(time_step=3600, horizon=365*24*3600)
 
-for VWat in [75000, 100000, 125000]:
-    for A in [50000, 100000, 150000]:  # , 60000, 80000]:
+for VWat in [50000, 75000, 100000, 125000]:
+    for A in [25000, 50000, 75000]:  # , 60000, 80000]:
         for VSTC in [100000, 150000, 200000]:  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
             print 'A:', str(A)
             print 'VWat:', str(VWat)
