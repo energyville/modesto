@@ -93,7 +93,7 @@ def construct_model():
 
     zw_building_params = {'delta_T': 20,
                           'mult': 1,
-                          'heat_profile': heat_profile['ZwartbergNEast'],
+                          'heat_profile': heat_profile['ZwartbergNEast']
                           }
 
     ws_building_params = zw_building_params.copy()
