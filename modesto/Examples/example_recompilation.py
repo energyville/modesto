@@ -4,13 +4,13 @@ Description
 """
 import logging
 
+import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 from pkg_resources import resource_filename
 
 import modesto.utils as ut
 from modesto.main import Modesto
-import matplotlib.pyplot as plt
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -21,10 +21,11 @@ logger = logging.getLogger('example_recomp')
 def setup_graph():
     G = nx.DiGraph()
 
-    G.add_node('STC', x=0, y=0, z=0, comps={'solar': 'SolarThermalCollector'})
+    G.add_node('STC', x=0, y=0, z=0, comps={'solar': 'SolarThermalCollector',
+                                            'backup': 'ProducerVariable'})
     G.add_node('demand', x=1000, y=100, z=0, comps={'build': 'BuildingFixed',
-                                                   'stor': 'StorageVariable',
-                                                   'backup': 'ProducerVariable'})
+                                                    'stor': 'StorageVariable',
+                                                    })
 
     G.add_edge('STC', 'demand', name='pipe')
 
@@ -36,7 +37,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
     heat_demand = ut.read_time_data(resource_filename('modesto', 'Data/HeatDemand'), name='HeatDemandFiltered.csv')
     weather_data = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
 
-    model.opt_settings(allow_flow_reversal=True)
+    model.opt_settings(allow_flow_reversal=False)
 
     elec_cost = ut.read_time_data(resource_filename('modesto', 'Data/ElectricityPrices'),
                                   name='DAM_electricity_prices-2014_BE.csv')['price_BE']
@@ -49,13 +50,13 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
                       'Q_sol_N': weather_data['QsolN'],
                       'time_step': time_step,
                       'horizon': n_steps * time_step,
-                      'elec_cost': elec_cost}
+                      'elec_cost': pd.Series(0.1, index=weather_data.index)}
 
     model.change_params(general_params)
 
     build_params = {
         'delta_T': 20,
-        'mult': 10,
+        'mult': 1,
         'heat_profile': heat_demand['ZwartbergNEast']
     }
     model.change_params(build_params, node='demand', comp='build')
@@ -63,9 +64,9 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
     stor_params = {
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
-        'mflo_max': 1100,
-        'mflo_min': -1100,
-        'volume': 2e4,
+        'mflo_max': 110,
+        'mflo_min': -110,
+        'volume': 30000,
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
@@ -75,18 +76,18 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
     model.change_params(dict=stor_params, node='demand', comp='stor')
     model.change_init_type('heat_stor', new_type='fixedVal', comp='stor', node='demand')
 
-    sol_data = ut.read_time_data(resource_filename('modesto', 'Data/RenewableProduction'), name='SolarThermal.csv')[
-        '0_40']
+    sol_data = ut.read_time_data(resource_filename(
+        'modesto', 'Data/RenewableProduction'), name='SolarThermal.csv')['0_40']
 
     stc_params = {
         'delta_T': 20,
         'heat_profile': sol_data,
-        'area': 200
+        'area': 2000
     }
     model.change_params(stc_params, node='STC', comp='solar')
 
     pipe_data = {
-        'diameter': 1000,
+        'diameter': 250,
         'temperature_supply': 80 + 273.15,
         'temperature_return': 60 + 273.15
     }
@@ -97,12 +98,12 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
         'efficiency': 0.95,
         'PEF': 1,
         'CO2': 0.178,
-        'fuel_cost': pd.Series(0.20, index=weather_data.index),
-        'Qmax': 5e6,
+        'fuel_cost': elec_cost,
+        'Qmax': 1.3e7,
         'ramp_cost': 0,
         'ramp': 0
     }
-    model.change_params(backup_params, node='demand', comp='backup')
+    model.change_params(backup_params, node='STC', comp='backup')
 
     return model
 
@@ -110,17 +111,19 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
 if __name__ == '__main__':
     t_step = 3600
     n_steps = 24*30
-    start_time = pd.Timestamp('20140501')
+    start_time = pd.Timestamp('20140101')
 
     optmodel_mut = setup_modesto(t_step, n_steps)
     optmodel_rec = setup_modesto(t_step, n_steps)
 
-    optmodel_mut.compile(start_time=start_time)
+    optmodel_mut.compile(start_time)
+    assert optmodel_mut.compiled, 'optmodel_mut should have a flag compiled=True'
+
     optmodel_mut.change_param(node='STC', comp='solar', param='area', val=3000)
     optmodel_mut.compile(start_time=start_time)
 
     optmodel_rec.change_param(node='STC', comp='solar', param='area', val=3000)
-    optmodel_rec.compile(start_time=start_time)
+    optmodel_rec.compile(start_time=start_time,recompile=True)
 
     optmodel_rec.set_objective('energy')
     optmodel_mut.set_objective('energy')
@@ -132,10 +135,16 @@ if __name__ == '__main__':
     h_sol_mut = optmodel_mut.get_result('heat_flow', node='STC', comp='solar')
 
     print h_sol_mut.equals(h_sol_rec)
+    print 'Mutable object'
+    print optmodel_mut.components['STC.solar'].block.area.value
+
+    print 'Recompiled object'
+    print optmodel_rec.components['STC.solar'].block.area.value
 
     fig, ax = plt.subplots()
     ax.plot(h_sol_rec, '-', label='Recompiled')
     ax.plot(h_sol_mut, '--', label='Mutable')
+
     ax.legend()
 
     plt.show()

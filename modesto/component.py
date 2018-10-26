@@ -562,7 +562,7 @@ class VariableComponent(Component):
     :param direction: Design direction of flow.
     """
 
-    def __init__(self, name, temperature_driven=False, heat_var=0.05, direction=1):
+    def __init__(self, name, temperature_driven=False, heat_var=0.15, direction=1):
         Component.__init__(
             self,
             name=name,
@@ -576,7 +576,7 @@ class VariableComponent(Component):
 
 
 class ProducerVariable(VariableComponent):
-    def __init__(self, name, temperature_driven=False, heat_var=0.05):
+    def __init__(self, name, temperature_driven=False, heat_var=0.15):
         """
         Class that describes a variable producer
 
@@ -888,7 +888,7 @@ class ProducerVariable(VariableComponent):
 
 
 class SolarThermalCollector(VariableComponent):
-    def __init__(self, name, temperature_driven=False, heat_var=0.05):
+    def __init__(self, name, temperature_driven=False, heat_var=0.15):
         """
         Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
 
@@ -994,7 +994,7 @@ class StorageFixed(FixedProfile):
 
 
 class StorageVariable(VariableComponent):
-    def __init__(self, name, temperature_driven=False, heat_var=0.05):
+    def __init__(self, name, temperature_driven=False, heat_var=0.15):
         """
         Class that describes a variable storage
 

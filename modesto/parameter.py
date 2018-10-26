@@ -132,7 +132,7 @@ class Parameter(object):
                 return
             else:
                 # Change parameter value
-                self.param = self.v()
+                self.param.set_value(self.v())
                 return
         else:
             pass

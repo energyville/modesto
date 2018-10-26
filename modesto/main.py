@@ -282,7 +282,8 @@ class Modesto:
             node_obj = self.get_component(name=node)
             node_obj.compile(self.model, start_time)
 
-        self.__build_objectives()
+        if not self.compiled or recompile:
+            self.__build_objectives()
 
         self.compiled = True  # Change compilation flag
 
