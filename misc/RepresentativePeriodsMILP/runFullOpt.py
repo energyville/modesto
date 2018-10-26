@@ -20,6 +20,8 @@ df = pd.DataFrame(
              'E_loss_stor_full',
              'E_curt_full', 'E_sol_full', 'E_net_loss_full', 't_full'])
 
+full_model = CaseFuture.setup_opt(time_step=3600, horizon=365*24*3600)
+
 for VWat in [75000, 100000, 125000]:
     for A in [50000, 100000, 150000]:  # , 60000, 80000]:
         for VSTC in [100000, 150000, 200000]:  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
@@ -39,7 +41,6 @@ for VWat in [75000, 100000, 125000]:
             energy_net_pumping_full = None
             energy_demand = None
 
-            full_model = CaseFuture.setup_opt(time_step=3600, horizon=365*24*3600)
             full_model.change_param(node='SolarArray', comp='solar', param='area', val=A)
             full_model.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
             full_model.change_param(node='WaterscheiGarden', comp='tank', param='volume', val=VWat)
@@ -51,7 +52,7 @@ for VWat in [75000, 100000, 125000]:
             full_model.set_objective('energy')
             print 'Writing time: {}'.format(time.clock() - begin)
 
-            full_model.solve(tee=True, solver='gurobi')
+            full_model.solve(tee=True, solver='gurobi', warmstart=True)
 
             if (full_model.results.solver.status == SolverStatus.ok) and not (
                     full_model.results.solver.termination_condition == TerminationCondition.infeasible):
