@@ -79,6 +79,10 @@ if __name__ == '__main__':
                          'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr', 't_comp'])
             selection = sels[num]
 
+            repr_model, optimizers = RepresentativeWeeks.representative(
+                duration_repr=duration_repr, time_step=time_step,
+                selection=selection)
+
             for VWat in [50000, 75000, 100000, 125000]:
                 for A in [25000, 50000, 75000]:  # , 60000, 80000]:
                     for VSTC in [100000, 150000, 200000]:  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
