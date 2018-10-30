@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from pkg_resources import resource_filename
 
+import progressbar
+
 from misc.RepresentativePeriodsMILP import RepresentativeWeeks
 
 
@@ -54,7 +56,7 @@ if __name__ == '__main__':
     time_step = 3600
     input_data = {
         '1dnewsol': {
-            'dur' : 1,
+            'dur': 1,
             'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/MILP/solutions1.txt'))
         },
         '7dnewsol': {
@@ -79,22 +81,24 @@ if __name__ == '__main__':
                          'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr', 't_comp'])
             selection = sels[num]
 
-            repr_model, optimizers = RepresentativeWeeks.representative(
-                duration_repr=duration_repr, time_step=time_step,
-                selection=selection)
+            bar = progressbar.ProgressBar(maxval=4 * 3 * 3, \
+                                          widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
+            bar.start()
 
-            for VWat in [50000, 75000, 100000, 125000]:
-                for A in [25000, 50000, 75000]:  # , 60000, 80000]:
-                    for VSTC in [100000, 150000, 200000]:  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
-                        print 'A:', str(A)
-                        print 'VWat:', str(VWat)
-                        print 'VSTC:', str(VSTC)
-                        print '========================='
-                        print ''
+            for i, VWat in enumerate([50000, 75000, 100000, 125000]):
+                for j, A in enumerate([25000, 50000, 75000]):  # , 60000, 80000]:
+                    for k, VSTC in enumerate([100000, 150000, 200000]):  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
+                        # print 'A:', str(A)
+                        # print 'VWat:', str(VWat)
+                        # print 'VSTC:', str(VSTC)
+                        # print '========================='
+                        # print ''
                         # Solve representative weeks
                         start_full = time.clock()
 
-                        RepresentativeWeeks.changeParams(optimizers, VSTC=VSTC, VWat=VWat, solArea=A)
+                        repr_model, optimizers = RepresentativeWeeks.representative(
+                            duration_repr=duration_repr, time_step=time_step,
+                            selection=selection, VSTC=VSTC, VWat=VWat, solArea=A)
 
                         compilation_time = time.clock() - start_full
 
@@ -156,7 +160,7 @@ if __name__ == '__main__':
                         #                               '{}w_{}A_{}V_{}P_full.png'.format(
                         #                                   num, A, V, P)),
                         #                  dpi=100, figsize=(8, 6))
-                        print 'Full time:', str(repr_solution_and_comm + compilation_time)
+                        # print 'Full time:', str(repr_solution_and_comm + compilation_time)
                         df = df.append({'A': A, 'VSTC': VSTC, 'VWat': VWat,
                                         'E_backup_full': float(
                                             result_full['E_backup_full']),
@@ -183,7 +187,8 @@ if __name__ == '__main__':
                         if not os.path.isdir(path):
                             os.makedirs(path)
                         df.to_csv(os.path.join(path, 'result{}p.txt'.format(num)), sep=' ')
-
+                        bar.update(9 * i + 3 * j + k + 1)
+            bar.finish()
             print df
 
             # df.to_csv('result6w.txt', sep=' ')
