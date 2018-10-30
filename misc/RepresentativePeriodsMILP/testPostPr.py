@@ -41,51 +41,51 @@ for path in ['1dnewsol', '7dnewsol', '3dnewsol']: #  , '7dnewsol']: # ,
 
 
             ##################
-            resultname = 'sol'
+
             ##################
 
+            for resultname in ['demand', 'backup', 'curt', 'loss_stor', 'net_loss', 'net_pump']:
+                fullname = 'E_{}_full'.format(resultname)
+                reprname = 'E_{}_repr'.format(resultname)
 
-            fullname = 'E_{}_full'.format(resultname)
-            reprname = 'E_{}_repr'.format(resultname)
+                fig = plt.figure()
 
-            fig = plt.figure()
+                sns.set_context("paper")
 
-            sns.set_context("paper")
+                g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='Storage Wat.',
+                               col='Solar coll. area', col_wrap=2, height=3,
+                               sharex=False,
+                               sharey=False, legend=False, markers=['s', 'o', '^', '+'],
+                               hue_order=[50000, 75000, 100000, 125000])
+                acc = 0.025
 
-            g = sns.lmplot(x=fullname, y=reprname, data=data, fit_reg=False, hue='Storage Wat.',
-                           col='Solar coll. area', col_wrap=2, height=3,
-                           sharex=False,
-                           sharey=False, legend=False, markers=['s', 'o', '^', '+'],
-                           hue_order=[50000, 75000, 100000, 125000])
-            acc = 0.025
+                for axnum, ax in enumerate(g.axes):
+                    limmin = np.min([ax.get_xlim(), ax.get_ylim()])
+                    limmax = np.max([ax.get_xlim(), ax.get_ylim()])
 
-            for axnum, ax in enumerate(g.axes):
-                limmin = np.min([ax.get_xlim(), ax.get_ylim()])
-                limmax = np.max([ax.get_xlim(), ax.get_ylim()])
-
-                xlim = ax.get_xlim()
-                ylim = ax.get_ylim()
-                # now plot both limits against eachother
-                g.axes[axnum].plot([limmin, limmax], [limmin, limmax], 'w-', linewidth=2, alpha=0.75, zorder=0)
-                z = g.axes[axnum].fill_between([limmin, limmax], [(1 - acc) * limmin, (1 - acc) * limmax],
-                                               [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.15,
-                                               color='b',
-                                               label='$\pm$' + str(100 * acc) + '%')
+                    xlim = ax.get_xlim()
+                    ylim = ax.get_ylim()
+                    # now plot both limits against eachother
+                    g.axes[axnum].plot([limmin, limmax], [limmin, limmax], 'w-', linewidth=2, alpha=0.75, zorder=0)
+                    z = g.axes[axnum].fill_between([limmin, limmax], [(1 - acc) * limmin, (1 - acc) * limmax],
+                                                   [(1 + acc) * limmin, (1 + acc) * limmax], zorder=-1, alpha=0.15,
+                                                   color='b',
+                                                   label='$\pm$' + str(100 * acc) + '%')
 
 
 
-                ax.set_xlim(limmin, limmax)
-                ax.set_ylim(limmin, limmax)
+                    ax.set_xlim(limmin, limmax)
+                    ax.set_ylim(limmin, limmax)
 
-            g.add_legend(title='Storage volume', bbox_to_anchor=(1, 0.5))
+                g.add_legend(title='Storage volume', bbox_to_anchor=(1, 0.5))
 
-            g.axes[-1].legend([z], ['$\pm$' + str(100 * acc) + '%'], loc='lower right')
+                g.axes[-1].legend([z], ['$\pm$' + str(100 * acc) + '%'], loc='lower right')
 
-            g.set_axis_labels('Full year {} AEU [kWh]'.format(resultname),
-                              'Representative {} AEU [kWh]'.format(resultname))
+                g.set_axis_labels('Full year {} AEU [kWh]'.format(resultname),
+                                  'Representative {} AEU [kWh]'.format(resultname))
 
-            if not os.path.isdir(os.path.join('img', path, resultname)):
-                os.makedirs(os.path.join('img', path, resultname))
-            g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.pdf'),
-                      bbox_inches='tight')
-            plt.close()
+                if not os.path.isdir(os.path.join('img', path, resultname)):
+                    os.makedirs(os.path.join('img', path, resultname))
+                g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.pdf'),
+                          bbox_inches='tight')
+                g.close()

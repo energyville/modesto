@@ -33,6 +33,8 @@ def changeParams(optimizers, VWat, VSTC, solArea):
 
         opt.compile()
 
+    return optimizers
+
 
 def representative(duration_repr, selection, VWat=75000,
                    solArea=2 * (18300 + 15000), VSTC=75000, pipe_model='ExtensivePipe', time_step=3600):
@@ -151,7 +153,7 @@ def representative(duration_repr, selection, VWat=75000,
 
     end = time.clock()
 
-    print 'Writing time:', str(end - begin)
+    # print 'Writing time:', str(end - begin)
 
     return topmodel, optimizers
 
