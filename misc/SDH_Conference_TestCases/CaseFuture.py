@@ -7,7 +7,6 @@
 # # Imports and other stuff
 
 
-
 from __future__ import division
 
 import logging
@@ -20,9 +19,7 @@ from matplotlib.dates import DateFormatter
 from modesto import utils
 from modesto.main import Modesto
 
-from pyomo.util.timing import report_timing
-
-logging.basicConfig(level=logging.WARNING,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('SDH')
@@ -31,13 +28,13 @@ logger = logging.getLogger('SDH')
 # # Network graph
 
 # A first step is to make a networkX object of the network you would like to optimize:
-# 
+#
 # For the model to load correctly into modesto, you need to add some attributes to each of the nodes and edges.
-# 
+#
 # For the nodes (besides the name of the node):
 # * **x, y, and z**: coordinates of the node in meter
 # * **comps**: a dictionary containing all components (except the network pipes) that are connected to the nodes. The keys of the dictionary are the names of the components, the values are the types of the components.
-# 
+#
 # For the edges (besides names of the nodes where the edge starts and stops):
 # * **Name of the edge**
 #
@@ -102,9 +99,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # And create the modesto object
 
-    model = Modesto(horizon=horizon,
-                    time_step=time_step,
-                    pipe_model=pipe_model,
+    model = Modesto(pipe_model=pipe_model,
                     graph=G)
 
     # # Adding data
@@ -118,8 +113,6 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # #### Weather data:
 
-
-
     from pkg_resources import resource_filename
 
     datapath = resource_filename('modesto', 'Data')
@@ -127,11 +120,14 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
     wd = utils.read_time_data(datapath, name='Weather/weatherData.csv')
     t_amb = wd['Te']
     t_g = wd['Tg']
+    QsolN = wd['QsolN']
+    QsolE = wd['QsolS']
+    QsolS = wd['QsolN']
+    QsolW = wd['QsolW']
 
     # #### Electricity price
 
     # In[11]:
-
 
     c_f = utils.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
 
@@ -139,18 +135,21 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # In order to solve the problem, all parameters of the optimization probkem need to get a value. A list of the parameters that modesto needs and their description can be found with the following command:
 
-
-
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': horizon,
+                      'elec_cost': c_f}
 
     model.change_params(general_params)
 
     # Notice how all parameters are first grouped together in a dictionary and then given all at once to modesto.
     #
     # If we print the parameters again, we can see the values have now been added:
-
-
 
     building_params_common = {
         'delta_T': 40,
@@ -176,14 +175,14 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # ### Heat generation unit
 
-
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'delta_T': 40,
+                   'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    'Qmax': 15e7,
-                   'ramp_cost': 0.01,
-                   'ramp': 1e6 / 3600}
+                   'ramp_cost': 0.00,
+                   'ramp': 15e7}
 
     model.change_params(prod_design, 'Production', 'backup')
     STOR_COST = resource_filename('modesto', 'Data/Investment/Storage.xlsx')
@@ -207,14 +206,13 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
     # ### Storage Unit
 
-
     stor_design = {
         'Thi': 70 + 273.15,
         'Tlo': 30 + 273.15,
-        'mflo_max': 1100,
-        'mflo_min': -1100,
+        'mflo_max': 11000,
+        'mflo_min': -11000,
         'mflo_use': pd.Series(0, index=t_amb.index),
-        'volume': 1500e3,
+        'volume': 150e3,
         'ar': 1,
         'dIns': 1,
         'kIns': 0.024,
@@ -231,10 +229,10 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
             {
                 'Thi': 70 + 273.15,
                 'Tlo': 30 + 273.15,
-                'mflo_max': 1100,
-                'mflo_min': -1100,
+                'mflo_max': 11000,
+                'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
-                'volume': 200e3,
+                'volume': 20e3,
                 'ar': 1,
                 'dIns': 1,
                 'kIns': 0.024,
@@ -245,8 +243,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
             {
                 'Thi': 70 + 273.15,
                 'Tlo': 30 + 273.15,
-                'mflo_max': 1100,
-                'mflo_min': -1100,
+                'mflo_max': 11000,
+                'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
                 'volume': 600e3,
                 'ar': 1,
@@ -294,15 +292,17 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600, verbose=False):
 
 if __name__ == '__main__':
 
-    report_timing()
+    # report_timing()
+
+    logging.getLogger()
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=6*3600)#*24*365)
+    optmodel = setup_opt(time_step=3600, horizon=3600*24*365)
     optmodel.compile(start_time=start_time)
-    optmodel.set_objective('cost')
+    optmodel.set_objective('energy')
     optmodel.opt_settings(allow_flow_reversal=True)
-    sol = optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=True, timelim=1)
+    sol = optmodel.solve(tee=True, solver='gurobi')
     print 'Status: {}'.format(sol)
     # ## Collecting results
 
@@ -315,8 +315,6 @@ if __name__ == '__main__':
     print 'Cost:  ', optmodel.get_objective('cost')
 
     # print optmodel.get_investment_cost()
-
-
 
     # modesto has the get_result method, which allows to get the optimal values of the optimization variables:
 
@@ -359,7 +357,6 @@ if __name__ == '__main__':
     ax.plot(df)
     #
     # fig.autofmt_xdate()
-
 
     # Sum of heat flows
     prod_e = sum(inputs['Production'])
@@ -408,12 +405,11 @@ if __name__ == '__main__':
 
     axs[0].plot(inputs['Production'] / (mass_flows['Production'] * 4180), label='Heat flow')
     axs[0].axhline(40)
-    axs[0].set_ylim(0, 200)
 
-    axs[0].set_ylabel('Heat flow [W]')
+    axs[0].set_ylabel('Effective temperature difference [K]')
 
     axs[1].semilogy(inputs['Production'] / (mass_flows['Production'] * 4180) - 40)
-    axs[1].set_ylabel('Difference [W]')
+    axs[1].set_ylabel('Difference in $\Delta T$ [K]')
 
     for ax in axs:
         ax.legend()
@@ -457,4 +453,9 @@ if __name__ == '__main__':
 
     fig.savefig('img/Future/StoragePlot.png', dpi=300)
 
+    df = pd.DataFrame()
+    df['hf'] = optmodel.get_result('heat_flow',comp='backup', node='Production')
+    df['mf'] = optmodel.get_result('mass_flow',comp='backup', node='Production')
+
+    df.to_csv('results.txt')
     plt.show()

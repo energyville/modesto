@@ -7,19 +7,17 @@
 # # Imports and other stuff
 
 
-
 from __future__ import division
 
 import logging
 
 import matplotlib.pyplot as plt
-from matplotlib.dates import DateFormatter
 import networkx as nx
 import pandas as pd
+from matplotlib.dates import DateFormatter
 
 import modesto.utils as ut
 from modesto.main import Modesto
-
 
 logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -30,18 +28,18 @@ logger = logging.getLogger('SDH')
 # # Network graph
 
 # A first step is to make a networkX object of the network you would like to optimize:
-# 
+#
 # For the model to load correctly into modesto, you need to add some attributes to each of the nodes and edges.
-# 
+#
 # For the nodes (besides the name of the node):
 # * **x, y, and z**: coordinates of the node in meter
 # * **comps**: a dictionary containing all components (except the network pipes) that are connected to the nodes. The keys of the dictionary are the names of the components, the values are the types of the components.
-# 
+#
 # For the edges (besides names of the nodes where the edge starts and stops):
 # * **Name of the edge**
 #
 
-def setup_opt():
+def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
     G = nx.DiGraph()
 
     G.add_node('WaterscheiGarden', x=0, y=0, z=0,
@@ -83,15 +81,13 @@ def setup_opt():
     # * **Start time** (should be a pandas TimeStamp). Currently, weather and prixe data for 2014 are available in modesto.
     # * **Pipe model**: The type of model used to model the pipes. Only one type can be selected for the whole optimization problem (unlike the component model types). Possibilities: SimplePipe (= perfect pipe, no losses, no time delays), ExtensivePipe (limited mass flows and heat losses, no time delays) and NodeMethod (heat losses and time delays, but requires mass flow rates to be known in advance)
 
-    horizon = 365 * 24 * 3600
-    time_step = 6 * 3600
+    horizon = horizon
+    time_step = time_step
     pipe_model = 'ExtensivePipe'
 
     # And create the modesto object
 
-    model = Modesto(horizon=horizon,
-                    time_step=time_step,
-                    pipe_model=pipe_model,
+    model = Modesto(pipe_model=pipe_model,
                     graph=G)
 
     # # Adding data
@@ -105,8 +101,6 @@ def setup_opt():
 
     # #### Weather data:
 
-
-
     from pkg_resources import resource_filename
 
     datapath = resource_filename('modesto', 'Data')
@@ -114,11 +108,14 @@ def setup_opt():
     wd = ut.read_time_data(datapath, name='Weather/weatherData.csv')
     t_amb = wd['Te']
     t_g = wd['Tg']
+    QsolN = wd['QsolN']
+    QsolE = wd['QsolS']
+    QsolS = wd['QsolN']
+    QsolW = wd['QsolW']
 
     # #### Electricity price
 
     # In[11]:
-
 
     c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
 
@@ -126,18 +123,21 @@ def setup_opt():
 
     # In order to solve the problem, all parameters of the optimization probkem need to get a value. A list of the parameters that modesto needs and their description can be found with the following command:
 
-
-
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': horizon,
+                      'elec_cost': c_f}
 
     model.change_params(general_params)
 
     # Notice how all parameters are first grouped together in a dictionary and then given all at once to modesto.
     #
     # If we print the parameters again, we can see the values have now been added:
-
-
 
     building_params_common = {
         'delta_T': 40,
@@ -161,8 +161,8 @@ def setup_opt():
 
     # ### Heat generation unit
 
-
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'delta_T': 40,
+                   'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
@@ -205,14 +205,13 @@ def setup_opt():
     return model
 
 
-
 if __name__ == '__main__':
     optmodel = setup_opt()
     start_time = pd.Timestamp('20140101')
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
-    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False, timelim=15)
+    optmodel.solve(tee=True, mipgap=0.001, solver='gurobi', probe=False)
 
     # ## Collecting results
 
@@ -264,7 +263,6 @@ if __name__ == '__main__':
     #
     # fig.autofmt_xdate()
 
-
     # Sum of heat flows
     prod_e = sum(inputs['Production'])
     waterschei_e = sum(heat_flows['WaterscheiGarden'])
@@ -280,6 +278,8 @@ if __name__ == '__main__':
         axs[0].plot(optmodel.get_result('heat_loss_tot', comp=pipe), label=pipe)
         axs[1].plot(optmodel.get_result('mass_flow', comp=pipe), label=pipe)
     axs[1].legend()
+    axs[0].set_ylabel('Heat_loss_tot [W]')
+    axs[1].set_ylabel('Mass flow [kg/s]')
 
     for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servWat']:
         print pipe, str(round(sum(optmodel.get_result('heat_loss_tot', comp=pipe)) / 1e6, 2)), 'MWh'
@@ -288,7 +288,7 @@ if __name__ == '__main__':
     mass_flows = pd.DataFrame()
     mass_flows['Production'] = optmodel.get_result('mass_flow', node='Production', comp='backup')
 
-    fig, axs = plt.subplots(2, 1, sharex=True)
+    fig, axs = plt.subplots(3, 1, sharex=True)
 
     axs[0].plot(inputs['Production'], label='Heat flow')
     axs[0].plot(mass_flows['Production'] * 40 * 4180, label='$\dot{m}c_p\Delta T$')
@@ -298,6 +298,13 @@ if __name__ == '__main__':
 
     axs[1].plot(inputs['Production'] - mass_flows['Production'] * 40 * 4180)
     axs[1].set_ylabel('Difference [W]')
+
+    for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servWat']:
+        axs[2].plot(optmodel.get_result('slack_heat_loss', comp=pipe), label=pipe)
+    axs[2].legend()
+    axs[2].set_ylabel('Slack [W]')
+    axs[0].set_title('Heat flow error in pipes')
+
 
     for ax in axs:
         ax.legend()
@@ -310,10 +317,12 @@ if __name__ == '__main__':
     axs[0].axhline(40)
     axs[0].set_ylim(0, 200)
 
-    axs[0].set_ylabel('Heat flow [W]')
+    axs[0].set_ylabel('Virtual $\Delta T$ [K]')
 
     axs[1].semilogy(inputs['Production'] / (mass_flows['Production'] * 4180) - 40)
-    axs[1].set_ylabel('Difference [W]')
+    axs[1].set_ylabel('Difference [K]')
+
+    axs[0].set_title('Temperature error in pipes')
 
     for ax in axs:
         ax.legend()

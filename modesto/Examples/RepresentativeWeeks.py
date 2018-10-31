@@ -147,7 +147,8 @@ for start_day, duration in selection.iteritems():
     }, node='Node', comp='storage')
     optmodel.change_init_type('heat_stor', 'free', node='Node', comp='storage')
 
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'delta_T':40,
+                   'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,

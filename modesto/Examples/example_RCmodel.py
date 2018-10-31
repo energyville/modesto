@@ -10,7 +10,7 @@ from pkg_resources import resource_filename
 import modesto.utils as ut
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
@@ -51,8 +51,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(horizon=n_steps * time_step, time_step=time_step,
-                       pipe_model='ExtensivePipe', graph=G)
+    optmodel = Modesto(pipe_model='ExtensivePipe', graph=G)
 
     ##################################
     # Fill in the parameters         #
@@ -82,8 +81,18 @@ def construct_model():
 
     # general parameters
 
+    datapath = resource_filename('modesto', 'Data')
+    c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+
     general_params = {'Te': t_amb,
-                      'Tg': t_g}
+                      'Tg': t_g,
+                      'Q_sol_E': QsolE,
+                      'Q_sol_W': QsolW,
+                      'Q_sol_S': QsolS,
+                      'Q_sol_N': QsolN,
+                      'time_step': time_step,
+                      'horizon': n_steps * time_step,
+                      'elec_cost': c_f}
 
     optmodel.change_params(general_params)
 
@@ -100,14 +109,8 @@ def construct_model():
                           'floor_min_temperature': floor_min,
                           'floor_max_temperature': floor_max,
                           'model_type': 'SFH_T_5_ins_TAB',
-                          'Q_sol_E': QsolE,
-                          'Q_sol_W': QsolW,
-                          'Q_sol_S': QsolS,
-                          'Q_sol_N': QsolN,
                           'Q_int_D': Q_int_D,
                           'Q_int_N': Q_int_N,
-                          'Te': t_amb,
-                          'Tg': t_g,
                           'TiD0': 20 + 273.15,
                           'TflD0': 20 + 273.15,
                           'TwiD0': 20 + 273.15,
@@ -176,7 +179,8 @@ def construct_model():
                             name='DAM_electricity_prices-2014_BE.csv')['price_BE']
     # cf = pd.Series(0.5, index=t_amb.index)
 
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'delta_T': 20,
+                   'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
