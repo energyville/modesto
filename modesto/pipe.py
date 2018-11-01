@@ -12,7 +12,8 @@ from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 from component import Component
 from modesto import utils
-from parameter import DesignParameter, StateParameter, UserDataParameter, SeriesParameter, WeatherDataParameter, \
+from parameter import DesignParameter, StateParameter, UserDataParameter, \
+    SeriesParameter, WeatherDataParameter, \
     TimeSeriesParameter
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
@@ -29,8 +30,10 @@ def str_to_pipe(string):
 
 
 class Pipe(Component):
-    def __init__(self, name, start_node, end_node, length, allow_flow_reversal=False,
-                 temperature_driven=False, direction=1):
+    def __init__(self, name, start_node, end_node, length,
+                 allow_flow_reversal=False,
+                 temperature_driven=False, direction=1,
+                 repr_days=None):
         """
         Class that sets up an optimization model for a DHC pipe
 
@@ -46,7 +49,8 @@ class Pipe(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           repr_days=repr_days)
         # TODO actually pipe does not need a direction
 
         self.params = self.create_params()
@@ -63,8 +67,9 @@ class Pipe(Component):
 
     @staticmethod
     def get_pipe_catalog():
-        df = pd.read_csv(os.path.join(CATALOG_PATH, 'IsoPlusDoubleStandard.csv'), sep=';',
-                         index_col='DN')
+        df = pd.read_csv(
+            os.path.join(CATALOG_PATH, 'IsoPlusDoubleStandard.csv'), sep=';',
+            index_col='DN')
         return df
 
     def get_investment_cost(self):
@@ -73,7 +78,8 @@ class Pipe(Component):
 
         :return: Cost in EUR
         """
-        return self.length * self.params['cost_inv'].v(self.params['diameter'].v())
+        return self.length * self.params['cost_inv'].v(
+            self.params['diameter'].v())
 
     def create_params(self):
         params = Component.create_params(self)
@@ -87,7 +93,9 @@ class Pipe(Component):
                                         unit='EUR/m',
                                         unit_index='DN (mm)',
                                         val=utils.read_xlsx_data(
-                                            resource_filename('modesto', 'Data/Investment/Pipe.xlsx'))['Cost_m']),
+                                            resource_filename('modesto',
+                                                              'Data/Investment/Pipe.xlsx'))[
+                                            'Cost_m']),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
                                        'K'),
@@ -111,19 +119,31 @@ class Pipe(Component):
 
         return params
 
-    def get_edge_mflo(self, node, t):
+    def get_edge_mflo(self, node, t, c=None):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
-        return self.get_edge_direction(node) * self.block.mass_flow[t]
-
-    def get_edge_heat(self, node, t):
-        assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
-        if node == self.start_node:
-            return -1 * self.block.heat_flow_in[t]
-        elif node == self.end_node:
-            return self.block.heat_flow_out[t]
+        if c is None:
+            return self.get_edge_direction(node) * self.block.mass_flow[t]
         else:
-            warnings.warn('Warning: node not contained in this pipe')
-            exit(1)
+            return self.get_edge_direction(node) * self.block.mass_flow[t, c]
+
+    def get_edge_heat(self, node, t, c=None):
+        assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
+        if c is None:
+            if node == self.start_node:
+                return -1 * self.block.heat_flow_in[t]
+            elif node == self.end_node:
+                return self.block.heat_flow_out[t]
+            else:
+                warnings.warn('Warning: node not contained in this pipe')
+                exit(1)
+        else:
+            if node == self.start_node:
+                return -1 * self.block.heat_flow_in[t, c]
+            elif node == self.end_node:
+                return self.block.heat_flow_out[t, c]
+            else:
+                warnings.warn('Warning: node not contained in this pipe')
+                exit(1)
 
     def get_edge_direction(self, node, line='supply'):
         assert self.block is not None, "Pipe %s has not been compiled yet" % self.name
@@ -138,7 +158,8 @@ class Pipe(Component):
 
 class SimplePipe(Pipe):
     def __init__(self, name, start_node, end_node,
-                 length, allow_flow_reversal=False, temperature_driven=False):
+                 length, allow_flow_reversal=False, temperature_driven=False,
+                 repr_days=None):
         """
         Class that sets up a very simple model of pipe
         No inertia, no time delays, heat_in = heat_out
@@ -156,7 +177,8 @@ class SimplePipe(Pipe):
                       end_node=end_node,
                       length=length,
                       allow_flow_reversal=allow_flow_reversal,
-                      temperature_driven=temperature_driven)
+                      temperature_driven=temperature_driven,
+                      repr_days=repr_days)
 
         self.params['diameter'].change_value(20)
 
@@ -173,21 +195,33 @@ class SimplePipe(Pipe):
         Component.compile(self, model, start_time)
 
         if not self.compiled:
-            self.block.heat_flow_in = Var(self.TIME)
-            self.block.heat_flow_out = Var(self.TIME)
-            self.block.mass_flow = Var(self.TIME)
+            if self.repr_days is None:
+                self.block.heat_flow_in = Var(self.TIME)
+                self.block.heat_flow_out = Var(self.TIME)
+                self.block.mass_flow = Var(self.TIME)
 
-            def _heat_flow(b, t):
-                return b.heat_flow_in[t] == b.heat_flow_out[t]
+                def _heat_flow(b, t):
+                    return b.heat_flow_in[t] == b.heat_flow_out[t]
 
-            self.block.heat_flow = Constraint(self.TIME, rule=_heat_flow)
+                self.block.heat_flow = Constraint(self.TIME, rule=_heat_flow)
+            else:
+                self.block.heat_flow_in = Var(self.TIME, self.REPR_DAYS)
+                self.block.heat_flow_out = Var(self.TIME, self.REPR_DAYS)
+                self.block.mass_flow = Var(self.TIME, self.REPR_DAYS)
+
+                def _heat_flow(b, t, c):
+                    return b.heat_flow_in[t] == b.heat_flow_out[t]
+
+                self.block.heat_flow = Constraint(self.TIME, self.REPR_DAYS,
+                                                  rule=_heat_flow)
 
         self.compiled = True
 
 
 class ExtensivePipe(Pipe):
     def __init__(self, name, start_node,
-                 end_node, length, allow_flow_reversal=True, temperature_driven=False, heat_var=0.01):
+                 end_node, length, allow_flow_reversal=True,
+                 temperature_driven=False, heat_var=0.01,):
         """
         Class that sets up an extensive model of the pipe. This model uses fixed temperatures, variable mass and heat
         flow rates, and calculates steady state heat losses based on the temperature levels that are set beforehand.
@@ -231,10 +265,12 @@ class ExtensivePipe(Pipe):
 
         self.n_pump_constr = 3  # Number of linear pieces in pumping power approximation
 
-        self.params['temperature_supply'] = DesignParameter('temperature_supply', 'Supply temperature', 'K',
-                                                            mutable=True)
-        self.params['temperature_return'] = DesignParameter('temperature_return', 'Return temperature', 'K',
-                                                            mutable=True)
+        self.params['temperature_supply'] = DesignParameter(
+            'temperature_supply', 'Supply temperature', 'K',
+            mutable=True)
+        self.params['temperature_return'] = DesignParameter(
+            'temperature_return', 'Return temperature', 'K',
+            mutable=True)
 
     def compile(self, model, start_time):
         """
@@ -276,7 +312,7 @@ class ExtensivePipe(Pipe):
 
         self.mflo_max = vflomax[self.dn] * 1000 / 3600
 
-        Tg = self.params["Tg"].v()
+        Tg = self.params["Tg"]
         Rs = self.Rs[self.dn]
 
         self.temp_sup = self.params['temperature_supply'].v()
@@ -284,7 +320,9 @@ class ExtensivePipe(Pipe):
 
         if self.compiled:
             for t in self.TIME:
-                self.block.heat_loss_nom[t] = (self.temp_sup + self.temp_ret - 2 * Tg[t]) / Rs
+                self.block.heat_loss_nom[t] = (
+                                                      self.temp_sup + self.temp_ret - 2 *
+                                                      Tg[t]) / Rs
 
             self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
             self.construct_pumping_constraints()
@@ -292,10 +330,11 @@ class ExtensivePipe(Pipe):
             """
             Parameters and sets
             """
-            self.block.mass_flow_max = Param(initialize=vflomax[self.dn] * 1000 / 3600, mutable=True)
+            self.block.mass_flow_max = Param(
+                initialize=vflomax[self.dn] * 1000 / 3600, mutable=True)
 
             # Maximal heat loss per unit length
-            def _heat_loss(b, t):
+            def _heat_loss(b, t, c=None):
                 """
                 Rule to calculate maximal heat loss per unit length
 
@@ -304,26 +343,47 @@ class ExtensivePipe(Pipe):
                 :param dn: DN index
                 :return: Heat loss in W/m
                 """
-                dq = (self.temp_sup + self.temp_ret - 2 * Tg[t]) / Rs
+                dq = (self.temp_sup + self.temp_ret - 2 * Tg.v(t, c)) / Rs
                 return dq
-
-            self.block.heat_loss_nom = Param(self.TIME, rule=_heat_loss, mutable=True)
+            if self.repr_days is None:
+                self.block.heat_loss_nom = Param(self.TIME, rule=_heat_loss,
+                                             mutable=True)
+            else:
+                self.block.heat_loss_nom = Param(self.TIME, self.REPR_DAYS,
+                                                 rule=_heat_loss, mutable=True)
 
             """
             Variables
             """
 
             mflo_ub = (-self.block.mass_flow_max,
-                       self.block.mass_flow_max) if self.allow_flow_reversal else (0, self.block.mass_flow_max)
+                       self.block.mass_flow_max) if self.allow_flow_reversal else (
+            0, self.block.mass_flow_max)
 
             # Real valued
-            self.block.heat_flow_in = Var(self.TIME, doc='Heat flow entering in-node')
-            self.block.heat_flow_out = Var(self.TIME, doc='Heat flow exiting out-node')
+            if self.repr_days is None:
+                self.block.heat_flow_in = Var(self.TIME,
+                                              doc='Heat flow entering in-node')
+                self.block.heat_flow_out = Var(self.TIME,
+                                               doc='Heat flow exiting out-node')
 
-            self.block.mass_flow = Var(self.TIME, bounds=mflo_ub,
-                                       doc='Mass flow rate entering in-node and exiting out-node')
+                self.block.mass_flow = Var(self.TIME, bounds=mflo_ub,
+                                           doc='Mass flow rate entering in-node and exiting out-node')
 
-            self.block.heat_loss_tot = Var(self.TIME, within=NonNegativeReals, doc='Total heat lost from pipe')
+                self.block.heat_loss_tot = Var(self.TIME, within=NonNegativeReals,
+                                               doc='Total heat lost from pipe')
+            else:
+                self.block.heat_flow_in = Var(self.TIME, self.REPR_DAYS,
+                                              doc='Heat flow entering in-node')
+                self.block.heat_flow_out = Var(self.TIME, self.REPR_DAYS,
+                                               doc='Heat flow exiting out-node')
+
+                self.block.mass_flow = Var(self.TIME, self.REPR_DAYS, bounds=mflo_ub,
+                                           doc='Mass flow rate entering in-node and exiting out-node')
+
+                self.block.heat_loss_tot = Var(self.TIME, self.REPR_DAYS,
+                                               within=NonNegativeReals,
+                                               doc='Total heat lost from pipe')
 
             """
             Pipe model
@@ -334,24 +394,30 @@ class ExtensivePipe(Pipe):
             ##############
 
             def _eq_heat_flow_bal(b, t):
-                return b.heat_flow_in[t] == b.heat_loss_tot[t] + b.heat_flow_out[t]
+                return b.heat_flow_in[t] == b.heat_loss_tot[t] + \
+                       b.heat_flow_out[t]
 
-            self.block.eq_heat_flow_bal = Constraint(self.TIME, rule=_eq_heat_flow_bal)
+            self.block.eq_heat_flow_bal = Constraint(self.TIME,
+                                                     rule=_eq_heat_flow_bal)
 
             ################
             # INEQUALITIES #
             ################
 
             def _eq_heat_loss_forw(b, t):
-                return b.heat_loss_tot[t] >= b.heat_loss_nom[t] * b.mass_flow[t] / (
-                        self.hl_setting * b.mass_flow_max) * self.length
+                return b.heat_loss_tot[t] >= b.heat_loss_nom[t] * b.mass_flow[
+                    t] / (
+                               self.hl_setting * b.mass_flow_max) * self.length
 
             def _eq_heat_loss_rev(b, t):
-                return b.heat_loss_tot[t] >= - b.heat_loss_nom[t] * b.mass_flow[t] / (
-                        self.hl_setting * b.mass_flow_max) * self.length
+                return b.heat_loss_tot[t] >= - b.heat_loss_nom[t] * b.mass_flow[
+                    t] / (
+                               self.hl_setting * b.mass_flow_max) * self.length
 
-            self.block.eq_heat_loss_forw = Constraint(self.TIME, rule=_eq_heat_loss_forw)
-            self.block.eq_heat_loss_rev = Constraint(self.TIME, rule=_eq_heat_loss_rev)
+            self.block.eq_heat_loss_forw = Constraint(self.TIME,
+                                                      rule=_eq_heat_loss_forw)
+            self.block.eq_heat_loss_rev = Constraint(self.TIME,
+                                                     rule=_eq_heat_loss_rev)
 
             self.construct_pumping_constraints()
 
@@ -382,7 +448,8 @@ class ExtensivePipe(Pipe):
         if self.compiled:
             for n in self.n_pump:
                 self.block.pps[n] = 2 * self.f * self.length * (
-                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
+                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (
+                                            di ** 5 * 983 ** 2 * pi ** 2)
         else:
             n_segments = self.n_pump_constr
             self.n_pump = range(n_segments + 1)
@@ -391,16 +458,22 @@ class ExtensivePipe(Pipe):
 
             for n in self.n_pump:
                 self.block.pps[n] = 2 * self.f * self.length * (
-                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
+                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (
+                                            di ** 5 * 983 ** 2 * pi ** 2)
 
             self.block.pumping_power = Var(self.TIME, within=NonNegativeReals)
 
             for i in range(n_segments):
                 def _ineq_pumping(b, t):
-                    return b.pumping_power[t] >= (b.mass_flow[t] / b.mass_flow_max - self.mfs_ratio[i]) / (
-                                self.mfs_ratio[i + 1] - self.mfs_ratio[i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
+                    return b.pumping_power[t] >= (
+                            b.mass_flow[t] / b.mass_flow_max - self.mfs_ratio[
+                        i]) / (
+                                   self.mfs_ratio[i + 1] - self.mfs_ratio[
+                               i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
 
-                self.block.add_component('ineq_pumping_' + str(i), Constraint(self.TIME, rule=_ineq_pumping))
+                self.block.add_component('ineq_pumping_' + str(i),
+                                         Constraint(self.TIME,
+                                                    rule=_ineq_pumping))
 
     def obj_energy(self):
         pef_el = self.params['PEF_el'].v()
@@ -408,7 +481,8 @@ class ExtensivePipe(Pipe):
         eta_elmo = self.params['eta_elmo'].v()
 
         return pef_el / eta_mech / eta_elmo * sum(
-            self.block.pumping_power[t] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+            self.block.pumping_power[t] * self.params[
+                'time_step'].v() / 3600 / 1000 for t in self.TIME)
 
     def obj_elec_cost(self):
         cost = self.params['elec_cost'].v()
@@ -416,12 +490,14 @@ class ExtensivePipe(Pipe):
         eta_elmo = self.params['eta_elmo'].v()
 
         return 1 / eta_mech / eta_elmo * sum(
-            cost[t] * self.block.pumping_power[t] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+            cost[t] * self.block.pumping_power[t] * self.params[
+                'time_step'].v() / 3600 / 1000 for t in self.TIME)
 
 
 class NodeMethod(Pipe):
     def __init__(self, name, start_node,
-                 end_node, length, allow_flow_reversal=False, temperature_driven=False, direction=1):
+                 end_node, length, allow_flow_reversal=False,
+                 temperature_driven=False, direction=1):
         """
         Class that sets up an extensive model of the pipe
 
@@ -463,33 +539,39 @@ class NodeMethod(Pipe):
                                                         'Historic mass flows through the pipe (positive if rom start to stop node)',
                                                         'kg/s')
 
-        params['temperature_history_supply'] = UserDataParameter('temperature_history_supply',
-                                                                 'Historic incoming temperatures for the supply line, first value is the most recent value',
-                                                                 'K')
+        params['temperature_history_supply'] = UserDataParameter(
+            'temperature_history_supply',
+            'Historic incoming temperatures for the supply line, first value is the most recent value',
+            'K')
 
-        params['temperature_history_return'] = UserDataParameter('temperature_history_return',
-                                                                 'Historic incoming temperatures for the return line, first value is the most recent value',
-                                                                 'K')
+        params['temperature_history_return'] = UserDataParameter(
+            'temperature_history_return',
+            'Historic incoming temperatures for the return line, first value is the most recent value',
+            'K')
 
-        params['wall_temperature_supply'] = StateParameter('wall_temperature_supply',
-                                                           'Initial temperature of supply pipe wall',
-                                                           'K',
-                                                           'fixedVal')
+        params['wall_temperature_supply'] = StateParameter(
+            'wall_temperature_supply',
+            'Initial temperature of supply pipe wall',
+            'K',
+            'fixedVal')
 
-        params['wall_temperature_return'] = StateParameter('wall_temperature_return',
-                                                           'Initial temperature of return pipe wall',
-                                                           'K',
-                                                           'fixedVal')
+        params['wall_temperature_return'] = StateParameter(
+            'wall_temperature_return',
+            'Initial temperature of return pipe wall',
+            'K',
+            'fixedVal')
 
-        params['temperature_out_supply'] = StateParameter('temperature_out_supply',
-                                                          'Initial temperature of outgoing supply water',
-                                                          'K',
-                                                          'fixedVal')
+        params['temperature_out_supply'] = StateParameter(
+            'temperature_out_supply',
+            'Initial temperature of outgoing supply water',
+            'K',
+            'fixedVal')
 
-        params['temperature_out_return'] = StateParameter('temperature_out_return',
-                                                          'Initial temperature of outgoing return water',
-                                                          'K',
-                                                          'fixedVal')
+        params['temperature_out_return'] = StateParameter(
+            'temperature_out_return',
+            'Initial temperature of outgoing return water',
+            'K',
+            'fixedVal')
         params['lines'] = DesignParameter('lines',
                                           unit='-',
                                           description='List of names of the lines that can be found in the network, e.g. '
@@ -506,14 +588,18 @@ class NodeMethod(Pipe):
             elif line == 'return':
                 return self.block.temperature_out[line, t]
             else:
-                raise ValueError('The input line can only take the values from {}'.format(self.params['lines'].v()))
+                raise ValueError(
+                    'The input line can only take the values from {}'.format(
+                        self.params['lines'].v()))
         elif node == self.end_node:
             if line == 'supply':
                 return self.block.temperature_out[line, t]
             elif line == 'return':
                 return self.block.temperature_in[line, t]
             else:
-                raise ValueError('The input line can only take the values from {}'.format(self.params['lines'].v()))
+                raise ValueError(
+                    'The input line can only take the values from {}'.format(
+                        self.params['lines'].v()))
         else:
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
@@ -537,13 +623,16 @@ class NodeMethod(Pipe):
         time_step = self.params['time_step'].v()
         n_steps = int(self.params['horizon'].v() / time_step)
 
-        self.block.all_time = Set(initialize=range(self.history_length + n_steps), ordered=True)
+        self.block.all_time = Set(
+            initialize=range(self.history_length + n_steps), ordered=True)
 
         pipe_wall_rho = 7.85 * 10 ** 3  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html kg/m^3
         pipe_wall_c = 461  # http://www.steel-grades.com/Steel-Grades/Structure-Steel/en-p235.html J/kg/K
-        pipe_wall_volume = np.pi * (self.Do[dn] ** 2 - self.Di[dn] ** 2) / 4 * self.length
+        pipe_wall_volume = np.pi * (
+                self.Do[dn] ** 2 - self.Di[dn] ** 2) / 4 * self.length
         C = pipe_wall_volume * pipe_wall_c * pipe_wall_rho
-        surface = np.pi * self.Di[dn] ** 2 / 4  # cross sectional area of the pipe
+        surface = np.pi * self.Di[
+            dn] ** 2 / 4  # cross sectional area of the pipe
         Z = surface * self.rho * self.length  # water mass in the pipe
 
         # TODO Move capacity?
@@ -555,11 +644,16 @@ class NodeMethod(Pipe):
 
         # Declare temperature variables ################################################################################
 
-        self.block.temperatures = Var(lines, self.block.all_time)  # all temperatures (historical and future)
-        self.block.temperature_out_nhc = Var(lines, self.block.all_time)  # no heat capacity (only future)
-        self.block.temperature_out_nhl = Var(lines, self.block.all_time)  # no heat losses (only future)
-        self.block.temperature_out = Var(lines, self.block.all_time)  # no heat losses (only future)
-        self.block.temperature_in = Var(lines, self.block.all_time)  # incoming temperature (future)
+        self.block.temperatures = Var(lines,
+                                      self.block.all_time)  # all temperatures (historical and future)
+        self.block.temperature_out_nhc = Var(lines,
+                                             self.block.all_time)  # no heat capacity (only future)
+        self.block.temperature_out_nhl = Var(lines,
+                                             self.block.all_time)  # no heat losses (only future)
+        self.block.temperature_out = Var(lines,
+                                         self.block.all_time)  # no heat losses (only future)
+        self.block.temperature_in = Var(lines,
+                                        self.block.all_time)  # incoming temperature (future)
 
         # Declare list filled with all previous mass flows and future mass flows #######################################
 
@@ -569,25 +663,31 @@ class NodeMethod(Pipe):
             else:
                 return self.params['mass_flow_history'].v(t - n_steps)
 
-        self.block.mf_history = Param(self.block.all_time, rule=_decl_mf_history)
+        self.block.mf_history = Param(self.block.all_time,
+                                      rule=_decl_mf_history)
 
         # Declare list filled with all previous temperatures for every optimization step ###############################
 
         def _decl_temp_history(b, t, l):
             if t < n_steps:
-                return b.temperatures[l, t] == b.temperature_in[l, n_steps - t - 1]
+                return b.temperatures[l, t] == b.temperature_in[
+                    l, n_steps - t - 1]
             else:
-                return b.temperatures[l, t] == self.params['temperature_history_' + l].v(t - n_steps)
+                return b.temperatures[l, t] == self.params[
+                    'temperature_history_' + l].v(t - n_steps)
 
-        self.block.def_temp_history = Constraint(self.block.all_time, lines, rule=_decl_temp_history)
+        self.block.def_temp_history = Constraint(self.block.all_time, lines,
+                                                 rule=_decl_temp_history)
 
         # Initialize incoming temperature ##############################################################################
 
         def _decl_init_temp_in(b, l):
-            return b.temperature_in[l, 0] == self.params['temperature_history_' + l].v(
+            return b.temperature_in[l, 0] == self.params[
+                'temperature_history_' + l].v(
                 0)  # TODO better initialization??
 
-        self.block.decl_init_temp_in = Constraint(lines, rule=_decl_init_temp_in)
+        self.block.decl_init_temp_in = Constraint(lines,
+                                                  rule=_decl_init_temp_in)
 
         # Define n #####################################################################################################
 
@@ -608,7 +708,8 @@ class NodeMethod(Pipe):
         # Eq 3.4.3
         def _decl_r(b, t):
             return sum(self.block.mf_history[i] for i in
-                       range(n_steps - 1 - t, n_steps - 1 - t + b.n[t] + 1)) * time_step
+                       range(n_steps - 1 - t,
+                             n_steps - 1 - t + b.n[t] + 1)) * time_step
 
         self.block.R = Param(self.TIME, rule=_decl_r)
 
@@ -633,8 +734,10 @@ class NodeMethod(Pipe):
         self.block.Y = Var(lines, self.TIME)
 
         def _y(b, t, l):
-            return b.Y[l, t] == sum(b.mf_history[i] * b.temperatures[l, i] * time_step
-                                    for i in range(n_steps - 1 - t + b.n[t] + 1, n_steps - 1 - t + b.m[t]))
+            return b.Y[l, t] == sum(
+                b.mf_history[i] * b.temperatures[l, i] * time_step
+                for i in
+                range(n_steps - 1 - t + b.n[t] + 1, n_steps - 1 - t + b.m[t]))
 
         self.block.def_Y = Constraint(self.TIME, lines, rule=_y)
 
@@ -644,7 +747,8 @@ class NodeMethod(Pipe):
         def _s(b, t):
             if b.m[t] > b.n[t]:
                 return sum(b.mf_history[i] * time_step
-                           for i in range(n_steps - 1 - t, n_steps - 1 - t + b.m[t]))
+                           for i in
+                           range(n_steps - 1 - t, n_steps - 1 - t + b.m[t]))
 
             else:
                 return b.R[t]
@@ -658,12 +762,16 @@ class NodeMethod(Pipe):
             if b.mass_flow[t] == 0:
                 return Constraint.Skip
             else:
-                return b.temperature_out_nhc[l, t] == ((b.R[t] - Z) * b.temperatures[l, n_steps - 1 - t + b.n[t]]
-                                                       + b.Y[l, t] + (b.mass_flow[t] * time_step - b.S[t] + Z) *
-                                                       b.temperatures[l, n_steps - 1 - t + b.m[t]]) \
+                return b.temperature_out_nhc[l, t] == (
+                        (b.R[t] - Z) * b.temperatures[
+                    l, n_steps - 1 - t + b.n[t]]
+                        + b.Y[l, t] + (
+                                b.mass_flow[t] * time_step - b.S[t] + Z) *
+                        b.temperatures[l, n_steps - 1 - t + b.m[t]]) \
                        / b.mass_flow[t] / time_step
 
-        self.block.def_temp_out_nhc = Constraint(self.TIME, lines, rule=_def_temp_out_nhc)
+        self.block.def_temp_out_nhc = Constraint(self.TIME, lines,
+                                                 rule=_def_temp_out_nhc)
 
         # Pipe wall heat capacity ######################################################################################
 
@@ -680,9 +788,10 @@ class NodeMethod(Pipe):
             elif b.mass_flow[t] == 0:
                 return Constraint.Skip
             else:
-                return b.temperature_out_nhl[l, t] == (b.temperature_out_nhc[l, t] * b.mass_flow[t]
-                                                       * self.cp * time_step
-                                                       + C * b.wall_temp[l, t - 1]) / \
+                return b.temperature_out_nhl[l, t] == (
+                        b.temperature_out_nhc[l, t] * b.mass_flow[t]
+                        * self.cp * time_step
+                        + C * b.wall_temp[l, t - 1]) / \
                        (C + b.mass_flow[t] * self.cp * time_step)
 
         def _temp_wall(b, t, l):
@@ -690,7 +799,8 @@ class NodeMethod(Pipe):
                 if t == 0:
                     return Constraint.Skip
                 else:
-                    return b.wall_temp[l, t] == Tg[t] + (b.wall_temp[l, t - 1] - Tg[t]) * \
+                    return b.wall_temp[l, t] == Tg[t] + (
+                            b.wall_temp[l, t - 1] - Tg[t]) * \
                            np.exp(-b.K * time_step /
                                   (surface * self.rho * self.cp +
                                    C / self.length))
@@ -718,7 +828,8 @@ class NodeMethod(Pipe):
         #                                                + C * b.wall_temp[t-1, l]) / \
         #                                               (C/2 + b.mass_flow[t] * self.cp * time_step)
 
-        self.block.decl_temp_out_nhl = Constraint(self.TIME, lines, rule=_decl_temp_out_nhl)
+        self.block.decl_temp_out_nhl = Constraint(self.TIME, lines,
+                                                  rule=_decl_temp_out_nhl)
 
         # Eq. 3.4.18
 
@@ -746,8 +857,10 @@ class NodeMethod(Pipe):
             else:
                 delta_time = time_step * ((b.R[t] - Z) * b.n[t]
                                           + sum(
-                            b.mf_history[n_steps - 1 - t + i] * time_step * i for i in range(b.n[t] + 1, b.m[t]))
-                                          + (b.mass_flow[t] * time_step - b.S[t] + Z) * b.m[t]) \
+                            b.mf_history[n_steps - 1 - t + i] * time_step * i
+                            for i in range(b.n[t] + 1, b.m[t]))
+                                          + (b.mass_flow[t] * time_step - b.S[
+                            t] + Z) * b.m[t]) \
                              / b.mass_flow[t] / time_step
                 return delta_time
 
@@ -758,11 +871,14 @@ class NodeMethod(Pipe):
         def _temp_out(b, t, l):
             if b.mass_flow[t] == 0:
                 if t == 0:
-                    return b.temperature_out[l, t] == self.params['temperature_out_' + l].v()
+                    return b.temperature_out[l, t] == self.params[
+                        'temperature_out_' + l].v()
                 else:
-                    return b.temperature_out[l, t] == (b.temperature_out[l, t - 1] - Tg[t]) * \
+                    return b.temperature_out[l, t] == (
+                            b.temperature_out[l, t - 1] - Tg[t]) * \
                            np.exp(-b.K * time_step /
-                                  (surface * self.rho * self.cp + C / self.length)) \
+                                  (
+                                          surface * self.rho * self.cp + C / self.length)) \
                            + Tg[t]
             else:
                 return b.temperature_out[l, t] == Tg[t] + \

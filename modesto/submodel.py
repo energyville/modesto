@@ -8,7 +8,7 @@ import pandas as pd
 
 
 class Submodel(object):
-    def __init__(self, name=None, temperature_driven=False):
+    def __init__(self, name=None, temperature_driven=False, repr_days=None):
         """
         Base class for submodels
 
@@ -25,6 +25,7 @@ class Submodel(object):
         self.params = self.create_params()
 
         self.slack_list = []
+        self.repr_days = repr_days
 
         self.block = None
 
@@ -157,10 +158,18 @@ class Submodel(object):
         time_step = self.params['time_step'].v()
         assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
 
-        n_steps = int(horizon // time_step)
-        self.X_TIME = range(n_steps + 1)
-        # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
-        self.TIME = self.X_TIME[:-1]
+
+        if self.repr_days is None:
+            n_steps = int(horizon // time_step)
+            self.X_TIME = range(n_steps + 1)
+            # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
+            self.TIME = self.X_TIME[:-1]
+        else:
+            n_steps = int(24*3600//time_step)
+            self.X_TIME = xrange(n_steps + 1)
+            self.TIME = xrange(n_steps)
+            self.REPR_DAYS = set(self.repr_days.values())
+            self.DAYS_OF_YEAR = xrange(1,366)
 
     def get_time_axis(self, state=False):
         if state:
