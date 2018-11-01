@@ -83,35 +83,39 @@ class Parameter(object):
         :return: A description of the parameter
         """
         if self.value is None:
-            return 'Description: {}\nUnit: {}'.format(self.description, self.unit)
+            return 'Description: {}\nUnit: {}'.format(self.description,
+                                                      self.unit)
         else:
-            return 'Description: {}\nUnit: {}\nValue: {}'.format(self.description, self.unit, self.value)
+            return 'Description: {}\nUnit: {}\nValue: {}'.format(
+                self.description, self.unit, self.value)
 
     def get_all_values(self):
         """
         :return: All stored values of the parameter, regardless of optimization start or horizon
         """
         if self.value is None:
-            self.logger.warning('{} does not have a value yet'.format(self.name))
+            self.logger.warning(
+                '{} does not have a value yet'.format(self.name))
 
         return self.value
 
-    def get_value(self, time=None):
+    def get_value(self, time=None, c=None):
         """
 
         :return: Current value of the parameter
         """
 
         if self.value is None:
-            self.logger.warning('{} does not have a value yet'.format(self.name))
+            self.logger.warning(
+                '{} does not have a value yet'.format(self.name))
 
         if (time is not None) and (not isinstance(self.value, pd.DataFrame)):
             self.logger.warning('{} is not a time series'.format(self.name))
 
         return self.value
 
-    def v(self, time=None):
-        return self.get_value(time)
+    def v(self, time=None, c=None):
+        return self.get_value(time, c=c)
 
     def set_block(self, block):
         self.block = block
@@ -169,10 +173,13 @@ class DesignParameter(Parameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        Parameter.__init__(self, name, description, unit, val=val, mutable=mutable)
+        Parameter.__init__(self, name, description, unit, val=val,
+                           mutable=mutable)
+
 
 class StateParameter(Parameter):
-    def __init__(self, name, description, unit, init_type, val=None, ub=None, lb=None, slack=False, mutable=False):
+    def __init__(self, name, description, unit, init_type, val=None, ub=None,
+                 lb=None, slack=False, mutable=False):
         """
         Class that describes an initial state parameter
 
@@ -206,7 +213,9 @@ class StateParameter(Parameter):
         """
 
         if new_type not in self.init_types:
-            raise IndexError('{} is not an allowed type of initialization constraint'.format(new_type))
+            raise IndexError(
+                '{} is not an allowed type of initialization constraint'.format(
+                    new_type))
 
         self.init_type = new_type
 
@@ -261,8 +270,9 @@ class StateParameter(Parameter):
         return self.lb
 
     def get_description(self):
-        return Parameter.get_description(self) + '\nInitType: {} \nUpper bound: {} \nLower bound: {} \nSlack: {}' \
-            .format(self.init_type, self.ub, self.lb, self.slack)
+        return Parameter.get_description(
+            self) + '\nInitType: {} \nUpper bound: {} \nLower bound: {} \nSlack: {}' \
+                   .format(self.init_type, self.ub, self.lb, self.slack)
 
     def get_init_type(self):
         return self.init_type
@@ -296,7 +306,8 @@ class SeriesParameter(Parameter):
         :return:
         """
 
-        assert isinstance(new_val, pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(
+        assert isinstance(new_val,
+                          pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(
             type(new_val))
 
         self.value = new_val
@@ -317,7 +328,8 @@ class SeriesParameter(Parameter):
         elif isinstance(self.value, (int, float)):
             return self.value * index
         else:
-            f = interpolate.interp1d(self.value.index.values, self.value.values, fill_value='extrapolate')
+            f = interpolate.interp1d(self.value.index.values, self.value.values,
+                                     fill_value='extrapolate')
             return f(index)
 
     def v(self, index):
@@ -349,7 +361,7 @@ class TimeSeriesParameter(Parameter):
 
     # todo indexed time variables (such as return/supply temperature profile could use two or more columns to distinguish between indexes instead of using multiple indexes. These parameters would become real TimeDataFrameParameters. Just an idea ;)
 
-    def get_value(self, time=None):
+    def get_value(self, time=None, c=None):
         """
         Returns the value of the parameter at a certain time
 
@@ -358,15 +370,23 @@ class TimeSeriesParameter(Parameter):
         """
 
         if self.start_time is None:
-            raise Exception('No start time has been given to parameter {} yet'.format(self.name))
+            raise Exception(
+                'No start time has been given to parameter {} yet'.format(
+                    self.name))
         if self.horizon is None:
-            raise Exception('No horizon has been given to parameter {} yet'.format(self.name))
+            raise Exception(
+                'No horizon has been given to parameter {} yet'.format(
+                    self.name))
         if self.time_step is None:
-            raise Exception('No time step has been given to parameter {} yet'.format(self.name))
+            raise Exception(
+                'No time step has been given to parameter {} yet'.format(
+                    self.name))
 
         if time is None:
             if self.time_data:  # Data has a pd.DatetimeIndex
-                return ut.select_period_data(self.value, time_step=self.time_step, horizon=self.horizon,
+                return ut.select_period_data(self.value,
+                                             time_step=self.time_step,
+                                             horizon=self.horizon,
                                              start_time=self.start_time).values
             elif not isinstance(self.value, pd.Series):
                 return [self.value] * int(self.horizon / self.time_step)
@@ -377,16 +397,27 @@ class TimeSeriesParameter(Parameter):
             print 'Warning: {} does not have a value yet'.format(self.name)
             return None
         else:
-            if self.time_data:
-                timeindex = self.start_time + pd.Timedelta(seconds=time * self.time_step)
-                return self.value[timeindex]
-            elif not isinstance(self.value, pd.Series):
-                return self.value
+            if c is None:
+                if self.time_data:
+                    timeindex = self.start_time + pd.Timedelta(
+                        seconds=time * self.time_step)
+                    return self.value[timeindex]
+                elif not isinstance(self.value, pd.Series):
+                    return self.value
+                else:
+                    return self.value[time]
             else:
-                return self.value[time]
+                if self.time_data:
+                    timeindex = self.start_time + pd.Timedelta(days=c - 1,
+                                                               seconds=time * self.time_step)
+                    return self.value[timeindex]
+                elif not isinstance(self.value, pd.Series):
+                    return self.value
+                else:
+                    return self.value[time]
 
-    def v(self, time=None):
-        return self.get_value(time)
+    def v(self, time=None, c=None):
+        return self.get_value(time, c=c)
 
     def change_value(self, new_val):
         """
@@ -414,7 +445,8 @@ class TimeSeriesParameter(Parameter):
         elif isinstance(val, str):
             self.start_time = pd.Timestamp(val)
         else:
-            raise TypeError('New start time should be pandas timestamp or string representation of a timestamp')
+            raise TypeError(
+                'New start time should be pandas timestamp or string representation of a timestamp')
 
     def change_horizon(self, val):
         self.horizon = val
@@ -444,7 +476,8 @@ class UserDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, val, mutable=mutable)
+        TimeSeriesParameter.__init__(self, name, description, unit, val,
+                                     mutable=mutable)
 
 
 class WeatherDataParameter(TimeSeriesParameter):
@@ -459,4 +492,5 @@ class WeatherDataParameter(TimeSeriesParameter):
         :param val: Value of the parameter, if not given, it becomes None
         """
 
-        TimeSeriesParameter.__init__(self, name, description, unit, val, mutable=mutable)
+        TimeSeriesParameter.__init__(self, name, description, unit, val,
+                                     mutable=mutable)
