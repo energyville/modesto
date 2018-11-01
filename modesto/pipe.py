@@ -221,7 +221,7 @@ class SimplePipe(Pipe):
 class ExtensivePipe(Pipe):
     def __init__(self, name, start_node,
                  end_node, length, allow_flow_reversal=True,
-                 temperature_driven=False, heat_var=0.01,):
+                 temperature_driven=False, heat_var=0.01, ):
         """
         Class that sets up an extensive model of the pipe. This model uses fixed temperatures, variable mass and heat
         flow rates, and calculates steady state heat losses based on the temperature levels that are set beforehand.
@@ -319,13 +319,18 @@ class ExtensivePipe(Pipe):
         self.temp_ret = self.params['temperature_return'].v()
 
         if self.compiled:
-            for t in self.TIME:
-                self.block.heat_loss_nom[t] = (
-                                                      self.temp_sup + self.temp_ret - 2 *
-                                                      Tg[t]) / Rs
+            if self.repr_days is None:
+                for t in self.TIME:
+                    self.block.heat_loss_nom[t] = (self.temp_sup + self.temp_ret - 2 *
+                                                          Tg.v(t)) / Rs
 
-            self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
-            self.construct_pumping_constraints()
+                self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
+                self.construct_pumping_constraints()
+            else:
+                for t in self.TIME:
+                    for c in self.REPR_DAYS:
+                        self.block.heat_loss_nom[t,c] = (self.temp_sup + self.temp_ret - 2 *
+                                                          Tg.v(t,c)) / Rs
         else:
             """
             Parameters and sets
@@ -345,9 +350,10 @@ class ExtensivePipe(Pipe):
                 """
                 dq = (self.temp_sup + self.temp_ret - 2 * Tg.v(t, c)) / Rs
                 return dq
+
             if self.repr_days is None:
                 self.block.heat_loss_nom = Param(self.TIME, rule=_heat_loss,
-                                             mutable=True)
+                                                 mutable=True)
             else:
                 self.block.heat_loss_nom = Param(self.TIME, self.REPR_DAYS,
                                                  rule=_heat_loss, mutable=True)
@@ -358,7 +364,7 @@ class ExtensivePipe(Pipe):
 
             mflo_ub = (-self.block.mass_flow_max,
                        self.block.mass_flow_max) if self.allow_flow_reversal else (
-            0, self.block.mass_flow_max)
+                0, self.block.mass_flow_max)
 
             # Real valued
             if self.repr_days is None:
@@ -370,7 +376,8 @@ class ExtensivePipe(Pipe):
                 self.block.mass_flow = Var(self.TIME, bounds=mflo_ub,
                                            doc='Mass flow rate entering in-node and exiting out-node')
 
-                self.block.heat_loss_tot = Var(self.TIME, within=NonNegativeReals,
+                self.block.heat_loss_tot = Var(self.TIME,
+                                               within=NonNegativeReals,
                                                doc='Total heat lost from pipe')
             else:
                 self.block.heat_flow_in = Var(self.TIME, self.REPR_DAYS,
@@ -378,7 +385,8 @@ class ExtensivePipe(Pipe):
                 self.block.heat_flow_out = Var(self.TIME, self.REPR_DAYS,
                                                doc='Heat flow exiting out-node')
 
-                self.block.mass_flow = Var(self.TIME, self.REPR_DAYS, bounds=mflo_ub,
+                self.block.mass_flow = Var(self.TIME, self.REPR_DAYS,
+                                           bounds=mflo_ub,
                                            doc='Mass flow rate entering in-node and exiting out-node')
 
                 self.block.heat_loss_tot = Var(self.TIME, self.REPR_DAYS,
@@ -393,31 +401,58 @@ class ExtensivePipe(Pipe):
             # EQUALITIES #
             ##############
 
-            def _eq_heat_flow_bal(b, t):
-                return b.heat_flow_in[t] == b.heat_loss_tot[t] + \
-                       b.heat_flow_out[t]
+            def _eq_heat_flow_bal(b, t, c=None):
+                if self.repr_days is None:
+                    return b.heat_flow_in[t] == b.heat_loss_tot[t] + \
+                           b.heat_flow_out[t]
+                else:
+                    return b.heat_flow_in[t, c] == b.heat_loss_tot[t, c] + \
+                           b.heat_flow_out[t, c]
 
-            self.block.eq_heat_flow_bal = Constraint(self.TIME,
-                                                     rule=_eq_heat_flow_bal)
+            if self.repr_days is None:
+                self.block.eq_heat_flow_bal = Constraint(self.TIME,
+                                                         rule=_eq_heat_flow_bal)
+            else:
+                self.block.eq_heat_flow_bal = Constraint(self.TIME,
+                                                         self.REPR_DAYS,
+                                                         rule=_eq_heat_flow_bal)
 
             ################
             # INEQUALITIES #
             ################
 
-            def _eq_heat_loss_forw(b, t):
-                return b.heat_loss_tot[t] >= b.heat_loss_nom[t] * b.mass_flow[
-                    t] / (
-                               self.hl_setting * b.mass_flow_max) * self.length
+            def _eq_heat_loss_forw(b, t, c=None):
+                if self.repr_days is None:
+                    return b.heat_loss_tot[t] >= b.heat_loss_nom[t] * \
+                           b.mass_flow[t] / (
+                                   self.hl_setting * b.mass_flow_max) * self.length
+                else:
+                    return b.heat_loss_tot[t, c] >= b.heat_loss_nom[t, c] * \
+                           b.mass_flow[t, c] / (
+                                   self.hl_setting * b.mass_flow_max) * self.length
 
-            def _eq_heat_loss_rev(b, t):
-                return b.heat_loss_tot[t] >= - b.heat_loss_nom[t] * b.mass_flow[
-                    t] / (
-                               self.hl_setting * b.mass_flow_max) * self.length
+            def _eq_heat_loss_rev(b, t, c=None):
+                if self.repr_days is None:
+                    return b.heat_loss_tot[t] >= - b.heat_loss_nom[t] * \
+                           b.mass_flow[t] / (
+                                   self.hl_setting * b.mass_flow_max) * self.length
+                else:
+                    return b.heat_loss_tot[t, c] >= - b.heat_loss_nom[t, c] * \
+                           b.mass_flow[t, c] / (self.hl_setting *
+                                                b.mass_flow_max) * self.length
 
-            self.block.eq_heat_loss_forw = Constraint(self.TIME,
-                                                      rule=_eq_heat_loss_forw)
-            self.block.eq_heat_loss_rev = Constraint(self.TIME,
-                                                     rule=_eq_heat_loss_rev)
+            if self.repr_days is None:
+                self.block.eq_heat_loss_forw = Constraint(self.TIME,
+                                                          rule=_eq_heat_loss_forw)
+                self.block.eq_heat_loss_rev = Constraint(self.TIME,
+                                                         rule=_eq_heat_loss_rev)
+            else:
+                self.block.eq_heat_loss_forw = Constraint(self.TIME,
+                                                          self.REPR_DAYS,
+                                                          rule=_eq_heat_loss_forw)
+                self.block.eq_heat_loss_rev = Constraint(self.TIME,
+                                                         self.REPR_DAYS,
+                                                         rule=_eq_heat_loss_rev)
 
             self.construct_pumping_constraints()
 
@@ -464,34 +499,60 @@ class ExtensivePipe(Pipe):
             self.block.pumping_power = Var(self.TIME, within=NonNegativeReals)
 
             for i in range(n_segments):
-                def _ineq_pumping(b, t):
-                    return b.pumping_power[t] >= (
-                            b.mass_flow[t] / b.mass_flow_max - self.mfs_ratio[
-                        i]) / (
-                                   self.mfs_ratio[i + 1] - self.mfs_ratio[
-                               i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
+                def _ineq_pumping(b, t, c=None):
+                    if self.repr_days is None:
+                        return b.pumping_power[t] >= (
+                                b.mass_flow[t] / b.mass_flow_max -
+                                self.mfs_ratio[
+                                    i]) / (
+                                       self.mfs_ratio[i + 1] - self.mfs_ratio[
+                                   i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
+                    else:
+                        return b.pumping_power[t, c] >= (
+                                b.mass_flow[t] / b.mass_flow_max -
+                                self.mfs_ratio[
+                                    i]) / (
+                                       self.mfs_ratio[i + 1] - self.mfs_ratio[
+                                   i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
 
-                self.block.add_component('ineq_pumping_' + str(i),
-                                         Constraint(self.TIME,
-                                                    rule=_ineq_pumping))
+                if self.repr_days is None:
+                    self.block.add_component('ineq_pumping_' + str(i),
+                                             Constraint(self.TIME,
+                                                        rule=_ineq_pumping))
+                else:
+                    self.block.add_component('ineq_pumping_' + str(i),
+                                             Constraint(self.TIME,
+                                                        self.REPR_DAYS,
+                                                        rule=_ineq_pumping))
 
     def obj_energy(self):
         pef_el = self.params['PEF_el'].v()
         eta_mech = self.params['eta_mech'].v()
         eta_elmo = self.params['eta_elmo'].v()
-
-        return pef_el / eta_mech / eta_elmo * sum(
-            self.block.pumping_power[t] * self.params[
-                'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        if self.repr_days is None:
+            return pef_el / eta_mech / eta_elmo * sum(
+                self.block.pumping_power[t] * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        else:
+            return pef_el / eta_mech / eta_elmo * sum(self.repr_count[c] *
+                self.block.pumping_power[t, c] * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in self.TIME for c
+                in self.REPR_DAYS)
 
     def obj_elec_cost(self):
-        cost = self.params['elec_cost'].v()
+        cost = self.params['elec_cost']
         eta_mech = self.params['eta_mech'].v()
         eta_elmo = self.params['eta_elmo'].v()
 
-        return 1 / eta_mech / eta_elmo * sum(
-            cost[t] * self.block.pumping_power[t] * self.params[
-                'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        if self.repr_days is None:
+            return 1 / eta_mech / eta_elmo * sum(
+                cost.v(t) * self.block.pumping_power[t] * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        else:
+            return 1 / eta_mech / eta_elmo * sum(self.repr_count[c] *
+                cost.v(t, c) * self.block.pumping_power[t] * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in self.TIME for c
+                in self.REPR_DAYS)
 
 
 class NodeMethod(Pipe):
