@@ -46,6 +46,7 @@ class Modesto:
 
         self.allow_flow_reversal = True
         self.start_time = None
+        self.repr_days = repr_days
 
         self.graph = graph
         self.edges = {}
@@ -61,7 +62,7 @@ class Modesto:
         self.objectives = {}
         self.act_objective = None
 
-        self.repr_days = repr_days
+
 
     def change_graph(self):
         # TODO write this
@@ -1126,7 +1127,7 @@ class Node(Submodel):
                        + sum(
                     pipe.get_edge_mflo(self.name, t, c) for pipe in p.values())
 
-            self.block.ineq_mass_bal = Constraint(self.TIME, self.REPR_DAYS,§
+            self.block.ineq_mass_bal = Constraint(self.TIME, self.REPR_DAYS,
                                                   rule=_mass_bal)
 
     def _make_block(self, model):
