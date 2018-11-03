@@ -185,7 +185,7 @@ class Submodel(object):
             self.X_TIME = xrange(n_steps + 1)
             self.TIME = xrange(n_steps)
             self.REPR_DAYS = set(self.repr_days.values())
-            self.DAYS_OF_YEAR = xrange(1, 366)
+            self.DAYS_OF_YEAR = xrange(0, 366)
 
     def get_time_axis(self, state=False):
         if state:
@@ -358,7 +358,7 @@ class Submodel(object):
 
         time = self.get_time_axis(state)
 
-        if isinstance(obj, IndexedVar):
+        if isinstance(obj, IndexedVar) and self.repr_days is None:
             if index is None:
                 for i in obj:
                     result.append(value(obj[i]))
@@ -370,6 +370,12 @@ class Submodel(object):
                     result.append(obj[(index, i)].value)
 
                     resname = self.name + '.' + name + '.' + index
+        elif isinstance(obj, IndexedVar) and self.repr_days is not None:
+            for t in time:
+                for d in self.DAYS_OF_YEAR:
+                    result.append(value(obj[t, self.repr_days[d]]))
+
+                    resname = self.name + '.' +name
 
         elif isinstance(obj, IndexedParam):
             result = obj.values()

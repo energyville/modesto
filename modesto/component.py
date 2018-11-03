@@ -1198,7 +1198,7 @@ class SolarThermalCollector(VariableComponent):
             else:
                 for t in self.TIME:
                     for c in self.REPR_DAYS:
-                        self.block.heat_flow_max[t,c] = heat_profile.v(t,c)
+                        self.block.heat_flow_max[t, c] = heat_profile.v(t, c)
 
         else:
             if self.repr_days is None:
@@ -1208,7 +1208,8 @@ class SolarThermalCollector(VariableComponent):
                 self.block.heat_flow_max = Param(self.TIME, rule=_heat_flow_max,
                                                  mutable=True)
                 self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
-                self.block.heat_flow_curt = Var(self.TIME, within=NonNegativeReals)
+                self.block.heat_flow_curt = Var(self.TIME,
+                                                within=NonNegativeReals)
 
                 self.block.mass_flow = Var(self.TIME)
 
@@ -1223,14 +1224,15 @@ class SolarThermalCollector(VariableComponent):
                         t] / self.cp / m.delta_T / (1 + self.heat_var)
 
                 def _mass_ub(m, t):
-                    return m.mass_flow[t] <= m.heat_flow[t] / self.cp / m.delta_T
+                    return m.mass_flow[t] <= m.heat_flow[
+                        t] / self.cp / m.delta_T
 
                 self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
                 self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.eq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
             else:
                 def _heat_flow_max(m, t, c):
-                    return heat_profile.v(t,c)
+                    return heat_profile.v(t, c)
 
                 self.block.heat_flow_max = Param(self.TIME, self.REPR_DAYS,
                                                  rule=_heat_flow_max,
@@ -1238,7 +1240,7 @@ class SolarThermalCollector(VariableComponent):
                 self.block.heat_flow = Var(self.TIME,
                                            self.REPR_DAYS,
                                            within=NonNegativeReals)
-                self.block.heat_flow_curt = Var(self.TIME,  self.REPR_DAYS,
+                self.block.heat_flow_curt = Var(self.TIME, self.REPR_DAYS,
                                                 within=NonNegativeReals)
 
                 self.block.mass_flow = Var(self.TIME, self.REPR_DAYS)
@@ -1798,8 +1800,199 @@ class StorageCondensed(StorageVariable):
         return out
 
 
-class StorageRepr(Component):
+class StorageRepr(StorageVariable):
     """
     Storage component that can be used with representative days
 
     """
+
+    def __init__(self, name, temperature_driven=False, repr_days=None):
+        """
+        Variable storage model. In this model, the state equation are condensed into one single equation. Only the initial
+            and final state remain as a parameter. This component is also compatible with a representative period
+            presentation, in which the control actions are repeated for a given number of iterations, while the storage
+            state can change.
+        The heat losses are taken into account exactly in this model.
+
+        :param name: name of the component
+        :param temperature_driven: Parameter that defines if component is temperature driven. This component can only be
+            used in non-temperature-driven optimizations.
+        """
+        if repr_days is None:
+            raise AttributeError('StorageRepr only works with representative '
+                                 'weeks')
+        StorageVariable.__init__(self, name=name,
+                                 temperature_driven=temperature_driven,
+                                 repr_days=repr_days)
+
+    def compile(self, model, start_time):
+        """
+        Compile this unit. Equations calculate the final state after the specified number of repetitions.
+
+        :param model: Top level model
+        :param block: Component model object
+        :param start_time: Start tim of the optimization
+        :return:
+        """
+        self.calculate_static_parameters()
+
+        ############################################################################################
+        # Initialize block
+
+        Component.compile(self, model, start_time)
+
+        ################
+        # Declarations #
+        ################
+
+        Te = self.params['Te']
+
+        if self.compiled:
+            self.block.max_en = self.max_en
+            self.block.UAw = self.UAw
+            self.block.UAtb = self.UAtb
+            self.block.exp_ttau = exp(
+                -self.params['time_step'].v() / self.tau)
+
+            for t in self.TIME:
+                for c in self.REPR_DAYS:
+                    self.block.heat_loss_ct[t, c] = self.UAw * (
+                            self.temp_sup - Te.v(t, c)) + self.UAtb * (
+                                                            self.temp_sup + self.temp_ret - 2 * Te.v(
+                                                        t, c))
+        else:
+            self.block.max_en = Param(mutable=True, initialize=self.max_en)
+            self.block.UAw = Param(mutable=True, initialize=self.UAw)
+            self.block.UAtb = Param(mutable=True, initialize=self.UAtb)
+
+            self.block.exp_ttau = Param(mutable=True, initialize=exp(
+                -self.params['time_step'].v() / self.tau))
+
+            def _heat_loss_ct(b, t, c):
+                return self.UAw * (self.temp_sup - Te.v(t, c)) + \
+                       self.UAtb * (
+                               self.temp_sup + self.temp_ret - 2 * Te.v(t, c))
+
+            self.block.heat_loss_ct = Param(self.TIME, self.REPR_DAYS,
+                                            rule=_heat_loss_ct,
+                                            mutable=True)
+
+            ############################################################################################
+            # Initialize variables
+            #       with upper and lower bounds
+
+            mflo_bounds = (self.block.mflo_min, self.block.mflo_max)
+
+            # In/out
+            self.block.mass_flow = Var(self.TIME, self.REPR_DAYS,
+                                       bounds=mflo_bounds)
+            self.block.heat_flow = Var(self.TIME, self.REPR_DAYS)
+
+            self.block.soc_intra = Var(self.X_TIME, self.REPR_DAYS)
+            # heat storage trajectory within representative day
+            self.block.soc_inter = Var(self.DAYS_OF_YEAR)
+
+            Ng = len(self.TIME)
+
+            # Year periodicity
+            def _periodic_bound(b):
+                return b.soc_inter[1] == b.soc_inter[365] * (
+                        1 - b.exp_ttau) ** Ng + b.soc_intra[
+                           self.X_TIME[-1], self.repr_days[365]]
+
+            self.block.eq_periodic_bound = Constraint(rule=_periodic_bound)
+
+            self.block.soc_intra_max = Var(self.REPR_DAYS)
+            self.block.soc_intra_min = Var(self.REPR_DAYS)
+
+            # Limit storage state
+            def _max_intra_soc(b, t, c):
+                return b.soc_intra_max[c] >= b.soc_intra[t, c]
+
+            def _min_intra_soc(b, t, c):
+                return b.soc_intra_min[c] <= b.soc_intra[t, c]
+
+            self.block.ineq_max_intra_soc = Constraint(self.TIME[1:],
+                                                       self.REPR_DAYS,
+                                                       rule=_max_intra_soc)
+            self.block.ineq_min_intra_soc = Constraint(self.TIME[1:],
+                                                       self.REPR_DAYS,
+                                                       rule=_min_intra_soc)
+
+            def _max_soc_constraint(b, d):
+                return b.soc_inter[d] + b.soc_intra_max[self.repr_days[d]] <= 1
+
+            def _min_soc_constraint(b, d):
+                return b.soc_inter[d] * (1 - b.exp_ttau) ** Ng + \
+                       b.soc_intra_min[self.repr_days[d]] >= 0
+
+            self.block.ineq_max_soc = Constraint(self.DAYS_OF_YEAR,
+                                                 rule=_max_soc_constraint)
+            self.block.ineq_min_soc = Constraint(self.DAYS_OF_YEAR,
+                                                 rule=_min_soc_constraint)
+
+            # Link inter storage states
+            def _inter_state_eq(b, d):
+                if d == 365:
+                    return Constraint.Skip
+                else:
+                    return b.soc_inter[d + 1] == b.soc_inter[d] * (
+                            1 - b.exp_ttau) ** Ng + b.soc_intra[
+                               self.X_TIME[-1], self.repr_days[d]]
+
+            self.block.eq_inter_state_eq = Constraint(self.DAYS_OF_YEAR,
+                                                      rule=_inter_state_eq)
+
+            # Link intra storage states
+            def _intra_state_eq(b, t, c):
+                if t == 0:
+                    return b.soc_intra[t, c] == 0
+                else:
+                    return b.soc_intra[t + 1, c] == b.soc_intra[
+                        t, c] * (1 - b.exp_ttau) + self.params[
+                               'time_step'].v() / 3600 * (
+                                   b.heat_flow[c, t] / b.mult - b.heat_loss_ct[
+                               c, t]) / 1000 / b.max_en
+
+            self.block.eq_intra_states = Constraint(self.TIME, self.REPR_DAYS,
+                                                    rule=_intra_state_eq)
+
+            # SoC equation
+
+            ## Mass flow and heat flow link
+            def _heat_bal(b, t, c):
+                return self.cp * b.mass_flow[t, c] * (b.Thi - b.Tlo) == \
+                       b.heat_flow[t, c]
+
+            self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
+
+            self.logger.info(
+                'Optimization model StorageRepr {} compiled'.format(
+                    self.name))
+
+        self.compiled = True
+
+    def get_result(self, name, index, state, start_time):
+        if name is 'soc' or name is 'heat_stor':
+            result = []
+            for t in self.TIME:
+                for d in self.REPR_DAYS:
+                    result.append(self.block.soc_inter[d] * (
+                            1 - self.block.exp_ttau) ** t +
+                                  self.block.soc_intra[t, self.repr_days[d]])
+
+            index = pd.DatetimeIndex(start=start_time,
+                                     freq=str(
+                                         self.params['time_step'].v()) + 'S',
+                                     periods=len(result))
+            if name is 'soc':
+                return pd.Series(index=index, name=self.name + '.' + name,
+                                 data=result)
+            if name is 'heat_stor':
+                return self.max_en * pd.Series(index=index,
+                                               name=self.name + '.' + name,
+                                               data=result)
+
+        else:
+            return super(StorageRepr, self).get_result(name, index, state,
+                                                       start_time)
