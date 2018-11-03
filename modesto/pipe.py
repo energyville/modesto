@@ -497,7 +497,12 @@ class ExtensivePipe(Pipe):
                         self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (
                                             di ** 5 * 983 ** 2 * pi ** 2)
 
-            self.block.pumping_power = Var(self.TIME, within=NonNegativeReals)
+            if self.repr_days:
+                self.block.pumping_power = Var(self.TIME, self.REPR_DAYS,
+                                               within=NonNegativeReals)
+
+            else:
+                self.block.pumping_power = Var(self.TIME, within=NonNegativeReals)
 
             for i in range(n_segments):
                 def _ineq_pumping(b, t, c=None):
@@ -510,7 +515,7 @@ class ExtensivePipe(Pipe):
                                    i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
                     else:
                         return b.pumping_power[t, c] >= (
-                                b.mass_flow[t] / b.mass_flow_max -
+                                b.mass_flow[t, c] / b.mass_flow_max -
                                 self.mfs_ratio[
                                     i]) / (
                                        self.mfs_ratio[i + 1] - self.mfs_ratio[
@@ -551,7 +556,7 @@ class ExtensivePipe(Pipe):
                     'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
             return 1 / eta_mech / eta_elmo * sum(self.repr_count[c] *
-                cost.v(t, c) * self.block.pumping_power[t] * self.params[
+                cost.v(t, c) * self.block.pumping_power[t, c] * self.params[
                     'time_step'].v() / 3600 / 1000 for t in self.TIME for c
                 in self.REPR_DAYS)
 

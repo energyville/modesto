@@ -3,6 +3,7 @@ from __future__ import division
 import logging
 import sys
 from math import pi, log, exp
+import pandas as pd
 
 from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
     Set, Binary
@@ -1312,7 +1313,8 @@ class StorageVariable(VariableComponent):
                                    name=name,
                                    direction=-1,
                                    temperature_driven=temperature_driven,
-                                   heat_var=heat_var)
+                                   heat_var=heat_var,
+                                   repr_days=repr_days)
 
         self.params = self.create_params()
         self.max_en = 0
@@ -1491,7 +1493,7 @@ class StorageVariable(VariableComponent):
         if repr_days is not None:
             raise AttributeError('StorageVariable cannot be used in '
                                  'combination with representative days')
-        
+
         self.calculate_static_parameters()
 
         ############################################################################################
@@ -1915,10 +1917,10 @@ class StorageRepr(StorageVariable):
             def _min_intra_soc(b, t, c):
                 return b.soc_intra_min[c] <= b.soc_intra[t, c]
 
-            self.block.ineq_max_intra_soc = Constraint(self.TIME[1:],
+            self.block.ineq_max_intra_soc = Constraint(self.TIME,
                                                        self.REPR_DAYS,
                                                        rule=_max_intra_soc)
-            self.block.ineq_min_intra_soc = Constraint(self.TIME[1:],
+            self.block.ineq_min_intra_soc = Constraint(self.TIME,
                                                        self.REPR_DAYS,
                                                        rule=_min_intra_soc)
 
@@ -1954,8 +1956,8 @@ class StorageRepr(StorageVariable):
                     return b.soc_intra[t + 1, c] == b.soc_intra[
                         t, c] * (1 - b.exp_ttau) + self.params[
                                'time_step'].v() / 3600 * (
-                                   b.heat_flow[c, t] / b.mult - b.heat_loss_ct[
-                               c, t]) / 1000 / b.max_en
+                                   b.heat_flow[t, c] / b.mult - b.heat_loss_ct[
+                               t, c]) / 1000 / b.max_en
 
             self.block.eq_intra_states = Constraint(self.TIME, self.REPR_DAYS,
                                                     rule=_intra_state_eq)
@@ -1967,7 +1969,8 @@ class StorageRepr(StorageVariable):
                 return self.cp * b.mass_flow[t, c] * (b.Thi - b.Tlo) == \
                        b.heat_flow[t, c]
 
-            self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
+            self.block.heat_bal = Constraint(self.TIME, self.REPR_DAYS,
+                                             rule=_heat_bal)
 
             self.logger.info(
                 'Optimization model StorageRepr {} compiled'.format(
@@ -1980,9 +1983,10 @@ class StorageRepr(StorageVariable):
             result = []
             for t in self.TIME:
                 for d in self.REPR_DAYS:
-                    result.append(self.block.soc_inter[d] * (
+                    result.append(value(self.block.soc_inter[d] * (
                             1 - self.block.exp_ttau) ** t +
-                                  self.block.soc_intra[t, self.repr_days[d]])
+                                        self.block.soc_intra[
+                                            t, self.repr_days[d]]))
 
             index = pd.DatetimeIndex(start=start_time,
                                      freq=str(

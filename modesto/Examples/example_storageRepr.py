@@ -32,7 +32,7 @@ def setup_graph():
     return G
 
 
-def setup_modesto(time_step=3600, n_steps=24 * 30):
+def setup_modesto(time_step=3600, n_steps=24 * 365):
     repr_days = {
         1: 74.0, 2: 307.0, 3: 307.0, 4: 307.0, 5: 307.0, 6: 307.0, 7: 307.0,
         8: 307.0, 9: 307.0, 10: 307.0, 11: 307.0, 12: 307.0, 13: 307.0,
@@ -178,7 +178,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
 
 if __name__ == '__main__':
     t_step = 3600
-    n_steps = 24 * 30
+    n_steps = 24 * 365
     start_time = pd.Timestamp('20140101')
 
     optmodel_mut = setup_modesto(t_step, n_steps)
