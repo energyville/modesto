@@ -221,7 +221,7 @@ class SimplePipe(Pipe):
 class ExtensivePipe(Pipe):
     def __init__(self, name, start_node,
                  end_node, length, allow_flow_reversal=True,
-                 temperature_driven=False, heat_var=0.01, ):
+                 temperature_driven=False, heat_var=0.01, repr_days=None):
         """
         Class that sets up an extensive model of the pipe. This model uses fixed temperatures, variable mass and heat
         flow rates, and calculates steady state heat losses based on the temperature levels that are set beforehand.
@@ -252,7 +252,8 @@ class ExtensivePipe(Pipe):
                       end_node=end_node,
                       length=length,
                       allow_flow_reversal=allow_flow_reversal,
-                      temperature_driven=temperature_driven)
+                      temperature_driven=temperature_driven,
+                      repr_days=repr_days)
 
         pipe_catalog = self.get_pipe_catalog()
         self.Rs = pipe_catalog['Rs']

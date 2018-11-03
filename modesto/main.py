@@ -46,7 +46,10 @@ class Modesto:
 
         self.allow_flow_reversal = True
         self.start_time = None
-        self.repr_days = repr_days
+        if repr_days is not None:
+            self.repr_days = {i: int(j) for i,j in repr_days.iteritems()}
+        else:
+            self.repr_days = repr_days
 
         self.graph = graph
         self.edges = {}
@@ -901,7 +904,8 @@ class Node(Submodel):
 
         if cls:
             obj = cls(name=name,
-                      temperature_driven=self.temperature_driven)
+                      temperature_driven=self.temperature_driven,
+                      repr_days=self.repr_days)
         else:
             raise ValueError(
                 "%s is not a valid class name! (component is %s, in node %s)" % (
@@ -1195,6 +1199,8 @@ class Edge(object):
         self.logger = logging.getLogger('modesto.Edge')
         self.logger.info('Initializing Edge {}'.format(name))
 
+        self.repr_days = repr_days
+
         self.name = name
         self.edge = edge
 
@@ -1208,7 +1214,7 @@ class Edge(object):
         self.pipe = self.build(pipe_model,
                                allow_flow_reversal)  # TODO Better structure possible?
 
-        self.repr_days = repr_days
+
 
     def build(self, pipe_model, allow_flow_reversal):
         """
@@ -1231,7 +1237,8 @@ class Edge(object):
                       start_node=self.start_node.name,
                       end_node=self.end_node.name, length=self.length,
                       allow_flow_reversal=allow_flow_reversal,
-                      temperature_driven=self.temperature_driven)
+                      temperature_driven=self.temperature_driven,
+                      repr_days=self.repr_days)
         else:
             obj = None
 

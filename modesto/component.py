@@ -1307,9 +1307,7 @@ class StorageVariable(VariableComponent):
         :param temperature_driven:
         :param heat_var: Relative variation allowed in delta_T
         """
-        if repr_days is not None:
-            raise AttributeError('StorageVariable cannot be used in '
-                                 'combination with representative days')
+
         VariableComponent.__init__(self,
                                    name=name,
                                    direction=-1,
@@ -1489,6 +1487,11 @@ class StorageVariable(VariableComponent):
         :param start_time: Start time of the optimization
         :return:
         """
+
+        if repr_days is not None:
+            raise AttributeError('StorageVariable cannot be used in '
+                                 'combination with representative days')
+        
         self.calculate_static_parameters()
 
         ############################################################################################
