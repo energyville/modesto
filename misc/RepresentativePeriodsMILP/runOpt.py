@@ -14,7 +14,7 @@ from pkg_resources import resource_filename
 
 import progressbar
 
-from misc.RepresentativePeriodsMILP import RepresentativeWeeks
+from misc.SDH_Conference_TestCases import CaseFuture
 
 
 def get_json(filepath):
@@ -57,19 +57,12 @@ if __name__ == '__main__':
     input_data = {
         '1dnewsol': {
             'dur': 1,
-            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/MILP/solutions1.txt'))
-        },
-        '7dnewsol': {
-            'dur': 7,
-            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/MILP/solutions7.txt'))
-        },
-        '3dnewsol': {
-            'dur': 3,
-            'sel': get_json(resource_filename('TimeSliceSelection', '../Scripts/MILP/solutions3.txt'))
+            'sel': get_json(resource_filename('TimeSliceSelection',
+                                              '../Scripts/MILP/solutions1.txt'))
         }
     }
 
-    for time_duration in ['1dnewsol', '7dnewsol', '3dnewsol']:  # ['time_duration', 'nocorr']:
+    for time_duration in input_data:  # ['time_duration', 'nocorr']:
         sels = input_data[time_duration]['sel']
         duration_repr = input_data[time_duration]['dur']
 
@@ -78,16 +71,24 @@ if __name__ == '__main__':
                 columns=['A', 'VSTC', 'VWat', 'E_backup_full', 'E_backup_repr',
                          'E_loss_stor_full', 'E_loss_stor_repr',
                          'E_curt_full',
-                         'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr', 't_comp'])
-            selection = sels[num]
+                         'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr',
+                         't_comp'])
+            repr_days = sels[num]
 
-            bar = progressbar.ProgressBar(maxval=4 * 3 * 3, \
-                                          widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
+            bar = progressbar.ProgressBar(maxval=4 * 3 * 4, \
+                                          widgets=[
+                                              progressbar.Bar('=', '[', ']'),
+                                              ' ', progressbar.Percentage()])
             bar.start()
 
+            repr_model = CaseFuture.setup_opt(repr=repr_days,
+                                              time_step=time_step)
+
             for i, VWat in enumerate([50000, 75000, 100000, 125000]):
-                for j, A in enumerate([25000, 50000, 75000]):  # , 60000, 80000]:
-                    for k, VSTC in enumerate([100000, 150000, 200000]):  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
+                for j, A in enumerate(
+                        [25000, 50000, 75000, 100000]):  # , 60000, 80000]:
+                    for k, VSTC in enumerate([100000, 150000,
+                                              200000]):  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
                         # print 'A:', str(A)
                         # print 'VWat:', str(VWat)
                         # print 'VSTC:', str(VSTC)
@@ -96,9 +97,23 @@ if __name__ == '__main__':
                         # Solve representative weeks
                         start_full = time.clock()
 
-                        repr_model, optimizers = RepresentativeWeeks.representative(
-                            duration_repr=duration_repr, time_step=time_step,
-                            selection=selection, VSTC=VSTC, VWat=VWat, solArea=A)
+                        repr_model.change_param(node='SolarArray', comp='solar',
+                                                param='area', val=A)
+                        repr_model.change_param(node='SolarArray', comp='tank',
+                                                param='volume', val=VSTC)
+                        repr_model.change_param(node='WaterscheiGarden',
+                                                comp='tank', param='volume',
+                                                val=VWat)
+
+                        repr_model.change_param(node='Production',
+                                                comp='backup', param='ramp',
+                                                val=0)
+                        repr_model.change_param(node='Production',
+                                                comp='backup',
+                                                param='ramp_cost', val=0)
+
+                        repr_model.compile('20140101')
+                        repr_model.set_objective('energy')
 
                         compilation_time = time.clock() - start_full
 
@@ -110,32 +125,28 @@ if __name__ == '__main__':
                         energy_net_pump_repr = None
 
                         start = time.clock()
-                        status = RepresentativeWeeks.solve_repr(repr_model, solver='gurobi', mipgap=0.02,
-                                                                probe=True)
+                        full_model.solve(tee=True, solver='gurobi',
+                                         warmstart=True)
+
                         repr_solution_and_comm = time.clock() - start
 
-                        if status >= 0:
-                            energy_backup_repr = RepresentativeWeeks.get_backup_energy(
-                                optimizers, selection)
-                            energy_stor_loss_repr = RepresentativeWeeks.get_stor_loss(
-                                optimizers, selection)
-                            energy_curt_repr = RepresentativeWeeks.get_curt_energy(
-                                optimizers, selection)
-                            energy_sol_repr = RepresentativeWeeks.get_sol_energy(
-                                optimizers, selection)
-                            energy_net_loss_repr = RepresentativeWeeks.get_network_loss(optimizers, selection)
-                            energy_net_pump_repr = RepresentativeWeeks.get_network_pump(optimizers, selection)
-                            energy_demand_repr = RepresentativeWeeks.get_demand_energy(optimizers, selection)
-                            fig1 = RepresentativeWeeks.plot_representative(
-                                optimizers, selection, duration_repr=duration_repr, time_step=time_step)
-                            if not os.path.isdir(
-                                    os.path.join('comparison', time_duration)):
-                                os.makedirs(os.path.join('comparison', time_duration))
-                            fig1.savefig(os.path.join('comparison', time_duration,
-                                                      '{}p_{}A_{}VWat_{}VSTC_repr.png'.format(
-                                                          num, A, VWat, VSTC)),
-                                         dpi=100, figsize=(8, 6))
-                            plt.close()
+                        if (
+                                repr_model.results.solver.status == SolverStatus.ok) and not (
+                                repr_model.results.solver.termination_condition == TerminationCondition.infeasible):
+                            energy_backup_repr = CaseFuture.get_backup_energy(
+                                repr_model)
+                            energy_stor_loss_repr = CaseFuture.get_stor_loss(
+                                repr_model)
+                            energy_curt_repr = CaseFuture.get_curt_energy(
+                                repr_model)
+                            energy_sol_repr = CaseFuture.get_sol_energy(
+                                repr_model)
+                            energy_net_loss_repr = CaseFuture.get_network_loss(
+                                repr_model)
+                            energy_net_pump_repr = CaseFuture.get_network_pumping(
+                                repr_model)
+                            energy_demand_repr = CaseFuture.get_demand_energy(
+                                repr_model)
 
                         result_full = dffull[
                             (dffull['A'] == A) & (dffull['VSTC'] == VSTC) & (
@@ -174,11 +185,14 @@ if __name__ == '__main__':
                                         'E_sol_full': float(
                                             result_full['E_sol_full']),
                                         'E_sol_repr': energy_sol_repr,
-                                        'E_net_loss_full': float(result_full['E_net_loss_full']),
+                                        'E_net_loss_full': float(
+                                            result_full['E_net_loss_full']),
                                         'E_net_loss_repr': energy_net_loss_repr,
-                                        'E_net_pump_full': float(result_full['E_net_pump_full']),
+                                        'E_net_pump_full': float(
+                                            result_full['E_net_pump_full']),
                                         'E_net_pump_repr': energy_net_pump_repr,
-                                        'E_demand_full': float(result_full['E_demand_full']),
+                                        'E_demand_full': float(
+                                            result_full['E_demand_full']),
                                         'E_demand_repr': energy_demand_repr,
                                         't_repr': repr_solution_and_comm + compilation_time,
                                         't_comp': compilation_time},
@@ -186,8 +200,10 @@ if __name__ == '__main__':
                         path = os.path.join('results', time_duration)
                         if not os.path.isdir(path):
                             os.makedirs(path)
-                        df.to_csv(os.path.join(path, 'result{}p.txt'.format(num)), sep=' ')
-                        bar.update(9 * i + 3 * j + k + 1)
+                        df.to_csv(
+                            os.path.join(path, 'result{}p.txt'.format(num)),
+                            sep=' ')
+                        bar.update(12 * i + 3 * j + k + 1)
             bar.finish()
             print df
 
