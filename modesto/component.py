@@ -6,7 +6,7 @@ from math import pi, log, exp
 import pandas as pd
 
 from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
-    Set, Binary
+    Set, Binary, NonPositiveReals
 
 from modesto.parameter import StateParameter, DesignParameter, \
     UserDataParameter, SeriesParameter, WeatherDataParameter
@@ -1893,43 +1893,39 @@ class StorageRepr(StorageVariable):
                                        bounds=mflo_bounds)
             self.block.heat_flow = Var(self.TIME, self.REPR_DAYS)
 
-            self.block.soc_intra = Var(self.X_TIME, self.REPR_DAYS)
+            self.block.heat_stor_intra = Var(self.X_TIME, self.REPR_DAYS,
+                                       bounds=(0, self.block.max_en))
             # heat storage trajectory within representative day
-            self.block.soc_inter = Var(self.DAYS_OF_YEAR)
+            self.block.heat_stor_inter = Var(self.DAYS_OF_YEAR,
+                                       bounds=(0, self.block.max_en))
 
             Ng = len(self.TIME)
 
-            # Year periodicity
-            def _periodic_bound(b):
-                return b.soc_inter[1] == b.soc_inter[365] * (
-                        1 - b.exp_ttau) ** Ng + b.soc_intra[
-                           self.X_TIME[-1], self.repr_days[365]]
-
-            self.block.eq_periodic_bound = Constraint(rule=_periodic_bound)
-
-            self.block.soc_intra_max = Var(self.REPR_DAYS)
-            self.block.soc_intra_min = Var(self.REPR_DAYS)
+            self.block.heat_stor_intra_max = Var(self.REPR_DAYS,
+                                           within=NonNegativeReals)
+            self.block.heat_stor_intra_min = Var(self.REPR_DAYS,
+                                           within=NonPositiveReals)
 
             # Limit storage state
             def _max_intra_soc(b, t, c):
-                return b.soc_intra_max[c] >= b.soc_intra[t, c]
+                return b.heat_stor_intra_max[c] >= b.heat_stor_intra[t, c]
 
             def _min_intra_soc(b, t, c):
-                return b.soc_intra_min[c] <= b.soc_intra[t, c]
+                return b.heat_stor_intra_min[c] <= b.heat_stor_intra[t, c]
 
-            self.block.ineq_max_intra_soc = Constraint(self.TIME,
+            self.block.ineq_max_intra_soc = Constraint(self.X_TIME,
                                                        self.REPR_DAYS,
                                                        rule=_max_intra_soc)
-            self.block.ineq_min_intra_soc = Constraint(self.TIME,
+            self.block.ineq_min_intra_soc = Constraint(self.X_TIME,
                                                        self.REPR_DAYS,
                                                        rule=_min_intra_soc)
 
             def _max_soc_constraint(b, d):
-                return b.soc_inter[d] + b.soc_intra_max[self.repr_days[d]] <= 1
+                return b.heat_stor_inter[d] + b.heat_stor_intra_max[self.repr_days[d]] <= b.max_en
 
             def _min_soc_constraint(b, d):
-                return b.soc_inter[d] * (1 - b.exp_ttau) ** Ng + \
-                       b.soc_intra_min[self.repr_days[d]] >= 0
+                return b.heat_stor_inter[d] * (b.exp_ttau) ** Ng + \
+                       b.heat_stor_intra_min[self.repr_days[d]] >= 0
 
             self.block.ineq_max_soc = Constraint(self.DAYS_OF_YEAR,
                                                  rule=_max_soc_constraint)
@@ -1938,11 +1934,11 @@ class StorageRepr(StorageVariable):
 
             # Link inter storage states
             def _inter_state_eq(b, d):
-                if d == 365:
-                    return Constraint.Skip
+                if d == 365:      # Periodic boundary
+                    return b.heat_stor_inter[1] == b.heat_stor_inter[365] * (b.exp_ttau) ** Ng + b.heat_stor_intra[
+                           self.X_TIME[-1], self.repr_days[365]]
                 else:
-                    return b.soc_inter[d + 1] == b.soc_inter[d] * (
-                            1 - b.exp_ttau) ** Ng + b.soc_intra[
+                    return b.heat_stor_inter[d + 1] == b.heat_stor_inter[d] * (b.exp_ttau) ** Ng + b.heat_stor_intra[
                                self.X_TIME[-1], self.repr_days[d]]
 
             self.block.eq_inter_state_eq = Constraint(self.DAYS_OF_YEAR,
@@ -1950,17 +1946,19 @@ class StorageRepr(StorageVariable):
 
             # Link intra storage states
             def _intra_state_eq(b, t, c):
-                if t == 0:
-                    return b.soc_intra[t, c] == 0
-                else:
-                    return b.soc_intra[t + 1, c] == b.soc_intra[
-                        t, c] * (1 - b.exp_ttau) + self.params[
-                               'time_step'].v() / 3600 * (
-                                   b.heat_flow[t, c] / b.mult - b.heat_loss_ct[
-                               t, c]) / 1000 / b.max_en
+                return b.heat_stor_intra[t + 1, c] == b.heat_stor_intra[
+                    t, c] * (b.exp_ttau) + self.params[
+                           'time_step'].v() / 3600 * (
+                               b.heat_flow[t, c] / b.mult - b.heat_loss_ct[
+                           t, c]) / 1000
 
             self.block.eq_intra_states = Constraint(self.TIME, self.REPR_DAYS,
                                                     rule=_intra_state_eq)
+
+            def _first_intra(b, c):
+                return b.heat_stor_intra[0, c] == 0
+
+            self.block.eq_first_intra = Constraint(self.REPR_DAYS, rule=_first_intra)
 
             # SoC equation
 
@@ -1979,14 +1977,13 @@ class StorageRepr(StorageVariable):
         self.compiled = True
 
     def get_result(self, name, index, state, start_time):
-        if name is 'soc' or name is 'heat_stor':
+        if name in ['soc', 'heat_stor']:
             result = []
 
             for d in self.DAYS_OF_YEAR:
                 for t in self.TIME:
-                    result.append(value(self.block.soc_inter[d] * (
-                            1 - self.block.exp_ttau) ** t +
-                                        self.block.soc_intra[
+                    result.append(value(self.block.heat_stor_inter[d] * self.block.exp_ttau ** t +
+                                        self.block.heat_stor_intra[
                                             t, self.repr_days[d]]))
 
             index = pd.DatetimeIndex(start=start_time,
@@ -1995,12 +1992,21 @@ class StorageRepr(StorageVariable):
                                      periods=len(result))
             if name is 'soc':
                 return pd.Series(index=index, name=self.name + '.' + name,
-                                 data=result)
+                                 data=result)/self.max_en
             if name is 'heat_stor':
-                return self.max_en * pd.Series(index=index,
+                return pd.Series(index=index,
                                                name=self.name + '.' + name,
                                                data=result)
+        elif name is 'heat_stor_inter':
+            result = []
 
+            for d in self.DAYS_OF_YEAR:
+                result.append(value(self.block.heat_stor_inter[d]))
+            index = pd.DatetimeIndex(start=start_time,
+                                     freq='1D',
+                                     periods=365)
+            return pd.Series(index=index, data=result,
+                             name=self.name + '.heat_stor_inter')
         else:
             return super(StorageRepr, self).get_result(name, index, state,
                                                        start_time)
