@@ -18,13 +18,13 @@ logging.basicConfig(level=logging.DEBUG,
 logger = logging.getLogger('example_recomp')
 
 
-def setup_graph():
+def setup_graph(repr=False):
     G = nx.DiGraph()
 
     G.add_node('STC', x=0, y=0, z=0, comps={'solar': 'SolarThermalCollector',
                                             'backup': 'ProducerVariable'})
     G.add_node('demand', x=1000, y=100, z=0, comps={'build': 'BuildingFixed',
-                                                    'stor': 'StorageRepr',
+                                                    'stor': 'StorageRepr' if repr else 'StorageVariable'
                                                     })
 
     G.add_edge('STC', 'demand', name='pipe')
@@ -32,7 +32,7 @@ def setup_graph():
     return G
 
 
-def setup_modesto(time_step=3600, n_steps=24 * 365):
+def setup_modesto(time_step=3600, n_steps=24 * 365, repr=False):
     repr_days = {
         4: {1: 74.0, 2: 307.0, 3: 307.0, 4: 307.0, 5: 307.0, 6: 307.0, 7: 307.0,
             8: 307.0, 9: 307.0, 10: 307.0,
@@ -369,10 +369,10 @@ def setup_modesto(time_step=3600, n_steps=24 * 365):
              356: 356.0, 357: 2.0, 358: 14.0, 359: 360.0000000556279,
              360: 360.0, 361: 9.000000000496122, 362: 360.0,
              363: 30.0, 364: 55.0, 365: 2.0}
-        }
+    }
 
-    model = Modesto(pipe_model='ExtensivePipe', graph=setup_graph(),
-                    repr_days=repr_days[8])
+    model = Modesto(pipe_model='ExtensivePipe', graph=setup_graph(repr),
+                    repr_days=repr_days[32] if repr else None)
     heat_demand = ut.read_time_data(
         resource_filename('modesto', 'Data/HeatDemand'),
         name='HeatDemandFiltered.csv')
@@ -459,71 +459,71 @@ if __name__ == '__main__':
     n_steps = 24 * 365
     start_time = pd.Timestamp('20140101')
 
-    optmodel_mut = setup_modesto(t_step, n_steps)
-    optmodel_rec = setup_modesto(t_step, n_steps)
+    optmodel_full = setup_modesto(t_step, n_steps, repr=False)
+    optmodel_repr = setup_modesto(t_step, n_steps, repr=True)
 
-    optmodel_mut.compile(start_time)
-    assert optmodel_mut.compiled, 'optmodel_mut should have a flag compiled=True'
+    optmodel_full.compile(start_time)
+    assert optmodel_full.compiled, 'optmodel_full should have a flag compiled=True'
 
-    optmodel_mut.change_param(node='STC', comp='solar', param='area', val=40000)
-    optmodel_mut.compile(start_time=start_time)
+    optmodel_full.change_param(node='STC', comp='solar', param='area', val=40000)
+    optmodel_full.compile(start_time=start_time)
 
-    optmodel_rec.change_param(node='STC', comp='solar', param='area', val=40000)
-    optmodel_rec.compile(start_time=start_time, recompile=True)
+    optmodel_repr.change_param(node='STC', comp='solar', param='area', val=40000)
+    optmodel_repr.compile(start_time=start_time, recompile=True)
 
-    optmodel_rec.set_objective('energy')
-    optmodel_mut.set_objective('energy')
+    optmodel_repr.set_objective('energy')
+    optmodel_full.set_objective('energy')
 
-    sol_m = optmodel_mut.solve(tee=True)
-    sol_r = optmodel_rec.solve(tee=True)
+    sol_m = optmodel_full.solve(tee=True)
+    sol_r = optmodel_repr.solve(tee=True)
 
-    h_sol_rec = optmodel_rec.get_result('heat_flow', node='STC', comp='solar')
-    h_sol_mut = optmodel_mut.get_result('heat_flow', node='STC', comp='solar')
+    h_sol_repr = optmodel_repr.get_result('heat_flow', node='STC', comp='solar')
+    h_sol_full = optmodel_full.get_result('heat_flow', node='STC', comp='solar')
 
-    q_dem_rec = optmodel_rec.get_result('heat_flow', node='demand',
-                                        comp='build')
-    q_dem_mut = optmodel_mut.get_result('heat_flow', node='demand',
-                                        comp='build')
+    q_dem_repr = optmodel_repr.get_result('heat_flow', node='demand',
+                                         comp='build')
+    q_dem_full = optmodel_full.get_result('heat_flow', node='demand',
+                                         comp='build')
 
-    q_stor_rec = optmodel_rec.get_result('heat_flow', node='demand',
+    q_stor_repr = optmodel_repr.get_result('heat_flow', node='demand',
+                                          comp='stor')
+    q_stor_full = optmodel_full.get_result('heat_flow', node='demand',
+                                          comp='stor')
+
+    q_repr = optmodel_repr.get_result('heat_flow', node='STC', comp='backup')
+    q_full = optmodel_full.get_result('heat_flow', node='STC', comp='backup')
+
+    soc_repr = optmodel_repr.get_result('heat_stor', node='demand', comp='stor')
+    soc_full = optmodel_full.get_result('heat_stor', node='demand', comp='stor')
+
+    soc_inter = optmodel_repr.get_result('heat_stor_inter', node='demand',
                                          comp='stor')
-    q_stor_mut = optmodel_mut.get_result('heat_flow', node='demand',
+    soc_intra = optmodel_repr.get_result('heat_stor_intra', node='demand',
                                          comp='stor')
 
-    q_rec = optmodel_rec.get_result('heat_flow', node='STC', comp='backup')
-    q_mut = optmodel_mut.get_result('heat_flow', node='STC', comp='backup')
-
-    soc_rec = optmodel_rec.get_result('heat_stor', node='demand', comp='stor')
-    soc_mut = optmodel_mut.get_result('heat_stor', node='demand', comp='stor')
-
-    soc_inter = optmodel_rec.get_result('heat_stor_inter', node='demand',
-                                        comp='stor')
-    soc_intra = optmodel_rec.get_result('heat_stor_intra', node='demand',
-                                        comp='stor')
-
-    print h_sol_mut.equals(h_sol_rec)
+    print h_sol_full.equals(h_sol_repr)
     print 'Mutable object'
-    print optmodel_mut.components['STC.solar'].block.area.value
+    print optmodel_full.components['STC.solar'].block.area.value
 
     print 'Recompiled object'
-    print optmodel_rec.components['STC.solar'].block.area.value
+    print optmodel_repr.components['STC.solar'].block.area.value
 
     plt.style.use('ggplot')
     fig, ax = plt.subplots(2, 1, sharex=True)
-    ax[0].plot(h_sol_rec, '-', label='Sol Recompiled')
-    ax[0].plot(h_sol_mut, '--', label='Sol Mutable')
+    ax[0].plot(h_sol_repr, '-', label='Sol repr', color='r')
+    ax[0].plot(h_sol_full, '--', label='Sol full', color='r')
 
-    ax[0].plot(q_stor_rec, '-', label='Storage q rec')
-    ax[0].plot(q_stor_mut, '--', label='Storage q mut')
+    ax[0].plot(q_stor_repr, '-', label='Storage q repr', color='b')
+    ax[0].plot(q_stor_full, '--', label='Storage q full', color='b')
 
-    ax[0].plot(q_rec)
-    ax[0].plot(q_mut, '--')
+    ax[0].plot(q_repr, label='Prod repr', color='y')
+    ax[0].plot(q_full, '--', label='Prod full', color='y')
 
-    ax[0].plot(q_dem_rec)
-    ax[0].plot(q_dem_mut, '--')
+    ax[0].plot(q_dem_repr, label='Demand repr', color='k')
+    ax[0].plot(q_dem_full, '--', label='Demand full', color='k')
 
-    ax[1].plot(soc_rec)
-    ax[1].plot(soc_mut, '--')
+    ax[1].plot(soc_repr, label='SOC repr')
+    ax[1].plot(soc_full, '--', label='SOC full')
 
     ax[1].plot(soc_inter, '*')
     ax[1].plot(soc_intra, ':')

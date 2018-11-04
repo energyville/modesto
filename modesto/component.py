@@ -1490,7 +1490,7 @@ class StorageVariable(VariableComponent):
         :return:
         """
 
-        if repr_days is not None:
+        if self.repr_days is not None:
             raise AttributeError('StorageVariable cannot be used in '
                                  'combination with representative days')
 
@@ -1893,18 +1893,17 @@ class StorageRepr(StorageVariable):
                                        bounds=mflo_bounds)
             self.block.heat_flow = Var(self.TIME, self.REPR_DAYS)
 
-            self.block.heat_stor_intra = Var(self.X_TIME, self.REPR_DAYS,
-                                       bounds=(0, self.block.max_en))
+            self.block.heat_stor_intra = Var(self.X_TIME, self.REPR_DAYS)
             # heat storage trajectory within representative day
             self.block.heat_stor_inter = Var(self.DAYS_OF_YEAR,
-                                       bounds=(0, self.block.max_en))
+                                             bounds=(0, self.block.max_en))
 
             Ng = len(self.TIME)
 
             self.block.heat_stor_intra_max = Var(self.REPR_DAYS,
-                                           within=NonNegativeReals)
+                                                 within=NonNegativeReals)
             self.block.heat_stor_intra_min = Var(self.REPR_DAYS,
-                                           within=NonPositiveReals)
+                                                 within=NonPositiveReals)
 
             # Limit storage state
             def _max_intra_soc(b, t, c):
@@ -1921,7 +1920,8 @@ class StorageRepr(StorageVariable):
                                                        rule=_min_intra_soc)
 
             def _max_soc_constraint(b, d):
-                return b.heat_stor_inter[d] + b.heat_stor_intra_max[self.repr_days[d]] <= b.max_en
+                return b.heat_stor_inter[d] + b.heat_stor_intra_max[
+                    self.repr_days[d]] <= b.max_en
 
             def _min_soc_constraint(b, d):
                 return b.heat_stor_inter[d] * (b.exp_ttau) ** Ng + \
@@ -1934,11 +1934,13 @@ class StorageRepr(StorageVariable):
 
             # Link inter storage states
             def _inter_state_eq(b, d):
-                if d == 365:      # Periodic boundary
-                    return b.heat_stor_inter[1] == b.heat_stor_inter[365] * (b.exp_ttau) ** Ng + b.heat_stor_intra[
-                           self.X_TIME[-1], self.repr_days[365]]
+                if d == 365:  # Periodic boundary
+                    return b.heat_stor_inter[1] == b.heat_stor_inter[365] * (
+                    b.exp_ttau) ** Ng + b.heat_stor_intra[
+                               self.X_TIME[-1], self.repr_days[365]]
                 else:
-                    return b.heat_stor_inter[d + 1] == b.heat_stor_inter[d] * (b.exp_ttau) ** Ng + b.heat_stor_intra[
+                    return b.heat_stor_inter[d + 1] == b.heat_stor_inter[d] * (
+                    b.exp_ttau) ** Ng + b.heat_stor_intra[
                                self.X_TIME[-1], self.repr_days[d]]
 
             self.block.eq_inter_state_eq = Constraint(self.DAYS_OF_YEAR,
@@ -1958,7 +1960,8 @@ class StorageRepr(StorageVariable):
             def _first_intra(b, c):
                 return b.heat_stor_intra[0, c] == 0
 
-            self.block.eq_first_intra = Constraint(self.REPR_DAYS, rule=_first_intra)
+            self.block.eq_first_intra = Constraint(self.REPR_DAYS,
+                                                   rule=_first_intra)
 
             # SoC equation
 
@@ -1982,7 +1985,8 @@ class StorageRepr(StorageVariable):
 
             for d in self.DAYS_OF_YEAR:
                 for t in self.TIME:
-                    result.append(value(self.block.heat_stor_inter[d] * self.block.exp_ttau ** t +
+                    result.append(value(self.block.heat_stor_inter[
+                                            d] * self.block.exp_ttau ** t +
                                         self.block.heat_stor_intra[
                                             t, self.repr_days[d]]))
 
@@ -1992,11 +1996,11 @@ class StorageRepr(StorageVariable):
                                      periods=len(result))
             if name is 'soc':
                 return pd.Series(index=index, name=self.name + '.' + name,
-                                 data=result)/self.max_en
+                                 data=result) / self.max_en
             if name is 'heat_stor':
                 return pd.Series(index=index,
-                                               name=self.name + '.' + name,
-                                               data=result)
+                                 name=self.name + '.' + name,
+                                 data=result)
         elif name is 'heat_stor_inter':
             result = []
 
