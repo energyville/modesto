@@ -1981,8 +1981,9 @@ class StorageRepr(StorageVariable):
     def get_result(self, name, index, state, start_time):
         if name is 'soc' or name is 'heat_stor':
             result = []
-            for t in self.TIME:
-                for d in self.REPR_DAYS:
+
+            for d in self.DAYS_OF_YEAR:
+                for t in self.TIME:
                     result.append(value(self.block.soc_inter[d] * (
                             1 - self.block.exp_ttau) ** t +
                                         self.block.soc_intra[

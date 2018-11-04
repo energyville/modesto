@@ -184,7 +184,7 @@ class Submodel(object):
             n_steps = int(24 * 3600 // time_step)
             self.X_TIME = xrange(n_steps + 1)
             self.TIME = xrange(n_steps)
-            self.REPR_DAYS = set(self.repr_days.values())
+            self.REPR_DAYS = sorted(set(self.repr_days.values()))
             self.DAYS_OF_YEAR = xrange(1, 366)
 
     def get_time_axis(self, state=False):
@@ -371,18 +371,24 @@ class Submodel(object):
 
                     resname = self.name + '.' + name + '.' + index
         elif isinstance(obj, IndexedVar) and self.repr_days is not None:
-            for t in time:
-                for d in self.DAYS_OF_YEAR:
+            for d in self.DAYS_OF_YEAR:
+                for t in time:
                     result.append(value(obj[t, self.repr_days[d]]))
 
                     resname = self.name + '.' +name
 
         elif isinstance(obj, IndexedParam):
-            result = obj.values()
-            if isinstance(result[0], _ParamData):
-                result = [i.value for i in result]
-
             resname = self.name + '.' + name
+            if self.repr_days is None:
+                result = obj.values()
+                if isinstance(result[0], _ParamData):
+                    result = [i.value for i in result]
+
+
+            else:
+                for d in self.DAYS_OF_YEAR:
+                    for t in time:
+                        result.append(value(obj[t, self.repr_days[d]]))
 
         else:
             self.logger.warning(

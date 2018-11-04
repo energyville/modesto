@@ -207,6 +207,9 @@ if __name__ == '__main__':
     q_dem_mut = optmodel_mut.get_result('heat_flow', node='demand',
                                         comp='build')
 
+    q_stor_rec = optmodel_rec.get_result('heat_flow', node='demand', comp='stor')
+    q_stor_mut = optmodel_mut.get_result('heat_flow', node='demand', comp='stor')
+
     q_rec = optmodel_rec.get_result('heat_flow', node='STC', comp='backup')
     q_mut = optmodel_mut.get_result('heat_flow', node='STC', comp='backup')
 
@@ -220,9 +223,13 @@ if __name__ == '__main__':
     print 'Recompiled object'
     print optmodel_rec.components['STC.solar'].block.area.value
 
+    plt.style.use('ggplot')
     fig, ax = plt.subplots(2, 1, sharex=True)
     ax[0].plot(h_sol_rec, '-', label='Sol Recompiled')
     ax[0].plot(h_sol_mut, '--', label='Sol Mutable')
+
+    ax[0].plot(q_stor_rec, '-', label='Storage q rec')
+    ax[0].plot(q_stor_mut, '--', label='Storage q mut')
 
     ax[0].plot(q_rec)
     ax[0].plot(q_mut, '--')
