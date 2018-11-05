@@ -7,7 +7,7 @@ import seaborn as sns
 
 sns.set_style('darkgrid')
 
-for path in ['1dnewsol', '7dnewsol', '3dnewsol']: #  , '7dnewsol']: # ,
+for path in ['1dnewsol']: #, '7dnewsol', '3dnewsol']: #  , '7dnewsol']: # ,
     filepath = os.path.join('../RepresentativePeriodsMILP/results', path)
     for filename in os.listdir(filepath):
         if not filename == 'summary.txt':
@@ -44,7 +44,7 @@ for path in ['1dnewsol', '7dnewsol', '3dnewsol']: #  , '7dnewsol']: # ,
 
             ##################
 
-            for resultname in ['demand', 'backup', 'curt', 'loss_stor', 'net_loss', 'net_pump']:
+            for resultname in ['demand', 'backup', 'curt', 'loss_stor', 'net_loss', 'net_pump', 'sol']:
                 fullname = 'E_{}_full'.format(resultname)
                 reprname = 'E_{}_repr'.format(resultname)
 
@@ -84,9 +84,9 @@ for path in ['1dnewsol', '7dnewsol', '3dnewsol']: #  , '7dnewsol']: # ,
                 g.set_axis_labels('Full year {} AEU [kWh]'.format(resultname),
                                   'Representative {} AEU [kWh]'.format(resultname))
 
-                if not os.path.isdir(os.path.join('img', path, resultname)):
-                    os.makedirs(os.path.join('img', path, resultname))
-                g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.pdf'),
+                if not os.path.isdir(os.path.join('img_ordered', path, resultname)):
+                    os.makedirs(os.path.join('img_ordered', path, resultname))
+                g.savefig(os.path.join('img_ordered', path, resultname, os.path.splitext(filename)[0] + '.pdf'),
                           bbox_inches='tight')
                 plt.close(fig)
 

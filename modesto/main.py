@@ -47,7 +47,7 @@ class Modesto:
         self.allow_flow_reversal = True
         self.start_time = None
         if repr_days is not None:
-            self.repr_days = {i: int(j) for i,j in repr_days.iteritems()}
+            self.repr_days = {i: int(round(j)) for i,j in repr_days.iteritems()}
         else:
             self.repr_days = repr_days
 
