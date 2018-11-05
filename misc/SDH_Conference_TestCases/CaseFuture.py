@@ -43,7 +43,7 @@ def make_graph(repr=False):
     G = nx.DiGraph()
 
     if repr:
-        tank_type = 'StorageCondensed'
+        tank_type = 'StorageRepr'
     else:
         tank_type = 'StorageVariable'
 
@@ -312,7 +312,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=3600, verbose=False, repr=None)
     :param time_step: time step in seconds
     :return:
     """
-    G = make_graph()
+    G = make_graph(repr=repr is not None)
 
     pipe_model = 'ExtensivePipe'
 

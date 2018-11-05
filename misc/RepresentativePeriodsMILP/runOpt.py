@@ -15,16 +15,17 @@ from pkg_resources import resource_filename
 import progressbar
 
 from misc.SDH_Conference_TestCases import CaseFuture
+from pyomo.opt import SolverStatus, TerminationCondition
 
 
 def get_json(filepath):
     with open(filepath) as filehandle:
-        json_data = json.loads(filehandle.read(), object_pairs_hook=OrderedDict)
+        json_data = json.loads(filehandle.read())
     fulldict = json_str2int(json_data)
-    outdict = OrderedDict()
+    outdict = {}
 
     for key, value in fulldict.iteritems():
-        outdict[key] = json_str2int(value['selection'])
+        outdict[key] = json_str2int(value['repr_days'])
 
     return outdict
 
@@ -37,7 +38,7 @@ def json_str2int(ordereddict):
     :param ordereddict: input ordered dict to be transformed
     :return:
     """
-    out = OrderedDict()
+    out = {}
     for key, value in ordereddict.iteritems():
         try:
             intkey = int(key)
@@ -58,7 +59,7 @@ if __name__ == '__main__':
         '1dnewsol': {
             'dur': 1,
             'sel': get_json(resource_filename('TimeSliceSelection',
-                                              '../Scripts/MILP/solutions1.txt'))
+                                              '../Scripts/NoSeasons/ordered_solutions1.txt'))
         }
     }
 
@@ -74,6 +75,8 @@ if __name__ == '__main__':
                          'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr',
                          't_comp'])
             repr_days = sels[num]
+            print len(set(int(round(i)) for i in repr_days.values()))
+            print sorted(set(int(round(i)) for i in repr_days.values()))
 
             bar = progressbar.ProgressBar(maxval=4 * 3 * 4, \
                                           widgets=[
@@ -87,8 +90,7 @@ if __name__ == '__main__':
             for i, VWat in enumerate([50000, 75000, 100000, 125000]):
                 for j, A in enumerate(
                         [25000, 50000, 75000, 100000]):  # , 60000, 80000]:
-                    for k, VSTC in enumerate([100000, 150000,
-                                              200000]):  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
+                    for k, VSTC in enumerate([50000, 100000, 150000]):  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
                         # print 'A:', str(A)
                         # print 'VWat:', str(VWat)
                         # print 'VSTC:', str(VSTC)
@@ -125,7 +127,7 @@ if __name__ == '__main__':
                         energy_net_pump_repr = None
 
                         start = time.clock()
-                        full_model.solve(tee=True, solver='gurobi',
+                        repr_model.solve(tee=False, solver='gurobi',
                                          warmstart=True)
 
                         repr_solution_and_comm = time.clock() - start
