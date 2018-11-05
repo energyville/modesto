@@ -88,4 +88,5 @@ for path in ['1dnewsol', '7dnewsol', '3dnewsol']: #  , '7dnewsol']: # ,
                     os.makedirs(os.path.join('img', path, resultname))
                 g.savefig(os.path.join('img', path, resultname, os.path.splitext(filename)[0] + '.pdf'),
                           bbox_inches='tight')
-                g.close()
+                plt.close(fig)
+
