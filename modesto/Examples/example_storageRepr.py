@@ -415,11 +415,11 @@ def setup_modesto(time_step=3600, n_steps=24 * 365, repr=False):
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': 0,
+        'heat_stor': 200000,
         'mflo_use': pd.Series(0, index=weather_data.index)
     }
     model.change_params(dict=stor_params, node='demand', comp='stor')
-    model.change_init_type('heat_stor', new_type='fixedVal', comp='stor',
+    model.change_init_type('heat_stor', new_type='cyclic', comp='stor',
                            node='demand')
 
     sol_data = ut.read_time_data(resource_filename(
@@ -471,8 +471,8 @@ if __name__ == '__main__':
     optmodel_repr.change_param(node='STC', comp='solar', param='area', val=40000)
     optmodel_repr.compile(start_time=start_time, recompile=True)
 
-    optmodel_repr.set_objective('energy')
-    optmodel_full.set_objective('energy')
+    optmodel_repr.set_objective('cost')
+    optmodel_full.set_objective('cost')
 
     sol_m = optmodel_full.solve(tee=True)
     sol_r = optmodel_repr.solve(tee=True)
@@ -529,6 +529,8 @@ if __name__ == '__main__':
     ax[1].plot(soc_intra, ':')
 
     ax[1].legend()
+
+    fig.savefig('ReprStorage.png', dpi=600, figsize=(16,12), bbox_inches='tight')
 
     ax[0].legend()
 
