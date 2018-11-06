@@ -291,7 +291,7 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, 
             model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
 
     # ### Solar collector
-    solData = utils.read_time_data(datapath, name='RenewableProduction/SolarThermal.csv', expand=repr)
+    solData = utils.read_time_data(datapath, name='RenewableProduction/NewSolarThermal_TSS.csv', expand=False)
 
     solParam = {
         'delta_T': 40,

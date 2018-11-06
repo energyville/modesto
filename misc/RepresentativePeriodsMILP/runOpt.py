@@ -59,7 +59,7 @@ if __name__ == '__main__':
         '1dnewsol': {
             'dur': 1,
             'sel': get_json(resource_filename('TimeSliceSelection',
-                                              '../Scripts/NoSeasons/ordered_solutions1.txt'))
+                                              '../Scripts/NoSeasons/ordered_solutions1_20bins.txt'))
         }
     }
 
@@ -199,11 +199,11 @@ if __name__ == '__main__':
                                         't_repr': repr_solution_and_comm + compilation_time,
                                         't_comp': compilation_time},
                                        ignore_index=True)
-                        path = os.path.join('results', time_duration)
+                        path = os.path.join('results_ordered', time_duration)
                         if not os.path.isdir(path):
                             os.makedirs(path)
                         df.to_csv(
-                            os.path.join(path, 'result{}p.txt'.format(num)),
+                            os.path.join(path, 'result_ordered{}p.txt'.format(num)),
                             sep=' ')
                         bar.update(12 * i + 3 * j + k + 1)
             bar.finish()
