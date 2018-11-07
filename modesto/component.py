@@ -1934,10 +1934,10 @@ class StorageRepr(StorageVariable):
 
             # Link inter storage states
             def _inter_state_eq(b, d):
-                if d == 365:  # Periodic boundary
-                    return b.heat_stor_inter[1] == b.heat_stor_inter[365] * (
+                if d == self.DAYS_OF_YEAR[-1]:  # Periodic boundary
+                    return b.heat_stor_inter[1] == b.heat_stor_inter[self.DAYS_OF_YEAR[-1]] * (
                     b.exp_ttau) ** Ng + b.heat_stor_intra[
-                               self.X_TIME[-1], self.repr_days[365]]
+                               self.X_TIME[-1], self.repr_days[self.DAYS_OF_YEAR[-1]]]
                 else:
                     return b.heat_stor_inter[d + 1] == b.heat_stor_inter[d] * (
                     b.exp_ttau) ** Ng + b.heat_stor_intra[
@@ -1996,7 +1996,7 @@ class StorageRepr(StorageVariable):
                                      periods=len(result))
             if name is 'soc':
                 return pd.Series(index=index, name=self.name + '.' + name,
-                                 data=result) / self.max_en
+                                 data=result) / self.max_en*100
             if name is 'heat_stor':
                 return pd.Series(index=index,
                                  name=self.name + '.' + name,

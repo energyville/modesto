@@ -185,7 +185,7 @@ class Submodel(object):
             self.X_TIME = xrange(n_steps + 1)
             self.TIME = xrange(n_steps)
             self.REPR_DAYS = sorted(set(self.repr_days.values()))
-            self.DAYS_OF_YEAR = xrange(1, 366)
+            self.DAYS_OF_YEAR = xrange(365)
 
     def get_time_axis(self, state=False):
         if state:

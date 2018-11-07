@@ -59,7 +59,7 @@ if __name__ == '__main__':
         '1dnewsol': {
             'dur': 1,
             'sel': get_json(resource_filename('TimeSliceSelection',
-                                              '../Scripts/NoSeasons/ordered_solutions1_20bins.txt'))
+                                              '../Scripts/NoSeasons/ordered_solutions1_20bins_new.txt'))
         }
     }
 
