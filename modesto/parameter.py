@@ -408,7 +408,7 @@ class TimeSeriesParameter(Parameter):
                     return self.value[time]
             else:
                 if self.time_data:
-                    timeindex = self.start_time + pd.Timedelta(days=c - 1,
+                    timeindex = self.start_time + pd.Timedelta(days=c,
                                                                seconds=time * self.time_step)
                     return self.value[timeindex]
                 elif not isinstance(self.value, pd.Series):
