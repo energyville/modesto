@@ -5,12 +5,11 @@ Description
 import logging
 
 import matplotlib.pyplot as plt
+import modesto.utils as ut
 import networkx as nx
 import pandas as pd
-from pkg_resources import resource_filename
-
-import modesto.utils as ut
 from modesto.main import Modesto
+from pkg_resources import resource_filename
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -481,14 +480,14 @@ if __name__ == '__main__':
     h_sol_full = optmodel_full.get_result('heat_flow', node='STC', comp='solar')
 
     q_dem_repr = optmodel_repr.get_result('heat_flow', node='demand',
-                                         comp='build')
+                                          comp='build')
     q_dem_full = optmodel_full.get_result('heat_flow', node='demand',
-                                         comp='build')
+                                          comp='build')
 
     q_stor_repr = optmodel_repr.get_result('heat_flow', node='demand',
-                                          comp='stor')
+                                           comp='stor')
     q_stor_full = optmodel_full.get_result('heat_flow', node='demand',
-                                          comp='stor')
+                                           comp='stor')
 
     q_repr = optmodel_repr.get_result('heat_flow', node='STC', comp='backup')
     q_full = optmodel_full.get_result('heat_flow', node='STC', comp='backup')
@@ -530,7 +529,7 @@ if __name__ == '__main__':
 
     ax[1].legend()
 
-    fig.savefig('ReprStorage.png', dpi=600, figsize=(16,12), bbox_inches='tight')
+    fig.savefig('ReprStorage.png', dpi=600, figsize=(16, 12), bbox_inches='tight')
 
     ax[0].legend()
 
