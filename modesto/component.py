@@ -3,14 +3,13 @@ from __future__ import division
 import logging
 import sys
 from math import pi, log, exp
+
 import pandas as pd
-
-from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
-    Set, Binary, NonPositiveReals
-
 from modesto.parameter import StateParameter, DesignParameter, \
     UserDataParameter, SeriesParameter, WeatherDataParameter
 from modesto.submodel import Submodel
+from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
+    Set, Binary, NonPositiveReals
 
 
 def str_to_comp(string):
@@ -1452,7 +1451,7 @@ class StorageVariable(VariableComponent):
 
             for t in self.TIME:
                 self.block.heat_loss_ct[t] = self.UAw * (
-                        self.temp_sup - Te[t]) + \
+                        self.temp_ret - Te[t]) + \
                                              self.UAtb * (
                                                      self.temp_sup + self.temp_ret - 2 *
                                                      Te[t])
@@ -1465,7 +1464,7 @@ class StorageVariable(VariableComponent):
                 -self.params['time_step'].v() / self.tau))
 
             def _heat_loss_ct(b, t):
-                return self.UAw * (self.temp_sup - Te[t]) + \
+                return self.UAw * (self.temp_ret - Te[t]) + \
                        self.UAtb * (self.temp_sup + self.temp_ret - 2 * Te[t])
 
             self.block.heat_loss_ct = Param(self.TIME, rule=_heat_loss_ct,
@@ -1862,7 +1861,7 @@ class StorageRepr(StorageVariable):
             for t in self.TIME:
                 for c in self.REPR_DAYS:
                     self.block.heat_loss_ct[t, c] = self.UAw * (
-                            self.temp_sup - Te.v(t, c)) + self.UAtb * (
+                            self.temp_ret - Te.v(t, c)) + self.UAtb * (
                                                             self.temp_sup + self.temp_ret - 2 * Te.v(
                                                         t, c))
         else:
@@ -1874,9 +1873,8 @@ class StorageRepr(StorageVariable):
                 -self.params['time_step'].v() / self.tau))
 
             def _heat_loss_ct(b, t, c):
-                return self.UAw * (self.temp_sup - Te.v(t, c)) + \
-                       self.UAtb * (
-                               self.temp_sup + self.temp_ret - 2 * Te.v(t, c))
+                return self.UAw * (self.temp_ret - Te.v(t, c)) + \
+                       self.UAtb * (self.temp_sup + self.temp_ret - 2 * Te.v(t, c))
 
             self.block.heat_loss_ct = Param(self.TIME, self.REPR_DAYS,
                                             rule=_heat_loss_ct,
@@ -1936,11 +1934,11 @@ class StorageRepr(StorageVariable):
             def _inter_state_eq(b, d):
                 if d == self.DAYS_OF_YEAR[-1]:  # Periodic boundary
                     return b.heat_stor_inter[1] == b.heat_stor_inter[self.DAYS_OF_YEAR[-1]] * (
-                    b.exp_ttau) ** Ng + b.heat_stor_intra[
+                        b.exp_ttau) ** Ng + b.heat_stor_intra[
                                self.X_TIME[-1], self.repr_days[self.DAYS_OF_YEAR[-1]]]
                 else:
                     return b.heat_stor_inter[d + 1] == b.heat_stor_inter[d] * (
-                    b.exp_ttau) ** Ng + b.heat_stor_intra[
+                        b.exp_ttau) ** Ng + b.heat_stor_intra[
                                self.X_TIME[-1], self.repr_days[d]]
 
             self.block.eq_inter_state_eq = Constraint(self.DAYS_OF_YEAR,
@@ -1989,14 +1987,15 @@ class StorageRepr(StorageVariable):
                                             d] * self.block.exp_ttau ** t +
                                         self.block.heat_stor_intra[
                                             t, self.repr_days[d]]))
-
+            result.append(value(self.block.heat_stor_inter[self.DAYS_OF_YEAR[-1]] * self.block.exp_ttau ** 24 +
+                                self.block.heat_stor_intra[24, self.repr_days[self.DAYS_OF_YEAR[-1]]]))
             index = pd.DatetimeIndex(start=start_time,
                                      freq=str(
                                          self.params['time_step'].v()) + 'S',
                                      periods=len(result))
             if name is 'soc':
                 return pd.Series(index=index, name=self.name + '.' + name,
-                                 data=result) / self.max_en*100
+                                 data=result) / self.max_en * 100
             if name is 'heat_stor':
                 return pd.Series(index=index,
                                  name=self.name + '.' + name,
