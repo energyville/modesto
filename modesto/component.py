@@ -1436,7 +1436,7 @@ class StorageVariable(VariableComponent):
 
     def common_declarations(self):
         """
-        Shared defenitions between StorageVariable and StorageCondensed.
+        Shared definitions between StorageVariable and StorageCondensed.
 
         :return:
         """
@@ -1860,10 +1860,8 @@ class StorageRepr(StorageVariable):
 
             for t in self.TIME:
                 for c in self.REPR_DAYS:
-                    self.block.heat_loss_ct[t, c] = self.UAw * (
-                            self.temp_ret - Te.v(t, c)) + self.UAtb * (
-                                                            self.temp_sup + self.temp_ret - 2 * Te.v(
-                                                        t, c))
+                    self.block.heat_loss_ct[t, c] = self.UAw * (self.temp_ret - Te.v(t, c)) + self.UAtb * (
+                                self.temp_sup + self.temp_ret - 2 * Te.v(t, c))
         else:
             self.block.max_en = Param(mutable=True, initialize=self.max_en)
             self.block.UAw = Param(mutable=True, initialize=self.UAw)
@@ -1933,7 +1931,7 @@ class StorageRepr(StorageVariable):
             # Link inter storage states
             def _inter_state_eq(b, d):
                 if d == self.DAYS_OF_YEAR[-1]:  # Periodic boundary
-                    return b.heat_stor_inter[1] == b.heat_stor_inter[self.DAYS_OF_YEAR[-1]] * (
+                    return b.heat_stor_inter[self.DAYS_OF_YEAR[0]] == b.heat_stor_inter[self.DAYS_OF_YEAR[-1]] * (
                         b.exp_ttau) ** Ng + b.heat_stor_intra[
                                self.X_TIME[-1], self.repr_days[self.DAYS_OF_YEAR[-1]]]
                 else:
