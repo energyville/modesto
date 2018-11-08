@@ -222,7 +222,7 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, 
         'mflo_max': 11000,
         'mflo_min': -11000,
         'mflo_use': pd.Series(0, index=t_amb.index),
-        'volume': 150e3,
+        'volume': 50e3,
         'ar': 1,
         'dIns': 1,
         'kIns': 0.024,
@@ -254,7 +254,7 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, 
                 'mflo_max': 11000,
                 'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
-                'volume': 600e3,
+                'volume': 60e3,
                 'ar': 1,
                 'dIns': 1,
                 'kIns': 0.024,
@@ -296,7 +296,7 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, 
     solParam = {
         'delta_T': 40,
         'heat_profile': solData['0_40'],
-        'area': 300000
+        'area': 30000
     }
 
     model.change_params(solParam, node='SolarArray', comp='solar')
