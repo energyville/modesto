@@ -1861,7 +1861,7 @@ class StorageRepr(StorageVariable):
             for t in self.TIME:
                 for c in self.REPR_DAYS:
                     self.block.heat_loss_ct[t, c] = self.UAw * (self.temp_ret - Te.v(t, c)) + self.UAtb * (
-                                self.temp_sup + self.temp_ret - 2 * Te.v(t, c))
+                            self.temp_sup + self.temp_ret - 2 * Te.v(t, c))
         else:
             self.block.max_en = Param(mutable=True, initialize=self.max_en)
             self.block.UAw = Param(mutable=True, initialize=self.UAw)
@@ -1975,18 +1975,37 @@ class StorageRepr(StorageVariable):
 
         self.compiled = True
 
+    def get_heat_stor_inter(self, d, t):
+        """
+        Get inter heat storage on day d at time step t.
+
+        :param d: Day of year, starting at 0
+        :param t: time of day
+        :return:
+        """
+        return self.block.heat_stor_inter[d] * self.block.exp_ttau ** t
+
+    def get_heat_stor_intra(self, d, t):
+        """
+        Get intra heat storage for day of year d and time step of that day t
+
+        :param d: Day of year, starting at 0
+        :param t: hour of the day
+        :return:
+        """
+
+        return self.block.heat_stor_intra[t, self.repr_days[d]]
+
     def get_result(self, name, index, state, start_time):
         if name in ['soc', 'heat_stor']:
             result = []
 
             for d in self.DAYS_OF_YEAR:
                 for t in self.TIME:
-                    result.append(value(self.block.heat_stor_inter[
-                                            d] * self.block.exp_ttau ** t +
-                                        self.block.heat_stor_intra[
-                                            t, self.repr_days[d]]))
-            result.append(value(self.block.heat_stor_inter[self.DAYS_OF_YEAR[-1]] * self.block.exp_ttau ** 24 +
-                                self.block.heat_stor_intra[24, self.repr_days[self.DAYS_OF_YEAR[-1]]]))
+                    result.append(value(self.get_heat_stor_inter(d, t) +
+                                        self.get_heat_stor_intra(d, t)))
+            result.append(value(self.get_heat_stor_inter(self.DAYS_OF_YEAR[-1], 24) +
+                                self.get_heat_stor_intra(self.DAYS_OF_YEAR[-1], 24)))
             index = pd.DatetimeIndex(start=start_time,
                                      freq=str(
                                          self.params['time_step'].v()) + 'S',
@@ -2002,12 +2021,22 @@ class StorageRepr(StorageVariable):
             result = []
 
             for d in self.DAYS_OF_YEAR:
-                result.append(value(self.block.heat_stor_inter[d]))
+                result.append(value(self.get_heat_stor_inter(d, 0)))
             index = pd.DatetimeIndex(start=start_time,
                                      freq='1D',
                                      periods=365)
             return pd.Series(index=index, data=result,
                              name=self.name + '.heat_stor_inter')
+        elif name is 'heat_loss':
+            result = []
+            for d in self.DAYS_OF_YEAR:
+                for t in self.TIME:
+                    result.append(value(self.block.heat_loss_ct[t, self.repr_days[d]] + 1000 * 3600 / self.params[
+                        'time_step'].v() * (self.get_heat_stor_inter(d, t) + self.get_heat_stor_intra(d, t)) * (1 - self.block.exp_ttau)))
+            index = pd.DatetimeIndex(start=start_time, freq=str(self.params['time_step'].v()) + 'S',
+                                     periods=len(result))
+            return pd.Series(index=index, data=result,
+                             name=self.name + '.heat_loss')
         else:
             return super(StorageRepr, self).get_result(name, index, state,
                                                        start_time)
