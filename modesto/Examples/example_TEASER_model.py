@@ -60,6 +60,12 @@ def construct_model():
     df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
     df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv')
 
+    # Production parameters
+
+    c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
+                            name='DAM_electricity_prices-2014_BE.csv', expand=True)['price_BE']
+    # cf = pd.Series(0.5, index=t_amb.index)
+
     t_amb = df_weather['Te']
     t_g = df_weather['Tg']
     QsolN = df_weather['QsolN']
@@ -83,7 +89,8 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps * time_step}
+                      'horizon': n_steps * time_step,
+                      'elec_cost': c_f}
 
     optmodel.change_params(general_params)
 
@@ -96,9 +103,9 @@ def construct_model():
                           'day_max_temperature': day_max,
                           'floor_min_temperature': floor_min,
                           'floor_max_temperature': floor_max,
-                          'neighbName': 'OudWinterslag',
-                          'streetName': 'Gierenshof',
-                          'buildingName': 'Gierenshof_17_1589280',
+                          'neighbName': 'Archetypes',
+                          'streetName': 'Archetypes',
+                          'buildingName': 'Boxbergheide_SD',
                           'Q_int_rad': Q_int_D,
                           'Q_int_con': Q_int_D,
                           'max_heat': 25000,
@@ -109,8 +116,8 @@ def construct_model():
     ws_building_params = zw_building_params.copy()
     ws_building_params['mult'] = 200
     ws_building_params.update({
-        'streetName': 'Gierenshof',
-        'buildingName': 'Gierenshof_25_1587133'
+        'streetName': 'Archetypes',
+        'buildingName': 'Boxbergheide_T'
     })
 
     optmodel.change_params(zw_building_params, node='zwartbergNE',
@@ -152,20 +159,15 @@ def construct_model():
     optmodel.change_params(dict=stor_design, node='waterscheiGarden',
                            comp='storage')
 
-    # Production parameters
-
-    c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
-                            name='DAM_electricity_prices-2014_BE.csv', expand=True)['price_BE']
-    # cf = pd.Series(0.5, index=t_amb.index)
-
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 1.5e7,
+                   'Qmax': 1.5e8,
                    'ramp_cost': 0,
-                   'ramp': 1e6}
+                   'ramp': 0,
+                   'delta_T': 20}
 
     optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
