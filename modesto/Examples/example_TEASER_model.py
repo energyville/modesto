@@ -103,9 +103,9 @@ def construct_model():
                           'day_max_temperature': day_max,
                           'floor_min_temperature': floor_min,
                           'floor_max_temperature': floor_max,
-                          'neighbName': 'Archetypes',
-                          'streetName': 'Archetypes',
-                          'buildingName': 'Boxbergheide_SD',
+                          'neighbName': 'OudWinterslag',
+                          'streetName': 'Gierenshof',
+                          'buildingName': 'Gierenshof_17_1589280',
                           'Q_int_rad': Q_int_D,
                           'Q_int_con': Q_int_D,
                           'max_heat': 25000,
@@ -116,8 +116,9 @@ def construct_model():
     ws_building_params = zw_building_params.copy()
     ws_building_params['mult'] = 200
     ws_building_params.update({
-        'streetName': 'Archetypes',
-        'buildingName': 'Boxbergheide_T'
+        'neighbName': 'TermienWest',
+        'streetName': 'Akkerstraat',
+        'buildingName': 'Akkerstraat_17_4752768'
     })
 
     optmodel.change_params(zw_building_params, node='zwartbergNE',
