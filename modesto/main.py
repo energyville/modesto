@@ -190,7 +190,7 @@ class Modesto:
         self.model.Slack = Var(within=NonNegativeReals)
 
         def _decl_slack(model):
-            return model.Slack == 10 ** 0 * sum(comp.obj_slack() for comp in self.iter_components())
+            return model.Slack == 10 ** 6 * sum(comp.obj_slack() for comp in self.iter_components())
 
         self.model.decl_slack = Constraint(rule=_decl_slack)
 
