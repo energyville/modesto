@@ -59,7 +59,7 @@ if __name__ == '__main__':
         '1dnewsol': {
             'dur': 1,
             'sel': get_json(resource_filename('TimeSliceSelection',
-                                              '../Scripts/NoSeasons/ordered_solutions1_20bins_new.txt'))
+                                              '../Scripts/MultiCorr/ordered_solutions1_20bins_weighted.txt'))
         }
     }
 
@@ -72,7 +72,7 @@ if __name__ == '__main__':
                 columns=['A', 'VSTC', 'VWat', 'E_backup_full', 'E_backup_repr',
                          'E_loss_stor_full', 'E_loss_stor_repr',
                          'E_curt_full',
-                         'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr',
+                         'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr', 'C_elec_full', 'C_elec_repr',
                          't_comp'])
             repr_days = sels[num]
             print len(set(int(round(i)) for i in repr_days.values()))
@@ -125,6 +125,7 @@ if __name__ == '__main__':
                         energy_curt_repr = None
                         energy_net_loss_repr = None
                         energy_net_pump_repr = None
+                        cost_elec_repr = None
 
                         start = time.clock()
                         repr_model.solve(tee=False, solver='gurobi',
@@ -149,6 +150,7 @@ if __name__ == '__main__':
                                 repr_model)
                             energy_demand_repr = CaseFuture.get_demand_energy(
                                 repr_model)
+                            cost_elec_repr = repr_model.get_objective()
 
                         result_full = dffull[
                             (dffull['A'] == A) & (dffull['VSTC'] == VSTC) & (
@@ -196,6 +198,8 @@ if __name__ == '__main__':
                                         'E_demand_full': float(
                                             result_full['E_demand_full']),
                                         'E_demand_repr': energy_demand_repr,
+                                        'C_elec_full': float(result_full['C_elec_full']),
+                                        'C_elec_repr': cost_elec_repr,
                                         't_repr': repr_solution_and_comm + compilation_time,
                                         't_comp': compilation_time},
                                        ignore_index=True)

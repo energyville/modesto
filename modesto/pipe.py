@@ -481,6 +481,7 @@ class ExtensivePipe(Pipe):
         """
         di = self.di[self.dn]
 
+
         if self.compiled:
             for n in self.n_pump:
                 self.block.pps[n] = 2 * self.f * self.length * (
@@ -500,22 +501,45 @@ class ExtensivePipe(Pipe):
             if self.repr_days:
                 self.block.pumping_power = Var(self.TIME, self.REPR_DAYS,
                                                within=NonNegativeReals)
+                self.block.mass_flow_abs = Var(self.TIME, self.REPR_DAYS, within=NonNegativeReals)
+
+
 
             else:
                 self.block.pumping_power = Var(self.TIME, within=NonNegativeReals)
+                self.block.mass_flow_abs = Var(self.TIME, within=NonNegativeReals)
+
+            def _mass_flow_pos(b, t, c=None):
+                if self.repr_days is None:
+                    return b.mass_flow_abs[t] >= b.mass_flow[t]
+                else:
+                    return b.mass_flow_abs[t,c] >= b.mass_flow[t,c]
+
+            def _mass_flow_neg(b, t, c=None):
+                if self.repr_days is None:
+                    return b.mass_flow_abs[t] >= -b.mass_flow[t]
+                else:
+                    return b.mass_flow_abs[t, c] >= -b.mass_flow[t, c]
+
+            if self.repr_days is None:
+                self.block.ineq_mass_flow_pos = Constraint(self.TIME, rule=_mass_flow_pos)
+                self.block.ineq_mass_flow_neg = Constraint(self.TIME, rule=_mass_flow_neg)
+            else:
+                self.block.ineq_mass_flow_pos = Constraint(self.TIME, self.REPR_DAYS,  rule=_mass_flow_pos)
+                self.block.ineq_mass_flow_neg = Constraint(self.TIME, self.REPR_DAYS,  rule=_mass_flow_neg)
 
             for i in range(n_segments):
                 def _ineq_pumping(b, t, c=None):
                     if self.repr_days is None:
                         return b.pumping_power[t] >= (
-                                b.mass_flow[t] / b.mass_flow_max -
+                                b.mass_flow_abs[t] / b.mass_flow_max -
                                 self.mfs_ratio[
                                     i]) / (
                                        self.mfs_ratio[i + 1] - self.mfs_ratio[
                                    i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
                     else:
                         return b.pumping_power[t, c] >= (
-                                b.mass_flow[t, c] / b.mass_flow_max -
+                                b.mass_flow_abs[t, c] / b.mass_flow_max -
                                 self.mfs_ratio[
                                     i]) / (
                                        self.mfs_ratio[i + 1] - self.mfs_ratio[

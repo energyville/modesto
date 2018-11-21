@@ -40,6 +40,7 @@ for VWat in [50000, 75000, 100000, 125000]:
             energy_net_loss_full = None
             energy_net_pumping_full = None
             energy_demand = None
+            cost_obj = None
 
             full_model.change_param(node='SolarArray', comp='solar', param='area', val=A)
             full_model.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
@@ -66,6 +67,8 @@ for VWat in [50000, 75000, 100000, 125000]:
                 energy_net_loss_full = CaseFuture.get_network_loss(full_model)
                 energy_net_pumping_full = CaseFuture.get_network_pumping(full_model)
                 energy_demand = CaseFuture.get_demand_energy(full_model)
+                cost_obj = full_model.get_objective()
+
             end = time.clock()
             calc_full = end - begin
             print 'Full time: {}'.format(calc_full)
@@ -77,6 +80,7 @@ for VWat in [50000, 75000, 100000, 125000]:
                             'E_net_loss_full': energy_net_loss_full,
                             'E_net_pump_full': energy_net_pumping_full,
                             'E_demand_full': energy_demand,
+                            'C_elec_full': cost_obj,
                             't_full': calc_full},
                            ignore_index=True)
             df.to_csv('refresult.txt', sep=' ')

@@ -11,6 +11,7 @@ from __future__ import division
 
 import logging
 import time
+import os
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -20,11 +21,10 @@ from matplotlib.dates import DateFormatter
 from modesto import utils
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.WARNING,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('SDH')
-
 
 # # Network graph
 
@@ -97,7 +97,7 @@ def make_graph(repr=False):
     return G
 
 
-def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, time_step=3600):
+def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, time_step=3600):
     """
     Set all necessary parameters (can still be changed before compilation).
 
@@ -167,6 +167,7 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, 
         print '# Sum of heat demands #'
         print '#######################'
         print ''
+        print sum(heat_profile[i] for i in ['WaterscheiGarden', 'TermienWest', 'TermienEast']).max()
     for name in ['WaterscheiGarden', 'TermienWest',
                  'TermienEast']:  # ['Boxbergheide', 'TermienWest', 'WaterscheiGarden']:
         build_param = building_params_common
@@ -180,13 +181,13 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, 
     # ### Heat generation unit
 
     prod_design = {'delta_T': 40,
-                   'efficiency': 0.95,
-                   'PEF': 1,
+                   'efficiency': 3,
+                   'PEF': 2,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': 15e7,
+                   'Qmax': 5e7,
                    'ramp_cost': 0.00,
-                   'ramp': 16e7}
+                   'ramp': 0}
 
     model.change_params(prod_design, 'Production', 'backup')
     STOR_COST = resource_filename('modesto', 'Data/Investment/Storage.xlsx')
@@ -209,10 +210,7 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, 
     model.change_init_type('heat_stor', 'cyclic', node='Production', comp='tank')
     model.change_params(prod_stor_design, node='Production', comp='tank')
     for node in ['SolarArray', 'TermienWest', 'WaterscheiGarden']:
-        if repr:
-            model.change_init_type('heat_stor', 'free', node=node, comp='tank')
-        else:
-            model.change_init_type('heat_stor', 'cyclic', node=node, comp='tank')
+        model.change_init_type('heat_stor', 'cyclic', node=node, comp='tank')
 
     # ### Storage Unit
 
@@ -296,7 +294,7 @@ def set_params(model, pipe_model, verbose=False, repr=False, horizon=3600 * 24, 
     solParam = {
         'delta_T': 40,
         'heat_profile': solData['0_40'],
-        'area': 30000
+        'area': 300000
     }
 
     model.change_params(solParam, node='SolarArray', comp='solar')
@@ -383,7 +381,7 @@ if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=3600 * 24 * 365)
+    optmodel = setup_opt(time_step=3600, horizon=3600 * 24 * 300)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('energy')
     optmodel.opt_settings(allow_flow_reversal=True)
@@ -431,6 +429,8 @@ if __name__ == '__main__':
 
     ax.plot(inputs['Solar'] / 1e6, label='STC', color='orange')
     ax.plot(inputs['Production'] / 1e6, label='Backup', color='red', linewidth=1.5)
+    ax.plot(sum(heat_flows[i] for i in heat_flows)/1e6, ':', label='Heat demand')
+
     ax.set_ylabel('Heat Flow [MW]')
     ax.legend(loc='best')
 
@@ -467,9 +467,12 @@ if __name__ == '__main__':
     fig, axs = plt.subplots(2, 1, sharex=True)
     for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servSol', 'servWat']:
         print pipe
-        axs[0].plot(optmodel.get_result('heat_loss_tot', comp=pipe), label=pipe)
-        axs[1].plot(optmodel.get_result('mass_flow', comp=pipe), label=pipe)
+        ls = ':' if pipe=='backBone' else '-'
+        axs[0].plot(optmodel.get_result('heat_loss_tot', comp=pipe), linestyle=ls, label=pipe)
+        axs[1].plot(optmodel.get_result('mass_flow', comp=pipe), linestyle=ls, label=pipe)
     axs[1].legend()
+    axs[0].set_title('Heat losses')
+    axs[1].set_title('Mass flow rates')
 
     for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servSol', 'servWat']:
         print pipe, str(round(sum(optmodel.get_result('heat_loss_tot', comp=pipe)) / 1e6, 2)), 'MWh'
@@ -545,6 +548,14 @@ if __name__ == '__main__':
     fig.tight_layout()
 
     fig.savefig('img/Future/StoragePlot.png', dpi=300)
+
+    fig, ax = plt.subplots(2,1, sharex=True)
+
+    ax[0].plot(optmodel.get_result('mass_flow', comp='backBone'))
+    ax[0].set_title('BackBone mass flow rate')
+
+    ax[1].plot(optmodel.get_result('pumping_power', node=None, comp='backBone'))
+    ax[1].set_title('Pumping power')
 
     df = pd.DataFrame()
     df['hf'] = optmodel.get_result('heat_flow', comp='backup', node='Production')

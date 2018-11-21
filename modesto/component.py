@@ -12,6 +12,8 @@ from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
     Set, Binary, NonPositiveReals
 
 
+
+
 def str_to_comp(string):
     """
     Convert string to class initializer
