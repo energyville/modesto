@@ -114,6 +114,9 @@ class Parameter(object):
 
         return self.value
 
+    def get_name(self):
+        return self.name
+
     def v(self, time=None, c=None):
         return self.get_value(time, c=c)
 

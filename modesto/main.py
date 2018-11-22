@@ -57,6 +57,7 @@ class Modesto:
         self.components = {}
         self.params = self.create_params()
 
+
         self.logger = logging.getLogger('modesto.main.Modesto')
 
         self.build(graph)
@@ -617,7 +618,86 @@ class Modesto:
         else:
             return obj
 
-    def print_all_params(self):
+    def collect_all_params(self):
+        param_list = {None: {'general': self.params.values()}}
+
+        for node in self.get_nodes():
+            comps = self.get_node_components(node)
+            param_list[node] = {}
+            for comp, comp_obj in comps.items():
+                param_list[node][comp] = []
+                for name in comp_obj.get_param_names():
+                    param_list[node][comp].append(comp_obj.get_param(name))
+
+        return param_list
+
+    def iter_params(self):
+        # TODO Make this
+        # TODO Define all_params once?
+        all_params = self.collect_all_params()
+
+    def __get_one_type_params(self, param_type):
+        """
+        Get all parameters belonging to one type of parameter class
+
+        :param param_type: list of paremeter classes to be included
+        :return: A dict containing all parameters, ordered by node and component
+        """
+        all_params = self.collect_all_params()
+        type_params = {}
+        for node in all_params:
+            type_params[node] = {}
+            for comp, params in all_params[node].items():
+                if node is not None:
+                    # Remove node name from comp name
+                    comp = comp[len(node) + 1:]
+
+                type_params[node][comp] = []
+                for param in params:
+                    if isinstance(param, param_type):
+                        type_params[node][comp].append(param.get_name())
+
+                if not type_params[node][comp]:
+                    type_params[node].pop(comp, None)
+
+            if not type_params[node]:
+                type_params.pop(node, None)
+
+        return type_params
+
+    def get_user_data_parameters(self):
+        """
+        Get all user data parameters
+
+        :return: A dict containing all parameters, ordered by node and component
+        """
+        return self.__get_one_type_params(UserDataParameter)
+
+    def get_design_parameters(self):
+        """
+        Get all design parameters
+
+        :return: A dict containing all parameters, ordered by node and component
+        """
+        return self.__get_one_type_params(DesignParameter)
+
+    def get_weather_data_parameters(self):
+        """
+        Get all weather data parameters
+
+        :return: A dict containing all parameters, ordered by node and component
+        """
+        return self.__get_one_type_params(WeatherDataParameter)
+
+    def get_state_parameters(self):
+        """
+        Get all state parameters
+
+        :return: A dict containing all parameters, ordered by node and component
+        """
+        return self.__get_one_type_params(StateParameter)
+
+    def print_all_params(self, disp=True):
         """
         Print all parameters in the optimization problem
 
@@ -631,9 +711,28 @@ class Modesto:
             descriptions[comp] = {}
             for name in comp_obj.get_params():
                 descriptions[comp][name] = comp_obj.get_param_description(name)
-        self._print_params(descriptions)
+        return self._print_params(descriptions, disp)
 
-    def print_comp_param(self, node=None, comp=None, *args):
+    def print_node_params(self, node=None, disp=True):
+        """
+        Print parameters of a node
+
+        :param node: Name of the node, if None, the pipes are considered
+        :param args: Names of the parameters, if None are given, all will be printed
+        :return:
+        """
+        string = ''
+
+        for comp in self.get_node_components(node):
+            comp = comp[len(node)+1:]
+            string += self.print_comp_param(node, comp, disp=False)
+
+        if disp:
+            print string
+        else:
+            return string
+
+    def print_comp_param(self, node=None, comp=None, disp=True, *args):
         """
         Print parameters of a component
 
@@ -648,18 +747,17 @@ class Modesto:
         descriptions = {comp_name: {}}
 
         if not args:
-            for name in comp_obj.get_params():
-                descriptions[comp_name][name] = comp_obj.get_param_description(
-                    name)
+            for name in comp_obj.get_param_names():
+                descriptions[comp_name][name] = comp_obj.get_param_description(name)
         for name in args:
             if name not in comp_obj.params:
                 raise IndexError(
                     '%s is not a valid parameter of %s' % (name, comp))
             descriptions[comp_name][name] = comp_obj.get_param_description(name)
 
-        self._print_params(descriptions)
+        return self._print_params(descriptions, disp)
 
-    def print_general_param(self, name=None):
+    def print_general_param(self, name=None, disp=True):
         """
         Print a single, general parameter
 
@@ -673,13 +771,13 @@ class Modesto:
             for name in self.params:
                 list[name] = self.params[name].get_description()
 
-            self._print_params({'general': list})
+            return self._print_params({'general': list}, disp)
         else:
             if name not in self.params:
                 raise IndexError('%s is not a valid general parameter ' % name)
 
-            self._print_params(
-                {'general': {name: self.params[name].get_description()}})
+            return self._print_params({'general': {name: self.params[name].get_description()}}, disp)
+
 
     @staticmethod
     def _print_params(descriptions, disp=True):

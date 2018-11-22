@@ -65,6 +65,10 @@ def construct_model():
     Q_int_con = ut.expand_df(df_Qcon['1'])
     Q_int_rad = ut.expand_df(df_Qrad['1'])
 
+    c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
+                            name='DAM_electricity_prices-2014_BE.csv', expand=True)['price_BE']
+    # cf = pd.Series(0.5, index=t_amb.index)
+
     optmodel.opt_settings(allow_flow_reversal=True)
 
     # general parameters
@@ -76,7 +80,8 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps * time_step}
+                      'horizon': n_steps * time_step,
+                      'elec_cost': c_f}
 
     optmodel.change_params(general_params)
 
@@ -97,7 +102,7 @@ def construct_model():
                           'buildingName': 'Gierenshof_17_1589280',
                           'Q_int_rad': Q_int_rad,
                           'Q_int_con': Q_int_con,
-                          'max_heat': 20000,
+                          'max_heat': 2000000,
                           'fra_rad': 0.3,
                           'ACH': 0.4
                           }
@@ -107,10 +112,6 @@ def construct_model():
 
     # Production parameters
 
-    c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
-                            name='DAM_electricity_prices-2014_BE.csv', expand=True)['price_BE']
-    # cf = pd.Series(0.5, index=t_amb.index)
-
     prod_design = {'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
@@ -118,7 +119,8 @@ def construct_model():
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 1.5e6,
                    'ramp_cost': 0.00,
-                   'ramp': 1e6}
+                   'ramp': 0,
+                   'delta_T': 20}
 
     optmodel.change_params(prod_design, 'waterscheiGarden', 'plant')
 
