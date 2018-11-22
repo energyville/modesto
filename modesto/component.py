@@ -90,25 +90,6 @@ class Component(Submodel):
 
         self.params[name] = new_object
 
-    def get_param_value(self, name, time=None):
-        """
-        Gets value of specified design param. Returns "None" if unknown
-
-        :param name: Name of the parameter (str)
-        :param time: If parameter consists of a series of values, the value at a certain can be selected time
-        :return:
-        """
-
-        try:
-            param = self.params[name]
-        except KeyError:
-            param = None
-            self.logger.warning(
-                'Parameter {} does not (yet) exist in this component'.format(
-                    name))
-
-        return param.get_value(time)
-
     def get_temperature(self, t, line):
         """
         Return temperature in one of both lines at time t

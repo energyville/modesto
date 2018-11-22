@@ -104,6 +104,16 @@ class Submodel(object):
 
         self.params[name] = new_object
 
+    def get_param(self, name):
+        return self.params[name]
+
+    def get_param_names(self):
+        """
+        :return:
+        """
+
+        return self.params.keys()
+
     def get_param_value(self, name, time=None):
         """
         Gets value of specified design param. Returns "None" if unknown
