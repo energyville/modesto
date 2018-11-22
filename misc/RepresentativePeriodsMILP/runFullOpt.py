@@ -53,7 +53,7 @@ for VWat in [50000, 75000, 100000, 125000]:
             full_model.set_objective('cost')
             print 'Writing time: {}'.format(time.clock() - begin)
 
-            full_model.solve(tee=True, solver='gurobi', warmstart=True)
+            full_model.solve(tee=False, solver='gurobi', warmstart=True)
 
             if (full_model.results.solver.status == SolverStatus.ok) and not (
                     full_model.results.solver.termination_condition == TerminationCondition.infeasible):

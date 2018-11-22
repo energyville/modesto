@@ -21,7 +21,7 @@ from matplotlib.dates import DateFormatter
 from modesto import utils
 from modesto.main import Modesto
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('SDH')
