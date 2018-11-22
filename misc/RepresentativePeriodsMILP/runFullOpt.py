@@ -50,7 +50,7 @@ for VWat in [50000, 75000, 100000, 125000]:
             full_model.change_param(node='Production', comp='backup', param='ramp_cost', val=0)
 
             full_model.compile('20140101')
-            full_model.set_objective('energy')
+            full_model.set_objective('cost')
             print 'Writing time: {}'.format(time.clock() - begin)
 
             full_model.solve(tee=True, solver='gurobi', warmstart=True)

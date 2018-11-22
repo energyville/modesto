@@ -44,7 +44,7 @@ for path in ['1dnewsol']: #, '7dnewsol', '3dnewsol']: #  , '7dnewsol']: # ,
 
             ##################
 
-            for resultname in ['demand', 'backup', 'curt', 'loss_stor', 'net_loss', 'net_pump', 'sol']:
+            for resultname in ['demand', 'backup', 'curt', 'loss_stor', 'net_loss', 'net_pump', 'sol', 'C_elec']:
                 fullname = 'E_{}_full'.format(resultname)
                 reprname = 'E_{}_repr'.format(resultname)
 
@@ -89,4 +89,3 @@ for path in ['1dnewsol']: #, '7dnewsol', '3dnewsol']: #  , '7dnewsol']: # ,
                 g.savefig(os.path.join('img_ordered', path, resultname, os.path.splitext(filename)[0] + '.pdf'),
                           bbox_inches='tight')
                 plt.close(fig)
-

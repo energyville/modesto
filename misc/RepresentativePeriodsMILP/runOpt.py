@@ -115,7 +115,7 @@ if __name__ == '__main__':
                                                 param='ramp_cost', val=0)
 
                         repr_model.compile('20140101')
-                        repr_model.set_objective('energy')
+                        repr_model.set_objective('cost')
 
                         compilation_time = time.clock() - start_full
 
