@@ -31,7 +31,7 @@ class Modesto:
         :param graph: networkx object, describing the structure of the network
         """
 
-        self.model = ConcreteModel()
+        self.model = ConcreteModel(name=Modesto)
 
         self.results = None
 
@@ -237,12 +237,13 @@ class Modesto:
 
             self.objectives['temp'] = self.model.OBJ_TEMP
 
-    def compile(self, start_time='20140101'):
+    def compile(self, start_time='20140101', recompile=False):
         """
         Compile the optimization problem
 
         :param start_time: Start time of this modesto instance. Either a pandas Timestamp object or a string of format
             'yyyymmdd'. Default '20140101'.
+        :param recompile: True if model should be recompiled. If False, only mutable parameters are reloaded.
         :return:
         """
 
@@ -257,8 +258,15 @@ class Modesto:
 
         # Check if not compiled already
         if self.compiled:
-            self.logger.warning('Model was already compiled.')
-            self.model = ConcreteModel()
+            if not recompile and not self.temperature_driven:
+                self.logger.info('Model was already compiled. Only changing mutable parameters.')
+
+            else:
+                self.model = ConcreteModel()
+                self.compiled = False
+                for comp in self.components:
+                    self.components[comp].reinit()
+                self.logger.info('Recompiling model.')
 
         # Check whether all necessary parameters are there
         self.check_data()
@@ -266,13 +274,21 @@ class Modesto:
 
         # Components
         for name in self.get_edges():
-            self.get_component(name=name).compile(self.model, start_time)
-        for name in self.get_nodes():
-            self.get_component(name=name).compile(self.model, start_time)
+            edge_obj = self.get_component(name=name)
+            edge_obj.compile(self.model, start_time)
 
-        self.__build_objectives()
+        nodes = self.get_nodes()
+
+        for node in nodes:
+            node_obj = self.get_component(name=node)
+            node_obj.compile(self.model, start_time)
+
+        if not self.compiled or recompile:
+            self.__build_objectives()
 
         self.compiled = True  # Change compilation flag
+
+        return
 
     def check_data(self):
         """
@@ -888,6 +904,8 @@ class Node(Submodel):
         self.components = {}
         self.pipes = {}
 
+        self.compiled = False
+
         self.build()
 
     def contains_heat_source(self):
@@ -1013,15 +1031,33 @@ class Node(Submodel):
         :param model:
         :return:
         """
-        self.set_time_axis()
-        self._make_block(model)
+        if self.compiled:
+            for name, comp in self.components.items():
+                comp.compile(model, start_time)
 
-        for name, comp in self.components.items():
-            comp.compile(model, start_time)
+        else:
+            self.set_time_axis()
+            self._make_block(model)
 
-        self._add_bal()
+            for name, comp in self.components.items():
+                comp.compile(model, start_time)
 
-        self.logger.info('Compilation of {} finished'.format(self.name))
+            self._add_bal()
+
+            self.logger.info('Compilation of {} finished'.format(self.name))
+
+        self.compiled = True
+
+        return
+
+    def reinit(self):
+        """
+        Reinitialize component and its parameters
+
+        :return:
+        """
+        if self.compiled:
+            self.compiled = False
 
     def _add_bal(self):
         """
@@ -1046,20 +1082,20 @@ class Node(Submodel):
                 incoming_pipes = collections.defaultdict(list)
 
                 for name, comp in c.items():
-                    if comp.get_mflo(t) >= 0:
+                    if value(comp.get_mflo(t)) >= 0:
                         incoming_comps['supply'].append(name)
                     else:
                         incoming_comps['return'].append(name)
 
                 for name, pipe in p.items():
-                    if pipe.get_edge_mflo(self.name, t) >= 0:
+                    if value(pipe.get_edge_mflo(self.name, t)) >= 0:
                         incoming_pipes['supply'].append(name)
                     else:
                         incoming_pipes['return'].append(name)
                 # Zero mass flow rate:
-                if sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) + \
+                if value(sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) + \
                         sum(p[pipe].get_edge_mflo(self.name, t) for pipe in
-                            incoming_pipes[l]) == 0:
+                            incoming_pipes[l])) == 0:
                     # mixed temperature is average of all joined pipes, actual value should not matter,
                     # because packages in pipes of this time step will have zero size and components do not take over
                     # mixed temperature in case there is no mass flow
