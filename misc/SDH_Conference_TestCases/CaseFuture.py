@@ -185,7 +185,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
                    'PEF': 2,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
-                   'Qmax': 5e7,
+                   'Qmax': 7.5e7,
                    'ramp_cost': 0.00,
                    'ramp': 0}
 
@@ -381,9 +381,9 @@ if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=3600 * 24 * 300)
+    optmodel = setup_opt(time_step=3600, horizon=3600 * 24 * 365)
     optmodel.compile(start_time=start_time)
-    optmodel.set_objective('energy')
+    optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
     start = time.clock()
     sol = optmodel.solve(tee=True, solver='gurobi')
