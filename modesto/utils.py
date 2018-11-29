@@ -3,7 +3,9 @@
 Utility functions needed for modesto
 """
 
+import json
 import os.path
+from collections import OrderedDict
 
 import pandas as pd
 
@@ -52,6 +54,7 @@ def read_time_data(path, name, expand=False, expand_year=2014):
         df = expand_df(df, expand_year)
 
     return df
+
 
 def read_xlsx_data(filepath, use_sheet=None, index_col=0):
     """
@@ -152,3 +155,34 @@ def expand_df(df, start_year=2014):
     after.index = after.index + pd.DateOffset(years=1)
 
     return pd.concat([before, data, after])
+
+
+def get_json(filepath, dict_key='selection'):
+    with open(filepath) as filehandle:
+        json_data = json.loads(filehandle.read(), object_pairs_hook=OrderedDict)
+    fulldict = json_str2int(json_data)
+    outdict = OrderedDict()
+
+    for key, value in fulldict.iteritems():
+        outdict[key] = json_str2int(value[dict_key])
+
+    return outdict
+
+
+def json_str2int(ordereddict):
+    """
+    Transform string keys to int keys in json representation
+
+
+    :param ordereddict: input ordered dict to be transformed
+    :return:
+    """
+    out = OrderedDict()
+    for key, value in ordereddict.iteritems():
+        try:
+            intkey = int(key)
+            out[intkey] = value
+        except ValueError:
+            pass
+
+    return out

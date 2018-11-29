@@ -4,10 +4,14 @@ import logging
 import sys
 from math import pi, log, exp
 
-from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, Set, Binary
-
-from modesto.parameter import StateParameter, DesignParameter, UserDataParameter, SeriesParameter, WeatherDataParameter
+import pandas as pd
+from modesto.parameter import StateParameter, DesignParameter, \
+    UserDataParameter, SeriesParameter, WeatherDataParameter
 from modesto.submodel import Submodel
+from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
+    Set, Binary, NonPositiveReals
+
+
 
 
 def str_to_comp(string):
@@ -21,7 +25,8 @@ def str_to_comp(string):
 
 
 class Component(Submodel):
-    def __init__(self, name=None, direction=None, temperature_driven=False):
+    def __init__(self, name=None, direction=None, temperature_driven=False,
+                 repr_days=None):
         """
         Base class for components
 
@@ -31,7 +36,9 @@ class Component(Submodel):
         :param params: Required parameters to set up the model (dict)
         :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
-        Submodel.__init__(self, name=name, temperature_driven=temperature_driven)
+        Submodel.__init__(self, name=name,
+                          temperature_driven=temperature_driven,
+                          repr_days=repr_days)
 
         self.logger = logging.getLogger('modesto.component.Component')
         self.logger.info('Initializing Component {}'.format(name))
@@ -73,10 +80,13 @@ class Component(Submodel):
         """
 
         if name not in self.params:
-            raise KeyError('{} is not recognized as a parameter of {}'.format(name, self.name))
+            raise KeyError(
+                '{} is not recognized as a parameter of {}'.format(name,
+                                                                   self.name))
         if not type(self.params[name]) is type(new_object):
-            raise TypeError('When changing the {} parameter object, you should use '
-                            'the same type as the original parameter.'.format(name))
+            raise TypeError(
+                'When changing the {} parameter object, you should use '
+                'the same type as the original parameter.'.format(name))
 
         self.params[name] = new_object
 
@@ -89,15 +99,19 @@ class Component(Submodel):
         :return:
         """
         if not self.temperature_driven:
-            raise ValueError('The model is not temperature driven, with no supply temperature variables')
+            raise ValueError(
+                'The model is not temperature driven, with no supply temperature variables')
         if self.block is None:
-            raise Exception("The optimization model for %s has not been compiled" % self.name)
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
         if not line in self.params['lines'].v():
-            raise ValueError('The input line can only take the values from {}'.format(self.params['lines'].v()))
+            raise ValueError(
+                'The input line can only take the values from {}'.format(
+                    self.params['lines'].v()))
 
         return self.block.temperatures[line, t]
 
-    def get_heat(self, t):
+    def get_heat(self, t, c=None):
         """
         Return heat_flow variable at time t
 
@@ -105,13 +119,17 @@ class Component(Submodel):
         :return:
         """
         if self.block is None:
-            raise Exception("The optimization model for %s has not been compiled" % self.name)
-        return self.direction * self.block.heat_flow[t]
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
+        elif c is None:
+            return self.direction * self.block.heat_flow[t]
+        else:
+            return self.direction * self.block.heat_flow[t, c]
 
     def is_heat_source(self):
         return False
 
-    def get_mflo(self, t):
+    def get_mflo(self, t, c=None):
         """
         Return mass_flow variable at time t
 
@@ -120,8 +138,12 @@ class Component(Submodel):
         :return:
         """
         if self.block is None:
-            raise Exception("The optimization model for %s has not been compiled" % self.name)
-        return self.direction * self.block.mass_flow[t]
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
+        elif c is None:
+            return self.direction * self.block.mass_flow[t]
+        else:
+            return self.direction * self.block.mass_flow[t, c]
 
     def get_slack(self, slack_name, t):
         """
@@ -152,7 +174,8 @@ class Component(Submodel):
         # TODO Add doc
         # TODO Add parameter: penalization; can be different penalizations for different objectives.
         self.slack_list.append(slack_name)
-        self.block.add_component(slack_name, Var(time_axis, within=NonNegativeReals))
+        self.block.add_component(slack_name,
+                                 Var(time_axis, within=NonNegativeReals))
         return self.block.find_component(slack_name)
 
     def constrain_value(self, variable, bound, ub=True, slack_variable=None):
@@ -186,7 +209,9 @@ class Component(Submodel):
         :return:
         """
         if param not in self.params:
-            raise Exception("{} is not recognized as a valid parameter for {}".format(param, self.name))
+            raise Exception(
+                "{} is not recognized as a valid parameter for {}".format(param,
+                                                                          self.name))
 
         self.params[param].change_value(new_data)
 
@@ -216,7 +241,8 @@ class Component(Submodel):
         """
 
         if name not in self.params:
-            raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
+            raise KeyError('{} is not an existing parameter for {}'.format(name,
+                                                                           self.name))
         else:
             return self.params[name].get_description()
 
@@ -244,9 +270,11 @@ class Component(Submodel):
         :return: mass flow at time t
         """
 
-        self.update_time(start_time, self.params['time_step'].v(), self.params['horizon'].v())
+        self.update_time(start_time, self.params['time_step'].v(),
+                         self.params['horizon'].v())
         try:
-            return self.direction * self.params['heat_profile'].v(t) * self.params['mult'].v() \
+            return self.direction * self.params['heat_profile'].v(t) * \
+                   self.params['mult'].v() \
                    / self.cp / self.params['delta_T'].v()
         except:
             try:
@@ -311,7 +339,7 @@ class Component(Submodel):
 
 class FixedProfile(Component):
     def __init__(self, name=None, direction=None,
-                 temperature_driven=False):
+                 temperature_driven=False, repr_days=None):
         """
         Class for a component with a fixed heating profile
 
@@ -321,7 +349,8 @@ class FixedProfile(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           repr_days=repr_days)
 
         self.params = self.create_params()
 
@@ -389,18 +418,40 @@ class FixedProfile(Component):
         heat_profile = self.params['heat_profile']
 
         if not self.compiled:
-            def _mass_flow(b, t):
-                return b.mult * heat_profile.v(t) / self.cp / b.delta_T
+            def _mass_flow(b, t, c=None):
+                return b.mult * heat_profile.v(t, c) / self.cp / b.delta_T
 
-            def _heat_flow(b, t):
-                return b.mult * heat_profile.v(t)
+            def _heat_flow(b, t, c=None):
+                return b.mult * heat_profile.v(t, c)
 
-            self.block.mass_flow = Param(self.TIME, rule=_mass_flow, mutable=not self.temperature_driven)
-            self.block.heat_flow = Param(self.TIME, rule=_heat_flow, mutable=not self.temperature_driven)
+            if self.repr_days is None:
+
+                self.block.mass_flow = Param(self.TIME, rule=_mass_flow,
+                                             mutable=not self.temperature_driven)
+                self.block.heat_flow = Param(self.TIME, rule=_heat_flow,
+                                             mutable=not self.temperature_driven)
+            else:
+                self.block.mass_flow = Param(self.TIME, self.REPR_DAYS,
+                                             rule=_mass_flow,
+                                             mutable=not self.temperature_driven)
+                self.block.heat_flow = Param(self.TIME, self.REPR_DAYS,
+                                             rule=_heat_flow,
+                                             mutable=not self.temperature_driven)
         else:
-            for t in self.TIME:
-                self.block.mass_flow[t] = self.block.mult * heat_profile.v(t) / self.cp / self.block.delta_T
-                self.block.heat_flow[t] = self.block.mult * heat_profile.v(t)
+            if self.repr_days is None:
+                for t in self.TIME:
+                    self.block.mass_flow[t] = self.block.mult * heat_profile.v(
+                        t) / self.cp / self.block.delta_T
+                    self.block.heat_flow[t] = self.block.mult * heat_profile.v(
+                        t)
+            else:
+                for t in self.TIME:
+                    for c in self.REPR_DAYS:
+                        self.block.mass_flow[
+                            t, c] = self.block.mult * heat_profile.v(
+                            t, c) / self.cp / self.block.delta_T
+                        self.block.heat_flow[
+                            t, c] = self.block.mult * heat_profile.v(t, c)
 
         if self.temperature_driven:
             lines = self.params['lines'].v()
@@ -412,11 +463,13 @@ class FixedProfile(Component):
                 elif b.mass_flow[t] == 0:
                     return Constraint.Skip
                 else:
-                    return b.temperatures['supply', t] - b.temperatures['return', t] == \
+                    return b.temperatures['supply', t] - b.temperatures[
+                        'return', t] == \
                            b.heat_flow[t] / b.mass_flow[t] / self.cp
 
             def _init_temperatures(b, l):
-                return b.temperatures[l, 0] == self.params['temperature_' + l].v()
+                return b.temperatures[l, 0] == self.params[
+                    'temperature_' + l].v()
 
             uslack = self.make_slack('temperature_max_uslack', self.TIME)
             lslack = self.make_slack('temperature_max_l_slack', self.TIME)
@@ -439,8 +492,10 @@ class FixedProfile(Component):
             self.block.max_temp = Constraint(self.TIME, rule=_max_temp)
             self.block.min_temp = Constraint(self.TIME, rule=_min_temp)
 
-            self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
-            self.block.init_temperatures = Constraint(lines, rule=_init_temperatures)
+            self.block.decl_temperatures = Constraint(self.TIME,
+                                                      rule=_decl_temperatures)
+            self.block.init_temperatures = Constraint(lines,
+                                                      rule=_init_temperatures)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -451,7 +506,8 @@ class FixedProfile(Component):
 class VariableProfile(Component):
     # TODO Assuming that variable profile means State-Space model
 
-    def __init__(self, name, direction, temperature_driven=False):
+    def __init__(self, name, direction, temperature_driven=False,
+                 repr_days=None):
         """
         Class for components with a variable heating profile
 
@@ -461,7 +517,8 @@ class VariableProfile(Component):
         Component.__init__(self,
                            name=name,
                            direction=direction,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           repr_days=repr_days)
 
         self.params = self.create_params()
 
@@ -479,7 +536,7 @@ class VariableProfile(Component):
 
 
 class BuildingFixed(FixedProfile):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, repr_days=None):
         """
         Class for building models with a fixed heating profile
 
@@ -488,7 +545,8 @@ class BuildingFixed(FixedProfile):
         FixedProfile.__init__(self,
                               name=name,
                               direction=-1,
-                              temperature_driven=temperature_driven)
+                              temperature_driven=temperature_driven,
+                              repr_days=repr_days)
 
     def compile(self, model, start_time):
         FixedProfile.compile(self, model, start_time)
@@ -496,7 +554,7 @@ class BuildingFixed(FixedProfile):
 
 class BuildingVariable(Component):
 
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, repr_days=None):
         """
         Class for a building with a variable heating profile
 
@@ -505,7 +563,8 @@ class BuildingVariable(Component):
         Component.__init__(self,
                            name=name,
                            direction=-1,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven,
+                           repr_days=repr_days)
 
     def compile(self, model, start_time):
         Component.compile(self, model, start_time)
@@ -514,7 +573,7 @@ class BuildingVariable(Component):
 
 class ProducerFixed(FixedProfile):
 
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, repr_days=None):
         """
         Class that describes a fixed producer profile
 
@@ -523,7 +582,8 @@ class ProducerFixed(FixedProfile):
         FixedProfile.__init__(self,
                               name=name,
                               direction=1,
-                              temperature_driven=temperature_driven)
+                              temperature_driven=temperature_driven,
+                              repr_days=repr_days)
 
         self.params['mult'].change_value(1)
 
@@ -545,12 +605,14 @@ class VariableComponent(Component):
     :param direction: Design direction of flow.
     """
 
-    def __init__(self, name, temperature_driven=False, heat_var=0.15, direction=1):
+    def __init__(self, name, temperature_driven=False, heat_var=0.15,
+                 direction=1, repr_days=None):
         Component.__init__(
             self,
             name=name,
             temperature_driven=temperature_driven,
-            direction=direction
+            direction=direction,
+            repr_days=repr_days
         )
         self.heat_var = heat_var
 
@@ -559,7 +621,8 @@ class VariableComponent(Component):
 
 
 class ProducerVariable(VariableComponent):
-    def __init__(self, name, temperature_driven=False, heat_var=0.15):
+    def __init__(self, name, temperature_driven=False, heat_var=0.15,
+                 repr_days=None):
         """
         Class that describes a variable producer
 
@@ -570,7 +633,8 @@ class ProducerVariable(VariableComponent):
                                    name=name,
                                    direction=1,
                                    temperature_driven=temperature_driven,
-                                   heat_var=heat_var)
+                                   heat_var=heat_var,
+                                   repr_days=repr_days)
 
         self.params = self.create_params()
 
@@ -671,19 +735,23 @@ class ProducerVariable(VariableComponent):
             self.block.mass_flow = Param(self.TIME, rule=_mass_flow)
 
             def _decl_init_heat_flow(b):
-                return b.heat_flow[0] == (self.params['temperature_supply'].v() -
-                                          self.params['temperature_return'].v()) * \
+                return b.heat_flow[0] == (
+                        self.params['temperature_supply'].v() -
+                        self.params['temperature_return'].v()) * \
                        self.cp * b.mass_flow[0]
 
-            self.block.decl_init_heat_flow = Constraint(rule=_decl_init_heat_flow)
+            self.block.decl_init_heat_flow = Constraint(
+                rule=_decl_init_heat_flow)
 
             self.block.temperatures = Var(lines, self.TIME)
 
             def _limit_temperatures(b, t):
-                return self.params['temperature_min'].v() <= b.temperatures['supply', t] <= self.params[
-                    'temperature_max'].v()
+                return self.params['temperature_min'].v() <= b.temperatures[
+                    'supply', t] <= self.params[
+                           'temperature_max'].v()
 
-            self.block.limit_temperatures = Constraint(self.TIME, rule=_limit_temperatures)
+            self.block.limit_temperatures = Constraint(self.TIME,
+                                                       rule=_limit_temperatures)
 
             def _decl_temperatures(b, t):
                 if t == 0:
@@ -691,94 +759,227 @@ class ProducerVariable(VariableComponent):
                 elif b.mass_flow[t] == 0:
                     return Constraint.Skip
                 else:
-                    return b.temperatures['supply', t] - b.temperatures['return', t] == b.heat_flow[t] / \
+                    return b.temperatures['supply', t] - b.temperatures[
+                        'return', t] == b.heat_flow[t] / \
                            b.mass_flow[
                                t] / self.cp
 
             def _init_temperature(b, l):
-                return b.temperatures[l, 0] == self.params['temperature_' + l].v()
+                return b.temperatures[l, 0] == self.params[
+                    'temperature_' + l].v()
 
             def _decl_temp_mf0(b, t):
                 if (not t == 0) and b.mass_flow[t] == 0:
-                    return b.temperatures['supply', t] == b.temperatures['supply', t - 1]
+                    return b.temperatures['supply', t] == b.temperatures[
+                        'supply', t - 1]
                 else:
                     return Constraint.Skip
 
-            self.block.decl_temperatures = Constraint(self.TIME, rule=_decl_temperatures)
-            self.block.init_temperatures = Constraint(lines, rule=_init_temperature)
+            self.block.decl_temperatures = Constraint(self.TIME,
+                                                      rule=_decl_temperatures)
+            self.block.init_temperatures = Constraint(lines,
+                                                      rule=_init_temperature)
             self.block.dec_temp_mf0 = Constraint(self.TIME, rule=_decl_temp_mf0)
 
         elif not self.compiled:
-            self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
-            self.block.ramping_cost = Var(self.TIME, initialize=0, within=NonNegativeReals)
+            if self.repr_days is None:
+                self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+                self.block.ramping_cost = Var(self.TIME, initialize=0,
+                                              within=NonNegativeReals)
 
-            if not self.params['Qmin'].v() == 0:
-                self.block.on = Var(self.TIME, within=Binary)
+                if not self.params['Qmin'].v() == 0:
+                    self.block.on = Var(self.TIME, within=Binary)
 
-                def _min_heat(b, t):
-                    return b.Qmin * b.on[t] <= b.heat_flow[t]
+                    def _min_heat(b, t):
+                        return b.Qmin * b.on[t] <= b.heat_flow[t]
 
-                def _max_heat(b, t):
-                    return b.heat_flow[t] <= b.Qmax * b.on[t]
+                    def _max_heat(b, t):
+                        return b.heat_flow[t] <= b.Qmax * b.on[t]
 
+                else:
+                    def _min_heat(b, t):
+                        return b.heat_flow[t] >= 0
+
+                    def _max_heat(b, t):
+                        return b.heat_flow[t] <= b.Qmax
+
+                self.block.min_heat = Constraint(self.TIME, rule=_min_heat)
+                self.block.max_heat = Constraint(self.TIME, rule=_max_heat)
+
+                self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
+
+                def _mass_ub(m, t):
+                    return m.mass_flow[t] * (
+                            1 + self.heat_var) * self.cp * m.delta_T >= \
+                           m.heat_flow[
+                               t]
+
+                def _mass_lb(m, t):
+                    return m.mass_flow[t] * self.cp * m.delta_T <= m.heat_flow[
+                        t]
+
+                self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
             else:
-                def _min_heat(b, t):
-                    return b.heat_flow[t] >= 0
+                self.block.heat_flow = Var(self.TIME,
+                                           self.REPR_DAYS,
+                                           within=NonNegativeReals)
+                self.block.ramping_cost = Var(self.TIME, self.REPR_DAYS,
+                                              initialize=0,
+                                              within=NonNegativeReals)
 
-                def _max_heat(b, t):
-                    return b.heat_flow[t] <= b.Qmax
+                if not self.params['Qmin'].v() == 0:
+                    self.block.on = Var(self.TIME, self.REPR_DAYS,
+                                        within=Binary)
 
-            self.block.min_heat = Constraint(self.TIME, rule=_min_heat)
-            self.block.max_heat = Constraint(self.TIME, rule=_max_heat)
+                    def _min_heat(b, t, c):
+                        return b.Qmin * b.on[t, c] <= b.heat_flow[t, c]
 
-            self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
+                    def _max_heat(b, t, c):
+                        return b.heat_flow[t, c] <= b.Qmax * b.on[t, c]
 
-            def _mass_ub(m, t):
-                return m.mass_flow[t] * (1 + self.heat_var) * self.cp * m.delta_T >= m.heat_flow[t]
+                else:
+                    def _min_heat(b, t, c):
+                        return b.heat_flow[t, c] >= 0
 
-            def _mass_lb(m, t):
-                return m.mass_flow[t] * self.cp * m.delta_T <= m.heat_flow[t]
+                    def _max_heat(b, t, c):
+                        return b.heat_flow[t, c] <= b.Qmax
 
-            self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
-            self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+                self.block.min_heat = Constraint(self.TIME,
+                                                 self.REPR_DAYS, rule=_min_heat)
+                self.block.max_heat = Constraint(self.TIME,
+                                                 self.REPR_DAYS, rule=_max_heat)
+
+                self.block.mass_flow = Var(self.TIME,
+                                           self.REPR_DAYS,
+                                           within=NonNegativeReals)
+
+                def _mass_ub(m, t, c):
+                    return m.mass_flow[t, c] * (
+                            1 + self.heat_var) * self.cp * m.delta_T >= \
+                           m.heat_flow[
+                               t, c]
+
+                def _mass_lb(m, t, c):
+                    return m.mass_flow[t, c] * self.cp * m.delta_T <= \
+                           m.heat_flow[
+                               t, c]
+
+                self.block.ineq_mass_lb = Constraint(self.TIME,
+                                                     self.REPR_DAYS,
+                                                     rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME,
+                                                     self.REPR_DAYS,
+                                                     rule=_mass_ub)
 
         if not self.compiled:
-            def _decl_upward_ramp(b, t):
-                if t == 0:
-                    return Constraint.Skip
-                else:
-                    return b.heat_flow[t] - b.heat_flow[t - 1] <= self.params['ramp'].v() * self.params['time_step'].v()
+            if self.repr_days is None:
+                def _decl_upward_ramp(b, t):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.heat_flow[t] - b.heat_flow[t - 1] <= \
+                               self.params[
+                                   'ramp'].v() * self.params['time_step'].v()
 
-            def _decl_downward_ramp(b, t):
-                if t == 0:
-                    return Constraint.Skip
-                else:
-                    return b.heat_flow[t - 1] - b.heat_flow[t] <= self.params['ramp'].v() * self.params['time_step'].v()
+                def _decl_downward_ramp(b, t):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.heat_flow[t - 1] - b.heat_flow[t] <= \
+                               self.params[
+                                   'ramp'].v() * self.params['time_step'].v()
 
-            def _decl_upward_ramp_cost(b, t):
-                if t == 0:
-                    return b.ramping_cost[t] == 0
-                else:
-                    return b.ramping_cost[t] >= (b.heat_flow[t] - b.heat_flow[t - 1]) * self.params['ramp_cost'].v()
+                def _decl_upward_ramp_cost(b, t):
+                    if t == 0:
+                        return b.ramping_cost[t] == 0
+                    else:
+                        return b.ramping_cost[t] >= (
+                                b.heat_flow[t] - b.heat_flow[t - 1]) * \
+                               self.params[
+                                   'ramp_cost'].v()
 
-            def _decl_downward_ramp_cost(b, t):
-                if t == 0:
-                    return Constraint.Skip
-                else:
-                    return b.ramping_cost[t] >= (b.heat_flow[t - 1] - b.heat_flow[t]) * self.params['ramp_cost'].v()
+                def _decl_downward_ramp_cost(b, t):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.ramping_cost[t] >= (
+                                b.heat_flow[t - 1] - b.heat_flow[t]) * \
+                               self.params[
+                                   'ramp_cost'].v()
 
-            if self.params['ramp'].v() > 0 or self.params['ramp'].v() * self.params['time_step'].v() > self.params[
-                'Qmax'].v():
-                self.block.decl_upward_ramp = Constraint(self.TIME, rule=_decl_upward_ramp)
-                self.block.decl_downward_ramp = Constraint(self.TIME, rule=_decl_downward_ramp)
-            if self.params['ramp_cost'].v() > 0:
-                self.block.decl_downward_ramp_cost = Constraint(self.TIME, rule=_decl_downward_ramp_cost)
-                self.block.decl_upward_ramp_cost = Constraint(self.TIME, rule=_decl_upward_ramp_cost)
+                if self.params['ramp'].v() > 0 or self.params['ramp'].v() * \
+                        self.params['time_step'].v() > self.params[
+                    'Qmax'].v():
+                    self.block.decl_upward_ramp = Constraint(self.TIME,
+                                                             rule=_decl_upward_ramp)
+                    self.block.decl_downward_ramp = Constraint(self.TIME,
+                                                               rule=_decl_downward_ramp)
+                if self.params['ramp_cost'].v() > 0:
+                    self.block.decl_downward_ramp_cost = Constraint(self.TIME,
+                                                                    rule=_decl_downward_ramp_cost)
+                    self.block.decl_upward_ramp_cost = Constraint(self.TIME,
+                                                                  rule=_decl_upward_ramp_cost)
+            else:
+                def _decl_upward_ramp(b, t, c):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.heat_flow[t, c] - b.heat_flow[t - 1, c] <= \
+                               self.params[
+                                   'ramp'].v() * self.params['time_step'].v()
+
+                def _decl_downward_ramp(b, t, c):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.heat_flow[t - 1, c] - b.heat_flow[t, c] <= \
+                               self.params[
+                                   'ramp'].v() * self.params['time_step'].v()
+
+                def _decl_upward_ramp_cost(b, t, c):
+                    if t == 0:
+                        return b.ramping_cost[t, c] == 0
+                    else:
+                        return b.ramping_cost[t, c] >= (
+                                b.heat_flow[t, c] - b.heat_flow[t - 1, c]) * \
+                               self.params[
+                                   'ramp_cost'].v()
+
+                def _decl_downward_ramp_cost(b, t, c):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.ramping_cost[t, c] >= (
+                                b.heat_flow[t - 1, c] - b.heat_flow[t, c]) * \
+                               self.params[
+                                   'ramp_cost'].v()
+
+                if self.params['ramp'].v() > 0 or self.params['ramp'].v() * \
+                        self.params['time_step'].v() > self.params[
+                    'Qmax'].v():
+                    self.block.decl_upward_ramp = Constraint(self.TIME,
+                                                             self.REPR_DAYS,
+                                                             rule=_decl_upward_ramp)
+                    self.block.decl_downward_ramp = Constraint(self.TIME,
+                                                               self.REPR_DAYS,
+                                                               rule=_decl_downward_ramp)
+                if self.params['ramp_cost'].v() > 0:
+                    self.block.decl_downward_ramp_cost = Constraint(
+                        self.TIME, self.REPR_DAYS,
+                        rule=_decl_downward_ramp_cost)
+                    self.block.decl_upward_ramp_cost = Constraint(
+                        self.TIME,
+                        self.REPR_DAYS,
+                        rule=_decl_upward_ramp_cost)
 
         self.compiled = True
 
-    def get_ramp_cost(self, t):
-        return self.block.ramping_cost[t]
+    def get_ramp_cost(self, t, c=None):
+        if c is None:
+            return self.block.ramping_cost[t]
+        else:
+            return self.block.ramping_cost[t, c]
 
     def get_investment_cost(self):
         """
@@ -799,7 +1000,15 @@ class ProducerVariable(VariableComponent):
         eta = self.params['efficiency'].v()
         pef = self.params['PEF'].v()
 
-        return sum(pef / eta * (self.get_heat(t)) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+        if self.repr_days is None:
+            return sum(pef / eta * (self.get_heat(t)) * self.params[
+                'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * pef / eta * (self.get_heat(t, c)) *
+                       self.params[
+                           'time_step'].v() / 3600 / 1000 for t in self.TIME for
+                       c in
+                       self.REPR_DAYS)
 
     def obj_fuel_cost(self):
         """
@@ -808,9 +1017,17 @@ class ProducerVariable(VariableComponent):
 
         :return:
         """
-        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
+        cost = self.params[
+            'fuel_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
-        return sum(cost[t] / eta * self.get_heat(t) / 3600 * self.params['time_step'].v() / 1000 for t in self.TIME)
+        if self.repr_days is None:
+            return sum(cost.v(t) / eta * self.get_heat(t) / 3600 * self.params[
+                'time_step'].v() / 1000 for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * cost.v(t, c) / eta *
+                       self.get_heat(t, c) / 3600 * self.params[
+                           'time_step'].v() / 1000 for t in self.TIME for c in
+                       self.REPR_DAYS)
 
     def obj_cost_ramp(self):
         """
@@ -819,10 +1036,23 @@ class ProducerVariable(VariableComponent):
 
         :return:
         """
-        cost = self.params['fuel_cost'].v()  # cost consumed heat source (fuel/electricity)
+        cost = self.params[
+            'fuel_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
-        return sum(self.get_ramp_cost(t) + cost[t] / eta * self.get_heat(t)
-                   / 3600 * self.params['time_step'].v() / 1000 for t in self.TIME)
+
+        if self.repr_days is None:
+            return sum(self.get_ramp_cost(t) + cost.v(t) / eta *
+                       self.get_heat(t)
+                       / 3600 * self.params['time_step'].v() / 1000 for t in
+                       self.TIME)
+        else:
+            return sum(self.repr_count[c] * (self.get_ramp_cost(t, c) + cost.v(
+                t, c)
+                                             / eta * self.get_heat(t, c)
+                                             / 3600 * self.params[
+                                                 'time_step'].v() / 1000) for t
+                       in
+                       self.TIME for c in self.REPR_DAYS)
 
     def obj_co2(self):
         """
@@ -834,8 +1064,17 @@ class ProducerVariable(VariableComponent):
 
         eta = self.params['efficiency'].v()
         pef = self.params['PEF'].v()
-        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
-        return sum(co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+        co2 = self.params[
+            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        if self.repr_days is None:
+            return sum(co2 / eta * self.get_heat(t) * self.params[
+                'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * co2 / eta * self.get_heat(t, c) *
+                       self.params[
+                           'time_step'].v() / 3600 / 1000 for t in self.TIME for
+                       c in
+                       self.REPR_DAYS)
 
     def obj_temp(self):
         """
@@ -862,16 +1101,26 @@ class ProducerVariable(VariableComponent):
 
         eta = self.params['efficiency'].v()
         pef = self.params['PEF'].v()
-        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
-        co2_price = self.params['CO2_price'].v()
+        co2 = self.params[
+            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2_price = self.params['CO2_price']
 
-        return sum(
-            co2_price[t] * co2 / eta * self.get_heat(t) * self.params['time_step'].v() / 3600 / 1000 for t in
-            self.TIME)
+        if self.repr_days is None:
+            return sum(
+                co2_price.v(t) * co2 / eta * self.get_heat(t) * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in
+                self.TIME)
+        else:
+            return sum(
+                co2_price.v(t, c) * co2 / eta * self.get_heat(t, c
+                                                              ) * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in
+                self.TIME for c in self.REPR_DAYS)
 
 
 class SolarThermalCollector(VariableComponent):
-    def __init__(self, name, temperature_driven=False, heat_var=0.15):
+    def __init__(self, name, temperature_driven=False, heat_var=0.15,
+                 repr_days=None):
         """
         Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
 
@@ -882,7 +1131,8 @@ class SolarThermalCollector(VariableComponent):
         VariableComponent.__init__(self, name=name,
                                    direction=1,
                                    temperature_driven=temperature_driven,
-                                   heat_var=heat_var)
+                                   heat_var=heat_var,
+                                   repr_days=repr_days)
 
         self.params = self.create_params()
 
@@ -895,7 +1145,9 @@ class SolarThermalCollector(VariableComponent):
         params.update({
             'area': DesignParameter('area', 'Surface area of panels', 'm2',
                                     mutable=True),
-            'delta_T': DesignParameter('delta_T', 'Temperature difference between in- and outlet', 'K', mutable=True),
+            'delta_T': DesignParameter('delta_T',
+                                       'Temperature difference between in- and outlet',
+                                       'K', mutable=True),
             'heat_profile': UserDataParameter(name='heat_profile',
                                               description='Maximum heat generation per unit area of the solar panel',
                                               unit='W/m2'),
@@ -903,7 +1155,8 @@ class SolarThermalCollector(VariableComponent):
                                         description='Investment cost in function of installed area',
                                         unit='EUR',
                                         unit_index='m2',
-                                        val=250)  # Average cost/m2 from SDH fact sheet, Sorensen et al., 2012
+                                        val=250)
+            # Average cost/m2 from SDH fact sheet, Sorensen et al., 2012
             # see http://solar-district-heating.eu/Portals/0/Factsheets/SDH-WP3-D31-D32_August2012.pdf
         })
         return params
@@ -919,36 +1172,86 @@ class SolarThermalCollector(VariableComponent):
         """
         Component.compile(self, model, start_time)
 
-        heat_profile = self.params['heat_profile'].v()
+        heat_profile = self.params['heat_profile']
 
         if self.compiled:
-            for t in self.TIME:
-                self.block.heat_flow_max[t] = heat_profile[t]
+            if self.repr_days is None:
+                for t in self.TIME:
+                    self.block.heat_flow_max[t] = heat_profile.v(t)
+            else:
+                for t in self.TIME:
+                    for c in self.REPR_DAYS:
+                        self.block.heat_flow_max[t, c] = heat_profile.v(t, c)
 
         else:
-            def _heat_flow_max(m, t):
-                return heat_profile[t]
+            if self.repr_days is None:
+                def _heat_flow_max(m, t):
+                    return heat_profile.v(t)
 
-            self.block.heat_flow_max = Param(self.TIME, rule=_heat_flow_max, mutable=True)
-            self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
-            self.block.heat_flow_curt = Var(self.TIME, within=NonNegativeReals)
+                self.block.heat_flow_max = Param(self.TIME, rule=_heat_flow_max,
+                                                 mutable=True)
+                self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+                self.block.heat_flow_curt = Var(self.TIME,
+                                                within=NonNegativeReals)
 
-            self.block.mass_flow = Var(self.TIME)
+                self.block.mass_flow = Var(self.TIME)
 
-            # Equations
+                # Equations
 
-            def _heat_bal(m, t):
-                return m.heat_flow[t] + m.heat_flow_curt[t] == m.area * m.heat_flow_max[t]
+                def _heat_bal(m, t):
+                    return m.heat_flow[t] + m.heat_flow_curt[t] == m.area * \
+                           m.heat_flow_max[t]
 
-            def _mass_lb(m, t):
-                return m.mass_flow[t] >= m.heat_flow[t] / self.cp / m.delta_T / (1 + self.heat_var)
+                def _mass_lb(m, t):
+                    return m.mass_flow[t] >= m.heat_flow[
+                        t] / self.cp / m.delta_T / (1 + self.heat_var)
 
-            def _mass_ub(m, t):
-                return m.mass_flow[t] <= m.heat_flow[t] / self.cp / m.delta_T
+                def _mass_ub(m, t):
+                    return m.mass_flow[t] <= m.heat_flow[
+                        t] / self.cp / m.delta_T
 
-            self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
-            self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
-            self.block.eq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+                self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
+                self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+                self.block.eq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+            else:
+                def _heat_flow_max(m, t, c):
+                    return heat_profile.v(t, c)
+
+                self.block.heat_flow_max = Param(self.TIME, self.REPR_DAYS,
+                                                 rule=_heat_flow_max,
+                                                 mutable=True)
+                self.block.heat_flow = Var(self.TIME,
+                                           self.REPR_DAYS,
+                                           within=NonNegativeReals)
+                self.block.heat_flow_curt = Var(self.TIME, self.REPR_DAYS,
+                                                within=NonNegativeReals)
+
+                self.block.mass_flow = Var(self.TIME, self.REPR_DAYS)
+
+                # Equations
+
+                def _heat_bal(m, t, c):
+                    return m.heat_flow[t, c] + m.heat_flow_curt[t,
+                                                                c] == m.area * \
+                           m.heat_flow_max[t, c]
+
+                def _mass_lb(m, t, c):
+                    return m.mass_flow[t, c] >= m.heat_flow[
+                        t, c] / self.cp / m.delta_T / (1 + self.heat_var)
+
+                def _mass_ub(m, t, c):
+                    return m.mass_flow[t, c] <= m.heat_flow[
+                        t, c] / self.cp / m.delta_T
+
+                self.block.eq_heat_bal = Constraint(self.TIME,
+                                                    self.REPR_DAYS,
+                                                    rule=_heat_bal)
+                self.block.eq_mass_lb = Constraint(self.TIME,
+                                                   self.REPR_DAYS,
+                                                   rule=_mass_lb)
+                self.block.eq_mass_ub = Constraint(self.TIME,
+                                                   self.REPR_DAYS,
+                                                   rule=_mass_ub)
 
         self.compiled = True
 
@@ -963,7 +1266,7 @@ class SolarThermalCollector(VariableComponent):
 
 
 class StorageFixed(FixedProfile):
-    def __init__(self, name, temperature_driven):
+    def __init__(self, name, temperature_driven, repr_days=None):
         """
         Class that describes a fixed storage
 
@@ -973,11 +1276,13 @@ class StorageFixed(FixedProfile):
         FixedProfile.__init__(self,
                               name=name,
                               direction=-1,
-                              temperature_driven=temperature_driven)
+                              temperature_driven=temperature_driven,
+                              repr_days=repr_days)
 
 
 class StorageVariable(VariableComponent):
-    def __init__(self, name, temperature_driven=False, heat_var=0.15):
+    def __init__(self, name, temperature_driven=False, heat_var=0.15,
+                 repr_days=None):
         """
         Class that describes a variable storage
 
@@ -990,7 +1295,8 @@ class StorageVariable(VariableComponent):
                                    name=name,
                                    direction=-1,
                                    temperature_driven=temperature_driven,
-                                   heat_var=heat_var)
+                                   heat_var=heat_var,
+                                   repr_days=repr_days)
 
         self.params = self.create_params()
         self.max_en = 0
@@ -1091,7 +1397,8 @@ class StorageVariable(VariableComponent):
         self.ar = self.params['ar'].v()
 
         self.temp_diff = self.params['Thi'].v() - self.params['Tlo'].v()
-        assert (self.temp_diff > 0), 'Temperature difference should be positive.'
+        assert (
+                self.temp_diff > 0), 'Temperature difference should be positive.'
 
         self.temp_sup = self.params['Thi'].v()
         self.temp_ret = self.params['Tlo'].v()
@@ -1112,7 +1419,7 @@ class StorageVariable(VariableComponent):
 
     def common_declarations(self):
         """
-        Shared defenitions between StorageVariable and StorageCondensed.
+        Shared definitions between StorageVariable and StorageCondensed.
 
         :return:
         """
@@ -1126,20 +1433,25 @@ class StorageVariable(VariableComponent):
             self.block.exp_ttau = exp(-self.params['time_step'].v() / self.tau)
 
             for t in self.TIME:
-                self.block.heat_loss_ct[t] = self.UAw * (self.temp_sup - Te[t]) + \
-                                          self.UAtb * (self.temp_sup + self.temp_ret - 2 * Te[t])
+                self.block.heat_loss_ct[t] = self.UAw * (
+                        self.temp_ret - Te[t]) + \
+                                             self.UAtb * (
+                                                     self.temp_sup + self.temp_ret - 2 *
+                                                     Te[t])
         else:
             self.block.max_en = Param(mutable=True, initialize=self.max_en)
             self.block.UAw = Param(mutable=True, initialize=self.UAw)
             self.block.UAtb = Param(mutable=True, initialize=self.UAtb)
 
-            self.block.exp_ttau = Param(mutable=True, initialize=exp(-self.params['time_step'].v() / self.tau))
+            self.block.exp_ttau = Param(mutable=True, initialize=exp(
+                -self.params['time_step'].v() / self.tau))
 
             def _heat_loss_ct(b, t):
-                return self.UAw * (self.temp_sup - Te[t]) + \
+                return self.UAw * (self.temp_ret - Te[t]) + \
                        self.UAtb * (self.temp_sup + self.temp_ret - 2 * Te[t])
 
-            self.block.heat_loss_ct = Param(self.TIME, rule=_heat_loss_ct, mutable=True)
+            self.block.heat_loss_ct = Param(self.TIME, rule=_heat_loss_ct,
+                                            mutable=True)
 
             ############################################################################################
             # Initialize variables
@@ -1159,6 +1471,11 @@ class StorageVariable(VariableComponent):
         :param start_time: Start time of the optimization
         :return:
         """
+
+        if self.repr_days is not None:
+            raise AttributeError('StorageVariable cannot be used in '
+                                 'combination with representative days')
+
         self.calculate_static_parameters()
 
         ############################################################################################
@@ -1180,16 +1497,19 @@ class StorageVariable(VariableComponent):
             self.block.heat_loss = Var(self.TIME)
 
             def _eq_heat_loss(b, t):
-                return b.heat_loss[t] == (1 - b.exp_ttau) * b.heat_stor[t] * 1000 * 3600 / self.params[
-                    'time_step'].v() + b.heat_loss_ct[t]
+                return b.heat_loss[t] == (1 - b.exp_ttau) * b.heat_stor[
+                    t] * 1000 * 3600 / self.params[
+                           'time_step'].v() + b.heat_loss_ct[t]
 
             self.block.eq_heat_loss = Constraint(self.TIME, rule=_eq_heat_loss)
 
             # State equation
             def _state_eq(b, t):  # in kWh
-                return b.heat_stor[t + 1] == b.heat_stor[t] + self.params['time_step'].v() / 3600 * (
-                        b.heat_flow[t] / b.mult - b.heat_loss[t]) / 1000 \
-                       - (self.mflo_use[t] * self.cp * (b.Thi - b.Tlo)) / 1000 / 3600
+                return b.heat_stor[t + 1] == b.heat_stor[t] + self.params[
+                    'time_step'].v() / 3600 * (
+                               b.heat_flow[t] / b.mult - b.heat_loss[t]) / 1000 \
+                       - (self.mflo_use[t] * self.cp * (
+                        b.Thi - b.Tlo)) / 1000 / 3600
 
                 # self.tau * (1 - exp(-self.params['time_step'].v() / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1227,14 +1547,16 @@ class StorageVariable(VariableComponent):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t):
-                return self.cp * b.mass_flow[t] * (b.Thi - b.Tlo) == b.heat_flow[t]
+                return self.cp * b.mass_flow[t] * (b.Thi - b.Tlo) == \
+                       b.heat_flow[t]
 
             ## leq allows that heat losses in the network are supplied from storage tank only when discharging.
             ## In charging mode, this will probably not be used.
 
             self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
 
-            self.logger.info('Optimization model Storage {} compiled'.format(self.name))
+            self.logger.info(
+                'Optimization model Storage {} compiled'.format(self.name))
 
         self.compiled = True
 
@@ -1257,20 +1579,21 @@ class StorageVariable(VariableComponent):
 
 
 class StorageCondensed(StorageVariable):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, repr_days=None):
         """
-        Variable storage model. In this model, the state equation are condensed into one single equation. Only the
-            initial and final state remain as a parameter. This component is also compatible with a representative
-            period presentation, in which the control actions are repeated for a given number of iterations, while the
-            storage state can change.
-
+        Variable storage model. In this model, the state equation are condensed into one single equation. Only the initial
+            and final state remain as a parameter. This component is also compatible with a representative period
+            presentation, in which the control actions are repeated for a given number of iterations, while the storage
+            state can change.
         The heat losses are taken into account exactly in this model.
 
         :param name: name of the component
         :param temperature_driven: Parameter that defines if component is temperature driven. This component can only be
             used in non-temperature-driven optimizations.
-
         """
+        if repr_days is not None:
+            raise AttributeError('StorageCondensed is not compatible with '
+                                 'representative days.')
         StorageVariable.__init__(self, name=name,
                                  temperature_driven=temperature_driven)
 
@@ -1279,8 +1602,17 @@ class StorageCondensed(StorageVariable):
         self.params['reps'] = DesignParameter(name='reps',
                                               description='Number of times the representative period should be repeated. Default 1.',
                                               unit='-', val=1)
-
+        self.params['heat_stor'].change_init_type('free')
         self.heat_loss_coeff = None
+
+    def set_reps(self, num_reps):
+        """
+        Set number of repetitions
+
+        :param num_reps:
+        :return:
+        """
+        self.params['reps'].change_value(num_reps)
 
     def compile(self, model, start_time):
         """
@@ -1310,7 +1642,8 @@ class StorageCondensed(StorageVariable):
             self.block.reps = Set(initialize=range(self.R))
 
             self.block.heat_stor = Var(self.X_TIME, self.block.reps)
-            self.block.soc = Var(self.X_TIME, self.block.reps, domain=NonNegativeReals)
+            self.block.soc = Var(self.X_TIME, self.block.reps,
+                                 domain=NonNegativeReals)
 
             R = self.R
 
@@ -1321,19 +1654,24 @@ class StorageCondensed(StorageVariable):
                 elif t == 0:
                     return b.heat_stor[t, r] == b.heat_stor[tlast, r - 1]
                 else:
-                    return b.heat_stor[t, r] == b.exp_ttau * b.heat_stor[t - 1, r] + (
-                            b.heat_flow[t - 1] / b.mult - b.heat_loss_ct[
-                        t - 1]) * self.params['time_step'].v() / 3600 / 1000
+                    return b.heat_stor[t, r] == b.exp_ttau * b.heat_stor[
+                        t - 1, r] + (
+                                   b.heat_flow[t - 1] / b.mult - b.heat_loss_ct[
+                               t - 1]) * self.params[
+                               'time_step'].v() / 3600 / 1000
 
-            self.block.state_eq = Constraint(self.X_TIME, self.block.reps, rule=_state_eq)
+            self.block.state_eq = Constraint(self.X_TIME, self.block.reps,
+                                             rule=_state_eq)
             self.block.final_eq = Constraint(
-                expr=self.block.heat_stor[self.X_TIME[-1], R - 1] == self.block.heat_stor_final)
+                expr=self.block.heat_stor[
+                         self.X_TIME[-1], R - 1] == self.block.heat_stor_final)
 
             # SoC equation
             def _soc_eq(b, t, r):
                 return b.soc[t, r] == b.heat_stor[t, r] / b.max_en * 100
 
-            self.block.soc_eq = Constraint(self.X_TIME, self.block.reps, rule=_soc_eq)
+            self.block.soc_eq = Constraint(self.X_TIME, self.block.reps,
+                                           rule=_soc_eq)
 
             def _limit_initial_repetition(b, t):
                 return 0 <= b.soc[t, 0] <= 100
@@ -1341,31 +1679,39 @@ class StorageCondensed(StorageVariable):
             def _limit_final_repetition(b, t):
                 return 0 <= b.heat_stor[t, R - 1] <= 100
 
-            self.block.limit_init = Constraint(self.X_TIME, rule=_limit_initial_repetition)
+            self.block.limit_init = Constraint(self.X_TIME,
+                                               rule=_limit_initial_repetition)
 
             if R > 1:
-                self.block.limit_final = Constraint(self.TIME, rule=_limit_final_repetition)
+                self.block.limit_final = Constraint(self.TIME,
+                                                    rule=_limit_final_repetition)
 
             init_type = self.params['heat_stor'].init_type
             if init_type == 'free':
                 pass
             elif init_type == 'cyclic':
-                self.block.eq_cyclic = Constraint(expr=self.block.heat_stor_init == self.block.heat_stor_final)
+                self.block.eq_cyclic = Constraint(
+                    expr=self.block.heat_stor_init == self.block.heat_stor_final)
 
             else:
-                self.block.init_eq = Constraint(expr=self.block.heat_stor_init == self.params['heat_stor'].v())
+                self.block.init_eq = Constraint(
+                    expr=self.block.heat_stor_init == self.params[
+                        'heat_stor'].v())
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t):
-                return self.cp * b.mass_flow[t] * (b.Thi - b.Tlo) == b.heat_flow[t]
+                return self.cp * b.mass_flow[t] * (b.Thi - b.Tlo) == \
+                       b.heat_flow[t]
 
             self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
 
-            self.logger.info('Optimization model StorageCondensed {} compiled'.format(self.name))
+            self.logger.info(
+                'Optimization model StorageCondensed {} compiled'.format(
+                    self.name))
 
         self.compiled = True
 
-    def get_heat_stor(self, repetition=None, time=None):
+    def get_heat_stor(self):
         """
         Calculate stored heat during repetition r and time step n. These parameters are zero-based, so the first time
         step of the first repetition has identifiers r=0 and n=0. If no parameters are specified, the state trajectory
@@ -1395,14 +1741,17 @@ class StorageCondensed(StorageVariable):
         N = self.N
         R = self.R
 
-        return zH ** (r * N + n) * self.block.heat_stor_init + sum(zH ** (i * R + n) for i in range(r)) * sum(
+        return zH ** (r * N + n) * self.block.heat_stor_init + sum(
+            zH ** (i * R + n) for i in range(r)) * sum(
             zH ** (N - j - 1) * (
-                    self.block.heat_flow[j] * self.params['time_step'].v() - self.block.heat_loss_ct[
-                j] * self.time_step) / 3.6e6 for j in
+                    self.block.heat_flow[j] * self.params['time_step'].v() -
+                    self.block.heat_loss_ct[
+                        j] * self.time_step) / 3.6e6 for j in
             range(N)) + sum(
             zH ** (n - i - 1) * (
-                    self.block.heat_flow[i] * self.params['time_step'].v() - self.block.heat_loss_ct[
-                i] * self.time_step) / 3.6e6 for i in
+                    self.block.heat_flow[i] * self.params['time_step'].v() -
+                    self.block.heat_loss_ct[
+                        i] * self.time_step) / 3.6e6 for i in
             range(n))
 
     def get_heat_stor_init(self):
@@ -1424,3 +1773,253 @@ class StorageCondensed(StorageVariable):
                     out.append(value(self.block.soc[n, r]))
 
         return out
+
+    def get_heat_loss(self):
+        """
+        Return heat losses
+
+        :return:
+        """
+        out = []
+        for r in self.block.reps:
+            for n in self.TIME:
+                out.append(value(self.block.heat_loss[n, r]))
+        return out
+
+
+class StorageRepr(StorageVariable):
+    """
+    Storage component that can be used with representative days
+
+    """
+
+    def __init__(self, name, temperature_driven=False, repr_days=None):
+        """
+        Variable storage model. In this model, the state equation are condensed into one single equation. Only the initial
+            and final state remain as a parameter. This component is also compatible with a representative period
+            presentation, in which the control actions are repeated for a given number of iterations, while the storage
+            state can change.
+        The heat losses are taken into account exactly in this model.
+
+        :param name: name of the component
+        :param temperature_driven: Parameter that defines if component is temperature driven. This component can only be
+            used in non-temperature-driven optimizations.
+        """
+        if repr_days is None:
+            raise AttributeError('StorageRepr only works with representative '
+                                 'weeks')
+        StorageVariable.__init__(self, name=name,
+                                 temperature_driven=temperature_driven,
+                                 repr_days=repr_days)
+
+    def compile(self, model, start_time):
+        """
+        Compile this unit. Equations calculate the final state after the specified number of repetitions.
+
+        :param model: Top level model
+        :param block: Component model object
+        :param start_time: Start tim of the optimization
+        :return:
+        """
+        self.calculate_static_parameters()
+
+        ############################################################################################
+        # Initialize block
+
+        Component.compile(self, model, start_time)
+
+        ################
+        # Declarations #
+        ################
+
+        Te = self.params['Te']
+
+        if self.compiled:
+            self.block.max_en = self.max_en
+            self.block.UAw = self.UAw
+            self.block.UAtb = self.UAtb
+            self.block.exp_ttau = exp(
+                -self.params['time_step'].v() / self.tau)
+
+            for t in self.TIME:
+                for c in self.REPR_DAYS:
+                    self.block.heat_loss_ct[t, c] = self.UAw * (self.temp_ret - Te.v(t, c)) + self.UAtb * (
+                            self.temp_sup + self.temp_ret - 2 * Te.v(t, c))
+        else:
+            self.block.max_en = Param(mutable=True, initialize=self.max_en)
+            self.block.UAw = Param(mutable=True, initialize=self.UAw)
+            self.block.UAtb = Param(mutable=True, initialize=self.UAtb)
+
+            self.block.exp_ttau = Param(mutable=True, initialize=exp(
+                -self.params['time_step'].v() / self.tau))
+
+            def _heat_loss_ct(b, t, c):
+                return self.UAw * (self.temp_ret - Te.v(t, c)) + \
+                       self.UAtb * (self.temp_sup + self.temp_ret - 2 * Te.v(t, c))
+
+            self.block.heat_loss_ct = Param(self.TIME, self.REPR_DAYS,
+                                            rule=_heat_loss_ct,
+                                            mutable=True)
+
+            ############################################################################################
+            # Initialize variables
+            #       with upper and lower bounds
+
+            mflo_bounds = (self.block.mflo_min, self.block.mflo_max)
+
+            # In/out
+            self.block.mass_flow = Var(self.TIME, self.REPR_DAYS,
+                                       bounds=mflo_bounds)
+            self.block.heat_flow = Var(self.TIME, self.REPR_DAYS)
+
+            self.block.heat_stor_intra = Var(self.X_TIME, self.REPR_DAYS)
+            # heat storage trajectory within representative day
+            self.block.heat_stor_inter = Var(self.DAYS_OF_YEAR,
+                                             bounds=(0, self.block.max_en))
+
+            Ng = len(self.TIME)
+
+            self.block.heat_stor_intra_max = Var(self.REPR_DAYS,
+                                                 within=NonNegativeReals)
+            self.block.heat_stor_intra_min = Var(self.REPR_DAYS,
+                                                 within=NonPositiveReals)
+
+            # Limit storage state
+            def _max_intra_soc(b, t, c):
+                return b.heat_stor_intra_max[c] >= b.heat_stor_intra[t, c]
+
+            def _min_intra_soc(b, t, c):
+                return b.heat_stor_intra_min[c] <= b.heat_stor_intra[t, c]
+
+            self.block.ineq_max_intra_soc = Constraint(self.X_TIME,
+                                                       self.REPR_DAYS,
+                                                       rule=_max_intra_soc)
+            self.block.ineq_min_intra_soc = Constraint(self.X_TIME,
+                                                       self.REPR_DAYS,
+                                                       rule=_min_intra_soc)
+
+            def _max_soc_constraint(b, d):
+                return b.heat_stor_inter[d] + b.heat_stor_intra_max[
+                    self.repr_days[d]] <= b.max_en
+
+            def _min_soc_constraint(b, d):
+                return b.heat_stor_inter[d] * (b.exp_ttau) ** Ng + \
+                       b.heat_stor_intra_min[self.repr_days[d]] >= 0
+
+            self.block.ineq_max_soc = Constraint(self.DAYS_OF_YEAR,
+                                                 rule=_max_soc_constraint)
+            self.block.ineq_min_soc = Constraint(self.DAYS_OF_YEAR,
+                                                 rule=_min_soc_constraint)
+
+            # Link inter storage states
+            def _inter_state_eq(b, d):
+                if d == self.DAYS_OF_YEAR[-1]:  # Periodic boundary
+                    return b.heat_stor_inter[self.DAYS_OF_YEAR[0]] == b.heat_stor_inter[self.DAYS_OF_YEAR[-1]] * (
+                        b.exp_ttau) ** Ng + b.heat_stor_intra[
+                               self.X_TIME[-1], self.repr_days[self.DAYS_OF_YEAR[-1]]]
+                else:
+                    return b.heat_stor_inter[d + 1] == b.heat_stor_inter[d] * (
+                        b.exp_ttau) ** Ng + b.heat_stor_intra[
+                               self.X_TIME[-1], self.repr_days[d]]
+
+            self.block.eq_inter_state_eq = Constraint(self.DAYS_OF_YEAR,
+                                                      rule=_inter_state_eq)
+
+            # Link intra storage states
+            def _intra_state_eq(b, t, c):
+                return b.heat_stor_intra[t + 1, c] == b.heat_stor_intra[
+                    t, c] * (b.exp_ttau) + self.params[
+                           'time_step'].v() / 3600 * (
+                               b.heat_flow[t, c] / b.mult - b.heat_loss_ct[
+                           t, c]) / 1000
+
+            self.block.eq_intra_states = Constraint(self.TIME, self.REPR_DAYS,
+                                                    rule=_intra_state_eq)
+
+            def _first_intra(b, c):
+                return b.heat_stor_intra[0, c] == 0
+
+            self.block.eq_first_intra = Constraint(self.REPR_DAYS,
+                                                   rule=_first_intra)
+
+            # SoC equation
+
+            ## Mass flow and heat flow link
+            def _heat_bal(b, t, c):
+                return self.cp * b.mass_flow[t, c] * (b.Thi - b.Tlo) == \
+                       b.heat_flow[t, c]
+
+            self.block.heat_bal = Constraint(self.TIME, self.REPR_DAYS,
+                                             rule=_heat_bal)
+
+            self.logger.info(
+                'Optimization model StorageRepr {} compiled'.format(
+                    self.name))
+
+        self.compiled = True
+
+    def get_heat_stor_inter(self, d, t):
+        """
+        Get inter heat storage on day d at time step t.
+
+        :param d: Day of year, starting at 0
+        :param t: time of day
+        :return:
+        """
+        return self.block.heat_stor_inter[d] * self.block.exp_ttau ** t
+
+    def get_heat_stor_intra(self, d, t):
+        """
+        Get intra heat storage for day of year d and time step of that day t
+
+        :param d: Day of year, starting at 0
+        :param t: hour of the day
+        :return:
+        """
+
+        return self.block.heat_stor_intra[t, self.repr_days[d]]
+
+    def get_result(self, name, index, state, start_time):
+        if name in ['soc', 'heat_stor']:
+            result = []
+
+            for d in self.DAYS_OF_YEAR:
+                for t in self.TIME:
+                    result.append(value(self.get_heat_stor_inter(d, t) +
+                                        self.get_heat_stor_intra(d, t)))
+            result.append(value(self.get_heat_stor_inter(self.DAYS_OF_YEAR[-1], 24) +
+                                self.get_heat_stor_intra(self.DAYS_OF_YEAR[-1], 24)))
+            index = pd.DatetimeIndex(start=start_time,
+                                     freq=str(
+                                         self.params['time_step'].v()) + 'S',
+                                     periods=len(result))
+            if name is 'soc':
+                return pd.Series(index=index, name=self.name + '.' + name,
+                                 data=result) / self.max_en * 100
+            if name is 'heat_stor':
+                return pd.Series(index=index,
+                                 name=self.name + '.' + name,
+                                 data=result)
+        elif name is 'heat_stor_inter':
+            result = []
+
+            for d in self.DAYS_OF_YEAR:
+                result.append(value(self.get_heat_stor_inter(d, 0)))
+            index = pd.DatetimeIndex(start=start_time,
+                                     freq='1D',
+                                     periods=365)
+            return pd.Series(index=index, data=result,
+                             name=self.name + '.heat_stor_inter')
+        elif name is 'heat_loss':
+            result = []
+            for d in self.DAYS_OF_YEAR:
+                for t in self.TIME:
+                    result.append(value(self.block.heat_loss_ct[t, self.repr_days[d]] + 1000 * 3600 / self.params[
+                        'time_step'].v() * (self.get_heat_stor_inter(d, t) + self.get_heat_stor_intra(d, t)) * (1 - self.block.exp_ttau)))
+            index = pd.DatetimeIndex(start=start_time, freq=str(self.params['time_step'].v()) + 'S',
+                                     periods=len(result))
+            return pd.Series(index=index, data=result,
+                             name=self.name + '.heat_loss')
+        else:
+            return super(StorageRepr, self).get_result(name, index, state,
+                                                       start_time)
