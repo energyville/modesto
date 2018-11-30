@@ -292,8 +292,8 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
     solData = utils.read_time_data(datapath, name='RenewableProduction/NewSolarThermal_TSS.csv', expand=False)
 
     solParam = {
-        'delta_T': 40,
-        'heat_profile': solData['0_40'],
+        'temperature_supply': 70 + 273.15,
+        'temperature_return': 30 + 273.15,
         'area': 300000
     }
 
