@@ -1143,7 +1143,7 @@ class SolarThermalCollector(VariableComponent):
 
         :param name: Name of the solar panel
         :param temperature_driven: Boolean that denotes if the temperatures are allowed to vary (fixed mass flow rates)
-        :param heat_var: Relative variation allowed in delta_T
+        :param heat_var: Relative variation allowed in nominal delta_T
         """
         VariableComponent.__init__(self, name=name,
                                    direction=1,
@@ -1171,10 +1171,7 @@ class SolarThermalCollector(VariableComponent):
                                                   mutable=True),
             'solar_profile': UserDataParameter(name='solar_profile',
                                                description='Maximum heat generation per unit area of the solar panel',
-                                               unit='W/m2',
-                                               val=ut.read_time_data(datapath,
-                                                                       name='RenewableProduction/NewSolarThermal_TSS.csv',
-                                                                       expand=False)),
+                                               unit='W/m2'),
             'cost_inv': SeriesParameter(name='cost_inv',
                                         description='Investment cost in function of installed area',
                                         unit='EUR',
@@ -1201,6 +1198,10 @@ class SolarThermalCollector(VariableComponent):
             # Average cost/m2 from SDH fact sheet, Sorensen et al., 2012
             # see http://solar-district-heating.eu/Portals/0/Factsheets/SDH-WP3-D31-D32_August2012.pdf
         })
+
+        params['solar_profile'].change_value(ut.read_time_data(datapath,
+                                                               name='RenewableProduction/GlobalRadiation.csv',
+                                                               expand=False)['0_40'])
         return params
 
     def compile(self, model, start_time):
@@ -1215,6 +1216,7 @@ class SolarThermalCollector(VariableComponent):
         Component.compile(self, model, start_time)
 
         solar_profile = self.params['solar_profile']
+
         eta_0 = self.params['eta_0'].v()
         a_1 = self.params['a_1'].v()
         a_2 = self.params['a_2'].v()
@@ -1252,11 +1254,11 @@ class SolarThermalCollector(VariableComponent):
 
                 def _mass_lb(m, t):
                     return m.mass_flow[t] >= m.heat_flow[
-                        t] / self.cp / m.delta_T / (1 + self.heat_var)
+                        t] / self.cp / (m.temperature_supply - m.temperature_return) / (1 + self.heat_var)
 
                 def _mass_ub(m, t):
                     return m.mass_flow[t] <= m.heat_flow[
-                        t] / self.cp / m.delta_T
+                        t] / self.cp / (m.temperature_supply - m.temperature_return)
 
                 self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
                 self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
@@ -1284,11 +1286,11 @@ class SolarThermalCollector(VariableComponent):
 
                 def _mass_lb(m, t, c):
                     return m.mass_flow[t, c] >= m.heat_flow[
-                        t, c] / self.cp / m.delta_T / (1 + self.heat_var)
+                        t, c] / self.cp / (m.temperature_supply - m.temperature_return) / (1 + self.heat_var)
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] <= m.heat_flow[
-                        t, c] / self.cp / m.delta_T
+                        t, c] / self.cp / (m.temperature_supply - m.temperature_return)
 
                 self.block.eq_heat_bal = Constraint(self.TIME,
                                                     self.REPR_DAYS,
