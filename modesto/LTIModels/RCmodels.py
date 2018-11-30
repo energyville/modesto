@@ -157,14 +157,14 @@ def readTeaserParam(neighbName, streetName, buildingName,
 # TODO improve inheritance in this file. RCModel and Teaser have a lot of shared code in common.
 
 class TeaserFourElement(Component):
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, repr_days=None):
         """
         Initialise model from TEASER with four elements.
 
         :param name:
         :param temperature_driven:
         """
-        Component.__init__(self, name=name, direction=-1, temperature_driven=temperature_driven)
+        Component.__init__(self, name=name, direction=-1, temperature_driven=temperature_driven, repr_days=repr_days)
         self.params = self.create_params()
         self.structure = None
         self.model_params = None
@@ -924,7 +924,7 @@ class TeaserFourElement(Component):
 
 class RCmodel(Component):
 
-    def __init__(self, name, temperature_driven=False):
+    def __init__(self, name, temperature_driven=False, repr_days=None):
         """
 
         :param name: Name of the component
@@ -933,7 +933,7 @@ class RCmodel(Component):
         """
         Component.__init__(self, name,
                            direction=-1,
-                           temperature_driven=temperature_driven)
+                           temperature_driven=temperature_driven, repr_days=repr_days)
         self.model_types = ['SFH_D_1_2zone_TAB', 'SFH_D_1_2zone_REF1', 'SFH_D_1_2zone_REF2', 'SFH_D_2_2zone_TAB',
                             'SFH_D_2_2zone_REF1', 'SFH_D_2_2zone_REF2', 'SFH_D_3_2zone_TAB', 'SFH_D_3_2zone_REF1',
                             'SFH_D_3_2zone_REF2', 'SFH_D_4_2zone_TAB', 'SFH_D_4_2zone_REF1', 'SFH_D_4_2zone_REF2',
