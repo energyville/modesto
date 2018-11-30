@@ -1,5 +1,0 @@
- A V P E_backup_full E_backup_repr E_loss_stor_full E_loss_stor_repr E_curt_full E_curt_repr E_sol_full E_sol_repr t_repr
-0 20000.0 50000.0 3600000.0         4.462739270437133
-1 20000.0 50000.0 3850000.0         4.545373952935421
-2 20000.0 75000.0 3600000.0         4.430112428387524
-3 20000.0 75000.0 3850000.0         4.5852431815446835

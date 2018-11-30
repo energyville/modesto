@@ -54,7 +54,7 @@ def construct_model():
 
     nx.draw(G, with_labels=True)
 
-    optmodel = Modesto(pipe_model='NodeMethod', graph=G)
+    optmodel = Modesto(pipe_model='NodeMethod', graph=G, repr_days=None)
 
     ##################################
     # Set up data                    #
