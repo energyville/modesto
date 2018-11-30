@@ -573,7 +573,7 @@ class ExtensivePipe(Pipe):
 class NodeMethod(Pipe):
     def __init__(self, name, start_node,
                  end_node, length, allow_flow_reversal=False,
-                 temperature_driven=False, direction=1):
+                 temperature_driven=False, direction=1, repr_days=None):
         """
         Class that sets up an extensive model of the pipe
 
@@ -592,7 +592,8 @@ class NodeMethod(Pipe):
                       length=length,
                       allow_flow_reversal=allow_flow_reversal,
                       temperature_driven=temperature_driven,
-                      direction=direction)
+                      direction=direction,
+                      repr_days=repr_days)
 
         pipe_catalog = self.get_pipe_catalog()
         self.Rs = pipe_catalog['Rs']
@@ -602,6 +603,7 @@ class NodeMethod(Pipe):
         self.history_length = 0  # Number of known historical values
 
         self.params = self.create_params()
+
 
     def create_params(self):
 

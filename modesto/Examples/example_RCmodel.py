@@ -51,7 +51,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(pipe_model='ExtensivePipe', graph=G)
+    optmodel = Modesto(pipe_model='ExtensivePipe', graph=G, repr_days=None)
 
     ##################################
     # Fill in the parameters         #
