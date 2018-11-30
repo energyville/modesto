@@ -4,11 +4,8 @@ import collections
 from math import sqrt
 
 import networkx as nx
-# noinspection PyUnresolvedReferences
 import pyomo.environ
-from pyomo.core.base import ConcreteModel, Objective, minimize, value, \
-    Constraint, Var, \
-    NonNegativeReals, Block
+from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constraint, Var, NonNegativeReals, Block
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 
@@ -445,25 +442,24 @@ class Modesto:
             print self.results.solver.status
             print self.results.solver.termination_condition
 
-        if (self.results.solver.status == SolverStatus.ok) and (
-                self.results.solver.termination_condition == TerminationCondition.optimal):
-            status = 0
-            self.logger.info('Model solved.')
-        elif (self.results.solver.status == SolverStatus.aborted):
+        if self.results.solver.status == SolverStatus.ok:
+            if self.results.solver.termination_condition == TerminationCondition.optimal:
+                status = 0
+                self.logger.info('Model solved.')
+            elif not (self.results.solver.termination_condition == TerminationCondition.infeasible):
+                status = 2
+                self.logger.info(
+                    'Model solved but termination condition not optimal.')
+                self.logger.info('Termination condition: {}'.format(
+                    self.results.solver.termination_condition))
+        elif self.results.solver.status == SolverStatus.aborted:
             status = -3
             self.logger.info('Solver aborted.')
-        elif (self.results.solver.status == SolverStatus.ok) and not (
-                self.results.solver.termination_condition == TerminationCondition.infeasible):
-            status = 2
-            self.logger.info(
-                'Model solved but termination condition not optimal.')
-            self.logger.info('Termination condition: {}'.format(
-                self.results.solver.termination_condition))
         elif self.results.solver.termination_condition == TerminationCondition.infeasible:
             status = -1
             self.logger.info('Model is infeasible')
         else:
-            status = 1
+            status = -2
             self.logger.warning(
                 'Solver status: {}'.format(self.results.solver.status))
 
