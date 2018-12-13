@@ -76,12 +76,9 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
     model.change_params(dict=stor_params, node='demand', comp='stor')
     model.change_init_type('heat_stor', new_type='fixedVal', comp='stor', node='demand')
 
-    sol_data = ut.read_time_data(resource_filename(
-        'modesto', 'Data/RenewableProduction'), name='SolarThermal.csv')['0_40']
-
     stc_params = {
-        'delta_T': 20,
-        'heat_profile': sol_data,
+        'temperature_supply': 80 + 273.15,
+        'temperature_return': 60 + 273.15,
         'area': 2000
     }
     model.change_params(stc_params, node='STC', comp='solar')

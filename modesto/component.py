@@ -5,13 +5,16 @@ import sys
 from math import pi, log, exp
 
 import pandas as pd
-from modesto.parameter import StateParameter, DesignParameter, \
-    UserDataParameter, SeriesParameter, WeatherDataParameter
-from modesto.submodel import Submodel
+from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
     Set, Binary, NonPositiveReals
 
+import modesto.utils as ut
+from modesto.parameter import StateParameter, DesignParameter, \
+    UserDataParameter, SeriesParameter, WeatherDataParameter
+from modesto.submodel import Submodel
 
+datapath = resource_filename('modesto', 'Data')
 
 
 def str_to_comp(string):
@@ -1122,11 +1125,25 @@ class SolarThermalCollector(VariableComponent):
     def __init__(self, name, temperature_driven=False, heat_var=0.15,
                  repr_days=None):
         """
-        Solar thermal panel with fixed maximal production. Excess heat is curtailed in order not to make the optimisation infeasible.
+        Solar thermal collector. Default parameters for Arcon SunMark HT-SolarBoost 35/10.
+
+        modesto parameters
+        ------------------
+
+        - area: surface area of collectors (gross) [m2]
+        - temperature_supply: supply temperature to network [K]
+        - temperature_return: return temperature from network [K]
+        - solar_profile: Solar irradiance (direct and diffuse) on a tilted surface as a function of time [W/m2]
+        - cost_inv: investment cost in function of installed area [EUR/m2]
+        - eta_0: optical efficiency (EN 12975) [-]
+        - a_1: first degree efficiency factor [W/m2K]
+        - a_2: second degree efficiency factor [W/m2K2]
+        - Te: ambient temperature [K]
+
 
         :param name: Name of the solar panel
         :param temperature_driven: Boolean that denotes if the temperatures are allowed to vary (fixed mass flow rates)
-        :param heat_var: Relative variation allowed in delta_T
+        :param heat_var: Relative variation allowed in nominal delta_T
         """
         VariableComponent.__init__(self, name=name,
                                    direction=1,
@@ -1145,20 +1162,46 @@ class SolarThermalCollector(VariableComponent):
         params.update({
             'area': DesignParameter('area', 'Surface area of panels', 'm2',
                                     mutable=True),
-            'delta_T': DesignParameter('delta_T',
-                                       'Temperature difference between in- and outlet',
-                                       'K', mutable=True),
-            'heat_profile': UserDataParameter(name='heat_profile',
-                                              description='Maximum heat generation per unit area of the solar panel',
-                                              unit='W/m2'),
+            'temperature_supply': DesignParameter('temperature_supply',
+                                                  'Outlet temperature of the solar thermal panel, input to the network',
+                                                  'K', mutable=True),
+            'temperature_return': DesignParameter('temperature_return',
+                                                  description='Inlet temperature of the panel. Input from the network.',
+                                                  unit='K',
+                                                  mutable=True),
+            'solar_profile': UserDataParameter(name='solar_profile',
+                                               description='Maximum heat generation per unit area of the solar panel',
+                                               unit='W/m2'),
             'cost_inv': SeriesParameter(name='cost_inv',
                                         description='Investment cost in function of installed area',
                                         unit='EUR',
                                         unit_index='m2',
-                                        val=250)
+                                        val=250),
+            'eta_0': DesignParameter(name='eta_0',
+                                     description='Optical efficiency of solar panel, EN 12975',
+                                     unit='-',
+                                     mutable=True,
+                                     val=0.839),
+            'a_1': DesignParameter(name='a_1',
+                                   description='First degree efficiency factor',
+                                   unit='W/m2K',
+                                   mutable=True,
+                                   val=2.46),
+            'a_2': DesignParameter(name='a_2',
+                                   description='Second degree efficiency factor',
+                                   unit='W/m2K2',
+                                   mutable=True,
+                                   val=0.0197),
+            'Te': WeatherDataParameter('Te',
+                                       'Ambient temperature',
+                                       'K')
             # Average cost/m2 from SDH fact sheet, Sorensen et al., 2012
             # see http://solar-district-heating.eu/Portals/0/Factsheets/SDH-WP3-D31-D32_August2012.pdf
         })
+
+        params['solar_profile'].change_value(ut.read_time_data(datapath,
+                                                               name='RenewableProduction/GlobalRadiation.csv',
+                                                               expand=False)['0_40'])
         return params
 
     def compile(self, model, start_time):
@@ -1172,21 +1215,29 @@ class SolarThermalCollector(VariableComponent):
         """
         Component.compile(self, model, start_time)
 
-        heat_profile = self.params['heat_profile']
+        solar_profile = self.params['solar_profile']
 
+        eta_0 = self.params['eta_0'].v()
+        a_1 = self.params['a_1'].v()
+        a_2 = self.params['a_2'].v()
+        T_m = 0.5 * (self.params['temperature_supply'].v() + self.params['temperature_return'].v())
+        Te = self.params['Te']
         if self.compiled:
             if self.repr_days is None:
                 for t in self.TIME:
-                    self.block.heat_flow_max[t] = heat_profile.v(t)
+                    self.block.heat_flow_max[t] = self.params['area'].v() * max(0, solar_profile.v(t) * eta_0 - a_1 * (
+                            T_m - Te.v(t)) - a_2 * (T_m - Te.v(t)) ** 2)
             else:
                 for t in self.TIME:
                     for c in self.REPR_DAYS:
-                        self.block.heat_flow_max[t, c] = heat_profile.v(t, c)
+                        self.block.heat_flow_max[t, c] = self.params['area'].v() * max(
+                            0, solar_profile.v(t, c) * eta_0 - a_1 * (T_m - Te.v(t, c)) - a_2 * (T_m - Te.v(t, c)) ** 2)
 
         else:
             if self.repr_days is None:
                 def _heat_flow_max(m, t):
-                    return heat_profile.v(t)
+                    return self.params['area'].v() * max(0, solar_profile.v(t) * eta_0 - a_1 * (
+                            T_m - Te.v(t)) - a_2 * (T_m - Te.v(t)) ** 2)
 
                 self.block.heat_flow_max = Param(self.TIME, rule=_heat_flow_max,
                                                  mutable=True)
@@ -1199,23 +1250,23 @@ class SolarThermalCollector(VariableComponent):
                 # Equations
 
                 def _heat_bal(m, t):
-                    return m.heat_flow[t] + m.heat_flow_curt[t] == m.area * \
-                           m.heat_flow_max[t]
+                    return m.heat_flow[t] + m.heat_flow_curt[t] == m.heat_flow_max[t]
 
                 def _mass_lb(m, t):
                     return m.mass_flow[t] >= m.heat_flow[
-                        t] / self.cp / m.delta_T / (1 + self.heat_var)
+                        t] / self.cp / (m.temperature_supply - m.temperature_return) / (1 + self.heat_var)
 
                 def _mass_ub(m, t):
                     return m.mass_flow[t] <= m.heat_flow[
-                        t] / self.cp / m.delta_T
+                        t] / self.cp / (m.temperature_supply - m.temperature_return)
 
                 self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
                 self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.eq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
             else:
                 def _heat_flow_max(m, t, c):
-                    return heat_profile.v(t, c)
+                    return self.params['area'].v() * max(0, solar_profile.v(t, c) * eta_0 - a_1 * (
+                            T_m - Te.v(t, c)) - a_2 * (T_m - Te.v(t, c)) ** 2)
 
                 self.block.heat_flow_max = Param(self.TIME, self.REPR_DAYS,
                                                  rule=_heat_flow_max,
@@ -1231,17 +1282,15 @@ class SolarThermalCollector(VariableComponent):
                 # Equations
 
                 def _heat_bal(m, t, c):
-                    return m.heat_flow[t, c] + m.heat_flow_curt[t,
-                                                                c] == m.area * \
-                           m.heat_flow_max[t, c]
+                    return m.heat_flow[t, c] + m.heat_flow_curt[t, c] == m.heat_flow_max[t, c]
 
                 def _mass_lb(m, t, c):
                     return m.mass_flow[t, c] >= m.heat_flow[
-                        t, c] / self.cp / m.delta_T / (1 + self.heat_var)
+                        t, c] / self.cp / (m.temperature_supply - m.temperature_return) / (1 + self.heat_var)
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] <= m.heat_flow[
-                        t, c] / self.cp / m.delta_T
+                        t, c] / self.cp / (m.temperature_supply - m.temperature_return)
 
                 self.block.eq_heat_bal = Constraint(self.TIME,
                                                     self.REPR_DAYS,
@@ -2015,7 +2064,8 @@ class StorageRepr(StorageVariable):
             for d in self.DAYS_OF_YEAR:
                 for t in self.TIME:
                     result.append(value(self.block.heat_loss_ct[t, self.repr_days[d]] + 1000 * 3600 / self.params[
-                        'time_step'].v() * (self.get_heat_stor_inter(d, t) + self.get_heat_stor_intra(d, t)) * (1 - self.block.exp_ttau)))
+                        'time_step'].v() * (self.get_heat_stor_inter(d, t) + self.get_heat_stor_intra(d, t)) * (
+                                                1 - self.block.exp_ttau)))
             index = pd.DatetimeIndex(start=start_time, freq=str(self.params['time_step'].v()) + 'S',
                                      periods=len(result))
             return pd.Series(index=index, data=result,
