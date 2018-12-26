@@ -34,7 +34,7 @@ def setup_graph():
 
 def setup_modesto(time_step=3600, n_steps=24 * 30):
     model = Modesto(pipe_model='ExtensivePipe', graph=setup_graph())
-    heat_demand = ut.read_time_data(resource_filename('modesto', 'Data/HeatDemand'), name='HeatDemandFiltered.csv')
+    heat_demand = ut.read_time_data(resource_filename('modesto', 'Data/HeatDemand/Old'), name='HeatDemandFiltered.csv')
     weather_data = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
 
     model.opt_settings(allow_flow_reversal=False)
@@ -96,7 +96,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
         'PEF': 1,
         'CO2': 0.178,
         'fuel_cost': elec_cost,
-        'Qmax': 9e6,
+        'Qmax': 7e6,
         'ramp_cost': 0,
         'ramp': 0
     }

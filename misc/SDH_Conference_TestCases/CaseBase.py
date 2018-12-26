@@ -144,7 +144,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
         'mult': 1
     }
 
-    heat_profile = ut.read_time_data(datapath, name='HeatDemand/HeatDemandFiltered.csv')
+    heat_profile = ut.read_time_data(datapath, name='HeatDemand/Old/HeatDemandFiltered.csv')
 
     print '#######################'
     print '# Sum of heat demands #'
