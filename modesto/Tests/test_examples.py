@@ -124,7 +124,7 @@ def test_recompilation_solar():
 
     ax.legend()
 
-    plt.show()
+    # plt.show()
 
     assert model_mutable.get_result('heat_flow', node='STC', comp='solar').equals(
         model_recomp.get_result('heat_flow', node='STC', comp='solar'))
