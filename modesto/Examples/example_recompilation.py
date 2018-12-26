@@ -96,7 +96,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
         'PEF': 1,
         'CO2': 0.178,
         'fuel_cost': elec_cost,
-        'Qmax': 9e6,
+        'Qmax': 7e6,
         'ramp_cost': 0,
         'ramp': 0
     }

@@ -136,8 +136,8 @@ def test_recompilation_qmax():
     model_recomp = example_recompilation.setup_modesto(n_steps=100)
     model_mutable = example_recompilation.setup_modesto(n_steps=100)
 
-    model_recomp.compile(start_time='20140601')
-    model_mutable.compile(start_time='20140601')
+    model_recomp.compile(start_time='20140301')
+    model_mutable.compile(start_time='20140301')
 
     model_recomp.set_objective('energy')
     model_mutable.set_objective('energy')
@@ -146,10 +146,10 @@ def test_recompilation_qmax():
     heat_mut_first = model_mutable.get_result('heat_flow', node='STC', comp='backup')
 
     model_recomp.change_param(node='STC', comp='backup', param='Qmax', val=7.5e6)
-    model_recomp.compile(start_time='20140601', recompile=True)
+    model_recomp.compile(start_time='20140301', recompile=True)
 
     model_mutable.change_param(node='STC', comp='backup', param='Qmax', val=7.5e6)
-    model_mutable.compile(start_time='20140601')
+    model_mutable.compile(start_time='20140301')
 
     model_recomp.set_objective('energy')
     model_mutable.set_objective('energy')
