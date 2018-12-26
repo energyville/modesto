@@ -59,7 +59,7 @@ def construct_model():
     ##################################
 
     heat_profile = ut.read_time_data(resource_filename(
-        'modesto', 'Data/HeatDemand'), name='HeatDemandFiltered.csv')
+        'modesto', 'Data/HeatDemand/Old'), name='HeatDemandFiltered.csv')
     t_amb = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='extT.csv')['Te']
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
