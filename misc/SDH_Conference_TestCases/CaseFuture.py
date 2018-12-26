@@ -160,7 +160,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
         'mult': 1
     }
 
-    heat_profile = utils.read_time_data(datapath, name='HeatDemand/HeatDemandFiltered.csv', expand=repr)
+    heat_profile = utils.read_time_data(datapath, name='HeatDemand/Old/HeatDemandFiltered.csv', expand=repr)
 
     if verbose:
         print '#######################'
