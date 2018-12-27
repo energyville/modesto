@@ -55,6 +55,9 @@ class Component(Submodel):
         self.direction = direction
         self.compiled = False
 
+        self.lifespan = 10  # Economic lifespan in years
+        self.fix_maint = 0.05
+
     def create_params(self):
         """
         Create all required parameters to set up the model
@@ -172,6 +175,28 @@ class Component(Submodel):
         # TODO same as with get_slack: exact duplicate
 
         return 0
+
+    def annualize_investment(self, i):
+        """
+        Annualize investment for this component assuming a fixed life span after which the component is replaced by the
+            same.
+
+        :param i: interest rate (decimal)
+        :return: Annual equivalent investment cost (EUR)
+        """
+        inv = self.get_investment_cost()
+        CRF = i * (1 + i) ** self.lifespan / ((1 + i) ** self.lifespan - 1)
+
+        return inv * CRF
+
+    def fixed_maintenance(self):
+        """
+        Return annual fixed maintenance cost as a percentage of the investment
+
+        :return:
+        """
+        inv = self.get_investment_cost()
+        return inv * self.fix_maint
 
     def make_slack(self, slack_name, time_axis):
         # TODO Add doc

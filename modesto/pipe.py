@@ -64,6 +64,7 @@ class Pipe(Component):
         self.temp_ret = None
 
         self.f = 0.03  # Moody friction factor, between 0.015 and 0.04. Includes bends.
+        self.lifespan = 30
 
     @staticmethod
     def get_pipe_catalog():
@@ -76,10 +77,12 @@ class Pipe(Component):
         """
         Get total investment of this pipe based on the installed diameter and length.
 
+        :param interest_rate: equivalent interest rate as a decimal number
         :return: Cost in EUR
         """
         return self.length * self.params['cost_inv'].v(
             self.params['diameter'].v())
+
 
     def create_params(self):
         params = Component.create_params(self)
