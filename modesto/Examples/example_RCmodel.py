@@ -51,7 +51,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(pipe_model='ExtensivePipe', graph=G)
+    optmodel = Modesto(pipe_model='ExtensivePipe', graph=G, repr_days=None)
 
     ##################################
     # Fill in the parameters         #
@@ -81,6 +81,9 @@ def construct_model():
 
     # general parameters
 
+    datapath = resource_filename('modesto', 'Data')
+    c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+
     general_params = {'Te': t_amb,
                       'Tg': t_g,
                       'Q_sol_E': QsolE,
@@ -88,7 +91,8 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps * time_step}
+                      'horizon': n_steps * time_step,
+                      'elec_cost': c_f}
 
     optmodel.change_params(general_params)
 
@@ -175,7 +179,8 @@ def construct_model():
                             name='DAM_electricity_prices-2014_BE.csv')['price_BE']
     # cf = pd.Series(0.5, index=t_amb.index)
 
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'delta_T': 20,
+                   'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,

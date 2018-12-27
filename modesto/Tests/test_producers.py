@@ -2,6 +2,8 @@ def test_producer():
     from modesto.main import Modesto
     import pandas as pd
     import networkx as nx
+    import modesto.utils as ut
+    from pkg_resources import resource_filename
 
     def construct_model():
         G = nx.DiGraph()
@@ -29,6 +31,10 @@ def test_producer():
 
     optmodel = Modesto(pipe_model='SimplePipe', graph=construct_model())
 
+
+    datapath = resource_filename('modesto', 'Data')
+    c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+
     general_params = {'Te': t_amb,
                       'Tg': t_g,
                       'Q_sol_E': QsolE,
@@ -36,7 +42,8 @@ def test_producer():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'horizon': n_steps*time_step,
-                      'time_step': time_step}
+                      'time_step': time_step,
+                      'elec_cost': c_f}
 
     optmodel.change_params(general_params)
 
@@ -52,7 +59,8 @@ def test_producer():
 
     c_f = pd.Series(1, time_index)
 
-    params = {'efficiency': 0.95,
+    params = {'delta_T': 20,
+              'efficiency': 0.95,
               'PEF': 1,
               'CO2': 0.2052,
               'fuel_cost': c_f,
@@ -70,7 +78,7 @@ def test_producer():
                                    node='user', comp='building')
             optmodel.compile(start_time)
             optmodel.set_objective('cost')
-            flags.append(optmodel.solve())
+            flags.append(optmodel.solve(tee=True))
 
         if flags == [0, 1, 1]:
             return True

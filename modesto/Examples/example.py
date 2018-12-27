@@ -59,7 +59,7 @@ def construct_model():
     ##################################
 
     heat_profile = ut.read_time_data(resource_filename(
-        'modesto', 'Data/HeatDemand'), name='HeatDemandFiltered.csv')
+        'modesto', 'Data/HeatDemand/Old'), name='HeatDemandFiltered.csv')
     t_amb = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='extT.csv')['Te']
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
@@ -75,6 +75,8 @@ def construct_model():
 
     # general parameters
 
+    c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+
     general_params = {'Te': t_amb,
                       'Tg': t_g,
                       'Q_sol_E': QsolE,
@@ -82,7 +84,8 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps*time_step}
+                      'horizon': n_steps*time_step,
+                      'elec_cost': c_f}
 
     optmodel.change_params(general_params)
 
@@ -90,7 +93,7 @@ def construct_model():
 
     zw_building_params = {'delta_T': 20,
                           'mult': 1,
-                          'heat_profile': heat_profile['ZwartbergNEast'],
+                          'heat_profile': heat_profile['ZwartbergNEast']
                           }
 
     ws_building_params = zw_building_params.copy()
@@ -145,7 +148,8 @@ def construct_model():
     c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
                             name='DAM_electricity_prices-2014_BE.csv')['price_BE']
 
-    prod_design = {'efficiency': 0.95,
+    prod_design = {'delta_T': 20,
+                   'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,

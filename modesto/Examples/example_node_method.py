@@ -54,7 +54,7 @@ def construct_model():
 
     nx.draw(G, with_labels=True)
 
-    optmodel = Modesto(pipe_model='NodeMethod', graph=G)
+    optmodel = Modesto(pipe_model='NodeMethod', graph=G, repr_days=None)
 
     ##################################
     # Set up data                    #
@@ -120,7 +120,8 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps*time_step}
+                      'horizon': n_steps*time_step,
+                      'elec_cost': c_f}
 
     optmodel.change_params(general_params)
     optmodel.test = 'Test'

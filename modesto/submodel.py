@@ -1,14 +1,16 @@
 from __future__ import division
 
-from pyomo.core.base import Block,  Var, NonNegativeReals, value
-from pyomo.core.base.param import IndexedParam
+from collections import Counter
+
+from pyomo.core.base import Block, Var, NonNegativeReals, value
+from pyomo.core.base.param import IndexedParam, _ParamData
 from pyomo.core.base.var import IndexedVar
 
 import pandas as pd
 
 
 class Submodel(object):
-    def __init__(self, name=None, temperature_driven=False):
+    def __init__(self, name=None, temperature_driven=False, repr_days=None):
         """
         Base class for submodels
 
@@ -25,6 +27,10 @@ class Submodel(object):
         self.params = self.create_params()
 
         self.slack_list = []
+        self.repr_days = repr_days
+        if repr_days is not None:
+            self.repr_count = dict(
+                Counter(self.repr_days.values()).most_common())
 
         self.block = None
 
@@ -51,9 +57,12 @@ class Submodel(object):
             param.change_start_time(start_time)
             param.change_time_step(time_step)
             param.change_horizon(horizon)
+            param.resample()
 
         if not horizon % time_step == 0:
-            raise Exception("The horizon should be a multiple of the time step ({}).".format(self.name))
+            raise Exception(
+                "The horizon should be a multiple of the time step ({}).".format(
+                    self.name))
 
     def pprint(self, txtfile=None):
         """
@@ -65,7 +74,8 @@ class Submodel(object):
         if self.block is not None:
             self.block.pprint(ostream=txtfile)
         else:
-            Exception('The optimization model of %s has not been built yet.' % self.name)
+            Exception(
+                'The optimization model of %s has not been built yet.' % self.name)
 
     def get_params(self):
         """
@@ -77,19 +87,32 @@ class Submodel(object):
 
     def change_param_object(self, name, new_object):
         """
-        Change a parameter object (used in case of general parameters that are needed in componenet models)
+        Change a parameter object (used in case of general parameters that are needed in component models)
 
         :param name:
         :return:
         """
 
         if name not in self.params:
-            raise KeyError('{} is not recognized as a parameter of {}'.format(name, self.name))
+            raise KeyError(
+                '{} is not recognized as a parameter of {}'.format(name,
+                                                                   self.name))
         if not type(self.params[name]) is type(new_object):
-            raise TypeError('When changing the {} parameter object, you should use '
-                            'the same type as the original parameter.'.format(name))
+            raise TypeError(
+                'When changing the {} parameter object, you should use '
+                'the same type as the original parameter.'.format(name))
 
         self.params[name] = new_object
+
+    def get_param(self, name):
+        return self.params[name]
+
+    def get_param_names(self):
+        """
+        :return:
+        """
+
+        return self.params.keys()
 
     def get_param_value(self, name, time=None):
         """
@@ -104,7 +127,9 @@ class Submodel(object):
             param = self.params[name]
         except KeyError:
             param = None
-            self.logger.warning('Parameter {} does not (yet) exist in this component'.format(name))
+            self.logger.warning(
+                'Parameter {} does not (yet) exist in this component'.format(
+                    name))
 
         return param.get_value(time)
 
@@ -117,7 +142,9 @@ class Submodel(object):
         :return:
         """
         if param not in self.params:
-            raise Exception("{} is not recognized as a valid parameter for {}".format(param, self.name))
+            raise Exception(
+                "{} is not recognized as a valid parameter for {}".format(param,
+                                                                          self.name))
 
         self.params[param].change_value(new_data)
 
@@ -147,19 +174,28 @@ class Submodel(object):
         """
 
         if name not in self.params:
-            raise KeyError('{} is not an existing parameter for {}'.format(name, self.name))
+            raise KeyError('{} is not an existing parameter for {}'.format(name,
+                                                                           self.name))
         else:
             return self.params[name].get_description()
 
     def set_time_axis(self):
         horizon = self.params['horizon'].v()
         time_step = self.params['time_step'].v()
-        assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
+        assert (
+                       horizon % time_step) == 0, "The horizon should be a multiple of the time step."
 
-        n_steps = int(horizon // time_step)
-        self.X_TIME = range(n_steps + 1)
-        # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
-        self.TIME = self.X_TIME[:-1]
+        if self.repr_days is None:
+            n_steps = int(horizon // time_step)
+            self.X_TIME = range(n_steps + 1)
+            # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
+            self.TIME = self.X_TIME[:-1]
+        else:
+            n_steps = int(24 * 3600 // time_step)
+            self.X_TIME = xrange(n_steps + 1)
+            self.TIME = xrange(n_steps)
+            self.REPR_DAYS = sorted(set(self.repr_days.values()))
+            self.DAYS_OF_YEAR = xrange(365)
 
     def get_time_axis(self, state=False):
         if state:
@@ -246,6 +282,14 @@ class Submodel(object):
         """
         return 0
 
+    def obj_elec_cost(self):
+        """
+        Return summation of electricity cost generated by component.
+
+        :return:
+        """
+        return 0
+
     def obj_co2_cost(self):
         """
         Yield summation of CO2 cost for objective function, but only for relevant component types
@@ -262,7 +306,6 @@ class Submodel(object):
         """
         # TODO: express cost with respect to economic lifetime
 
-
         return 0
 
     def get_slack(self, slack_name, t):
@@ -278,7 +321,8 @@ class Submodel(object):
 
     def make_slack(self, slack_name, time_axis):
         self.slack_list.append(slack_name)
-        self.block.add_component(slack_name, Var(time_axis, within=NonNegativeReals))
+        self.block.add_component(slack_name,
+                                 Var(time_axis, within=NonNegativeReals))
         return self.block.find_component(slack_name)
 
     def constrain_value(self, variable, bound, ub=True, slack_variable=None):
@@ -318,11 +362,13 @@ class Submodel(object):
         result = []
 
         if obj is None:
-            raise Exception('{} is not a valid parameter or variable of {}'.format(name, self.name))
+            raise Exception(
+                '{} is not a valid parameter or variable of {}'.format(name,
+                                                                       self.name))
 
         time = self.get_time_axis(state)
 
-        if isinstance(obj, IndexedVar):
+        if isinstance(obj, IndexedVar) and self.repr_days is None:
             if index is None:
                 for i in obj:
                     result.append(value(obj[i]))
@@ -334,11 +380,25 @@ class Submodel(object):
                     result.append(obj[(index, i)].value)
 
                     resname = self.name + '.' + name + '.' + index
+        elif isinstance(obj, IndexedVar) and self.repr_days is not None:
+            for d in self.DAYS_OF_YEAR:
+                for t in time:
+                    result.append(value(obj[t, self.repr_days[d]]))
+
+                    resname = self.name + '.' +name
 
         elif isinstance(obj, IndexedParam):
-            result = obj.values()
-
             resname = self.name + '.' + name
+            if self.repr_days is None:
+                result = obj.values()
+                if isinstance(result[0], _ParamData):
+                    result = [i.value for i in result]
+
+
+            else:
+                for d in self.DAYS_OF_YEAR:
+                    for t in time:
+                        result.append(value(obj[t, self.repr_days[d]]))
 
         else:
             self.logger.warning(
@@ -347,7 +407,8 @@ class Submodel(object):
             return None
 
         timeindex = pd.DatetimeIndex(start=start_time,
-                                     freq=str(self.params['time_step']) + 'S',
+                                     freq=str(
+                                         self.params['time_step'].v()) + 'S',
                                      periods=len(result))
 
         return pd.Series(data=result, index=timeindex, name=resname)

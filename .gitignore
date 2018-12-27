@@ -11,3 +11,7 @@ build/
 dist/
 .pytest_cache/
 .eggs/
+*.lp
+misc/RepresentativePeriods/logs/
+misc/RepresentativePeriods/comparison/
+misc/RepresentativePeriodsMILP/comparison/
