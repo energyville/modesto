@@ -117,7 +117,12 @@ class Pipe(Component):
                                         val=0.9),
             'elec_cost': TimeSeriesParameter('elec_cost',
                                              'Electricity cost, used for pumping power',
-                                             'EUR/kWh')
+                                             'EUR/kWh'),
+            'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
+                                        mutable=False, val=30),
+            'fix_maint': DesignParameter('fix_maint', unit='-',
+                                         description='Annual maintenance cost as a fixed proportion of the investment',
+                                         mutable=False, val=0.02)
         })
 
         return params
