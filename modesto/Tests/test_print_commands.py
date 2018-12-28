@@ -31,4 +31,5 @@ def test_print_methods(reset=False, disp=False):
 
 
 if __name__ == '__main__':
+    # Run this file to update the test output of the print function
     test_print_methods(True, True)
