@@ -58,8 +58,7 @@ if __name__ == '__main__':
     input_data = {
         '1dnewsol': {
             'dur': 1,
-            'sel': get_json(resource_filename('TimeSliceSelection',
-                                              '../Scripts/MultiCorr/ordered_solutions1_20bins_weighted.txt'))
+            'sel': get_json('/home/thesysi/TimeSliceSelection/Scripts/MultiCorr/ordered_solutions1_20bins_weighted.txt' )
         }
     }
 

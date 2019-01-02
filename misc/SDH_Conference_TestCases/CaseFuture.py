@@ -160,7 +160,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
         'mult': 1
     }
 
-    heat_profile = utils.read_time_data(datapath, name='HeatDemand/HeatDemandFiltered.csv', expand=repr)
+    heat_profile = utils.read_time_data(datapath, name='HeatDemand/TEASER_GenkNET_per_neighb.csv', expand=repr)
 
     if verbose:
         print '#######################'
@@ -289,7 +289,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
             model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
 
     # ### Solar collector
-    solData = utils.read_time_data(datapath, name='RenewableProduction/NewSolarThermal_TSS.csv', expand=False)
+    solData = utils.read_time_data(datapath, name='RenewableProduction/GlobalRadiation.csv', expand=False)
 
     solParam = {
         'temperature_supply': 70 + 273.15,
