@@ -37,6 +37,25 @@ class Submodel(object):
         self.cp = 4180
         self.rho = 1000
 
+    def annualize_investment(self, i):
+        """
+        Annualize investment for this component assuming a fixed life span after which the component is replaced by the
+            same.
+
+        :param i: interest rate (decimal)
+        :return: Annual equivalent investment cost (EUR)
+        """
+        return 0
+
+    def fixed_maintenance(self):
+        """
+        Return annual fixed maintenance cost as a percentage of the investment
+
+        :return:
+        """
+
+        return 0
+
     def create_params(self):
         """
         Create all required parameters to set up the model
