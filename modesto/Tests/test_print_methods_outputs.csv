@@ -599,7 +599,7 @@ Unit: s
 -fix_maint
 Description: Annual maintenance cost as a fixed proportion of the investment
 Unit: -
-Value: 0.02
+Value: 0.01
 
 
 --- waterscheiGarden ---
@@ -692,7 +692,7 @@ Unit: s
 -fix_maint
 Description: Annual maintenance cost as a fixed proportion of the investment
 Unit: -
-Value: 0.02
+Value: 0.01
 
 
 --- zwartbergNE ---
@@ -1376,7 +1376,7 @@ Unit: s
 -fix_maint
 Description: Annual maintenance cost as a fixed proportion of the investment
 Unit: -
-Value: 0.02
+Value: 0.01
 
 "
 general_params,"
