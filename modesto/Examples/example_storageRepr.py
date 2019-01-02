@@ -40,7 +40,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 365, repr=False):
                     repr_days=repr_days[16] if repr else None)
     heat_demand = ut.read_time_data(
         resource_filename('modesto', 'Data/HeatDemand'),
-        name='HeatDemandFiltered.csv')
+        name='TEASER_GenkNET_per_neighb.csv')
     weather_data = ut.read_time_data(
         resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
 
@@ -88,11 +88,12 @@ def setup_modesto(time_step=3600, n_steps=24 * 365, repr=False):
                            node='demand')
 
     sol_data = ut.read_time_data(resource_filename(
-        'modesto', 'Data/RenewableProduction'), name='NewSolarThermal_TSS.csv')['0_40']
+        'modesto', 'Data/RenewableProduction'), name='GlobalRadiation.csv')['0_40']
 
     stc_params = {
-        'delta_T': 20,
-        'heat_profile': sol_data,
+        'temperature_supply': 80 + 273.15,
+        'temperature_return': 60 + 273.15,
+        'solar_profile': sol_data,
         'area': 2000
     }
     model.change_params(stc_params, node='STC', comp='solar')

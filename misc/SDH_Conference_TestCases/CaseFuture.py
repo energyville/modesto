@@ -10,14 +10,13 @@
 from __future__ import division
 
 import logging
-import time
 import os
+import time
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 from matplotlib.dates import DateFormatter
-
 from modesto import utils
 from modesto.main import Modesto
 
@@ -25,6 +24,7 @@ logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('SDH')
+
 
 # # Network graph
 
@@ -289,7 +289,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
             model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
 
     # ### Solar collector
-    solData = utils.read_time_data(datapath, name='RenewableProduction/NewSolarThermal_TSS.csv', expand=False)
+    solData = utils.read_time_data(datapath, name='RenewableProduction/GlobalRadiation.csv', expand=False)
 
     solParam = {
         'temperature_supply': 70 + 273.15,
@@ -381,7 +381,7 @@ if __name__ == '__main__':
 
     start_time = pd.Timestamp('20140101')
 
-    optmodel = setup_opt(time_step=3600, horizon=3600 * 24 * 365)
+    optmodel = setup_opt(time_step=3 * 3600, horizon=3600 * 24 * 365)
     optmodel.compile(start_time=start_time)
     optmodel.set_objective('cost')
     optmodel.opt_settings(allow_flow_reversal=True)
@@ -404,6 +404,9 @@ if __name__ == '__main__':
     print 'Active:', optmodel.get_objective()
     print 'Energy:', optmodel.get_objective('energy')
     print 'Cost:  ', optmodel.get_objective('cost')
+
+    if not os.path.isdir('img/Future'):
+        os.makedirs('img/Future')
 
     # print optmodel.get_investment_cost()
 
@@ -429,7 +432,7 @@ if __name__ == '__main__':
 
     ax.plot(inputs['Solar'] / 1e6, label='STC', color='orange')
     ax.plot(inputs['Production'] / 1e6, label='Backup', color='red', linewidth=1.5)
-    ax.plot(sum(heat_flows[i] for i in heat_flows)/1e6, ':', label='Heat demand')
+    ax.plot(sum(heat_flows[i] for i in heat_flows) / 1e6, ':', label='Heat demand')
 
     ax.set_ylabel('Heat Flow [MW]')
     ax.legend(loc='best')
@@ -467,7 +470,7 @@ if __name__ == '__main__':
     fig, axs = plt.subplots(2, 1, sharex=True)
     for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servSol', 'servWat']:
         print pipe
-        ls = ':' if pipe=='backBone' else '-'
+        ls = ':' if pipe == 'backBone' else '-'
         axs[0].plot(optmodel.get_result('heat_loss_tot', comp=pipe), linestyle=ls, label=pipe)
         axs[1].plot(optmodel.get_result('mass_flow', comp=pipe), linestyle=ls, label=pipe)
     axs[1].legend()
@@ -549,7 +552,7 @@ if __name__ == '__main__':
 
     fig.savefig('img/Future/StoragePlot.png', dpi=300)
 
-    fig, ax = plt.subplots(2,1, sharex=True)
+    fig, ax = plt.subplots(2, 1, sharex=True)
 
     ax[0].plot(optmodel.get_result('mass_flow', comp='backBone'))
     ax[0].set_title('BackBone mass flow rate')
