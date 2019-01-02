@@ -44,7 +44,7 @@ class Modesto:
         self.allow_flow_reversal = True
         self.start_time = None
         if repr_days is not None:
-            self.repr_days = {i: int(round(j)) for i,j in repr_days.iteritems()}
+            self.repr_days = {i: int(round(j)) for i, j in repr_days.iteritems()}
         else:
             self.repr_days = repr_days
 
@@ -54,7 +54,6 @@ class Modesto:
         self.components = {}
         self.params = self.create_params()
 
-
         self.logger = logging.getLogger('modesto.main.Modesto')
 
         self.build(graph)
@@ -62,8 +61,6 @@ class Modesto:
 
         self.objectives = {}
         self.act_objective = None
-
-
 
     def change_graph(self):
         # TODO write this
@@ -362,12 +359,27 @@ class Modesto:
 
         self.logger.debug('{} objective set'.format(objtype))
 
-    def get_investment_cost(self):
+    def get_annual_investment_cost(self, i):
+        """
+        Return annual investment cost using a fixed interest rate i
+
+        :param i: Equivalent interest rate (decimal)
+        :return:
+        """
         cost = 0
         for comp in self.iter_components():
-            cost += comp.get_investment_cost()
+            cost += comp.annualize_investment(i=i)
 
         return cost
+
+    def get_annual_maintenance_cost(self):
+        """
+        Return annual fixed maintenance cost.
+
+        :return:
+        """
+
+        return sum(comp.fixed_maintenance() for comp in self.iter_components())
 
     def iter_components(self):
         """
@@ -720,7 +732,7 @@ class Modesto:
         string = ''
 
         for comp in self.get_node_components(node):
-            comp = comp[len(node)+1:]
+            comp = comp[len(node) + 1:]
             string += self.print_comp_param(node, comp, disp=False)
 
         if disp:
@@ -773,7 +785,6 @@ class Modesto:
                 raise IndexError('%s is not a valid general parameter ' % name)
 
             return self._print_params({'general': {name: self.params[name].get_description()}}, disp)
-
 
     @staticmethod
     def _print_params(descriptions, disp=True):
@@ -1307,8 +1318,6 @@ class Edge(object):
         self.pipe_model = pipe_model
         self.pipe = self.build(pipe_model,
                                allow_flow_reversal)  # TODO Better structure possible?
-
-
 
     def build(self, pipe_model, allow_flow_reversal):
         """

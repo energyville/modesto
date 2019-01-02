@@ -71,7 +71,12 @@ class Component(Submodel):
                       DesignParameter('horizon',
                                       unit='s',
                                       description='Horizon of the optimization problem',
-                                      mutable=False)}
+                                      mutable=False),
+                  'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
+                                              mutable=False, val=10),
+                  'fix_maint': DesignParameter('fix_maint', unit='-',
+                                               description='Annual maintenance cost as a fixed proportion of the investment',
+                                               mutable=False, val=0.05)}
         return params
 
     def change_param_object(self, name, new_object):
@@ -172,6 +177,29 @@ class Component(Submodel):
         # TODO same as with get_slack: exact duplicate
 
         return 0
+
+    def annualize_investment(self, i):
+        """
+        Annualize investment for this component assuming a fixed life span after which the component is replaced by the
+            same.
+
+        :param i: interest rate (decimal)
+        :return: Annual equivalent investment cost (EUR)
+        """
+        inv = self.get_investment_cost()
+        t = self.params['lifespan'].v()
+        CRF = i * (1 + i) ** t / ((1 + i) ** t - 1)
+
+        return inv * CRF
+
+    def fixed_maintenance(self):
+        """
+        Return annual fixed maintenance cost as a percentage of the investment
+
+        :return:
+        """
+        inv = self.get_investment_cost()
+        return inv * self.params['fix_maint'].v()
 
     def make_slack(self, slack_name, time_axis):
         # TODO Add doc
@@ -685,7 +713,12 @@ class ProducerVariable(VariableComponent):
                                         val=0),
             'CO2_price': UserDataParameter('CO2_price',
                                            'CO2 price',
-                                           'euro/kg CO2')
+                                           'euro/kg CO2'),
+            'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
+                                        mutable=False, val=15),  # 15y for CHP
+            'fix_maint': DesignParameter('fix_maint', unit='-',
+                                         description='Annual maintenance cost as a fixed proportion of the investment',
+                                         mutable=False, val=0.05)
         })
 
         if self.temperature_driven:
@@ -1194,9 +1227,14 @@ class SolarThermalCollector(VariableComponent):
                                    val=0.0197),
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
-                                       'K')
+                                       'K'),
             # Average cost/m2 from SDH fact sheet, Sorensen et al., 2012
             # see http://solar-district-heating.eu/Portals/0/Factsheets/SDH-WP3-D31-D32_August2012.pdf
+            'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
+                                        mutable=False, val=20),
+            'fix_maint': DesignParameter('fix_maint', unit='-',
+                                         description='Annual maintenance cost as a fixed proportion of the investment',
+                                         mutable=False, val=0.05) # TODO find statistics
         })
 
         params['solar_profile'].change_value(ut.read_time_data(datapath,
@@ -1424,7 +1462,12 @@ class StorageVariable(VariableComponent):
                                     description='Multiplication factor indicating number of DHW tanks',
                                     unit='-',
                                     val=1,
-                                    mutable=True)
+                                    mutable=True),
+            'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
+                                        mutable=False, val=20),
+            'fix_maint': DesignParameter('fix_maint', unit='-',
+                                         description='Annual maintenance cost as a fixed proportion of the investment',
+                                         mutable=False, val=0.015)
         })
 
         return params

@@ -15,6 +15,20 @@ Description: Temperature difference across substation
 Unit: K
 Value: 20
 
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 10
+
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.05
+
+-horizon
+Description: Horizon of the optimization problem
+Unit: s
+
 -time_step
 Description: Time step with which the component model will be discretized
 Unit: s
@@ -86,10 +100,6 @@ Value: Time
 2014-12-31 23:00:00    2.352249e+07
 Name: WaterscheiGarden, Length: 8760, dtype: float64
 
--horizon
-Description: Horizon of the optimization problem
-Unit: s
-
 -mult
 Description: Number of buildings in the cluster
 Unit: -
@@ -103,6 +113,20 @@ all_params,"
 Description: Temperature difference across substation
 Unit: K
 Value: 20
+
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 10
+
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.05
+
+-horizon
+Description: Horizon of the optimization problem
+Unit: s
 
 -time_step
 Description: Time step with which the component model will be discretized
@@ -174,10 +198,6 @@ Value: Time
 2014-12-31 22:00:00    6.299683e+06
 2014-12-31 23:00:00    5.676352e+06
 Name: ZwartbergNEast, Length: 8760, dtype: float64
-
--horizon
-Description: Horizon of the optimization problem
-Unit: s
 
 -mult
 Description: Number of buildings in the cluster
@@ -295,6 +315,11 @@ Description: Maximum possible heat output
 Unit: W
 Value: 150000000.0
 
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 15
+
 -CO2_price
 Description: CO2 price
 Unit: euro/kg CO2
@@ -308,6 +333,11 @@ Value: 0.95
 Description: Minimum possible heat output
 Unit: W
 Value: 0
+
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.05
 
 -horizon
 Description: Horizon of the optimization problem
@@ -335,10 +365,20 @@ Description: High temperature in tank
 Unit: K
 Value: 353.15
 
+-dIns
+Description: Insulation thickness
+Unit: m
+Value: 0.3
+
 -mflo_max
 Description: Maximal mass flow rate to and from storage vessel
 Unit: kg/s
 Value: 110
+
+-mflo_min
+Description: Minimal mass flow rate to and from storage vessel
+Unit: kg/s
+Value: -110
 
 -heat_stor
 Description: Heat stored in the thermal storage unit
@@ -368,10 +408,10 @@ Description: Aspect ratio (height/width)
 Unit: -
 Value: 1
 
--dIns
-Description: Insulation thickness
-Unit: m
-Value: 0.3
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.015
 
 -kIns
 Description: Thermal conductivity of insulation material
@@ -445,10 +485,10 @@ Value: Date
 2015-01-01 00:00:00    0
 Length: 35041, dtype: int64
 
--mflo_min
-Description: Minimal mass flow rate to and from storage vessel
-Unit: kg/s
-Value: -110
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 20
 
 -time_step
 Description: Time step with which the component model will be discretized
@@ -506,6 +546,11 @@ Value: 2.1
 Description: Electricity cost, used for pumping power
 Unit: EUR/kWh
 
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 30
+
 -cost_inv
 Description: Investment cost per length as a function of diameter.Default value supplied.
 Unit: EUR/m
@@ -543,13 +588,18 @@ Value: 0.9
 Description: Horizon of the optimization problem
 Unit: s
 
+-Tg
+Description: Undisturbed ground temperature
+Unit: K
+
 -time_step
 Description: Time step with which the component model will be discretized
 Unit: s
 
--Tg
-Description: Undisturbed ground temperature
-Unit: K
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.02
 
 
 --- waterscheiGarden ---
@@ -589,6 +639,11 @@ Value: 2.1
 Description: Electricity cost, used for pumping power
 Unit: EUR/kWh
 
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 30
+
 -cost_inv
 Description: Investment cost per length as a function of diameter.Default value supplied.
 Unit: EUR/m
@@ -626,13 +681,18 @@ Value: 0.9
 Description: Horizon of the optimization problem
 Unit: s
 
+-Tg
+Description: Undisturbed ground temperature
+Unit: K
+
 -time_step
 Description: Time step with which the component model will be discretized
 Unit: s
 
--Tg
-Description: Undisturbed ground temperature
-Unit: K
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.02
 
 
 --- zwartbergNE ---
@@ -1151,6 +1211,20 @@ Description: Temperature difference across substation
 Unit: K
 Value: 20
 
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 10
+
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.05
+
+-horizon
+Description: Horizon of the optimization problem
+Unit: s
+
 -time_step
 Description: Time step with which the component model will be discretized
 Unit: s
@@ -1222,10 +1296,6 @@ Value: Time
 2014-12-31 23:00:00    2.352249e+07
 Name: WaterscheiGarden, Length: 8760, dtype: float64
 
--horizon
-Description: Horizon of the optimization problem
-Unit: s
-
 -mult
 Description: Number of buildings in the cluster
 Unit: -
@@ -1252,6 +1322,11 @@ Value: 2.1
 -elec_cost
 Description: Electricity cost, used for pumping power
 Unit: EUR/kWh
+
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 30
 
 -cost_inv
 Description: Investment cost per length as a function of diameter.Default value supplied.
@@ -1290,13 +1365,18 @@ Value: 0.9
 Description: Horizon of the optimization problem
 Unit: s
 
+-Tg
+Description: Undisturbed ground temperature
+Unit: K
+
 -time_step
 Description: Time step with which the component model will be discretized
 Unit: s
 
--Tg
-Description: Undisturbed ground temperature
-Unit: K
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.02
 
 "
 general_params,"
@@ -1872,10 +1952,20 @@ Description: High temperature in tank
 Unit: K
 Value: 353.15
 
+-dIns
+Description: Insulation thickness
+Unit: m
+Value: 0.3
+
 -mflo_max
 Description: Maximal mass flow rate to and from storage vessel
 Unit: kg/s
 Value: 110
+
+-mflo_min
+Description: Minimal mass flow rate to and from storage vessel
+Unit: kg/s
+Value: -110
 
 -heat_stor
 Description: Heat stored in the thermal storage unit
@@ -1905,10 +1995,10 @@ Description: Aspect ratio (height/width)
 Unit: -
 Value: 1
 
--dIns
-Description: Insulation thickness
-Unit: m
-Value: 0.3
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.015
 
 -kIns
 Description: Thermal conductivity of insulation material
@@ -1982,10 +2072,10 @@ Value: Date
 2015-01-01 00:00:00    0
 Length: 35041, dtype: int64
 
--mflo_min
-Description: Minimal mass flow rate to and from storage vessel
-Unit: kg/s
-Value: -110
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 20
 
 -time_step
 Description: Time step with which the component model will be discretized
@@ -2012,6 +2102,20 @@ Value: 1
 Description: Temperature difference across substation
 Unit: K
 Value: 20
+
+-lifespan
+Description: Economic life span in years
+Unit: y
+Value: 10
+
+-fix_maint
+Description: Annual maintenance cost as a fixed proportion of the investment
+Unit: -
+Value: 0.05
+
+-horizon
+Description: Horizon of the optimization problem
+Unit: s
 
 -time_step
 Description: Time step with which the component model will be discretized
@@ -2083,10 +2187,6 @@ Value: Time
 2014-12-31 22:00:00    2.610009e+07
 2014-12-31 23:00:00    2.352249e+07
 Name: WaterscheiGarden, Length: 8760, dtype: float64
-
--horizon
-Description: Horizon of the optimization problem
-Unit: s
 
 -mult
 Description: Number of buildings in the cluster

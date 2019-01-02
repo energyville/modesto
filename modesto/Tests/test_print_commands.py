@@ -3,10 +3,9 @@ import pandas as pd
 from pkg_resources import resource_filename
 
 
-def test_print_methods():
+def test_print_methods(reset=False, disp=False):
     from modesto.Examples import example
-    reset = False
-    disp = False
+
 
     index = ['comp_param_delta_T', 'comp_param', 'all_params', 'general_params', 'general_params_Te',
                             'node_params']
@@ -32,4 +31,5 @@ def test_print_methods():
 
 
 if __name__ == '__main__':
-    test_print_methods()
+    # Run this file to update the test output of the print function
+    test_print_methods(True, False)
