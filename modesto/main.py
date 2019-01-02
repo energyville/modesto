@@ -368,7 +368,7 @@ class Modesto:
         """
         cost = 0
         for comp in self.iter_components():
-            cost += comp.annualize_investment()
+            cost += comp.annualize_investment(i=i)
 
         return cost
 
