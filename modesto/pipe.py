@@ -122,7 +122,7 @@ class Pipe(Component):
                                         mutable=False, val=30),
             'fix_maint': DesignParameter('fix_maint', unit='-',
                                          description='Annual maintenance cost as a fixed proportion of the investment',
-                                         mutable=False, val=0.02)
+                                         mutable=False, val=0.01) # Source IEA ETSAP 2013
         })
 
         return params
