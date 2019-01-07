@@ -295,7 +295,7 @@ if __name__ == '__main__':
         print('')
         print(opts)
 
-        for name, opt in opts.iteritems():
+        for name, opt in opts.items():
             res = opt.solve(tee=True, mipgap=0.000001, solver='cplex')
             if not res == 0:
                 raise Exception('Optimization {} failed to solve.'.format(name))
@@ -308,10 +308,9 @@ if __name__ == '__main__':
 
         print('Are heat losses equal?')
         print(opts['for'].get_result('heat_loss_tot', comp='pipe').equals(opts['rev'].get_result('heat_loss_tot', comp='pipe')))
-
         fig, axs = plt.subplots(4, 1, sharex=True)
 
-        for name, opt in opts.iteritems():
+        for name, opt in opts.items():
             axs[0].plot(opt.get_result('heat_flow', node='cons', comp='cons'), linestyle='--', label='cons_' + name)
             axs[0].plot(opt.get_result('heat_flow', node='prod', comp='prod'), label='prod_' + name)
 

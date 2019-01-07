@@ -65,7 +65,7 @@ def splitFactor(AArray, AExt=None, AWin=None):
     splitFacValues = dict()
     ATot = sum(AArray.values())
 
-    for id, A in AArray.iteritems():
+    for id, A in AArray.items():
         if A > 0:
             if AExt is None and AWin is None:
                 splitFacValues[id] = A / ATot
