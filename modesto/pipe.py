@@ -4,15 +4,15 @@ import os
 import sys
 import warnings
 from math import pi
-
+from functools import reduce
 import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
-from component import Component
-from modesto import utils
-from parameter import DesignParameter, StateParameter, UserDataParameter, \
+from modesto.component import Component
+import modesto.utils
+from modesto.parameter import DesignParameter, StateParameter, UserDataParameter, \
     SeriesParameter, WeatherDataParameter, \
     TimeSeriesParameter
 

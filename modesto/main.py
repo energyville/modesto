@@ -4,17 +4,15 @@ import collections
 from math import sqrt
 
 import networkx as nx
-import pyomo.environ
 from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constraint, Var, NonNegativeReals, Block
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 
-import component as co
-import pipe as pip
+import modesto.component as co
+import modesto.pipe as pip
 from modesto.LTIModels import RCmodels as rc
-# noinspection PyUnresolvedReferences
-from parameter import *
-from submodel import Submodel
+from modesto.parameter import *
+from modesto.submodel import Submodel
 
 
 class Modesto:
@@ -61,10 +59,6 @@ class Modesto:
 
         self.objectives = {}
         self.act_objective = None
-
-    def change_graph(self):
-        # TODO write this
-        pass
 
     def create_params(self):
         params = {

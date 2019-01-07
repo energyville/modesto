@@ -3,7 +3,7 @@ from __future__ import division
 import logging
 import sys
 from math import pi, log, exp
-
+from functools import reduce
 import pandas as pd
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
