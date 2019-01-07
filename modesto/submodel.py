@@ -211,10 +211,10 @@ class Submodel(object):
             self.TIME = self.X_TIME[:-1]
         else:
             n_steps = int(24 * 3600 // time_step)
-            self.X_TIME = xrange(n_steps + 1)
-            self.TIME = xrange(n_steps)
+            self.X_TIME = range(n_steps + 1)
+            self.TIME = range(n_steps)
             self.REPR_DAYS = sorted(set(self.repr_days.values()))
-            self.DAYS_OF_YEAR = xrange(365)
+            self.DAYS_OF_YEAR = range(365)
 
     def get_time_axis(self, state=False):
         if state:
