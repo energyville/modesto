@@ -11,7 +11,7 @@ from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 from modesto.component import Component
-import modesto.utils
+import modesto.utils as utils
 from modesto.parameter import DesignParameter, StateParameter, UserDataParameter, \
     SeriesParameter, WeatherDataParameter, \
     TimeSeriesParameter

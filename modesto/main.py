@@ -7,7 +7,7 @@ import networkx as nx
 from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constraint, Var, NonNegativeReals, Block
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
-
+import pyomo.environ
 import modesto.component as co
 import modesto.pipe as pip
 from modesto.LTIModels import RCmodels as rc
