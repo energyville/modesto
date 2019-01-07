@@ -8,7 +8,7 @@ from __future__ import division
 import itertools
 import os
 import sys
-
+from functools import reduce
 import modesto.utils as ut
 import networkx as nx
 import pandas as pd

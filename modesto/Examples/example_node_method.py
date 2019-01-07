@@ -16,7 +16,7 @@ import modesto.utils as ut
 from modesto.main import Modesto
 from modesto.mass_flow_calculation import MfCalculation
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
