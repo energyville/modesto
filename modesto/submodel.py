@@ -409,10 +409,9 @@ class Submodel(object):
         elif isinstance(obj, IndexedParam):
             resname = self.name + '.' + name
             if self.repr_days is None:
-                result = obj.values()
-                if isinstance(result[0], _ParamData):
-                    result = [i.value for i in result]
-
+                result = []
+                for t in obj:
+                    result.append(obj[t])
 
             else:
                 for d in self.DAYS_OF_YEAR:
