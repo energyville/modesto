@@ -309,19 +309,19 @@ if __name__ == '__main__':
             max_pipe = pipe
             maximum = ratio
 
-    print 'The maximum ratio between distance travelled and pipe length occurs in {} and is {}.'.format(pipe, maximum)
+    print('The maximum ratio between distance travelled and pipe length occurs in {} and is {}.'.format(pipe, maximum))
 
     # Efficiency
-    print '\nNetwork'
-    print 'Efficiency', (waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+    print('\nNetwork')
+    print('Efficiency', (waterschei_e + zwartberg_e) / prod_e * 100, '%')
 
     # Objectives
-    print '\nObjective function'
-    print 'Energy:     ', optmodel.get_objective('energy')
-    print 'Cost:       ', optmodel.get_objective('cost')
-    print 'Cost_ramp:  ', optmodel.get_objective('cost_ramp')
-    print 'Temperature:', optmodel.get_objective('temp')
-    print 'Active:     ', optmodel.get_objective()
+    print('\nObjective function')
+    print('Energy:     ', optmodel.get_objective('energy'))
+    print('Cost:       ', optmodel.get_objective('cost'))
+    print('Cost_ramp:  ', optmodel.get_objective('cost_ramp'))
+    print('Temperature:', optmodel.get_objective('temp'))
+    print('Active:     ', optmodel.get_objective())
 
     time = [i * time_step / 3600 for i in range(n_steps)]
 

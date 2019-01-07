@@ -167,12 +167,12 @@ if __name__ == '__main__':
     soc_intra = optmodel_repr.get_result('heat_stor_intra', node='demand',
                                          comp='stor')
 
-    print h_sol_full.equals(h_sol_repr)
-    print 'Mutable object'
-    print optmodel_full.components['STC.solar'].block.area.value
+    print(h_sol_full.equals(h_sol_repr))
+    print('Mutable object')
+    print(optmodel_full.components['STC.solar'].block.area.value)
 
-    print 'Recompiled object'
-    print optmodel_repr.components['STC.solar'].block.area.value
+    print('Recompiled object')
+    print(optmodel_repr.components['STC.solar'].block.area.value)
 
     plt.style.use('ggplot')
     fig, ax = plt.subplots(2, 1, sharex=True)
@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
     ax[0].legend()
 
-    fig, ax = plt.subplots(2, 1, sharex=True)
+    fig1, ax = plt.subplots(2, 1, sharex=True)
 
     ax[0].plot(optmodel_full.get_result('heat_loss', node='demand', comp='stor'), label='Full')
     ax[0].plot(optmodel_repr.get_result('heat_loss', node='demand', comp='stor'), ':', label='Repr')

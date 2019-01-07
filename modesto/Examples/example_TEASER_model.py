@@ -231,11 +231,11 @@ if __name__ == '__main__':
     day_min = df_userbehaviour['day_min']
 
     # Objectives
-    print '\nObjective function'
-    print 'Slack: ', optmodel.model.Slack.value
-    print 'Energy:', optmodel.get_objective('energy')
-    print 'Cost:  ', optmodel.get_objective('cost')
-    print 'Active:', optmodel.get_objective()
+    print('\nObjective function')
+    print('Slack: ', optmodel.model.Slack.value)
+    print('Energy:', optmodel.get_objective('energy'))
+    print('Cost:  ', optmodel.get_objective('cost'))
+    print('Active:', optmodel.get_objective())
 
     fig, ax = plt.subplots(3, 1, sharex=True)
 

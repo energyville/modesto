@@ -140,12 +140,12 @@ if __name__ == '__main__':
     soc_rec = optmodel_rec.get_result('soc', node='demand', comp='stor')
     soc_mut = optmodel_mut.get_result('soc', node='demand', comp='stor')
 
-    print h_sol_mut.equals(h_sol_rec)
-    print 'Mutable object'
-    print optmodel_mut.components['STC.solar'].block.area.value
+    print(h_sol_mut.equals(h_sol_rec))
+    print('Mutable object')
+    print(optmodel_mut.components['STC.solar'].block.area.value)
 
-    print 'Recompiled object'
-    print optmodel_rec.components['STC.solar'].block.area.value
+    print('Recompiled object')
+    print(optmodel_rec.components['STC.solar'].block.area.value)
 
     fig, ax = plt.subplots(2,1, sharex=True)
     ax[0].plot(h_sol_rec, '-', label='Sol Recompiled')

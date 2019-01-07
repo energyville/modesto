@@ -159,9 +159,9 @@ if __name__ == '__main__':
     optmodel.solve(tee=True, mipfocus=None, solver='gurobi', verbose=False)
 
     finish = clock()
-    print '\n========================'
-    print 'Total computation time is {} s.'.format(finish - start)
-    print 'Compilation took {} s.'.format(comp_finish - start)
+    print('\n========================')
+    print('Total computation time is {} s.'.format(finish - start))
+    print('Compilation took {} s.'.format(comp_finish - start))
 
     ##################################
     # Collect result                 #
@@ -192,11 +192,11 @@ if __name__ == '__main__':
     Q_hea_prod = optmodel.get_result('heat_flow', node='waterscheiGarden', comp='plant')
 
     # Objectives
-    print '\nObjective function'
-    print 'Slack: ', optmodel.model.Slack.value
-    print 'Energy:', optmodel.get_objective('energy')
-    print 'Cost:  ', optmodel.get_objective('cost')
-    print 'Active:', optmodel.get_objective()
+    print('\nObjective function')
+    print('Slack: ', optmodel.model.Slack.value)
+    print('Energy:', optmodel.get_objective('energy'))
+    print('Cost:  ', optmodel.get_objective('cost'))
+    print('Active:', optmodel.get_objective())
 
     df_weather = ut.read_period_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv',
                                      time_step=time_step, horizon=n_steps * time_step, start_time=start_time)
@@ -266,7 +266,7 @@ if __name__ == '__main__':
     Q_hea_ws_2 = optmodel.get_result('ControlHeatFlows', node='waterscheiGarden',
                                      comp='buildingD', index='Q_hea')
 
-    fig, ax = plt.subplots(2, 1, sharex=True)
+    fig1, ax = plt.subplots(2, 1, sharex=True)
     ax[0].plot(TiD_ws, label='First run')
     ax[0].plot(TiD_ws_2, label='Second run')
     ax[0].legend()
@@ -274,7 +274,7 @@ if __name__ == '__main__':
     ax[1].plot(Q_hea_ws)
     ax[1].plot(Q_hea_ws_2)
 
-    fig, ax = plt.subplots(1, 1)
+    fig2, ax = plt.subplots(1, 1)
     ax.plot(TiD_ws, label='First run')
     ax.plot(TiD_ws_2, label='Second run')
     ax.legend()

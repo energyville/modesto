@@ -450,9 +450,9 @@ class Modesto:
             return -2
 
         if verbose:
-            print self.results
-            print self.results.solver.status
-            print self.results.solver.termination_condition
+            print(self.results)
+            print(self.results.solver.status)
+            print(self.results.solver.termination_condition)
 
         if self.results.solver.status == SolverStatus.ok:
             if self.results.solver.termination_condition == TerminationCondition.optimal:
@@ -736,7 +736,7 @@ class Modesto:
             string += self.print_comp_param(node, comp, disp=False)
 
         if disp:
-            print string
+            print(string)
         else:
             return string
 
@@ -804,7 +804,7 @@ class Modesto:
                     string += '-' + param + '\n' + des + '\n\n'
 
         if disp:
-            print string
+            print(string)
         else:
             return string
 

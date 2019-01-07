@@ -87,4 +87,4 @@ def test_producer():
 
 
 if __name__ == '__main__':
-    print test_producer()
+    print(test_producer())

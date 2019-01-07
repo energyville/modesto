@@ -126,7 +126,7 @@ def test_splitfactor_solgains():
 def test_readTeaserParam():
     from modesto.LTIModels.RCmodels import readTeaserParam
 
-    print readTeaserParam(neighbName='OudWinterslag', streetName='Gierenshof', buildingName='Gierenshof_22_1589272')
+    print(readTeaserParam(neighbName='OudWinterslag', streetName='Gierenshof', buildingName='Gierenshof_22_1589272'))
 
     assert readTeaserParam(neighbName='OudWinterslag', streetName='Gierenshof',
                            buildingName='Gierenshof_22_1589272') == {'nOrientations': 4L, 'gWin': 0.78,

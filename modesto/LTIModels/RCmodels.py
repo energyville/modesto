@@ -882,7 +882,7 @@ class TeaserFourElement(Component):
         # self.block.pprint()
 
         if self.temperature_driven:
-            print 'WARNING: No temperature variable model implemented (yet)'
+            print('WARNING: No temperature variable model implemented (yet)')
             # self.block.temperatures = Var(self.TIME, self.lines)
             #
             # def _decl_temperatures(b, t):
@@ -1289,7 +1289,7 @@ class RCmodel(Component):
         # self.block.pprint()
 
         if self.temperature_driven:
-            print 'WARNING: No temperature variable model implemented (yet)'
+            print('WARNING: No temperature variable model implemented (yet)')
             # self.block.temperatures = Var(self.TIME, self.lines)
             #
             # def _decl_temperatures(b, t):
