@@ -146,16 +146,16 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
 
     heat_profile = ut.read_time_data(datapath, name='HeatDemand/Old/HeatDemandFiltered.csv')
 
-    print '#######################'
-    print '# Sum of heat demands #'
-    print '#######################'
-    print ''
+    print('#######################')
+    print('# Sum of heat demands #')
+    print('#######################')
+    print('')
     for name in ['WaterscheiGarden', 'TermienWest',
                  'TermienEast']:  # ['Boxbergheide', 'TermienWest', 'WaterscheiGarden']:
         build_param = building_params_common
         build_param['heat_profile'] = heat_profile[name]
 
-        print name, ':', str(sum(heat_profile[name]['2014']) / 1e9)  # Quarterly data
+        print(name, ':', str(sum(heat_profile[name]['2014']) / 1e9))  # Quarterly data
 
         model.change_params(build_param, node=name, comp='neighb')
 
@@ -197,7 +197,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
         'servBox': 250
     }
 
-    for pipe, DN in pipeDiam.iteritems():
+    for pipe, DN in pipeDiam.items():
         model.change_param(node=None, comp=pipe, param='diameter', val=DN)
         model.change_param(node=None, comp=pipe, param='temperature_supply', val=70 + 273.15)
         model.change_param(node=None, comp=pipe, param='temperature_return', val=30 + 273.15)
@@ -219,9 +219,9 @@ if __name__ == '__main__':
     #
     # The get_objective_function gets the value of the active objective (if no input) or of a specific objective if an extra input is given (not necessarily active, hence not an optimal value).
 
-    print 'Active:', optmodel.get_objective()
-    print 'Energy:', optmodel.get_objective('energy')
-    print 'Cost:  ', optmodel.get_objective('cost')
+    print('Active:', optmodel.get_objective())
+    print('Energy:', optmodel.get_objective('energy'))
+    print('Cost:  ', optmodel.get_objective('cost'))
 
     # modesto has the get_result method, which allows to get the optimal values of the optimization variables:
 
@@ -270,11 +270,11 @@ if __name__ == '__main__':
     termienwest_e = sum(heat_flows['TermienWest'])
 
     # Efficiency
-    print '\nNetwork efficiency', (termieneast_e + waterschei_e + termienwest_e) / (prod_e) * 100, '%'
+    print('\nNetwork efficiency', (termieneast_e + waterschei_e + termienwest_e) / (prod_e) * 100, '%')
 
     fig, axs = plt.subplots(2, 1, sharex=True)
     for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servWat']:
-        print pipe
+        print(pipe)
         axs[0].plot(optmodel.get_result('heat_loss_tot', comp=pipe), label=pipe)
         axs[1].plot(optmodel.get_result('mass_flow', comp=pipe), label=pipe)
     axs[1].legend()
@@ -282,7 +282,7 @@ if __name__ == '__main__':
     axs[1].set_ylabel('Mass flow [kg/s]')
 
     for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servWat']:
-        print pipe, str(round(sum(optmodel.get_result('heat_loss_tot', comp=pipe)) / 1e6, 2)), 'MWh'
+        print(pipe, str(round(sum(optmodel.get_result('heat_loss_tot', comp=pipe)) / 1e6, 2)), 'MWh')
     fig.autofmt_xdate()
 
     mass_flows = pd.DataFrame()

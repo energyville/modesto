@@ -163,18 +163,18 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
     heat_profile = utils.read_time_data(datapath, name='HeatDemand/Old/HeatDemandFiltered.csv', expand=repr)
 
     if verbose:
-        print '#######################'
-        print '# Sum of heat demands #'
-        print '#######################'
-        print ''
-        print sum(heat_profile[i] for i in ['WaterscheiGarden', 'TermienWest', 'TermienEast']).max()
+        print('#######################')
+        print('# Sum of heat demands #')
+        print('#######################')
+        print('')
+        print(sum(heat_profile[i] for i in ['WaterscheiGarden', 'TermienWest', 'TermienEast']).max())
     for name in ['WaterscheiGarden', 'TermienWest',
                  'TermienEast']:  # ['Boxbergheide', 'TermienWest', 'WaterscheiGarden']:
         build_param = building_params_common
         build_param['heat_profile'] = heat_profile[name]
 
         if verbose:
-            print name, ':', str(sum(heat_profile[name]['2014']) / 1e9)  # Quarterly data
+            print(name, ':', str(sum(heat_profile[name]['2014']) / 1e9))  # Quarterly data
 
         model.change_params(build_param, node=name, comp='neighb')
 
@@ -282,7 +282,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
         'servBox': 250
     }
 
-    for pipe, DN in pipeDiam.iteritems():
+    for pipe, DN in pipeDiam.items():
         model.change_param(node=None, comp=pipe, param='diameter', val=DN)
         if pipe_model == 'ExtensivePipe':
             model.change_param(node=None, comp=pipe, param='temperature_supply', val=70 + 273.15)
@@ -388,12 +388,12 @@ if __name__ == '__main__':
     start = time.clock()
     sol = optmodel.solve(tee=True, solver='gurobi')
     end = time.clock()
-    print 'Status: {}'.format(sol)
+    print('Status: {}'.format(sol))
 
-    print 'Time: {} - Wall time: {}'.format(float(optmodel.results['Solver'][0]['Time']),
+    print('Time: {} - Wall time: {}'.format(float(optmodel.results['Solver'][0]['Time']),
                                             float(optmodel.results['Solver'][0]['Wall time']),
-                                            optmodel.results.solver.wallclock_time)
-    print end - start
+                                            optmodel.results.solver.wallclock_time))
+    print(end - start)
 
     # ## Collecting results
 
@@ -401,9 +401,9 @@ if __name__ == '__main__':
     #
     # The get_objective_function gets the value of the active objective (if no input) or of a specific objective if an extra input is given (not necessarily active, hence not an optimal value).
 
-    print 'Active:', optmodel.get_objective()
-    print 'Energy:', optmodel.get_objective('energy')
-    print 'Cost:  ', optmodel.get_objective('cost')
+    print('Active:', optmodel.get_objective())
+    print('Energy:', optmodel.get_objective('energy'))
+    print('Cost:  ', optmodel.get_objective('cost'))
 
     if not os.path.isdir('img/Future'):
         os.makedirs('img/Future')
@@ -462,14 +462,14 @@ if __name__ == '__main__':
     termienwest_e = sum(heat_flows['TermienWest'])
 
     # Efficiency
-    print '\nNetwork efficiency', (termieneast_e + waterschei_e + termienwest_e) / (prod_e + prod_s) * 100, '%'
+    print('\nNetwork efficiency', (termieneast_e + waterschei_e + termienwest_e) / (prod_e + prod_s) * 100, '%')
 
-    print sum(optmodel.get_result('heat_flow_max', node='SolarArray', comp='solar')) * 200000
-    print sum(optmodel.get_result('heat_flow', node='SolarArray', comp='solar'))
+    print(sum(optmodel.get_result('heat_flow_max', node='SolarArray', comp='solar')) * 200000)
+    print(sum(optmodel.get_result('heat_flow', node='SolarArray', comp='solar')))
 
     fig, axs = plt.subplots(2, 1, sharex=True)
     for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servSol', 'servWat']:
-        print pipe
+        print(pipe)
         ls = ':' if pipe == 'backBone' else '-'
         axs[0].plot(optmodel.get_result('heat_loss_tot', comp=pipe), linestyle=ls, label=pipe)
         axs[1].plot(optmodel.get_result('mass_flow', comp=pipe), linestyle=ls, label=pipe)
@@ -478,7 +478,7 @@ if __name__ == '__main__':
     axs[1].set_title('Mass flow rates')
 
     for pipe in ['backBone', 'servTer', 'servBox', 'servPro', 'servSol', 'servWat']:
-        print pipe, str(round(sum(optmodel.get_result('heat_loss_tot', comp=pipe)) / 1e6, 2)), 'MWh'
+        print(pipe, str(round(sum(optmodel.get_result('heat_loss_tot', comp=pipe)) / 1e6, 2)), 'MWh')
     fig.autofmt_xdate()
 
     mass_flows = pd.DataFrame()
