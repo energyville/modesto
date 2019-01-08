@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import logging
 
@@ -95,9 +95,9 @@ def construct_model():
     QsolW = wd['QsolW']
 
     # Historical temperatures and mass flows
-    temp_history_return = pd.Series([return_temp] * 20, index=range(20))
-    temp_history_supply = pd.Series([supply_temp] * 20, index=range(20))
-    mass_flow_history = pd.Series([10] * 20, index=range(20))
+    temp_history_return = pd.Series([return_temp] * 20, index=list(range(20)))
+    temp_history_supply = pd.Series([supply_temp] * 20, index=list(range(20)))
+    mass_flow_history = pd.Series([10] * 20, index=list(range(20)))
 
     # Fuel costs
     c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
@@ -235,7 +235,7 @@ def compare_ramping_costs():
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
     for rc in ramp_cost:
-        ax2.plot(range(n_steps), heat[rc], label=rc)
+        ax2.plot(list(range(n_steps)), heat[rc], label=rc)
     fig2.suptitle('Heat injection [W]')
     ax2.legend()
     fig2.tight_layout()

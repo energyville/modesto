@@ -6,7 +6,7 @@ setup(
     packages=find_packages(),
     package_dir={'modesto': 'modesto'},
     package_data={'': ['*.txt', '*.rst', '*.csv']},
-    setup_requires=['pytest-runner<3'],
+    setup_requires=['pytest-runner'],
     tests_require=['pytest'],
     url='',
     license='',

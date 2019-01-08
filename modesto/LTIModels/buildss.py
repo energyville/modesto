@@ -8,7 +8,7 @@ discretize and transform them into optimization constraints.
 
 import numpy as np
 import scipy.io as sio
-import buildrc as rcm
+from . import buildrc as rcm
 from control import ss
 import pandas as pd
 

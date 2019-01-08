@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import collections
 from math import sqrt
@@ -42,7 +42,7 @@ class Modesto:
         self.allow_flow_reversal = True
         self.start_time = None
         if repr_days is not None:
-            self.repr_days = {i: int(round(j)) for i, j in repr_days.iteritems()}
+            self.repr_days = {i: int(round(j)) for i, j in repr_days.items()}
         else:
             self.repr_days = repr_days
 
@@ -842,7 +842,7 @@ class Modesto:
             for node_name in self.get_nodes():
                 for comp_name, comp in self.components[
                     node_name].get_components(
-                    filter_type=filter_type).iteritems():
+                    filter_type=filter_type).items():
                     out[comp_name] = comp
             return out
 
@@ -883,8 +883,8 @@ class Modesto:
         """
         out = {}
 
-        for node_name, node_obj in self.nodes.iteritems():
-            for comp_name, comp_obj in node_obj.get_heat_stor().iteritems():
+        for node_name, node_obj in self.nodes.items():
+            for comp_name, comp_obj in node_obj.get_heat_stor().items():
                 out['.'.join([node_name, comp_name])] = comp_obj
 
         return out
@@ -1275,7 +1275,7 @@ class Node(Submodel):
         out = {}
 
         for comp_name, comp_obj in self.get_components(
-                filter_type=co.StorageVariable).iteritems():
+                filter_type=co.StorageVariable).items():
             out[comp_name] = comp_obj.get_heat_stor()
 
         return out

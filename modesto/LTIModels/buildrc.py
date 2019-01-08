@@ -140,9 +140,9 @@ class RCmodel(object):
         node1 = self.nodes[fromnode]
         node2 = self.nodes[tonode]
         if isinstance(node1, InputQ) and isinstance(node2, InputQ):
-            print 'Trying to connect two heat flows is not allowed!'
+            print('Trying to connect two heat flows is not allowed!')
         elif isinstance(node1, InputT) and isinstance(node2, InputT):
-            print 'Trying to connect two input temperatures has no effect'
+            print('Trying to connect two input temperatures has no effect')
         elif isinstance(node1, State) and isinstance(node2, State):
             self.rc.add_edge(node1, node2, H=par)
         elif isinstance(node1, InputQ) or isinstance(node2, InputQ):
@@ -150,7 +150,7 @@ class RCmodel(object):
         elif isinstance(node1, InputT) or isinstance(node2, InputT):
             self.rc.add_edge(node1, node2, H=par)
         else:
-            print 'Combination not possible'
+            print('Combination not possible')
 
     def buildA(self, debug=False):
         """
@@ -161,12 +161,12 @@ class RCmodel(object):
         """
         A = np.zeros([len(self.sta), len(self.sta)])
         i = 0
-        for ikey, istate in self.sta.iteritems():
+        for ikey, istate in self.sta.items():
             j = 0
-            for jkey, jstate in self.sta.iteritems():
+            for jkey, jstate in self.sta.items():
                 if debug:
-                    print i, ' ', j
-                    print '{}, {}'.format(ikey, jkey)
+                    print(i, ' ', j)
+                    print('{}, {}'.format(ikey, jkey))
                 c = istate.c
                 if ikey == jkey:  # Diagonal element
                     h = []
@@ -175,7 +175,7 @@ class RCmodel(object):
                                                                     InputT):
                             h.append(self.rc.adj[istate][nodekey]['H'])
                     if debug:
-                        print h
+                        print(h)
                     A[i, j] = -sum(h) / c
                 elif jstate in self.rc.adj[istate]:  # only connected other
                     # states
@@ -183,7 +183,7 @@ class RCmodel(object):
                 j += 1
             i += 1
 
-        return A, self.sta.keys()
+        return A, list(self.sta.keys())
 
     def buildB(self, debug=False):
         """
@@ -194,12 +194,12 @@ class RCmodel(object):
         """
         B = np.zeros([len(self.sta), len(self.inp)])
         i = 0
-        for ikey, state in self.sta.iteritems():
+        for ikey, state in self.sta.items():
             j = 0
             c = state.c
-            for jkey, input in self.inp.iteritems():
+            for jkey, input in self.inp.items():
                 if debug:
-                    print i, ' ', j
+                    print(i, ' ', j)
                 if isinstance(input, InputT) and input in self.rc.adj[state]:
                     # input is temperature and connected to this state
 
@@ -210,7 +210,7 @@ class RCmodel(object):
                 j += 1
             i += 1
 
-        return B, self.sta.keys(), self.inp.keys()
+        return B, list(self.sta.keys()), list(self.inp.keys())
 
     def buildE(self, debug = False):
         """
@@ -221,12 +221,12 @@ class RCmodel(object):
         """
         E = np.zeros([len(self.sta), len(self.dist)])
         i = 0
-        for ikey, state in self.sta.iteritems():
+        for ikey, state in self.sta.items():
             j = 0
             c = state.c
-            for jkey, disturbance in self.dist.iteritems():
+            for jkey, disturbance in self.dist.items():
                 if debug:
-                    print i, ' ', j
+                    print(i, ' ', j)
                 if isinstance(disturbance, InputT) and disturbance in \
                         self.rc.adj[state]:
                     # input is temperature and connected to this state
@@ -239,7 +239,7 @@ class RCmodel(object):
                 j += 1
             i += 1
 
-        return E, self.sta.keys(), self.dist.keys()
+        return E, list(self.sta.keys()), list(self.dist.keys())
 
     def buildC(self, outputstates='Ti', debug=False):
         """
@@ -253,11 +253,11 @@ class RCmodel(object):
         if not isinstance(outputstates, list):
             C = np.zeros([1, len(self.sta)])
             j = 0
-            assert outputstates in self.sta.keys(), '{} not in states'.format(
+            assert outputstates in list(self.sta.keys()), '{} not in states'.format(
                 outputstates)
             for rcstate in self.sta:
                 if debug:
-                    print self.sta[rcstate].name
+                    print(self.sta[rcstate].name)
                 if self.sta[rcstate].name == outputstates:
                     C[0, j] = 1
                 j += 1
@@ -268,19 +268,19 @@ class RCmodel(object):
                 j = 0
 
                 if debug:
-                    print outpstate
+                    print(outpstate)
                 assert isinstance(outpstate,
                                   str), 'output should be given as string'
-                assert outpstate in self.sta.keys(), '{} not in states'.format(
+                assert outpstate in list(self.sta.keys()), '{} not in states'.format(
                     outpstate)
                 for rcstate in self.sta:
                     if debug:
-                        print self.sta[rcstate].name
+                        print(self.sta[rcstate].name)
                     if self.sta[rcstate].name == outpstate:
                         C[i, j] = 1
                     j += 1
                 i += 1
-        return C, self.sta.keys()
+        return C, list(self.sta.keys())
 
     def buildD(self, inout=None, debug=False):
         """
@@ -303,7 +303,7 @@ class RCmodel(object):
                     j += 1
                 i += 1
 
-        return D, self.inp.keys()
+        return D, list(self.inp.keys())
 
     def get_nodes(self):
         """
@@ -323,13 +323,13 @@ class RCmodel(object):
         return self.dist
 
     def iterinputs(self):
-        return self.inp.keys()
+        return list(self.inp.keys())
 
     def iterstates(self):
-        return self.sta.keys()
+        return list(self.sta.keys())
 
     def iterdisturbances(self):
-        return self.dist.keys()
+        return list(self.dist.keys())
 
     def draw(self):
         """

@@ -1,4 +1,4 @@
-from __future__ import division
+
 import networkx as nx
 from modesto.mass_flow_calculation import MfCalculation
 import pandas as pd

@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 from collections import Counter
 
@@ -206,15 +206,15 @@ class Submodel(object):
 
         if self.repr_days is None:
             n_steps = int(horizon // time_step)
-            self.X_TIME = range(n_steps + 1)
+            self.X_TIME = list(range(n_steps + 1))
             # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
             self.TIME = self.X_TIME[:-1]
         else:
             n_steps = int(24 * 3600 // time_step)
-            self.X_TIME = range(n_steps + 1)
-            self.TIME = range(n_steps)
+            self.X_TIME = list(range(n_steps + 1))
+            self.TIME = list(range(n_steps))
             self.REPR_DAYS = sorted(set(self.repr_days.values()))
-            self.DAYS_OF_YEAR = range(365)
+            self.DAYS_OF_YEAR = list(range(365))
 
     def get_time_axis(self, state=False):
         if state:

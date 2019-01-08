@@ -13,7 +13,7 @@ params = pd.read_csv('buildParamSummary.csv', sep=';', index_col=0)
 
 bp = params['SFH_SD_3_2zone_TAB']
 
-print bp.index
+print(bp.index)
 
 # Day zone
 G.add_node('TiD', C=bp['CiD'], T_fix=None,

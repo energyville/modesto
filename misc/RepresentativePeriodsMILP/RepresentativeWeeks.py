@@ -5,7 +5,7 @@
 # Possible solution: make the losses for a certain representative period equal to that based on the average SoC for that period ==> i.e. the mean between beginning and end state. This is of course not the true average value, depending on the actual profile lying in between.
 
 # In[1]:
-from __future__ import division
+
 
 import logging
 
@@ -26,7 +26,7 @@ DATAPATH = resource_filename('modesto', 'Data')
 
 
 def changeParams(optimizers, VWat, VSTC, solArea):
-    for name, opt in optimizers.iteritems():
+    for name, opt in optimizers.items():
         opt.change_param(node='SolarArray', comp='solar', param='area', val=solArea)
         opt.change_param(node='SolarArray', comp='tank', param='volume', val=VSTC)
         opt.change_param(node='WaterscheiGarden', comp='tank', param='volume', val=VWat)
@@ -66,7 +66,7 @@ def representative(duration_repr, selection, VWat=75000,
 
     optimizers = {}
     epoch = pd.Timestamp('20140101')
-    for start_day, duration in selection.iteritems():
+    for start_day, duration in selection.items():
         start_time = epoch + pd.Timedelta(days=start_day)
         optmodel = Modesto(graph=netGraph, pipe_model=pipe_model)
         for comp in optmodel.get_node_components(filter_type='StorageCondensed').values():
@@ -143,7 +143,7 @@ def representative(duration_repr, selection, VWat=75000,
         return 365 / (duration_repr * (365 // duration_repr)) * sum(
             repetitions * optimizers[start_day].get_objective(
                 objtype='energy', get_value=False) for start_day, repetitions in
-            selection.iteritems())
+            selection.items())
 
     # Factor 365/364 to make up for missing day
     # set get_value to False to return object instead of value of the objective function
@@ -171,7 +171,7 @@ def get_backup_energy(optimizers, sel):
     return sum(sel[startday] * optmodel.get_result('heat_flow', node='Production',
                                                    comp='backup',
                                                    check_results=False).sum()
-               for startday, optmodel in optimizers.iteritems()) / 1000
+               for startday, optmodel in optimizers.items()) / 1000
 
 
 def get_curt_energy(optimizers, sel):
@@ -187,7 +187,7 @@ def get_curt_energy(optimizers, sel):
     return sum(sel[startday] * optmodel.get_result('heat_flow_curt', node='SolarArray',
                                                    comp='solar',
                                                    check_results=False).sum()
-               for startday, optmodel in optimizers.iteritems()) / 1000
+               for startday, optmodel in optimizers.items()) / 1000
 
 
 def get_network_loss(optimizers, sel):
@@ -204,7 +204,7 @@ def get_network_loss(optimizers, sel):
          'servTer',
          'servPro',
          'servSol',
-         'servBox']) for startday, optmodel in optimizers.iteritems())
+         'servBox']) for startday, optmodel in optimizers.items())
 
 
 def get_network_pump(optimizers, sel):
@@ -214,7 +214,7 @@ def get_network_pump(optimizers, sel):
          'servTer',
          'servPro',
          'servSol',
-         'servBox']) for startday, optmodel in optimizers.iteritems())
+         'servBox']) for startday, optmodel in optimizers.items())
 
 
 def get_sol_energy(optimizers, sel):
@@ -230,7 +230,7 @@ def get_sol_energy(optimizers, sel):
     return sum(sel[startday] *
                optmodel.get_result('heat_flow', node='SolarArray', comp='solar',
                                    check_results=False).sum() / 1000 for startday, optmodel in
-               optimizers.iteritems(
+               optimizers.items(
 
                ))
 
@@ -247,7 +247,7 @@ def get_stor_loss(optimizers, sel):
     return sum(sum(sel[startday] *
                    optmodel.get_result('heat_flow', node=node, comp='tank',
                                        check_results=False).sum() for startday, optmodel in
-                   optimizers.iteritems()) for node in
+                   optimizers.items()) for node in
                ['SolarArray', 'TermienWest', 'WaterscheiGarden', 'Production']) / 1000
 
 
@@ -263,7 +263,7 @@ def get_demand_energy(optimizers, sel):
     """
     return sum(sum(sel[startday] *
                    optmodel.get_result('heat_flow', node=node, comp='neighb', check_results=False).sum() for
-                   startday, optmodel in optimizers.iteritems()) for node in
+                   startday, optmodel in optimizers.items()) for node in
                ['TermienEast', 'TermienWest', 'WaterscheiGarden']) / 1000
 
 
@@ -373,7 +373,7 @@ def plot_representative(opt, sel, duration_repr=7, time_step=3600):
 
     prev_curt = 0
 
-    for startD, num_reps in sel.iteritems():
+    for startD, num_reps in sel.items():
         # Heat flows
         axs[0].plot(
             construct_heat_flow(name='heat_flow', comp='solar', node='SolarArray',
@@ -437,7 +437,7 @@ def plot_representative(opt, sel, duration_repr=7, time_step=3600):
 
 # In[ ]:
 if __name__ == '__main__':
-    from runOpt import get_json
+    from .runOpt import get_json
 
     sellist = get_json('C:/Users/u0094934/Research/TimeSliceSelection/Scripts/solutions7.txt')
     selection = sellist[8]
@@ -467,7 +467,7 @@ if __name__ == '__main__':
     coli = 0
 
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
-    for startday, reps in selection.iteritems():
+    for startday, reps in selection.items():
         res = sum(optimizers[startday].get_result('heat_flow', node=node,
                                                   comp='tank',
                                                   check_results=False) for node in
@@ -488,11 +488,11 @@ if __name__ == '__main__':
                                                  check_results=False),
                  color=colors[coli], linestyle='--')
 
-        print 'start_day:', str(startday)
+        print('start_day:', str(startday))
         res = optimizers[startday].get_component(name='tank',
                                                  node='SolarArray').get_heat_stor()
         start = pd.Timestamp('20140101') + pd.Timedelta(days=startday)
-        print start
+        print(start)
         index = pd.DatetimeIndex(start=start, freq=pd.Timedelta(seconds=time_step), periods=len(res))
         ax2.plot(index, res, color=colors[coli],
                  label='S {} R {}'.format(startday, reps))
@@ -516,7 +516,7 @@ if __name__ == '__main__':
 
     coli = 0
 
-    for startday, reps in selection.iteritems():
+    for startday, reps in selection.items():
         res = optimizers[startday].get_component(name='tank',
                                                  node='SolarArray').get_soc()
         index = pd.DatetimeIndex(start=nextdate, freq=pd.Timedelta(seconds=time_step), periods=len(res))
