@@ -1,3 +1,10 @@
+VERSION 0.3.0
+=============
+
+* **Switched to Python 3**
+* Added storage model for representative days according to Kotzur et al. 
+* Added simpler pipe model with pressure loss representation
+* Added annualized investment cost
 * Added unit tests
 * Added investment cost parameter (without discounting for now) and getter method to calculate total system cost 
 
