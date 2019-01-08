@@ -52,9 +52,8 @@ def test_example_RCmodel():
 
     model = example_RCmodel.construct_model()
     model.compile('20140104')
-    model.set_objective('cost')
-
-    assert model.solve(tee=True, mipgap=0.01, solver='cplex') == 0
+    model.set_objective('energy')
+    assert model.solve(tee=True, mipgap=0.01, solver='gurobi') == 0
 
 
 def test_recompilation_stor():
@@ -166,4 +165,5 @@ def test_recompilation_qmax():
 
 
 if __name__ == '__main__':
+    test_example_RCmodel()
     test_recompilation_solar()

@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import logging
 
@@ -174,11 +174,11 @@ if __name__ == '__main__':
     Q_hea_prod = optmodel.get_result('heat_flow', node='waterscheiGarden', comp='plant')
 
     # Objectives
-    print '\nObjective function'
-    print 'Slack: ', optmodel.model.Slack.value
-    print 'Energy:', optmodel.get_objective('energy')
-    print 'Cost:  ', optmodel.get_objective('cost')
-    print 'Active:', optmodel.get_objective()
+    print('\nObjective function')
+    print('Slack: ', optmodel.model.Slack.value)
+    print('Energy:', optmodel.get_objective('energy'))
+    print('Cost:  ', optmodel.get_objective('cost'))
+    print('Active:', optmodel.get_objective())
 
     df_weather = ut.read_period_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv',
                                      time_step=time_step, horizon=n_steps * time_step, start_time=start_time)

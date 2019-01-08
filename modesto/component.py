@@ -1,9 +1,9 @@
-from __future__ import division
+
 
 import logging
 import sys
 from math import pi, log, exp
-
+from functools import reduce
 import pandas as pd
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
@@ -781,13 +781,18 @@ class ProducerVariable(VariableComponent):
 
             self.block.temperatures = Var(lines, self.TIME)
 
-            def _limit_temperatures(b, t):
+            def _limit_temperatures_l(b, t):
                 return self.params['temperature_min'].v() <= b.temperatures[
-                    'supply', t] <= self.params[
+                    'supply', t]
+
+            def _limit_temperatures_u(b, t):
+                return b.temperatures['supply', t] <= self.params[
                            'temperature_max'].v()
 
-            self.block.limit_temperatures = Constraint(self.TIME,
-                                                       rule=_limit_temperatures)
+            self.block.limit_temperatures_l = Constraint(self.TIME,
+                                                       rule=_limit_temperatures_l)
+            self.block.limit_temperatures_u = Constraint(self.TIME,
+                                                       rule=_limit_temperatures_u)
 
             def _decl_temperatures(b, t):
                 if t == 0:
@@ -1615,10 +1620,14 @@ class StorageVariable(VariableComponent):
             #############################################################################################
             # Inequality constraints
 
-            def _ineq_soc(b, t):
-                return 0 <= b.soc[t] <= 100
+            def _ineq_soc_l(b, t):
+                return 0 <= b.soc[t]
 
-            self.block.ineq_soc = Constraint(self.X_TIME, rule=_ineq_soc)
+            def _ineq_soc_u(b, t):
+                return b.soc[t] <= 100
+
+            self.block.ineq_soc_l = Constraint(self.X_TIME, rule=_ineq_soc_l)
+            self.block.ineq_soc_u = Constraint(self.X_TIME, rule=_ineq_soc_u)
 
             #############################################################################################
             # Initial state
@@ -1765,18 +1774,26 @@ class StorageCondensed(StorageVariable):
             self.block.soc_eq = Constraint(self.X_TIME, self.block.reps,
                                            rule=_soc_eq)
 
-            def _limit_initial_repetition(b, t):
-                return 0 <= b.soc[t, 0] <= 100
+            def _limit_initial_repetition_l(b, t):
+                return 0 <= b.soc[t, 0]
+            def _limit_initial_repetition_u(b, t):
+                return b.soc[t, 0] <= 100
 
-            def _limit_final_repetition(b, t):
-                return 0 <= b.heat_stor[t, R - 1] <= 100
+            def _limit_final_repetition_l(b, t):
+                return 0 <= b.heat_stor[t, R - 1]
+            def _limit_final_repetition_u(b, t):
+                return b.heat_stor[t, R - 1] <= 100
 
-            self.block.limit_init = Constraint(self.X_TIME,
-                                               rule=_limit_initial_repetition)
+            self.block.limit_init_l = Constraint(self.X_TIME,
+                                               rule=_limit_initial_repetition_l)
+            self.block.limit_init_u = Constraint(self.X_TIME,
+                                               rule=_limit_initial_repetition_u)
 
             if R > 1:
-                self.block.limit_final = Constraint(self.TIME,
-                                                    rule=_limit_final_repetition)
+                self.block.limit_final_l = Constraint(self.TIME,
+                                                    rule=_limit_final_repetition_l)
+                self.block.limit_final_u = Constraint(self.TIME,
+                                                    rule=_limit_final_repetition_u)
 
             init_type = self.params['heat_stor'].init_type
             if init_type == 'free':

@@ -242,8 +242,8 @@ def test_pipe_cost():
     res1 = opt_for.get_result('heat_flow', node='cons', comp='cons')
     res2 = opt_rev.get_result('heat_flow', node='cons', comp='cons')
 
-    print res1
-    print res2
+    print(res1)
+    print(res2)
 
     assert res1.equals(res2)
 
@@ -253,8 +253,8 @@ def test_pipe_en():
     res1 = opt_for.get_result('heat_flow', node='cons', comp='cons')
     res2 = opt_rev.get_result('heat_flow', node='cons', comp='cons')
 
-    print res1
-    print res2
+    print(res1)
+    print(res2)
 
     assert res1.equals(res2)
 
@@ -292,10 +292,10 @@ if __name__ == '__main__':
         opt_rev = setup_modesto(G_rev)
 
         opts = {'for': opt_for, 'rev': opt_rev}
-        print ''
-        print opts
+        print('')
+        print(opts)
 
-        for name, opt in opts.iteritems():
+        for name, opt in opts.items():
             res = opt.solve(tee=True, mipgap=0.000001, solver='cplex')
             if not res == 0:
                 raise Exception('Optimization {} failed to solve.'.format(name))
@@ -306,12 +306,11 @@ if __name__ == '__main__':
         # print "Objective slack"
         # print opts['for'].model.Slack.pprint()
 
-        print 'Are heat losses equal?'
-        print opts['for'].get_result('heat_loss_tot', comp='pipe').equals(opts['rev'].get_result('heat_loss_tot', comp='pipe'))
-
+        print('Are heat losses equal?')
+        print(opts['for'].get_result('heat_loss_tot', comp='pipe').equals(opts['rev'].get_result('heat_loss_tot', comp='pipe')))
         fig, axs = plt.subplots(4, 1, sharex=True)
 
-        for name, opt in opts.iteritems():
+        for name, opt in opts.items():
             axs[0].plot(opt.get_result('heat_flow', node='cons', comp='cons'), linestyle='--', label='cons_' + name)
             axs[0].plot(opt.get_result('heat_flow', node='prod', comp='prod'), label='prod_' + name)
 
@@ -349,7 +348,7 @@ if __name__ == '__main__':
 
         res1 = opt.solve(tee=True,
                          solver='gurobi')
-        print opt.model.Slack.value
+        print(opt.model.Slack.value)
 
         stor = opt.get_result('heat_flow', 'stor', 'stor')
         stor2 = opt.get_result('heat_flow', 'stor2', 'stor')

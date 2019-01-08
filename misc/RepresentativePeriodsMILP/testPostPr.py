@@ -12,26 +12,26 @@ for path in ['1dnewsol']: #, '7dnewsol', '3dnewsol']: #  , '7dnewsol']: # ,
     for filename in os.listdir(filepath):
         if filename not in ['summary.txt', 'result_ordered4p.txt']:
 
-            print ''
-            print '====================================================================='
-            print filename
+            print('')
+            print('=====================================================================')
+            print(filename)
 
             data = pd.read_csv(os.path.join(filepath, filename), sep=' ', index_col=0)
-            print 'Cases computed:', str(len(data))
+            print('Cases computed:', str(len(data)))
 
             # There are no occurences where the representative periods lead to a feasible solution and the full year representation does not
-            print 'Cases where repr is feasible and full unfeasible:', str(
-                len(data[(~data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())]))
+            print('Cases where repr is feasible and full infeasible:', str(
+                len(data[(~data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())])))
 
             # There are two cases where the representative periods lead to an infeasible solution and the full year is feasible
 
-            print 'Cases where repr is infeasible and full feasible:', str(len(
-                data[(data['E_backup_repr'].isnull() & ~data['E_backup_full'].isnull())]))
+            print('Cases where repr is infeasible and full feasible:', str(len(
+                data[(data['E_backup_repr'].isnull() & ~data['E_backup_full'].isnull())])))
 
             # Cases where both are infeasible
 
-            print 'Both infeasible solutions:', str(
-                len(data[(data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())]))
+            print('Both infeasible solutions:', str(
+                len(data[(data['E_backup_repr'].isnull() & data['E_backup_full'].isnull())])))
             # data[(data['E_repr'].isnull() & data['E_full'].isnull())]
 
             data = data.dropna()

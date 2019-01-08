@@ -25,11 +25,11 @@ full_model = CaseFuture.setup_opt(time_step=3600, horizon=365*24*3600)
 for VWat in [50000, 75000, 100000, 125000]:
     for A in [25000, 50000, 75000, 100000]:  # , 60000, 80000]:
         for VSTC in [50000, 100000, 150000]:  # , 3.85e6, 4.1e6, 4.35e6, 4.6e6]:
-            print 'A:', str(A)
-            print 'VWat:', str(VWat)
-            print 'VSTC:', str(VSTC)
-            print '========================='
-            print ''
+            print('A:', str(A))
+            print('VWat:', str(VWat))
+            print('VSTC:', str(VSTC))
+            print('=========================')
+            print('')
             # Solve representative weeks
             begin = time.clock()
 
@@ -51,7 +51,7 @@ for VWat in [50000, 75000, 100000, 125000]:
 
             full_model.compile('20140101')
             full_model.set_objective('cost')
-            print 'Writing time: {}'.format(time.clock() - begin)
+            print('Writing time: {}'.format(time.clock() - begin))
 
             full_model.solve(tee=False, solver='gurobi', warmstart=True)
 
@@ -71,7 +71,7 @@ for VWat in [50000, 75000, 100000, 125000]:
 
             end = time.clock()
             calc_full = end - begin
-            print 'Full time: {}'.format(calc_full)
+            print('Full time: {}'.format(calc_full))
             df = df.append({'A': A, 'VWat': VWat, 'VSTC': VSTC,
                             'E_backup_full': energy_backup_full,
                             'E_loss_stor_full': energy_stor_loss_full,
@@ -85,6 +85,6 @@ for VWat in [50000, 75000, 100000, 125000]:
                            ignore_index=True)
             df.to_csv('refresult.txt', sep=' ')
 
-print df
+print(df)
 
 # df.to_csv('result6w.txt', sep=' ')

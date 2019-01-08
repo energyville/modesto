@@ -3,12 +3,12 @@ Module to read and build optimization problem equations for building models, des
 
 """
 
-from __future__ import division
+
 
 import itertools
 import os
 import sys
-
+from functools import reduce
 import modesto.utils as ut
 import networkx as nx
 import pandas as pd
@@ -65,7 +65,7 @@ def splitFactor(AArray, AExt=None, AWin=None):
     splitFacValues = dict()
     ATot = sum(AArray.values())
 
-    for id, A in AArray.iteritems():
+    for id, A in AArray.items():
         if A > 0:
             if AExt is None and AWin is None:
                 splitFacValues[id] = A / ATot
@@ -683,12 +683,12 @@ class TeaserFourElement(Component):
 
         ##### Sets
         # TODO check initialization of stateless temperatures
-        self.block.state_names = Set(initialize=self.states.keys())
-        self.block.edge_names = Set(initialize=self.edges.keys())
+        self.block.state_names = Set(initialize=list(self.states.keys()))
+        self.block.edge_names = Set(initialize=list(self.edges.keys()))
 
         fixed_states = []
         control_states = []
-        for state, obj in self.states.items():
+        for state, obj in list(self.states.items()):
             if obj.input['temperature'] is not None:
                 fixed_states.append(state)
             else:
@@ -882,7 +882,7 @@ class TeaserFourElement(Component):
         # self.block.pprint()
 
         if self.temperature_driven:
-            print 'WARNING: No temperature variable model implemented (yet)'
+            print('WARNING: No temperature variable model implemented (yet)')
             # self.block.temperatures = Var(self.TIME, self.lines)
             #
             # def _decl_temperatures(b, t):
@@ -1106,12 +1106,12 @@ class RCmodel(Component):
         self.build()
 
         ##### Sets
-        self.block.state_names = Set(initialize=self.states.keys())
-        self.block.edge_names = Set(initialize=self.edges.keys())
+        self.block.state_names = Set(initialize=list(self.states.keys()))
+        self.block.edge_names = Set(initialize=list(self.edges.keys()))
 
         fixed_states = []
         control_states = []
-        for state, obj in self.states.items():
+        for state, obj in list(self.states.items()):
             if obj.input['temperature'] is not None:
                 fixed_states.append(state)
             else:
@@ -1289,7 +1289,7 @@ class RCmodel(Component):
         # self.block.pprint()
 
         if self.temperature_driven:
-            print 'WARNING: No temperature variable model implemented (yet)'
+            print('WARNING: No temperature variable model implemented (yet)')
             # self.block.temperatures = Var(self.TIME, self.lines)
             #
             # def _decl_temperatures(b, t):
@@ -1545,7 +1545,7 @@ class State:
         if q_dict is None:
             return []
         else:
-            return q_dict.keys()
+            return list(q_dict.keys())
 
     def get_q_control(self):
         """
@@ -1558,7 +1558,7 @@ class State:
         if q_dict is None:
             return []
         else:
-            return q_dict.keys()
+            return list(q_dict.keys())
 
     def get_q_factor(self, q_name):
         if q_name in self.input['heat_control']:

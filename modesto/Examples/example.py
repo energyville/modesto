@@ -191,25 +191,25 @@ if __name__ == '__main__':
     # Collect result                 #
     ##################################
 
-    print '\nWaterschei.buildingD'
-    print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden',
-                                           comp='buildingD')
+    print('\nWaterschei.buildingD')
+    print('Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden',
+                                           comp='buildingD'))
 
-    print '\nzwartbergNE.buildingD'
-    print 'Heat flow', optmodel.get_result('heat_flow', node='zwartbergNE',
-                                           comp='buildingD')
+    print('\nzwartbergNE.buildingD')
+    print('Heat flow', optmodel.get_result('heat_flow', node='zwartbergNE',
+                                           comp='buildingD'))
 
-    print '\nthorPark'
-    print 'Heat flow', optmodel.get_result('heat_flow', node='ThorPark',
-                                           comp='plant')
+    print('\nthorPark')
+    print('Heat flow', optmodel.get_result('heat_flow', node='ThorPark',
+                                           comp='plant'))
 
-    print '\nStorage'
-    print 'Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden',
-                                           comp='storage')
-    print 'Mass flow', optmodel.get_result('mass_flow', node='waterscheiGarden',
-                                           comp='storage')
-    print 'Energy', optmodel.get_result('heat_stor', node='waterscheiGarden',
-                                        comp='storage')
+    print('\nStorage')
+    print('Heat flow', optmodel.get_result('heat_flow', node='waterscheiGarden',
+                                           comp='storage'))
+    print('Mass flow', optmodel.get_result('mass_flow', node='waterscheiGarden',
+                                           comp='storage'))
+    print('Energy', optmodel.get_result('heat_stor', node='waterscheiGarden',
+                                        comp='storage'))
 
     # -- Efficiency calculation --
 
@@ -232,9 +232,9 @@ if __name__ == '__main__':
     zwartberg_e = sum(zwartberg_hf)
 
     # Efficiency
-    print '\nNetwork'
-    print 'Efficiency', (
-                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+    print('\nNetwork')
+    print('Efficiency', (
+                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%')
 
     # Diameters
     # print '\nDiameters'
@@ -242,25 +242,25 @@ if __name__ == '__main__':
     #     print i, ': ', str(optmodel.components[i].get_diameter())
 
     # Pipe heat losses
-    print '\nPipe heat losses'
+    print('\nPipe heat losses')
     # print 'bbThor: ', optmodel.get_result('bbThor', 'heat_loss_tot')
     # print 'spWaterschei: ', optmodel.get_result('spWaterschei', 'heat_loss_tot')
     # print 'spZwartbergNE: ', optmodel.get_result('spZwartbergNE', 'heat_loss_tot')
 
     # Mass flows
-    print '\nMass flows'
-    print 'bbThor: ', optmodel.get_result('mass_flow', comp='bbThor')
-    print 'spWaterschei: ', optmodel.get_result('mass_flow',
-                                                comp='spWaterschei')
-    print 'spZwartbergNE: ', optmodel.get_result('mass_flow',
-                                                 comp='spZwartbergNE')
+    print('\nMass flows')
+    print('bbThor: ', optmodel.get_result('mass_flow', comp='bbThor'))
+    print('spWaterschei: ', optmodel.get_result('mass_flow',
+                                                comp='spWaterschei'))
+    print('spZwartbergNE: ', optmodel.get_result('mass_flow',
+                                                 comp='spZwartbergNE'))
 
     # Objectives
-    print '\nObjective function'
-    print 'Slack: ', optmodel.model.Slack.value
-    print 'Energy:', optmodel.get_objective('energy')
-    print 'Cost:  ', optmodel.get_objective('cost')
-    print 'Active:', optmodel.get_objective()
+    print('\nObjective function')
+    print('Slack: ', optmodel.model.Slack.value)
+    print('Energy:', optmodel.get_objective('energy'))
+    print('Cost:  ', optmodel.get_objective('cost'))
+    print('Active:', optmodel.get_objective())
 
     fig = plt.figure()
 

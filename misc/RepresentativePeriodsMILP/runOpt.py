@@ -24,7 +24,7 @@ def get_json(filepath):
     fulldict = json_str2int(json_data)
     outdict = {}
 
-    for key, value in fulldict.iteritems():
+    for key, value in fulldict.items():
         outdict[key] = json_str2int(value['repr_days'])
 
     return outdict
@@ -39,7 +39,7 @@ def json_str2int(ordereddict):
     :return:
     """
     out = {}
-    for key, value in ordereddict.iteritems():
+    for key, value in ordereddict.items():
         try:
             intkey = int(key)
             out[intkey] = value
@@ -75,8 +75,8 @@ if __name__ == '__main__':
                          'E_curt_repr', 'E_sol_full', 'E_sol_repr', 't_repr', 'C_elec_full', 'C_elec_repr',
                          't_comp'])
             repr_days = sels[num]
-            print len(set(int(round(i)) for i in repr_days.values()))
-            print sorted(set(int(round(i)) for i in repr_days.values()))
+            print(len(set(int(round(i)) for i in list(repr_days.values()))))
+            print(sorted(set(int(round(i)) for i in list(repr_days.values()))))
 
             bar = progressbar.ProgressBar(maxval=4 * 3 * 4, \
                                           widgets=[
@@ -211,6 +211,6 @@ if __name__ == '__main__':
                             sep=' ')
                         bar.update(12 * i + 3 * j + k + 1)
             bar.finish()
-            print df
+            print(df)
 
             # df.to_csv('result6w.txt', sep=' ')

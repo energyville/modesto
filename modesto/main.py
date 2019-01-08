@@ -1,20 +1,18 @@
-from __future__ import division
+
 
 import collections
 from math import sqrt
 
 import networkx as nx
-import pyomo.environ
 from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constraint, Var, NonNegativeReals, Block
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
-
-import component as co
-import pipe as pip
+import pyomo.environ
+import modesto.component as co
+import modesto.pipe as pip
 from modesto.LTIModels import RCmodels as rc
-# noinspection PyUnresolvedReferences
-from parameter import *
-from submodel import Submodel
+from modesto.parameter import *
+from modesto.submodel import Submodel
 
 
 class Modesto:
@@ -44,7 +42,7 @@ class Modesto:
         self.allow_flow_reversal = True
         self.start_time = None
         if repr_days is not None:
-            self.repr_days = {i: int(round(j)) for i, j in repr_days.iteritems()}
+            self.repr_days = {i: int(round(j)) for i, j in repr_days.items()}
         else:
             self.repr_days = repr_days
 
@@ -61,10 +59,6 @@ class Modesto:
 
         self.objectives = {}
         self.act_objective = None
-
-    def change_graph(self):
-        # TODO write this
-        pass
 
     def create_params(self):
         params = {
@@ -450,9 +444,9 @@ class Modesto:
             return -2
 
         if verbose:
-            print self.results
-            print self.results.solver.status
-            print self.results.solver.termination_condition
+            print(self.results)
+            print(self.results.solver.status)
+            print(self.results.solver.termination_condition)
 
         if self.results.solver.status == SolverStatus.ok:
             if self.results.solver.termination_condition == TerminationCondition.optimal:
@@ -736,7 +730,7 @@ class Modesto:
             string += self.print_comp_param(node, comp, disp=False)
 
         if disp:
-            print string
+            print(string)
         else:
             return string
 
@@ -804,7 +798,7 @@ class Modesto:
                     string += '-' + param + '\n' + des + '\n\n'
 
         if disp:
-            print string
+            print(string)
         else:
             return string
 
@@ -848,7 +842,7 @@ class Modesto:
             for node_name in self.get_nodes():
                 for comp_name, comp in self.components[
                     node_name].get_components(
-                    filter_type=filter_type).iteritems():
+                    filter_type=filter_type).items():
                     out[comp_name] = comp
             return out
 
@@ -889,8 +883,8 @@ class Modesto:
         """
         out = {}
 
-        for node_name, node_obj in self.nodes.iteritems():
-            for comp_name, comp_obj in node_obj.get_heat_stor().iteritems():
+        for node_name, node_obj in self.nodes.items():
+            for comp_name, comp_obj in node_obj.get_heat_stor().items():
                 out['.'.join([node_name, comp_name])] = comp_obj
 
         return out
@@ -1281,7 +1275,7 @@ class Node(Submodel):
         out = {}
 
         for comp_name, comp_obj in self.get_components(
-                filter_type=co.StorageVariable).iteritems():
+                filter_type=co.StorageVariable).items():
             out[comp_name] = comp_obj.get_heat_stor()
 
         return out

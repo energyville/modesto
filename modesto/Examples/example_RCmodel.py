@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import logging
 
@@ -293,9 +293,9 @@ if __name__ == '__main__':
     zwartberg_e = sum(zwartberg_hf)
 
     # Efficiency
-    print '\nNetwork'
-    print 'Efficiency', (
-                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+    print('\nNetwork')
+    print('Efficiency', (
+                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%')
 
     # Diameters
     # print '\nDiameters'
@@ -317,11 +317,11 @@ if __name__ == '__main__':
     #                                              comp='spZwartbergNE')
 
     # Objectives
-    print '\nObjective function'
-    print 'Slack: ', optmodel.model.Slack.value
-    print 'Energy:', optmodel.get_objective('energy')
-    print 'Cost:  ', optmodel.get_objective('cost')
-    print 'Active:', optmodel.get_objective()
+    print('\nObjective function')
+    print('Slack: ', optmodel.model.Slack.value)
+    print('Energy:', optmodel.get_objective('energy'))
+    print('Cost:  ', optmodel.get_objective('cost'))
+    print('Active:', optmodel.get_objective())
 
     fig = plt.figure()
 

@@ -6,7 +6,7 @@ Annelies Vandermeulen
 9/02/2018
 
 """
-from __future__ import division
+
 import pandas as pd
 
 start_time = pd.Timestamp('20140101')

@@ -163,7 +163,7 @@ def get_json(filepath, dict_key='selection'):
     fulldict = json_str2int(json_data)
     outdict = OrderedDict()
 
-    for key, value in fulldict.iteritems():
+    for key, value in fulldict.items():
         outdict[key] = json_str2int(value[dict_key])
 
     return outdict
@@ -178,7 +178,7 @@ def json_str2int(ordereddict):
     :return:
     """
     out = OrderedDict()
-    for key, value in ordereddict.iteritems():
+    for key, value in ordereddict.items():
         try:
             intkey = int(key)
             out[intkey] = value

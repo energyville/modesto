@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import logging
 
@@ -16,7 +16,7 @@ import modesto.utils as ut
 from modesto.main import Modesto
 from modesto.mass_flow_calculation import MfCalculation
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M')
 logger = logging.getLogger('Main.py')
@@ -95,9 +95,9 @@ def construct_model():
     QsolW = wd['QsolW']
 
     # Historical temperatures and mass flows
-    temp_history_return = pd.Series([return_temp] * 20, index=range(20))
-    temp_history_supply = pd.Series([supply_temp] * 20, index=range(20))
-    mass_flow_history = pd.Series([10] * 20, index=range(20))
+    temp_history_return = pd.Series([return_temp] * 20, index=list(range(20)))
+    temp_history_supply = pd.Series([supply_temp] * 20, index=list(range(20)))
+    mass_flow_history = pd.Series([10] * 20, index=list(range(20)))
 
     # Fuel costs
     c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
@@ -235,7 +235,7 @@ def compare_ramping_costs():
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111)
     for rc in ramp_cost:
-        ax2.plot(range(n_steps), heat[rc], label=rc)
+        ax2.plot(list(range(n_steps)), heat[rc], label=rc)
     fig2.suptitle('Heat injection [W]')
     ax2.legend()
     fig2.tight_layout()
@@ -309,19 +309,19 @@ if __name__ == '__main__':
             max_pipe = pipe
             maximum = ratio
 
-    print 'The maximum ratio between distance travelled and pipe length occurs in {} and is {}.'.format(pipe, maximum)
+    print('The maximum ratio between distance travelled and pipe length occurs in {} and is {}.'.format(pipe, maximum))
 
     # Efficiency
-    print '\nNetwork'
-    print 'Efficiency', (waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+    print('\nNetwork')
+    print('Efficiency', (waterschei_e + zwartberg_e) / prod_e * 100, '%')
 
     # Objectives
-    print '\nObjective function'
-    print 'Energy:     ', optmodel.get_objective('energy')
-    print 'Cost:       ', optmodel.get_objective('cost')
-    print 'Cost_ramp:  ', optmodel.get_objective('cost_ramp')
-    print 'Temperature:', optmodel.get_objective('temp')
-    print 'Active:     ', optmodel.get_objective()
+    print('\nObjective function')
+    print('Energy:     ', optmodel.get_objective('energy'))
+    print('Cost:       ', optmodel.get_objective('cost'))
+    print('Cost_ramp:  ', optmodel.get_objective('cost_ramp'))
+    print('Temperature:', optmodel.get_objective('temp'))
+    print('Active:     ', optmodel.get_objective())
 
     time = [i * time_step / 3600 for i in range(n_steps)]
 

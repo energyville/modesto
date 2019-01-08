@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import logging
 
@@ -77,7 +77,7 @@ def construct_model():
     mflo_use = ut.read_time_data('../Data/UserBehaviour', name='mDHW.csv')['1']
     qDHW = ut.read_time_data('../Data/UserBehaviour', name='QDHW.csv')['1']
 
-    print mflo_use
+    print(mflo_use)
 
     optmodel.opt_settings(allow_flow_reversal=True)
 
@@ -292,9 +292,9 @@ if __name__ == '__main__':
     zwartberg_e = sum(zwartberg_hf)
 
     # Efficiency
-    print '\nNetwork'
-    print 'Efficiency', (
-                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%'  #
+    print('\nNetwork')
+    print('Efficiency', (
+                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%')  #
 
     # Diameters
     # print '\nDiameters'
@@ -316,11 +316,11 @@ if __name__ == '__main__':
     #                                              comp='spZwartbergNE')
 
     # Objectives
-    print '\nObjective function'
-    print 'Slack: ', optmodel.model.Slack.value
-    print 'Energy:', optmodel.get_objective('energy')
-    print 'Cost:  ', optmodel.get_objective('cost')
-    print 'Active:', optmodel.get_objective()
+    print('\nObjective function')
+    print('Slack: ', optmodel.model.Slack.value)
+    print('Energy:', optmodel.get_objective('energy'))
+    print('Cost:  ', optmodel.get_objective('cost'))
+    print('Active:', optmodel.get_objective())
 
     fig = plt.figure()
 

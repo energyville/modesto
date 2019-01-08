@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import logging
 
@@ -397,7 +397,7 @@ class TimeSeriesParameter(Parameter):
                 return self.value.values
 
         elif self.value is None:
-            print 'Warning: {} does not have a value yet'.format(self.name)
+            print('Warning: {} does not have a value yet'.format(self.name))
             return None
         else:
             if c is None:

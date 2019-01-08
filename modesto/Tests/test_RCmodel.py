@@ -63,11 +63,10 @@ def test_splitfactor_intgains():
               'AFloor': AFloor,
               'ARoof': ARoof}
 
-    dim = sum(1 if x > 0 else 0 for x in AArray)
-
+    dim = sum(1 if x > 0 else 0 for x in AArray.values())
     assert splitFactor(AArray, None, None) == {
-        'ATotExt': 0.15912052611635524, 'AInt': 0.5899917220188442, 'ARoof': 0.1131412915923779,
-        'AFloor': 0.1022521588498148, 'ATotWin': 0.03549430142260775}
+        'ATotExt': 0.15912052611635527, 'ATotWin': 0.03549430142260775, 'AInt': 0.5899917220188443,
+        'AFloor': 0.10225215884981481, 'ARoof': 0.11314129159237792}
 
 
 def test_splitfactor_solgains():
@@ -97,41 +96,38 @@ def test_splitfactor_solgains():
 
     assert splitFactor(AArray, AExt, AWin) == {
         'ATotExt': {
-            'S': 0.12193740247052101,
-            'E': 0.13241663898827075,
-            'W': 0.12795594321662856,
-            'N': 0.11930739645598253},
-        'AInt': {
-            'S': 0.6220983167756375,
-            'E': 0.6133879910794828,
-            'W': 0.6186817435912109,
-            'N': 0.6266435698069159},
-        'ARoof': {
-            'S': 0.11929829594319595,
-            'E': 0.11762793776243873,
-            'W': 0.11864310793211134,
-            'N': 0.12016992817019286},
-        'AFloor': {
-            'S': 0.10781659052686365,
-            'E': 0.10630699374189657,
-            'W': 0.10722446021225418,
-            'N': 0.10860433367243959},
+            'N': 0.11930739645598254,
+            'E': 0.13241663898827077,
+            'S': 0.12193740247052103,
+            'W': 0.1279559432166286},
         'ATotWin': {
-            'S': 0.028849394283781814,
-            'E': 0.030260438427911023,
-            'W': 0.027494745047794946,
-            'N': 0.025274771894469042}}
+            'N': 0.025274771894469045,
+            'E': 0.030260438427911027,
+            'S': 0.028849394283781818,
+            'W': 0.02749474504779495},
+        'AInt': {'N': 0.626643569806916,
+                 'E': 0.6133879910794828,
+                 'S': 0.6220983167756375,
+                 'W': 0.618681743591211},
+        'AFloor': {'N': 0.1086043336724396,
+                   'E': 0.10630699374189659,
+                   'S': 0.10781659052686367,
+                   'W': 0.10722446021225418},
+        'ARoof': {'N': 0.12016992817019287,
+                  'E': 0.11762793776243874,
+                  'S': 0.11929829594319596,
+                  'W': 0.11864310793211136}}
 
 
 def test_readTeaserParam():
     from modesto.LTIModels.RCmodels import readTeaserParam
 
-    print readTeaserParam(neighbName='OudWinterslag', streetName='Gierenshof', buildingName='Gierenshof_22_1589272')
+    print(readTeaserParam(neighbName='OudWinterslag', streetName='Gierenshof', buildingName='Gierenshof_22_1589272'))
 
     assert readTeaserParam(neighbName='OudWinterslag', streetName='Gierenshof',
-                           buildingName='Gierenshof_22_1589272') == {'nOrientations': 4L, 'gWin': 0.78,
+                           buildingName='Gierenshof_22_1589272') == {'nOrientations': 4, 'gWin': 0.78,
                                                                      'RInt': 4.68885650604e-05,
-                                                                     'RFloor': 0.000264982602346, 'nExt': 1L,
+                                                                     'RFloor': 0.000264982602346, 'nExt': 1,
                                                                      'RRoof': 2.89047922504e-05,
                                                                      'RFloorRem': 0.00786087528982,
                                                                      'alphaInt': 2.03217929383, 'alphaFloor': 1.7,
@@ -142,9 +138,9 @@ def test_readTeaserParam():
                                                                                       'W': 20.57625143618473,
                                                                                       'N': 21.868839102889993},
                                                                      'ratioWinConRad': 0.03, 'RWin': 0.00162894973267,
-                                                                     'CFloor': 60085317.5939, 'alphaRad': 5L,
-                                                                     'nPorts': 2L, 'AFloor': 172.48484039299998,
-                                                                     'nInt': 1L, 'alphaWin': 2.7,
+                                                                     'CFloor': 60085317.5939, 'alphaRad': 5,
+                                                                     'nPorts': 2, 'AFloor': 172.48484039299998,
+                                                                     'nInt': 1, 'alphaWin': 2.7,
                                                                      'RExtRem': 0.00416154570566,
                                                                      'ARoof': 221.966225606, 'RExt': 9.75725503328e-05,
                                                                      'AExt': {'S': 81.98799655851384,
@@ -153,8 +149,8 @@ def test_readTeaserParam():
                                                                               'N': 87.54625601713141},
                                                                      'VAir': 1514.03825189, 'CRoof': 9839385.66679,
                                                                      'alphaExt': 2.7, 'AInt': 1033.12064929,
-                                                                     'mSenFac': 5L, 'nRoof': 1L, 'CInt': 94926864.4212,
-                                                                     'nFloor': 1L, 'AWin': {'S': 20.49699913962846,
+                                                                     'mSenFac': 5, 'nRoof': 1, 'CInt': 94926864.4212,
+                                                                     'nFloor': 1, 'AWin': {'S': 20.49699913962846,
                                                                                             'E': 22.835507350388625,
                                                                                             'W': 20.57625143618473,
                                                                                             'N': 21.868839102889993}}
