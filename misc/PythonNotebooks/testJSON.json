@@ -1,52 +1,52 @@
 {
-    "directed": false, 
-    "graph": {}, 
+    "directed": false,
+    "multigraph": false,
+    "graph": {},
     "nodes": [
         {
-            "state_type": "day", 
-            "C": 1000, 
+            "C": 1000,
+            "state_type": "day",
             "heat_source": {
                 "Q_sol": 0.05
-            }, 
+            },
             "id": "A"
-        }, 
+        },
         {
-            "state_type": "night", 
-            "C": 2000, 
-            "heat_source": {
-                "Q_int": 0.7
-            }, 
-            "id": "C"
-        }, 
-        {
-            "state_type": "floor", 
-            "C": 500, 
+            "C": 500,
+            "state_type": "floor",
             "heat_source": {
                 "Q_int": 0.3
-            }, 
+            },
             "id": "B"
-        }, 
+        },
         {
-            "T_fix": "T_e", 
+            "C": 2000,
+            "state_type": "night",
+            "heat_source": {
+                "Q_int": 0.7
+            },
+            "id": "C"
+        },
+        {
+            "T_fix": "T_e",
             "id": "Te"
         }
-    ], 
+    ],
     "links": [
         {
-            "source": "A", 
-            "R": 100, 
+            "R": 100,
+            "source": "A",
             "target": "B"
-        }, 
+        },
         {
-            "source": "C", 
-            "R": 50, 
-            "target": "B"
-        }, 
+            "R": 50,
+            "source": "B",
+            "target": "C"
+        },
         {
-            "source": "B", 
-            "R": 150, 
+            "R": 150,
+            "source": "B",
             "target": "Te"
         }
-    ], 
-    "multigraph": false
+    ]
 }
