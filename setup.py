@@ -13,7 +13,7 @@ setup(
     author='Annelies Vandermeulen and Bram van der Heijde',
     author_email='',
     description='Multi-Objective District Energy Systems Toolbox for Optimization',
-    install_requires=['pyomo', 'pandas', 'networkx>=2.0', 'numpy', 'setuptools-git', 'sphinx', 'sphinx_rtd_theme',
-                      'jupyter', 'xlrd>=0.9.0', 'matplotlib', 'scipy'],
+    install_requires=['pandas', 'networkx>=2.0', 'numpy', 'setuptools-git', 'sphinx', 'sphinx_rtd_theme',
+                      'jupyter', 'xlrd>=0.9.0', 'matplotlib', 'scipy', 'casadi'],
     include_package_data=True
 )

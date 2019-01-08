@@ -26,16 +26,100 @@ class Submodel(object):
 
         self.params = self.create_params()
 
+        self.opti=None
+        self.opti_params = {}
+        self.opti_vars = {}
+
         self.slack_list = []
         self.repr_days = repr_days
         if repr_days is not None:
             self.repr_count = dict(
                 Counter(self.repr_days.values()).most_common())
 
-        self.block = None
-
         self.cp = 4180
         self.rho = 1000
+        self.cf = 1/3600/1000 # Conversion factor from J to kWh
+
+    def add_var(self, name, dim1=None, dim2=None):
+        """
+        Add a variable to the Opti object
+
+        :param name:
+        :param dim1: First dimension of the variable
+        :param dim2: Second dimension of the variable
+        :return:
+        """
+        if name in self.opti_vars:
+            raise KeyError('A variable with the name {} already exists in {}'.format(name, self.name))
+        if dim1 is None and dim2 is None:
+            self.opti_vars[name] = self.opti.variable()
+        elif dim2 is None:
+            self.opti_vars[name] = self.opti.variable(dim1)
+        elif dim1 is not None:
+            self.opti_vars[name] = self.opti.variable(dim1, dim2)
+        else:
+            raise Exception('If you a vector variable, only give a value to dim1, if you need a matrix give'
+                            'a value to both dim1 and dim2')
+
+        return self.opti_vars[name]
+
+    def get_var(self, name):
+        """
+        Get a variable from the Opti object
+
+        :param name:
+        :return:
+        """
+        if not name in self.opti_vars:
+            raise KeyError('The variable with the name {} does not exist in {}'.format(name, self.name))
+        return self.opti_vars[name]
+
+    def add_opti_param(self, name, dim1=None, dim2=None):
+        """
+        Add a parameter to the Opti object
+
+        :param name:
+        :param dim1: First dimension of the variable
+        :param dim2: Second dimension of the variable
+        :return:
+        """
+        if name in self.opti_params:
+            raise KeyError('A variable with the name {} already exists in {}'.format(name, self.name))
+        if dim1 is None and dim2 is None:
+            self.opti_params[name] = self.opti.parameter()
+        elif dim2 is None:
+            self.opti_params[name] = self.opti.parameter(dim1)
+        elif dim1 is not None:
+            self.opti_params[name] = self.opti.parameter(dim1, dim2)
+        else:
+            raise Exception('If you a vector parameter, only give a value to dim1, if you need a matrix give'
+                            'a value to both dim1 and dim2')
+
+        return self.opti_params[name]
+
+    def get_opti_param(self, name):
+        """
+        Get a parameter from the Opti object
+
+        :param name:
+        :return:
+        """
+        if not name in self.opti_params:
+            raise KeyError('The variable with the name {} does not exist in {}'.format(name, self.name))
+        return self.opti_params[name]
+
+    def get_value(self, name):
+        if name in self.opti_vars:
+            return self.get_var(name)
+        elif name in self.opti_params:
+            return self.get_opti_param(name)
+        else:
+            raise KeyError('{} is not a valid variable or parameter name'.format(name))
+
+    def set_parameters(self):
+        for name, param in self.opti_params.items():
+            if name in self.params:
+                self.opti.set_value(param, self.params[name].v())
 
     def annualize_investment(self, i):
         """
@@ -201,18 +285,17 @@ class Submodel(object):
     def set_time_axis(self):
         horizon = self.params['horizon'].v()
         time_step = self.params['time_step'].v()
-        assert (
-                       horizon % time_step) == 0, "The horizon should be a multiple of the time step."
+        assert (horizon % time_step) == 0, "The horizon should be a multiple of the time step."
 
         if self.repr_days is None:
-            n_steps = int(horizon // time_step)
-            self.X_TIME = range(n_steps + 1)
+            self.n_steps = int(horizon // time_step)
+            self.X_TIME = range(self.n_steps + 1)
             # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
             self.TIME = self.X_TIME[:-1]
         else:
-            n_steps = int(24 * 3600 // time_step)
-            self.X_TIME = range(n_steps + 1)
-            self.TIME = range(n_steps)
+            self.n_steps = int(24 * 3600 // time_step)
+            self.X_TIME = range(self.n_steps + 1)
+            self.TIME = range(self.n_steps)
             self.REPR_DAYS = sorted(set(self.repr_days.values()))
             self.DAYS_OF_YEAR = range(365)
 
@@ -327,7 +410,7 @@ class Submodel(object):
 
         return 0
 
-    def get_slack(self, slack_name, t):
+    def get_slack(self, slack_name, t=None):
         """
         Get the value of a slack variable at a certain time
 
@@ -335,14 +418,25 @@ class Submodel(object):
         :param t: Time
         :return: Value of slack
         """
+        if t is None:
+            return self.get_var(slack_name)
+        else:
+            return self.get_var(slack_name)[t]
 
-        return self.block.find_component(slack_name)[t]
+    def make_slack(self, slack_name, n_elem):
+        """
+        Make a slack variable
 
-    def make_slack(self, slack_name, time_axis):
+        :param slack_name: Name of the slack
+        :param time_axis: Numbero f elements in the slack
+        :return:
+        """
+        # TODO Add parameter: penalization; can be different penalizations for different objectives.
         self.slack_list.append(slack_name)
-        self.block.add_component(slack_name,
-                                 Var(time_axis, within=NonNegativeReals))
-        return self.block.find_component(slack_name)
+        slack = self.add_var(slack_name, n_elem)
+        self.opti.subject_to(slack >= 0)
+
+        return slack
 
     def constrain_value(self, variable, bound, ub=True, slack_variable=None):
         """
@@ -362,28 +456,14 @@ class Submodel(object):
             f = -1
 
         if slack_variable is None:
-            return f * variable <= f * bound
+            self.opti.subject_to(f * variable <= f * bound)
         else:
-            return f * variable <= f * bound + slack_variable
-
-    def get_known_mflo(self, t, start_time):
-        """
-        Calculate the mass flow into the network, provided the injections and extractions at all nodes are already given
-
-        :return: mass flow
-        """
-
-        return 0
+            self.opti.subject_to(f * variable <= f * bound + slack_variable)
 
     def get_result(self, name, index, state, start_time):
-        obj = self.block.find_component(name)
+        obj = self.block.get_value(name)
 
         result = []
-
-        if obj is None:
-            raise Exception(
-                '{} is not a valid parameter or variable of {}'.format(name,
-                                                                       self.name))
 
         time = self.get_time_axis(state)
 

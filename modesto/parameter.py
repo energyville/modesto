@@ -389,7 +389,7 @@ class TimeSeriesParameter(Parameter):
             if self.time_data:  # Data has a pd.DatetimeIndex
                 return ut.select_period_data(self.value,
                                              time_step=self.time_step,
-                                             horizon=self.horizon,
+                                             horizon=self.horizon-self.time_step,
                                              start_time=self.start_time).values
             elif not isinstance(self.value, pd.Series):
                 return [self.value] * int(self.horizon / self.time_step)
