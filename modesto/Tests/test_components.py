@@ -1,5 +1,6 @@
 from casadi import *
 from modesto.component import BuildingFixed, ProducerVariable
+from modesto.pipe import SimplePipe
 import pandas as pd
 import modesto.utils as ut
 from pkg_resources import resource_filename
@@ -146,7 +147,7 @@ def test_producer_variable_temp_driven():
     options = {'ipopt': {'print_level': 0}}
     opti.solver('ipopt', options)
     plant.set_parameters()
-    sol=opti.solve()
+    sol = opti.solve()
     temps = sol.value(plant.opti_vars['temperatures'])
     hf = sol.value(plant.opti_vars['heat_flow_tot'])
 
@@ -159,9 +160,41 @@ def test_producer_variable_temp_driven():
     assert flag, 'The solution of the optimization problem is not correct'
 
 
+def test_simple_pipe():
+    opti = Opti()
+    pipe = SimplePipe('pipe', 'start_node', 'end_node', 5)
+
+    pipe_params = {'diameter': 500,
+                   'horizon': horizon,
+                   'time_step': time_step}
+
+    for param in pipe_params:
+        pipe.change_param(param, pipe_params[param])
+
+    pipe.compile(opti, start_time)
+    opti.subject_to(pipe.get_var('heat_flow_in') == 1)
+    opti.subject_to(pipe.get_var('mass_flow') == 1)
+    opti.minimize(sum1(pipe.get_var('heat_flow_out')))
+
+    options = {'ipopt': {'print_level': 0}}
+    opti.solver('ipopt', options)
+    pipe.set_parameters()
+    sol = opti.solve()
+    hf = sol.value(pipe.opti_vars['heat_flow_out'])
+    mf = sol.value(pipe.opti_vars['mass_flow'])
+
+    flag = True
+
+    for t in pipe.TIME[1:]:
+        if not (abs(hf[t] - 1) <= 0.001 and abs(mf[t] - 1) <= 0.001):
+            flag = False
+
+    assert flag, 'The solution of the optimization problem is not correct'
+
 if __name__ == '__main__':
     test_fixed_profile_not_temp_driven()
     test_fixed_profile_temp_driven()
     test_producer_variable_not_temp_driven()
     test_producer_variable_temp_driven()
+    test_simple_pipe()
 
