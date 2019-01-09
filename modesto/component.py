@@ -652,11 +652,13 @@ class ProducerVariable(VariableComponent):
                         self.opti.subject_to(hf[t] - hf[t-1] <= ramp * time_step)
                         self.opti.subject_to(hf[t-1] - hf[t] <= ramp * time_step)
 
+                ramp_cost_tot = self.add_var('ramp_cost_tot', self.n_steps)
                 if self.params['ramp_cost'].v() > 0:
-                    ramp_cost_tot = self.add_var('ramping_cost', self.n_steps)
                     for t in self.TIME[1:]:
                         self.opti.subject_to(ramp_cost_tot >= (hf[t] - hf[t-1]) * ramp_cost)
                         self.opti.subject_to(ramp_cost_tot >= (hf[t-1] - hf[t]) * ramp_cost)
+                else:
+                    self.opti.subject_to(ramp_cost_tot == 0)
 
             else:
                 raise Exception('Representative days are not implemented yet for ProducerVariable')

@@ -305,24 +305,6 @@ class Submodel(object):
         else:
             return self.TIME
 
-    def _make_block(self, model):
-        """
-        Make a seperate block in the pyomo Concrete model for the Node
-        :param model: The model to which it should be added
-        :return:
-        """
-        if model is None:
-            raise Exception('Top level model must be initialized first')
-
-        # If block is already present, remove it
-        # if model.component(self.name) is not None:
-        #     model.del_component(self.name)
-        model.add_component(self.name, Block())
-        self.block = model.__getattribute__(self.name)
-
-        self.logger.info(
-            'Optimization block initialized for {}'.format(self.name))
-
     def obj_slack(self):
         """
         Yield summation of all slacks in the componenet
@@ -330,7 +312,6 @@ class Submodel(object):
         :return:
         """
         slack = 0
-
         for slack_name in self.slack_list:
             slack += sum(self.get_slack(slack_name, t) for t in self.TIME)
 

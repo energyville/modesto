@@ -4,15 +4,13 @@ import collections
 from math import sqrt
 
 import networkx as nx
-from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constraint, Var, NonNegativeReals, Block
-from pyomo.opt import SolverFactory
-from pyomo.opt import SolverStatus, TerminationCondition
-import pyomo.environ
+from casadi import *
 import modesto.component as co
 import modesto.pipe as pip
 from modesto.LTIModels import RCmodels as rc
 from modesto.parameter import *
 from modesto.submodel import Submodel
+import time
 
 
 class Modesto:
@@ -29,7 +27,7 @@ class Modesto:
             mapped to representative days if used.
         """
 
-        self.model = ConcreteModel(name=Modesto)
+        self.opti = Opti()
 
         self.results = None
 
@@ -188,61 +186,41 @@ class Modesto:
         :return:
         """
 
-        self.model.Slack = Var(within=NonNegativeReals)
+        slack = self.opti.variable()
 
-        def _decl_slack(model):
-            return model.Slack == 10 ** 6 * sum(
-                comp.obj_slack() for comp in self.iter_components())
+        self.opti.subject_to(slack == 10**6 * sum(
+            comp.obj_slack() for comp in self.iter_components()
+        ))
 
-        self.model.decl_slack = Constraint(rule=_decl_slack)
+        energy = self.opti.variable()
+        cost = self.opti.variable()
+        cost_ramp = self.opti.variable()
+        co2 = self.opti.variable()
+        co2_fuel_cost = self.opti.variable()
 
-        def obj_energy(model):
-            return model.Slack + sum(
-                comp.obj_energy() for comp in self.iter_components())
-
-        def obj_cost(model):
-            return model.Slack + sum(
-                comp.obj_fuel_cost() for comp in self.iter_components()) + sum(
-                comp.obj_elec_cost() for comp in self.iter_components())
-
-        def obj_cost_ramp(model):
-            return model.Slack + sum(
-                comp.obj_cost_ramp() for comp in self.iter_components())
-
-        def obj_co2(model):
-            return model.Slack + sum(
-                comp.obj_co2() for comp in self.iter_components())
-
-        def obj_co2_fuel_cost(model):
-            return model.Slack + sum(comp.obj_co2_cost() + comp.obj_fuel_cost()
-                                     for comp in self.iter_components())
-
-        self.model.OBJ_ENERGY = Objective(rule=obj_energy, sense=minimize)
-        self.model.OBJ_COST = Objective(rule=obj_cost, sense=minimize)
-        self.model.OBJ_COST_RAMP = Objective(rule=obj_cost_ramp, sense=minimize)
-        self.model.OBJ_CO2 = Objective(rule=obj_co2, sense=minimize)
-        self.model.OBJ_COST_CO2_FUEL = Objective(rule=obj_co2_fuel_cost,
-                                                 sense=minimize)
+        self.opti.subject_to(energy == sum(comp.obj_energy() for comp in self.iter_components()))
+        self.opti.subject_to(cost == sum(comp.obj_fuel_cost() + comp.obj_elec_cost()
+                                                 for comp in self.iter_components()))
+        self.opti.subject_to(cost_ramp == sum(comp.obj_cost_ramp() for comp in self.iter_components()))
+        self.opti.subject_to(co2 == sum(comp.obj_co2() for comp in self.iter_components()))
+        self.opti.subject_to(co2_fuel_cost == sum(comp.obj_co2_cost() + comp.obj_fuel_cost()
+                                                          for comp in self.iter_components()))
 
         self.objectives = {
-            'energy': self.model.OBJ_ENERGY,
-            'cost': self.model.OBJ_COST,
-            'cost_ramp': self.model.OBJ_COST_RAMP,
-            'co2': self.model.OBJ_CO2,
-            'cost_fuel_co2': self.model.OBJ_COST_CO2_FUEL
+            'energy': energy,
+            'cost': cost,
+            'cost_ramp': cost_ramp,
+            'co2': co2,
+            'cost_fuel_co2': co2_fuel_cost,
+            'slack': slack
         }
 
-        for objective in self.objectives.values():
-            objective.deactivate()
-
         if self.temperature_driven:
-            def obj_temp(model):
-                return model.Slack + sum(
-                    comp.obj_temp() for comp in self.iter_components())
+            temp = self.opti.variable()
 
-            self.model.OBJ_TEMP = Objective(rule=obj_temp, sense=minimize)
+            self.opti.subject_to(cost_ramp == slack + sum(comp.obj_temp() for comp in self.iter_components()))
 
-            self.objectives['temp'] = self.model.OBJ_TEMP
+            self.objectives['temp'] = temp
 
     def compile(self, start_time='20140101', recompile=False):
         """
@@ -253,6 +231,8 @@ class Modesto:
         :param recompile: True if model should be recompiled. If False, only mutable parameters are reloaded.
         :return:
         """
+
+        t0 = time.time()
 
         # Set time
         if isinstance(start_time, str):
@@ -270,7 +250,7 @@ class Modesto:
                     'Model was already compiled. Only changing mutable parameters.')
 
             else:
-                self.model = ConcreteModel()
+                self.opti = Opti()
                 self.compiled = False
                 for comp in self.components:
                     self.components[comp].reinit()
@@ -283,20 +263,20 @@ class Modesto:
         # Components
         for name in self.get_edges():
             edge_obj = self.get_component(name=name)
-            edge_obj.compile(self.model, start_time)
+            edge_obj.compile(self.opti, start_time)
 
         nodes = self.get_nodes()
 
         for node in nodes:
             node_obj = self.get_component(name=node)
-            node_obj.compile(self.model, start_time)
+            node_obj.compile(self.opti, start_time)
 
         if not self.compiled or recompile:
             self.__build_objectives()
 
         self.compiled = True  # Change compilation flag
 
-        return
+        print('Time to compile: ', time.time() - t0, '\n')
 
     def check_data(self):
         """
@@ -345,10 +325,7 @@ class Modesto:
             raise ValueError('Choose an objective type from {}'.format(
                 self.objectives.keys()))
 
-        for obj in self.objectives.values():
-            obj.deactivate()
-
-        self.objectives[objtype].activate()
+        self.opti.minimize(self.objectives[objtype] + self.objectives['slack'])
         self.act_objective = self.objectives[objtype]
 
         self.logger.debug('{} objective set'.format(objtype))
@@ -383,8 +360,17 @@ class Modesto:
         """
         return self.components.values()
 
+    def set_parameters(self):
+        """
+        Sets the value of all mutable parameters
+
+        :return:
+        """
+        for comp in self.iter_components():
+            comp.set_parameters()
+
     def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False,
-              solver='gurobi', warmstart=False, probe=False,
+              solver='ipopt', warmstart=False, probe=False,
               timelim=None, threads=None):
         """
         Solve a new optimization
@@ -399,77 +385,94 @@ class Modesto:
         :param timelim: Time limit for solver in seconds. Default: no time limit.
         :return:
         """
+        if not solver == 'ipopt':
+            raise Exception('This version of modesto only works with ipopt')
 
         if verbose:
-            self.model.pprint()
+            print('\nsummary:\n', self.opti)
+            print('\nvariables:\n', self.opti.x)
+            print('\nparameters:\n', self.opti.p)
+            print('\nconstraints:\n', self.opti.g)
 
-        opt = SolverFactory(solver, warmstart=warmstart)
+        options = {'ipopt': {}}
 
-        if solver == 'gurobi':
-            # opt.options["Crossover"] = 0
-            # opt.options['ImproveStartTime'] = 10
-            # opt.options['PumpPasses'] = 2
-            if mipgap is not None:
-                opt.options["MIPGap"] = mipgap
-
-            if mipfocus is not None:
-                opt.options["MIPFocus"] = mipfocus
-
-            if timelim is not None:
-                opt.options["TimeLimit"] = timelim
-
-            if threads is not None:
-                opt.options["Threads"] = threads
-        elif solver == 'cplex':
-            opt.options['mip display'] = 3
-            if probe:
-                opt.options['mip strategy probe'] = 3
-            # https://www.ibm.com/support/knowledgecenter/SSSA5P_12.5.1/ilog.odms.cplex.help/CPLEX/Parameters/topics/Probe.html
-            # opt.options['emphasis mip'] = 1
-            # opt.options['mip cuts all'] = 2
-            if mipgap is not None:
-                opt.options['mip tolerances mipgap'] = mipgap
-
-            if timelim is not None:
-                opt.options['timelimit'] = timelim
-            opt.options['parallel'] = -1
-            opt.options[
-                'mip strategy fpheur'] = 2  # Feasibility pump heuristics
-            opt.options['parallel'] = -1
-
-        try:
-            self.results = opt.solve(self.model, tee=tee)
-        except ValueError:
-            # self.logger.warning('No solution found before time limit.')
-            return -2
-
-        if verbose:
-            print(self.results)
-            print(self.results.solver.status)
-            print(self.results.solver.termination_condition)
-
-        if self.results.solver.status == SolverStatus.ok:
-            if self.results.solver.termination_condition == TerminationCondition.optimal:
-                status = 0
-                self.logger.info('Model solved.')
-            elif not (self.results.solver.termination_condition == TerminationCondition.infeasible):
-                status = 2
-                self.logger.info(
-                    'Model solved but termination condition not optimal.')
-                self.logger.info('Termination condition: {}'.format(
-                    self.results.solver.termination_condition))
-        elif self.results.solver.status == SolverStatus.aborted:
-            status = -3
-            self.logger.info('Solver aborted.')
-        elif self.results.solver.termination_condition == TerminationCondition.infeasible:
-            status = -1
-            self.logger.info('Model is infeasible')
+        if tee:
+            pass
         else:
-            status = -2
-            self.logger.warning(
-                'Solver status: {}'.format(self.results.solver.status))
+            options['ipopt']['print_level'] = 0
 
-        return status
+        self.opti.solver('ipopt', options)
+        self.set_parameters()
+
+        t0 = time.time()
+        self.results = self.opti.solve()
+        print('\nTime to solve: ', time.time() - t0, '\n')
+
+        # if solver == 'gurobi':
+        #     # opt.options["Crossover"] = 0
+        #     # opt.options['ImproveStartTime'] = 10
+        #     # opt.options['PumpPasses'] = 2
+        #     if mipgap is not None:
+        #         opt.options["MIPGap"] = mipgap
+        #
+        #     if mipfocus is not None:
+        #         opt.options["MIPFocus"] = mipfocus
+        #
+        #     if timelim is not None:
+        #         opt.options["TimeLimit"] = timelim
+        #
+        #     if threads is not None:
+        #         opt.options["Threads"] = threads
+        # elif solver == 'cplex':
+        #     opt.options['mip display'] = 3
+        #     if probe:
+        #         opt.options['mip strategy probe'] = 3
+        #     # https://www.ibm.com/support/knowledgecenter/SSSA5P_12.5.1/ilog.odms.cplex.help/CPLEX/Parameters/topics/Probe.html
+        #     # opt.options['emphasis mip'] = 1
+        #     # opt.options['mip cuts all'] = 2
+        #     if mipgap is not None:
+        #         opt.options['mip tolerances mipgap'] = mipgap
+        #
+        #     if timelim is not None:
+        #         opt.options['timelimit'] = timelim
+        #     opt.options['parallel'] = -1
+        #     opt.options[
+        #         'mip strategy fpheur'] = 2  # Feasibility pump heuristics
+        #     opt.options['parallel'] = -1
+        #
+        # try:
+        #     self.results = opt.solve(self.model, tee=tee)
+        # except ValueError:
+        #     # self.logger.warning('No solution found before time limit.')
+        #     return -2
+        #
+        # if verbose:
+        #     print(self.results)
+        #     print(self.results.solver.status)
+        #     print(self.results.solver.termination_condition)
+        #
+        # if self.results.solver.status == SolverStatus.ok:
+        #     if self.results.solver.termination_condition == TerminationCondition.optimal:
+        #         status = 0
+        #         self.logger.info('Model solved.')
+        #     elif not (self.results.solver.termination_condition == TerminationCondition.infeasible):
+        #         status = 2
+        #         self.logger.info(
+        #             'Model solved but termination condition not optimal.')
+        #         self.logger.info('Termination condition: {}'.format(
+        #             self.results.solver.termination_condition))
+        # elif self.results.solver.status == SolverStatus.aborted:
+        #     status = -3
+        #     self.logger.info('Solver aborted.')
+        # elif self.results.solver.termination_condition == TerminationCondition.infeasible:
+        #     status = -1
+        #     self.logger.info('Model is infeasible')
+        # else:
+        #     status = -2
+        #     self.logger.warning(
+        #         'Solver status: {}'.format(self.results.solver.status))
+        #
+        # return status
 
     def opt_settings(self, objective=None,
                      pipe_model=None, allow_flow_reversal=None):
@@ -587,12 +590,70 @@ class Modesto:
         :return: A pandas DataFrame containing all values of the variable/parameter over the time horizon
         """
 
+        # if self.results is None and check_results:
+        #         #     raise Exception('The optimization problem has not been solved yet.')
+        #         #
+        #         # obj = self.get_component(comp, node)
+        #         #
+        #         # return obj.get_result(name, index, state, self.start_time)
+
         if self.results is None and check_results:
             raise Exception('The optimization problem has not been solved yet.')
 
         obj = self.get_component(comp, node)
+        opti_obj = obj.get_value(name)
 
-        return obj.get_result(name, index, state, self.start_time)
+        time = obj.get_time_axis()
+
+        result = self.results.value(opti_obj)
+
+        return pd.Series(data=result, index=time, name=name)
+
+
+
+        # if isinstance(obj, IndexedVar) and self.repr_days is None:
+        #     if index is None:
+        #         for i in obj:
+        #             result.append(value(obj[i]))
+        #
+        #         resname = self.name + '.' + name
+        #
+        #     else:
+        #         for i in time:
+        #             result.append(obj[(index, i)].value)
+        #
+        #             resname = self.name + '.' + name + '.' + index
+        # elif isinstance(obj, IndexedVar) and self.repr_days is not None:
+        #     for d in self.DAYS_OF_YEAR:
+        #         for t in time:
+        #             result.append(value(obj[t, self.repr_days[d]]))
+        #
+        #             resname = self.name + '.' +name
+        #
+        # elif isinstance(obj, IndexedParam):
+        #     resname = self.name + '.' + name
+        #     if self.repr_days is None:
+        #         result = []
+        #         for t in obj:
+        #             result.append(obj[t])
+        #
+        #     else:
+        #         for d in self.DAYS_OF_YEAR:
+        #             for t in time:
+        #                 result.append(value(obj[t, self.repr_days[d]]))
+        #
+        # else:
+        #     self.logger.warning(
+        #         '{}.{} was a different type of variable/parameter than what has been implemented: '
+        #         '{}'.format(self.name, name, type(obj)))
+        #     return None
+        #
+        # timeindex = pd.DatetimeIndex(start=start_time,
+        #                              freq=str(
+        #                                  self.params['time_step'].v()) + 'S',
+        #                              periods=len(result))
+        #
+        # return pd.Series(data=result, index=timeindex, name=resname)
 
     def get_objective(self, objtype=None, get_value=True):
         """
@@ -616,7 +677,7 @@ class Modesto:
             obj = self.objectives[objtype]
 
         if get_value:
-            return value(obj)
+            return self.results.value(obj)
         else:
             return obj
 
@@ -642,7 +703,7 @@ class Modesto:
         """
         Get all parameters belonging to one type of parameter class
 
-        :param param_type: list of paremeter classes to be included
+        :param param_type: list of parameter classes to be included
         :return: A dict containing all parameters, ordered by node and component
         """
         all_params = self.collect_all_params()
@@ -840,9 +901,9 @@ class Modesto:
         else:
             out = {}
             for node_name in self.get_nodes():
-                for comp_name, comp in self.components[
-                    node_name].get_components(
-                    filter_type=filter_type).iteritems():
+                for comp_name, comp in \
+                        self.components[node_name].get_components(
+                            filter_type=filter_type).items():
                     out[comp_name] = comp
             return out
 
@@ -883,7 +944,7 @@ class Modesto:
         """
         out = {}
 
-        for node_name, node_obj in self.nodes.iteritems():
+        for node_name, node_obj in self.nodes.items():
             for comp_name, comp_obj in node_obj.get_heat_stor().iteritems():
                 out['.'.join([node_name, comp_name])] = comp_obj
 
@@ -1063,20 +1124,21 @@ class Node(Submodel):
         :param model:
         :return:
         """
+        self.opti = model
+
         if self.compiled:
             for name, comp in self.components.items():
                 comp.compile(model, start_time)
 
         else:
             self.set_time_axis()
-            self._make_block(model)
 
             for name, comp in self.components.items():
                 comp.compile(model, start_time)
 
             self._add_bal()
 
-            self.logger.info('Compilation of {} finished'.format(self.name))
+        self.logger.info('Compilation of {} finished'.format(self.name))
 
         self.compiled = True
 
@@ -1088,8 +1150,10 @@ class Node(Submodel):
 
         :return:
         """
-        if self.compiled:
-            self.compiled = False
+        self.compiled = False
+
+    def get_opti_item(self, comp, name):
+        return self.components[comp].get_value(name)
 
     def _add_bal(self):
         """
@@ -1106,150 +1170,131 @@ class Node(Submodel):
 
             lines = self.params['lines'].v()
 
-            self.block.mix_temp = Var(self.TIME, lines)
+            mix_temp = self.add_var('mix_temp', self.n_steps, len(lines))
 
-            def _temp_bal_incoming(b, t, l):
+            incoming_comps = collections.defaultdict(list)
+            incoming_pipes = collections.defaultdict(list)
+            outgoing_comps = collections.defaultdict(list)
+            outgoing_pipes = collections.defaultdict(list)
 
-                incoming_comps = collections.defaultdict(list)
-                incoming_pipes = collections.defaultdict(list)
+            for t in self.TIME:
+                for l, line in enumerate(lines):
+                    for name, comp in c.items():
+                        if comp.get_mflo(t) >= 0:
+                            incoming_comps['supply'].append(name)
+                            outgoing_comps['return'].append(name)
+                        else:
+                            incoming_comps['return'].append(name)
+                            outgoing_comps['supply'].append(name)
 
-                for name, comp in c.items():
-                    if value(comp.get_mflo(t)) >= 0:
-                        incoming_comps['supply'].append(name)
-                    else:
-                        incoming_comps['return'].append(name)
+                    for name, pipe in p.items():
+                        if pipe.get_edge_mflo(self.name, t) >= 0:
+                            incoming_pipes['supply'].append(name)
+                            outgoing_pipes['return'].append(name)
+                        else:
+                            incoming_pipes['return'].append(name)
+                            outgoing_pipes['supply'].append(name)
 
-                for name, pipe in p.items():
-                    if value(pipe.get_edge_mflo(self.name, t)) >= 0:
-                        incoming_pipes['supply'].append(name)
-                    else:
-                        incoming_pipes['return'].append(name)
-                # Zero mass flow rate:
-                if value(
-                        sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) + \
-                        sum(p[pipe].get_edge_mflo(self.name, t) for pipe in
-                            incoming_pipes[l])) == 0:
-                    # mixed temperature is average of all joined pipes, actual value should not matter,
-                    # because packages in pipes of this time step will have zero size and components do not take over
-                    # mixed temperature in case there is no mass flow
+                    for comp in list(c.keys()) + list(p.keys()):
 
-                    return b.mix_temp[t, l] == (
-                            sum(c[comp].get_temperature(t, l) for comp in c) +
-                            sum(p[pipe].get_temperature(self.name, t, l) for
-                                pipe in p)) / (
-                                   len(p) + len(c))
+                        if sum(c[comp].get_mflo(t) for comp in incoming_comps[line] + \
+                                                               sum(p[pipe].get_edge_mflo(self.name, t) for pipe in
+                                                                   incoming_pipes[line])) == 0:
+
+                            # mixed temperature is average of all joined pipes, actual value should not matter,
+                            # because packages in pipes of this time step will have zero size and components do not take over
+                            # mixed temperature in case there is no mass flow
+
+                            self.opti.subject_to(mix_temp[t, l] == (
+                                    sum(c[comp].get_temperature(t, l) for comp in c) +
+                                    sum(p[pipe].get_temperature(self.name, t, l) for
+                                        pipe in p)) / (
+                                           len(p) + len(c)))
+
+                        else:
+                            self.opti.subject_to(
+                                (sum(c[comp].get_mflo(t) for comp in incoming_comps[l]) +
+                                 sum(p[pipe].get_edge_mflo(self.name, t) for pipe in incoming_pipes[l]))
+                                * mix_temp[t, l] ==
+                                sum(c[comp].get_mflo(t) * c[comp].get_temperature(t,l)
+                                    for comp in incoming_comps[l]) + \
+                                sum(p[pipe].get_edge_mflo(self.name, t) * p[pipe].get_edge_temperature(self.name, t, l)
+                                    for pipe in incoming_pipes[l]))
+
+                        for t in self.TIME[1:]:
+
+                            if comp in outgoing_pipes[l]:
+                                self.opti.subject_to(p[comp].get_edge_temperature(self.name, t, l) == \
+                                                    mix_temp[t, l])
+                            elif comp in outgoing_comps[l]:
+                                return c[comp].get_temperature(t, l) == mix_temp[t, l]
 
 
-                else:  # mass flow rate through the node
-                    return (sum(
-                        c[comp].get_mflo(t) for comp in incoming_comps[l]) +
-                            sum(p[pipe].get_edge_mflo(self.name, t) for pipe in
-                                incoming_pipes[l])) * b.mix_temp[t, l] == \
-                           sum(c[comp].get_mflo(t) * c[comp].get_temperature(t,
-                                                                             l)
-                               for comp in incoming_comps[l]) + \
-                           sum(p[pipe].get_edge_mflo(self.name, t) * p[
-                               pipe].get_edge_temperature(self.name, t, l)
-                               for pipe in incoming_pipes[l])
-
-            self.block.def_mixed_temp = Constraint(self.TIME,
-                                                   lines,
-                                                   rule=_temp_bal_incoming)
-
-            def _temp_bal_outgoing(b, t, l, comp):
-
-                outgoing_comps = collections.defaultdict(list)
-                outgoing_pipes = collections.defaultdict(list)
-
-                for name, comp_obj in c.items():
-                    if comp_obj.get_mflo(t) >= 0:
-                        outgoing_comps['return'].append(name)
-                    else:
-                        outgoing_comps['supply'].append(name)
-
-                for name, pipe_obj in p.items():
-                    if pipe_obj.get_edge_mflo(self.name, t) >= 0:
-                        outgoing_pipes['return'].append(name)
-                    else:
-                        outgoing_pipes['supply'].append(name)
-
-                if t == 0:
-                    return Constraint.Skip
-                if comp in outgoing_pipes[l]:
-                    return p[comp].get_edge_temperature(self.name, t, l) == \
-                           b.mix_temp[t, l]
-                elif comp in outgoing_comps[l]:
-                    return c[comp].get_temperature(t, l) == b.mix_temp[t, l]
-                else:
-                    return Constraint.Skip
-
-            self.block.outgoing_temp_comps = Constraint(self.TIME,
-                                                        lines,
-                                                        c.keys(),
-                                                        rule=_temp_bal_outgoing)
-            self.block.outgoing_temp_pipes = Constraint(self.TIME,
-                                                        lines,
-                                                        p.keys(),
-                                                        rule=_temp_bal_outgoing)
+            # def _temp_bal_outgoing(b, t, l, comp):
+            #
+            #     for name, comp_obj in c.items():
+            #         if comp_obj.get_mflo(t) >= 0:
+            #             outgoing_comps['return'].append(name)
+            #         else:
+            #             outgoing_comps['supply'].append(name)
+            #
+            #     for name, pipe_obj in p.items():
+            #         if pipe_obj.get_edge_mflo(self.name, t) >= 0:
+            #             outgoing_pipes['return'].append(name)
+            #         else:
+            #             outgoing_pipes['supply'].append(name)
+            #
+            #     if t == 0:
+            #         return Constraint.Skip
+            #     if comp in outgoing_pipes[l]:
+            #         return p[comp].get_edge_temperature(self.name, t, l) == \
+            #                b.mix_temp[t, l]
+            #     elif comp in outgoing_comps[l]:
+            #         return c[comp].get_temperature(t, l) == b.mix_temp[t, l]
+            #     else:
+            #         return Constraint.Skip
+            #
+            # self.block.outgoing_temp_comps = Constraint(self.TIME,
+            #                                             lines,
+            #                                             c.keys(),
+            #                                             rule=_temp_bal_outgoing)
+            # self.block.outgoing_temp_pipes = Constraint(self.TIME,
+            #                                             lines,
+            #                                             p.keys(),
+            #                                             rule=_temp_bal_outgoing)
 
         elif self.repr_days is None:
 
-            def _heat_bal(b, t):
-                return 0 == sum(
+            for t in self.TIME:
+                self.opti.subject_to(0 == sum(
                     self.components[i].get_heat(t) for i in self.components) \
-                       + sum(
-                    pipe.get_edge_heat(self.name, t) for pipe in p.values())
+                       + sum(pipe.get_edge_heat(self.name, t) for pipe in p.values()))
 
-            self.block.ineq_heat_bal = Constraint(self.TIME,
-                                                  rule=_heat_bal)
-
-            def _mass_bal(b, t):
-                return 0 == sum(
+                self.opti.subject_to(0 == sum(
                     self.components[i].get_mflo(t) for i in self.components) \
-                       + sum(
-                    pipe.get_edge_mflo(self.name, t) for pipe in p.values())
-
-            self.block.ineq_mass_bal = Constraint(self.TIME,
-                                                  rule=_mass_bal)
+                       + sum(pipe.get_edge_mflo(self.name, t) for pipe in p.values()))
 
         else:
-            def _heat_bal(b, t, c):
-                return 0 == sum(
-                    self.components[i].get_heat(t, c) for i in
-                    self.components) \
-                       + sum(
-                    pipe.get_edge_heat(self.name, t, c) for pipe in p.values())
-
-            self.block.ineq_heat_bal = Constraint(self.TIME, self.REPR_DAYS,
-                                                  rule=_heat_bal)
-
-            def _mass_bal(b, t, c):
-                return 0 == sum(
-                    self.components[i].get_mflo(t, c) for i in
-                    self.components) \
-                       + sum(
-                    pipe.get_edge_mflo(self.name, t, c) for pipe in p.values())
-
-            self.block.ineq_mass_bal = Constraint(self.TIME, self.REPR_DAYS,
-                                                  rule=_mass_bal)
-
-    def _make_block(self, model):
-        """
-        Make a seperate block in the pyomo Concrete model for the Node
-        :param model: The model to which it should be added
-        :return:
-        """
-        # TODO Make base class
-        assert model is not None, 'Top level model must be initialized first'
-        self.model = model
-        # If block is already present, remove it
-        if self.model.component(self.name) is not None:
-            self.model.del_component(self.name)
-        self.model.add_component(self.name, Block())
-        self.block = self.model.__getattribute__(self.name)
-
-        self.logger.info(
-            'Optimization block initialized for {}'.format(self.name))
+            raise Exception('Representative days have not been implemented yet')
+            # def _heat_bal(b, t, c):
+            #     return 0 == sum(
+            #         self.components[i].get_heat(t, c) for i in
+            #         self.components) \
+            #            + sum(
+            #         pipe.get_edge_heat(self.name, t, c) for pipe in p.values())
+            #
+            # self.block.ineq_heat_bal = Constraint(self.TIME, self.REPR_DAYS,
+            #                                       rule=_heat_bal)
+            #
+            # def _mass_bal(b, t, c):
+            #     return 0 == sum(
+            #         self.components[i].get_mflo(t, c) for i in
+            #         self.components) \
+            #            + sum(
+            #         pipe.get_edge_mflo(self.name, t, c) for pipe in p.values())
+            #
+            # self.block.ineq_mass_bal = Constraint(self.TIME, self.REPR_DAYS,
+            #                                       rule=_mass_bal)
 
     def get_mflo(self, t, start_time):
         """
@@ -1275,7 +1320,7 @@ class Node(Submodel):
         out = {}
 
         for comp_name, comp_obj in self.get_components(
-                filter_type=co.StorageVariable).iteritems():
+                filter_type=co.StorageVariable).items():
             out[comp_name] = comp_obj.get_heat_stor()
 
         return out

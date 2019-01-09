@@ -191,6 +191,10 @@ def test_simple_pipe():
 
     assert flag, 'The solution of the optimization problem is not correct'
 
+
+def test_node_model_not_temp_driven():
+    pass
+
 if __name__ == '__main__':
     test_fixed_profile_not_temp_driven()
     test_fixed_profile_temp_driven()
