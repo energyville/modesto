@@ -387,9 +387,9 @@ class Substation(Component):
             'mult': DesignParameter('mult',
                                     'Number of buildings in the cluster',
                                     '-'),
-            'heat_profile': UserDataParameter('heat_profile',
-                                              'Heat use in one (average) building',
-                                              'W'),
+            'heat_flow': UserDataParameter('heat_profile',
+                                           'Heat use in one (average) building',
+                                           'W'),
             'temperature_radiator_in': DesignParameter('temperature_radiator_in',
                                                        'Temperature of the water coming into the radiator',
                                                        'K',
@@ -445,7 +445,7 @@ class Substation(Component):
 
         # Radiator
         mf_sec =self.add_opti_param('mf_sec', self.n_steps)
-        hf = self.add_opti_param('heat_profile', self.n_steps)
+        hf = self.add_opti_param('heat_flow', self.n_steps)
         Tsret = self.params['temperature_radiator_in'].v()
         Tssup = self.params['temperature_radiator_out'].v()
 
@@ -509,7 +509,7 @@ class Substation(Component):
     def set_parameters(self):
         Submodel.set_parameters(self)
         self.opti.set_value(self.get_opti_param('mf_sec'),
-                            [self.params['heat_profile'].v(t) / self.cp /
+                            [self.params['heat_flow'].v(t) / self.cp /
                              (self.params['temperature_radiator_in'].v() - self.params['temperature_radiator_out'].v())
                              for t in self.TIME])
 
@@ -565,9 +565,9 @@ class Substation(Component):
             raise Exception(
                 "The optimization model for %s has not been compiled" % self.name)
         elif c is None:
-            return self.direction * self.get_value('heat_profile')[t]
+            return self.direction * self.get_value('heat_flow')[t]
         else:
-            return self.direction * self.get_value('heat_profile')[t, c]
+            return self.direction * self.get_value('heat_flow')[t, c]
 
 class BuildingFixed(FixedProfile):
     def __init__(self, name, temperature_driven=False, repr_days=None):
@@ -940,6 +940,291 @@ class ProducerVariable(VariableComponent):
             return self.get_value('ramp_cost_tot')[t]
         else:
             return self.get_value('ramp_cost_tot')[t,c]
+
+    def get_investment_cost(self):
+        """
+        Get investment cost of variable producer as a function of the nominal power rating.
+
+        :return: Cost in EUR
+        """
+        return self.params['cost_inv'].v(self.params['Qmax'].v())
+
+    def obj_energy(self):
+        """
+        Generator for energy objective variables to be summed
+        Unit: kWh (primary energy)
+
+        :return:
+        """
+
+        eta = self.params['efficiency'].v()
+        pef = self.params['PEF'].v()
+        time_step = self.params['time_step'].v()
+
+        if self.repr_days is None:
+            return sum(pef / eta * (self.get_heat(t)) * time_step * self.cf for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * pef / eta * (self.get_heat(t, c)) *
+                       time_step *self.cf for t in self.TIME for
+                       c in
+                       self.REPR_DAYS)
+
+    def obj_fuel_cost(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
+        eta = self.params['efficiency'].v()
+        time_step = self.params['time_step'].v()
+
+        if self.repr_days is None:
+            return sum(cost.v(t) / eta * self.get_heat(t) *self.cf * time_step for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * cost.v(t, c) / eta *
+                       self.get_heat(t, c) * self.cf* time_step for t in self.TIME for c in
+                       self.REPR_DAYS)
+
+    def obj_cost_ramp(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.params['fuel_cost']  # cost consumed heat source (fuel/electricity)
+        eta = self.params['efficiency'].v()
+        time_step = self.params['time_step'].v()
+
+        if self.repr_days is None:
+            return sum(self.get_ramp_cost(t) + cost.v(t) / eta *
+                       self.get_heat(t) * self.cf * time_step
+                       for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * (self.get_ramp_cost(t, c) + cost.v(
+                t, c)
+                                             / eta * self.get_heat(t, c) * self.cf * time_step)
+                       for t in self.TIME for c in self.REPR_DAYS)
+
+    def obj_co2(self):
+        """
+        Generator for CO2 objective variables to be summed
+        Unit: kg CO2
+
+        :return:
+        """
+
+        eta = self.params['efficiency'].v()
+        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        time_step = self.params['time_step'].v()
+
+        if self.repr_days is None:
+            return sum(co2 / eta * self.get_heat(t) * time_step *self.cf for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * co2 / eta * self.get_heat(t, c) *
+                       time_step *self.cf
+                       for t in self.TIME for c in self.REPR_DAYS)
+
+    def obj_temp(self):
+        """
+        Generator for supply and return temperatures to be summed
+        Unit: K
+
+        :return:
+        """
+
+        # return sum((70+273.15 - self.get_temperature(t, 'supply'))**2 for t in range(self.n_steps))
+
+        return sum(self.get_temperature(t, 'supply') for t in self.TIME)
+
+    def obj_co2_cost(self):
+        """
+        Generator for CO2 cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+
+        eta = self.params['efficiency'].v()
+        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2_price = self.params['CO2_price']
+        time_step = self.params['time_step'].v()
+
+        if self.repr_days is None:
+            return sum(
+                co2_price.v(t) * co2 / eta * self.get_heat(t) * time_step * self.cf
+                for t in self.TIME)
+        else:
+            return sum(
+                co2_price.v(t, c) * co2 / eta * self.get_heat(t, c) * time_step * self.cf
+                for t in self.TIME for c in self.REPR_DAYS)
+
+class Plant(VariableComponent):
+    def __init__(self, name, temperature_driven=True, heat_var=0.15,
+                 repr_days=None):
+        """
+        Class that describes a variable producer
+
+        :param name: Name of the building
+        """
+
+        VariableComponent.__init__(self,
+                                   name=name,
+                                   direction=1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var,
+                                   repr_days=repr_days)
+
+        self.params = self.create_params()
+
+        self.logger = logging.getLogger('modesto.components.VarProducer')
+        self.logger.info('Initializing VarProducer {}'.format(name))
+
+    def is_heat_source(self):
+        return True
+
+    def create_params(self):
+
+        params = Component.create_params(self)
+        params.update({
+            'efficiency': DesignParameter('efficiency',
+                                          'Efficiency of the heat source',
+                                          '-'),
+            'PEF': DesignParameter('PEF',
+                                   'Factor to convert heat source to primary energy',
+                                   '-'),
+            'CO2': DesignParameter('CO2',
+                                   'amount of CO2 released when using primary energy source',
+                                   'kg/kWh'),
+            'fuel_cost': UserDataParameter('fuel_cost',
+                                           'cost of fuel to generate heat',
+                                           'euro/kWh'),
+            'Qmax': DesignParameter('Qmax',
+                                    'Maximum possible heat output',
+                                    'W'),
+            # 'Qmin': DesignParameter('Qmin',
+            #                         'Minimum possible heat output',
+            #                         'W',
+            #                         val=0),
+            'ramp': DesignParameter('ramp',
+                                    'Maximum ramp (increase in heat output)',
+                                    'W/s',
+                                    val=1e12),
+            'ramp_cost': DesignParameter('ramp_cost',
+                                         'Ramping cost',
+                                         'euro/(W/s)',
+                                         val=0),
+            'cost_inv': SeriesParameter('cost_inv',
+                                        'Investment cost as a function of Qmax',
+                                        'EUR',
+                                        unit_index='W',
+                                        val=0),
+            'CO2_price': UserDataParameter('CO2_price',
+                                           'CO2 price',
+                                           'euro/kg CO2'),
+            'lifespan': DesignParameter('lifespan',
+                                        'y',
+                                        'Economic life span in years',
+                                        val=15),  # 15y for CHP
+            'fix_maint': DesignParameter('fix_maint',
+                                         '-',
+                                         'Annual maintenance cost as a fixed proportion of the investment',
+                                         val=0.05),
+            'temperature_max': DesignParameter('temperature_max',
+                                               'Maximum allowed water temperature',
+                                               'K'),
+            'temperature_min': DesignParameter('temperature_min',
+                                               'Minimum allowed water temperature',
+                                               'K'),
+            'temperature_supply_0': StateParameter('temperature_supply_0',
+                                                   'Initial supply temperature at the component',
+                                                   'K',
+                                                   'fixedVal'),
+            'temperature_return_0': StateParameter('temperature_return_0',
+                                                   'Initial return temperature at the component',
+                                                   'K',
+                                                   'fixedVal'),
+            'lines': DesignParameter('lines',
+                                     '-',
+                                     'List of names of the lines that can be found in the network, e.g. '
+                                     '\'supply\' and \'return\'',
+                                     val=['supply', 'return'])
+        })
+
+        return params
+
+    def compile(self, model, start_time):
+        """
+        Build the structure of a producer model
+
+        :return:
+        """
+        VariableComponent.compile(self, model, start_time)
+
+        # Variables:
+        hf = self.add_var('heat_flow', self.n_steps)
+        mf = self.add_var('mass_flow', self.n_steps)
+        Tsup = self.add_var('Tsup', self.n_steps)
+        Tret = self.add_var('Tret', self.n_steps)
+
+        # Parameters:
+        Qmax = self.add_opti_param('Qmax')
+
+        # Constraints
+        for t in self.TIME:
+            self.opti.subject_to(hf[t] == mf[t] * self.cp * (Tsup[t] - Tret[t]))
+
+        self.opti.subject_to(hf <= Qmax)
+        self.opti.subject_to(hf >= 0)  # TODO Nodig?
+
+        self.compiled = True
+
+    def set_parameters(self):
+        Submodel.set_parameters(self)
+
+        if self.temperature_driven:
+            self.opti.set_value(self.get_opti_param('mass_flow_tot'), self.params['mass_flow'].v())
+            self.opti.set_value(self.get_opti_param('Tsupply_0'), self.params['temperature_supply'].v())
+            self.opti.set_value(self.get_opti_param('Treturn_0'), self.params['temperature_return'].v())
+
+    def get_ramp_cost(self, t, c=None):
+        if c is None:
+            return self.get_value('ramp_cost_tot')[t]
+        else:
+            return self.get_value('ramp_cost_tot')[t,c]
+
+    def get_heat(self, t, c=None):
+        """
+        Return heat_flow variable at time t
+
+        :param t:
+        :return:
+        """
+        if not self.compiled:
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
+        elif c is None:
+            return self.direction * self.get_value('heat_flow')[t]
+        else:
+            return self.direction * self.get_value('heat_flow')[t, c]
+
+    def get_mflo(self, t, c=None):
+        """
+        Return mass_flow variable at time t
+
+        :param t:
+        :param compiled: If True, the compilation of the model is assumed to be finished. If False, other means to get to the mass flow are used
+        :return:
+        """
+        if not self.compiled:
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
+        elif c is None:
+            return self.direction * self.get_value('mass_flow')[t]
+        else:
+            return self.direction * self.get_value('mass_flow')[t, c]
 
     def get_investment_cost(self):
         """
