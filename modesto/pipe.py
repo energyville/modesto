@@ -14,6 +14,7 @@ import modesto.utils as utils
 from modesto.parameter import DesignParameter, StateParameter, UserDataParameter, \
     SeriesParameter, WeatherDataParameter, \
     TimeSeriesParameter
+import math
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
@@ -152,6 +153,30 @@ class Pipe(Component):
                 warnings.warn('Warning: node not contained in this pipe')
                 exit(1)
 
+    def get_edge_temperature(self, node, t, line):
+        assert self.compiled, "Pipe %s has not been compiled yet" % self.name
+        if node == self.start_node:
+            if line == 'supply':
+                return self.get_value('Tin_sup')[0, t]
+            elif line == 'return':
+                return self.get_value('Tout_ret')[-1, t]
+            else:
+                raise ValueError(
+                    'The input line can only take the values from {}'.format(
+                        self.params['lines'].v()))
+        elif node == self.end_node:
+            if line == 'supply':
+                return self.get_value('Tout_sup')[-1, t]
+            elif line == 'return':
+                return self.get_value('Tin_ret')[0, t]
+            else:
+                raise ValueError(
+                    'The input line can only take the values from {}'.format(
+                        self.params['lines'].v()))
+        else:
+            warnings.warn('Warning: node not contained in this pipe')
+            exit(1)
+
     def get_edge_direction(self, node, line='supply'):
         assert self.opti is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
@@ -203,12 +228,22 @@ class SimplePipe(Pipe):
 
         if not self.compiled:
             if self.repr_days is None:
-                hf_in = self.add_var('heat_flow_in', self.n_steps)
-                hf_out = self.add_var('heat_flow_out', self.n_steps)
                 mf = self.add_var('mass_flow', self.n_steps)
 
-                for t in self.TIME:
-                    self.opti.subject_to(hf_in[t] == hf_out[t])
+                if self.temperature_driven:
+                    Tsup_in = self.add_var('Tsup_in', self.n_steps)
+                    Tsup_out = self.add_var('Tsup_out', self.n_steps)
+                    Tret_in = self.add_var('Tret_in', self.n_steps)
+                    Tret_out = self.add_var('Tret_out', self.n_steps)
+                    for t in self.TIME:
+                        self.opti.subject_to(Tsup_in[t] == Tsup_out[t])
+                        self.opti.subject_to(Tret_in[t] == Tret_out[t])
+
+                else:
+                    hf_in = self.add_var('heat_flow_in', self.n_steps)
+                    hf_out = self.add_var('heat_flow_out', self.n_steps)
+                    for t in self.TIME:
+                        self.opti.subject_to(hf_in[t] == hf_out[t])
 
             else:
                 raise Exception('Representative days have not yet been in implemented in Simple Pipe')
@@ -223,6 +258,115 @@ class SimplePipe(Pipe):
                 #                                   rule=_heat_flow)
 
         self.compiled = True
+
+
+class FiniteVolumePipe(Pipe):
+    def __init__(self, name, start_node, end_node,
+                 length, allow_flow_reversal=False, temperature_driven=True,
+                 repr_days=None):
+        """
+        Class that sets up a very simple model of pipe
+        No inertia, no time delays, heat_in = heat_out
+
+        :param name: Name of the pipe (str)
+        :param start_node: Name of the start_node (str)
+        :param end_node: Name of the stop_node (str)
+        :param length: Length of the pipe
+        :param allow_flow_reversal: Indication of whether flow reversal is allowed (bool)
+        """
+
+        Pipe.__init__(self,
+                      name=name,
+                      start_node=start_node,
+                      end_node=end_node,
+                      length=length,
+                      allow_flow_reversal=allow_flow_reversal,
+                      temperature_driven=temperature_driven,
+                      repr_days=repr_days)
+
+        pipe_catalog = self.get_pipe_catalog()
+        self.Rs = pipe_catalog['Rs']
+        self.di = pipe_catalog['Di']
+        self.n_volumes = 0
+
+    def create_params(self):
+        params = Pipe.create_params()
+
+        params['diameter'] = 20
+
+        params.update(
+            {'max_speed': DesignParameter('max_speed',
+                                          'Maximum speed of the water',
+                                          'm/s'),
+             'nr_of_volumes': DesignParameter('number_of_volumes',
+                                         'Number of finite volumes in the pipe',
+                                         '-',
+                                         val=0),
+             'Rs': DesignParameter('Rs',
+                                   'Thermal reistance between water and ground per unit of length',
+                                   'W/m/k'),
+             'Courant': DesignParameter('Courant',
+                                        'Courant number to ensure numerical stability, default is 1',
+                                        '-',
+                                        val=1),
+             'Tg': WeatherDataParameter('Tg',
+                                       'Undisturbed ground temperature',
+                                       'K'),}
+        )
+
+    def compile(self, model, start_time):
+        """
+        Compile the optimization model
+
+        :param model: The entire optimization model
+        :param block: The pipe model object
+        :param start_time: The optimization start_time
+
+        :return:
+        """
+        Component.compile(self, model, start_time)
+
+        # Parameters
+        Rs = self.add_opti_param('Rs')
+        l_vol = self.add_opti_param('l_vol')
+
+        Tg = self.params['Tg'].v()
+
+        # Variables
+        mf = self.add_var('mass_flow', self.n_steps)
+        Tin_sup = self.add_var('Tin_sup', self.n_volumes, self.n_steps)
+        Tout_sup = self.add_var('Tout_sup', self.n_volumes, self.n_steps)
+        Tin_ret = self.add_var('Tin_ret', self.n_volumes, self.n_steps)
+        Tout_ret = self.add_var('Tout_ret', self.n_volumes, self.n_steps)
+        Qloss_sup = self.add_var('Qloss', self.n_volumes, self.n_steps)
+        Qloss_ret = self.add_var('Qloss', self.n_volumes, self.n_steps)
+
+        # Energy balance
+        for t in self.TIME:
+            for v in range(self.n_volumes):
+                self.opti.subject_to(Qloss_sup[v, t] == Rs * l_vol * (Tin_sup[v, t] - Tg[v, t]))
+                self.opti.subject_to(Qloss_ret[v, t] == Rs * l_vol * (Tin_ret[v, t] - Tg[v, t]))
+
+                self.opti.subject_to(mf[t] * self.cp * (Tin_sup[v, t] - Tout_sup[v, t]) == Qloss_sup[v, t])
+                self.opti.subject_to(mf[t] * self.cp * (Tin_ret[v, t] - Tout_ret[v, t]) == Qloss_ret[v, t])
+
+        self.compiled = True
+
+    def set_parameters(self):
+        if not self.params['nr_of_volumes'].v() == 0:
+            self.n_volumes = self.params['nr_of_volumes'].v()
+        else:
+            vmax = self.params['max_speed'].v()
+            dt = self.params['time_step'].v()
+            co = self.params['Courant'].v()
+
+            l_vol = vmax*dt/co
+            self.n_volumes = math.ceil(self.length/l_vol)
+            print('{} has {} volumes'.format(self.name, self.n_volumes))
+
+        self.opti.set_value(self.get_opti_param('l_vol'), self.length/self.n_volumes)
+
+        self.opti.set_value(self.get_opti_param('Rs'), self.Rs[self.params['diameter'].v()])
 
 #
 # class ExtensivePipe(Pipe):
