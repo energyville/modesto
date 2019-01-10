@@ -7,7 +7,7 @@ from pkg_resources import resource_filename
 import matplotlib.pyplot as plt
 
 start_time = pd.Timestamp('20140101')
-horizon = 24*3600
+horizon = 3*3600
 time_step = 3600
 
 heat_profile = ut.read_time_data(resource_filename(
@@ -197,9 +197,10 @@ def test_substation():
     opti = Opti()
     ss = Substation('substation')
 
+    print(heat_profile['ZwartbergNEast'] / 350)
     ss_params = {
             'mult': 350,
-            'heat_profile': heat_profile['ZwartbergNEast']/350,
+            'heat_flow': heat_profile['ZwartbergNEast']/350,
             'temperature_radiator_in': 47 + 273.15,
             'temperature_radiator_out': 35 + 273.15,
             'temperature_supply_0': 60 + 273.15,
@@ -229,7 +230,7 @@ def test_substation():
         # print(opti.debug.x_describe(0))
         # print(ss.opti_vars)
 
-    hf = sol.value(ss.opti_params['heat_profile'])
+    hf = sol.value(ss.opti_params['heat_flow'])
     mf_sec = sol.value(ss.opti_params['mf_sec'])
     mf_prim = sol.value(ss.opti_vars['mf_prim'])
     Tpsup = sol.value(ss.opti_vars['Tpsup'])
@@ -267,10 +268,10 @@ def test_substation():
     # assert flag, 'The solution of the optimization problem is not correct'
 
 if __name__ == '__main__':
-    # test_fixed_profile_not_temp_driven()
-    # test_fixed_profile_temp_driven()
-    # test_producer_variable_not_temp_driven()
-    # test_producer_variable_temp_driven()
-    # test_simple_pipe()
+    test_fixed_profile_not_temp_driven()
+    test_fixed_profile_temp_driven()
+    test_producer_variable_not_temp_driven()
+    test_producer_variable_temp_driven()
+    test_simple_pipe()
     test_substation()
 
