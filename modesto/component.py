@@ -357,6 +357,217 @@ class FixedProfile(Component):
         self.opti.set_value(self.get_opti_param('heat_flow_tot'),
                             self.params['mult'].v() * self.params['heat_profile'].v())
 
+class Substation(Component):
+    def __init__(self, name=None,
+                 temperature_driven=True, repr_days=None):
+        """
+        Class for a component with a fixed heating profile
+
+        :param name: Name of the building
+        :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
+        """
+        Component.__init__(self,
+                           name=name,
+                           direction=-1,
+                           temperature_driven=temperature_driven,
+                           repr_days=repr_days)
+
+        self.params = self.create_params()
+
+    def create_params(self):
+        """
+        Creates all necessary parameters for the component
+
+        :returns
+        """
+
+        params = Component.create_params(self)
+
+        params.update({
+            'mult': DesignParameter('mult',
+                                    'Number of buildings in the cluster',
+                                    '-'),
+            'heat_profile': UserDataParameter('heat_profile',
+                                              'Heat use in one (average) building',
+                                              'W'),
+            'temperature_radiator_in': DesignParameter('temperature_radiator_in',
+                                                       'Temperature of the water coming into the radiator',
+                                                       'K',
+                                                       val=47 + 273.15
+                                                        ),
+            'temperature_radiator_out': DesignParameter('temperature_radiator_out',
+                                                        'Temperature of the water coming out of the radiator',
+                                                        'K',
+                                                        val=35 + 273.15
+                                                        ),
+            'temperature_supply_0': StateParameter('temperature_supply',
+                                                   'Initial supply temperature at the component',
+                                                   'K',
+                                                   'fixedVal',
+                                                   slack=True),
+            'temperature_return_0': StateParameter('temperature_return',
+                                                   'Initial return temperature at the component',
+                                                   'K',
+                                                    'fixedVal'),
+            'temperature_max': DesignParameter('temperature_max',
+                                               'Maximun allowed water temperature at the substation',
+                                               'K'),
+            'temperature_min': DesignParameter('temperature_min',
+                                               'Minimum allowed temperature at the substation',
+                                               'K'),
+            'lines': DesignParameter('lines',
+                                     unit='-',
+                                     description='List of names of the lines that can be found in the network, e.g. '
+                                                 '\'supply\' and \'return\'',
+                                     val=['supply', 'return']),
+            'thermal_size_HEx': DesignParameter('thermal_size_HEx',
+                                                'value describing the thermal size of the heat exchanger. It is not the'
+                                                'UA value, as the UA-value is dependent on mass flows',
+                                                'kg*W/K/s'),
+            'exponential_HEx': DesignParameter('exponential_HEx',
+                                               'Exponential describing the influence of the mass flow rates on the '
+                                               'UA value',
+                                               '-',
+                                               val=0.7),
+        })
+
+        return params
+
+    def compile(self, model, start_time):
+        """
+        Build the structure of fixed profile
+
+        :param model: The main optimization model
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :return:
+        """
+        Component.compile(self, model, start_time)
+
+        # Radiator
+        mf_sec =self.add_opti_param('mf_sec', self.n_steps)
+        hf = self.add_opti_param('heat_profile', self.n_steps)
+        Tsret = self.params['temperature_radiator_in'].v()
+        Tssup = self.params['temperature_radiator_out'].v()
+
+        # Heat exchanger
+        Tpsup = self.add_var('Tpsup', self.n_steps)
+        Tpret = self.add_var('Tpret', self.n_steps)
+        mf_prim = self.add_var('mf_prim', self.n_steps)
+        DTlm = self.add_var('DTlm', self.n_steps)
+        UA = self.add_var('UA', self.n_steps)
+        K = self.params['thermal_size_HEx'].v()
+        q = self.params['exponential_HEx'].v()
+        Tpsup0 = self.add_opti_param('temperature_supply_0')
+        Tpret0 = self.add_opti_param('temperature_return_0')
+
+        DTa = Tpsup - Tsret
+        DTb = Tpret - Tssup
+
+        for t in self.TIME:
+            self.opti.subject_to(
+                DTlm[t] == (DTa[t] - DTb[t]) / (log(DTa[t] / DTb[t]))) # TODO
+
+            self.opti.subject_to(hf[t] == UA[t] * DTlm[t])
+            self.opti.subject_to(UA[t] == K / (mf_prim[t]**-q + mf_sec[t]**-q))
+            self.opti.subject_to(hf[t] == mf_prim[t] * self.cp * (Tpsup[t] - Tpret[t]))
+
+        # Limitations to keep DTlm solvable
+        self.opti.subject_to(Tpsup >= Tsret + 1)
+        self.opti.subject_to(Tpret >= Tssup + 1)
+        self.opti.subject_to(DTa >= DTb + 0.1)
+
+        # Limitations to keep mf_prim solvable
+        self.opti.subject_to(mf_prim >= 0.01)
+
+        # TODO Keep inital temperatures mutable?
+        self.opti.set_initial(Tpsup, self.params['temperature_supply_0'].v())
+        self.opti.set_initial(Tpret, self.params['temperature_return_0'].v())
+        self.opti.set_initial(mf_prim, 1)
+
+
+        # TODO Nodig?
+        # # Initial temperatures
+        # self.opti.subject_to(Tpsup[0] == Tpsup0)
+        # self.opti.subject_to(Tpret[0] == Tpret0)
+
+        # TODO Nodig?
+        # uslack = self.make_slack('temperature_max_slack', self.n_steps)
+        # lslack = self.make_slack('temperature_min_slack', self.n_steps)
+        #
+        # ub = self.params['temperature_max'].v()
+        # lb = self.params['temperature_min'].v()
+        #
+        # for t in self.TIME:
+        #     self.constrain_value(temp[0, t], ub, ub=True, slack_variable=uslack)
+        #     self.constrain_value(temp[0, t], lb, ub=False, slack_variable=lslack)
+
+        self.logger.info('Optimization model {} {} compiled'.
+                         format(self.__class__, self.name))
+
+        self.compiled = True
+
+    def set_parameters(self):
+        Submodel.set_parameters(self)
+        self.opti.set_value(self.get_opti_param('mf_sec'),
+                            [self.params['heat_profile'].v(t) / self.cp /
+                             (self.params['temperature_radiator_in'].v() - self.params['temperature_radiator_out'].v())
+                             for t in self.TIME])
+
+    def get_mflo(self, t, c=None):
+        """
+        Return mass_flow variable at time t
+
+        :param t:
+        :param compiled: If True, the compilation of the model is assumed to be finished. If False, other means to get to the mass flow are used
+        :return:
+        """
+        if not self.compiled:
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
+        elif c is None:
+            return self.direction * self.params['mult'].v() * self.get_value('mf_prim')[t]
+        else:
+            return self.direction * self.get_value('mass_flow_tot')[t, c]
+
+    def get_temperature(self, t, line):
+        """
+        Return temperature in one of both lines at time t
+
+        :param t: time
+        :param line: 'supply' or 'return'
+        :return:
+        """
+        if not self.compiled:
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
+        if not line in self.params['lines'].v():
+            raise KeyError(
+                'The input line can only take the values from {}'.format(
+                    self.params['lines'].v()))
+        if not t in self.TIME:
+            raise KeyError(
+                '{} is not a valid point in time'.format(t)
+            )
+
+        if line == 'supply':
+            return self.get_value('Tpsup')[t]
+        else:
+            return self.get_value('Tpret')[t]
+
+    def get_heat(self, t, c=None):
+        """
+        Return heat_flow variable at time t
+
+        :param t:
+        :return:
+        """
+        if not self.compiled:
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
+        elif c is None:
+            return self.direction * self.get_value('heat_profile')[t]
+        else:
+            return self.direction * self.get_value('heat_profile')[t, c]
 
 class BuildingFixed(FixedProfile):
     def __init__(self, name, temperature_driven=False, repr_days=None):

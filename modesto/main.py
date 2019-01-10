@@ -185,42 +185,7 @@ class Modesto:
 
         :return:
         """
-
-        slack = self.opti.variable()
-
-        self.opti.subject_to(slack == 10**6 * sum(
-            comp.obj_slack() for comp in self.iter_components()
-        ))
-
-        energy = self.opti.variable()
-        cost = self.opti.variable()
-        cost_ramp = self.opti.variable()
-        co2 = self.opti.variable()
-        co2_fuel_cost = self.opti.variable()
-
-        self.opti.subject_to(energy == sum(comp.obj_energy() for comp in self.iter_components()))
-        self.opti.subject_to(cost == sum(comp.obj_fuel_cost() + comp.obj_elec_cost()
-                                                 for comp in self.iter_components()))
-        self.opti.subject_to(cost_ramp == sum(comp.obj_cost_ramp() for comp in self.iter_components()))
-        self.opti.subject_to(co2 == sum(comp.obj_co2() for comp in self.iter_components()))
-        self.opti.subject_to(co2_fuel_cost == sum(comp.obj_co2_cost() + comp.obj_fuel_cost()
-                                                          for comp in self.iter_components()))
-
-        self.objectives = {
-            'energy': energy,
-            'cost': cost,
-            'cost_ramp': cost_ramp,
-            'co2': co2,
-            'cost_fuel_co2': co2_fuel_cost,
-            'slack': slack
-        }
-
-        if self.temperature_driven:
-            temp = self.opti.variable()
-
-            self.opti.subject_to(cost_ramp == slack + sum(comp.obj_temp() for comp in self.iter_components()))
-
-            self.objectives['temp'] = temp
+        pass
 
     def compile(self, start_time='20140101', recompile=False):
         """
@@ -321,12 +286,40 @@ class Modesto:
         :param objtype:
         :return:
         """
+
+        self.objectives = ['energy','cost','cost_ramp','co2','cost_fuel_co2','slack','temp']
+
+        slack = self.opti.variable()
+
+        self.opti.subject_to(slack == 10**6 * sum(
+            comp.obj_slack() for comp in self.iter_components()
+        ))
+
         if objtype not in self.objectives:
             raise ValueError('Choose an objective type from {}'.format(
                 self.objectives.keys()))
 
-        self.opti.minimize(self.objectives[objtype] + self.objectives['slack'])
-        self.act_objective = self.objectives[objtype]
+        obj = self.opti.variable()
+
+        if objtype == 'energy':
+            self.opti.subject_to(obj == sum(comp.obj_energy() for comp in self.iter_components()))
+        elif objtype == 'cost':
+            self.opti.subject_to(obj == sum(comp.obj_fuel_cost() + comp.obj_elec_cost()
+                                                 for comp in self.iter_components()))
+        elif objtype == 'cost_ramp':
+            self.opti.subject_to(obj == sum(comp.obj_cost_ramp() for comp in self.iter_components()))
+        elif objtype == 'co2':
+            self.opti.subject_to(obj == sum(comp.obj_co2() for comp in self.iter_components()))
+        elif objtype == 'cost_fuel_co2':
+            self.opti.subject_to(obj == sum(comp.obj_co2_cost() + comp.obj_fuel_cost()
+                                                          for comp in self.iter_components()))
+        elif objtype == 'slack':
+            self.opti.subject_to(obj == 0)
+        elif objtype == 'temp':
+            self.opti.subject_to(obj == sum(comp.obj_temp() for comp in self.iter_components()))
+
+        self.opti.minimize(obj + slack)
+        self.act_objective = objtype
 
         self.logger.debug('{} objective set'.format(objtype))
 
@@ -405,7 +398,10 @@ class Modesto:
         self.set_parameters()
 
         t0 = time.time()
-        self.results = self.opti.solve()
+        try:
+            self.results = self.opti.solve()
+        except:
+            raise Exception('Optimization failed')
         print('\nTime to solve: ', time.time() - t0, '\n')
 
         # if solver == 'gurobi':
