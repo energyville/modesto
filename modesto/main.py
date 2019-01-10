@@ -14,7 +14,7 @@ import time
 
 
 class Modesto:
-    def __init__(self, pipe_model, graph, repr_days=None):
+    def __init__(self, pipe_model, graph, repr_days=None, temperature_driven=True):
         """
         This class allows setting up optimization problems for district energy systems
 
@@ -32,10 +32,7 @@ class Modesto:
         self.results = None
 
         self.pipe_model = pipe_model
-        if pipe_model == 'NodeMethod':
-            self.temperature_driven = True
-        else:
-            self.temperature_driven = False
+        self.temperature_driven = temperature_driven
 
         self.allow_flow_reversal = True
         self.start_time = None
@@ -471,7 +468,8 @@ class Modesto:
         # return status
 
     def opt_settings(self, objective=None,
-                     pipe_model=None, allow_flow_reversal=None):
+                     pipe_model=None, allow_flow_reversal=None,
+                     temperature_driven=False):
         """
         Change the setting of the optimization problem
 
@@ -486,6 +484,8 @@ class Modesto:
             self.pipe_model = pipe_model
         if allow_flow_reversal is not None:
             self.allow_flow_reversal = allow_flow_reversal
+        if temperature_driven is not None:
+            self.temperature_driven = temperature_driven
 
     def change_general_param(self, param, val):
         """
@@ -651,31 +651,31 @@ class Modesto:
         #
         # return pd.Series(data=result, index=timeindex, name=resname)
 
-    def get_objective(self, objtype=None, get_value=True):
-        """
-        Return value of objective function. With no argument supplied, the active objective is returned. Otherwise, the
-        objective specified in the argument is returned.
-
-        :param objtype: Name of the objective to be returned. Default None: returns the active objective.
-        :param value: True if value of objective should be returned. If false, the objective object instance is returned.
-        :return:
-        """
-        if objtype is None:
-            # Find active objective
-            if self.act_objective is not None:
-                obj = self.act_objective
-            else:
-                raise ValueError('No active objective found.')
-
-        else:
-            assert objtype in self.objectives.keys(), 'Requested objective does not exist. Please choose from {}'.format(
-                self.objectives.keys())
-            obj = self.objectives[objtype]
-
-        if get_value:
-            return self.results.value(obj)
-        else:
-            return obj
+    # def get_objective(self, objtype=None, get_value=True):
+    #     """
+    #     Return value of objective function. With no argument supplied, the active objective is returned. Otherwise, the
+    #     objective specified in the argument is returned.
+    #
+    #     :param objtype: Name of the objective to be returned. Default None: returns the active objective.
+    #     :param value: True if value of objective should be returned. If false, the objective object instance is returned.
+    #     :return:
+    #     """
+    #     if objtype is None:
+    #         # Find active objective
+    #         if self.act_objective is not None:
+    #             obj = self.act_objective
+    #         else:
+    #             raise ValueError('No active objective found.')
+    #
+    #     else:
+    #         assert objtype in self.objectives, 'Requested objective does not exist. Please choose from {}'.format(
+    #             self.objectives)
+    #         obj = self.objectives[objtype]
+    #
+    #     if get_value:
+    #         return self.results.value(obj)
+    #     else:
+    #         return obj
 
     def collect_all_params(self):
         param_list = {None: {'general': self.params.values()}}
