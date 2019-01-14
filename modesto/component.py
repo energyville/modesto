@@ -1315,11 +1315,10 @@ class GeothermalHeating(VariableComponent):
             'fuel_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         if self.repr_days is None:
-            return sum(cost.v(t) / eta * self.block.Qnom / 3600 * self.params[
+            return self.block.Qnom * sum(cost.v(t) / eta / 3600 * self.params[
                 'time_step'].v() / 1000 for t in self.TIME)
         else:
-            return sum(self.repr_count[c] * cost.v(t, c) / eta *
-                       self.block.Qnom / 3600 * self.params[
+            return self.block.Qnom * sum(self.repr_count[c] * cost.v(t, c) / eta / 3600 * self.params[
                            'time_step'].v() / 1000 for t in self.TIME for c in
                        self.REPR_DAYS)
 
