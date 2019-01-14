@@ -1,12 +1,9 @@
-
-
 import logging
 
+import modesto.utils as ut
 import pandas as pd
 from pyomo.core import Param
 from scipy import interpolate
-
-import modesto.utils as ut
 
 
 class Parameter(object):
@@ -308,13 +305,9 @@ class SeriesParameter(Parameter):
         :param new_val: pd.Series object with lookup table
         :return:
         """
-
-        assert isinstance(new_val,
-                          pd.Series), 'new_val must be a pd.Series object. Got a {} instead.'.format(
-            type(new_val))
-
         self.value = new_val
-        self.value.index = self.value.index.astype('float')
+        if isinstance(new_val, pd.Series):
+            self.value.index = self.value.index.astype('float')
 
     def get_value(self, index):
         """
