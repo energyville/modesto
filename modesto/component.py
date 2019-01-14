@@ -1188,19 +1188,19 @@ class GeothermalHeating(VariableComponent):
             'efficiency': DesignParameter('efficiency',
                                           'Efficiency of the heat source',
                                           '-',
-                                          val=22  # Assuming input of 8 units for output of 176 units, see DEA 2012
+                                          val=4.5  # see DEA 2012 with electric heat pump
                                           ),
             'cost_inv': SeriesParameter('cost_inv',
                                         description='Investment cost as a function of Qmax',
                                         unit='EUR',
                                         unit_index='W',
-                                        val=8
+                                        val=1.6
                                         ),
             'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
                                         mutable=False, val=25),  # 15y for CHP
             'fix_maint': DesignParameter('fix_maint', unit='-',
                                          description='Annual maintenance cost as a fixed proportion of the investment',
-                                         mutable=False, val=0.025  # Value from DEA: 49k EUR/MW on 2M EUR/MW investment
+                                         mutable=False, val=0.025  # Value from DEA: 37k EUR/MW on 1.6M EUR/MW investment
                                          ),
             'temperature_supply': DesignParameter('temperature_supply', unit='K',
                                                   description='Supply temperature to the network', mutable=True),
