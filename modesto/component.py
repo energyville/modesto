@@ -1,9 +1,8 @@
-
-
 import logging
 import sys
-from math import pi, log, exp
 from functools import reduce
+from math import pi, log, exp
+
 import pandas as pd
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
@@ -787,12 +786,12 @@ class ProducerVariable(VariableComponent):
 
             def _limit_temperatures_u(b, t):
                 return b.temperatures['supply', t] <= self.params[
-                           'temperature_max'].v()
+                    'temperature_max'].v()
 
             self.block.limit_temperatures_l = Constraint(self.TIME,
-                                                       rule=_limit_temperatures_l)
+                                                         rule=_limit_temperatures_l)
             self.block.limit_temperatures_u = Constraint(self.TIME,
-                                                       rule=_limit_temperatures_u)
+                                                         rule=_limit_temperatures_u)
 
             def _decl_temperatures(b, t):
                 if t == 0:
@@ -1159,6 +1158,208 @@ class ProducerVariable(VariableComponent):
                 self.TIME for c in self.REPR_DAYS)
 
 
+class GeothermalHeating(VariableComponent):
+    def __init__(self, name, temperature_driven=False, heat_var=0.05, repr_days=None):
+        """
+                Class that describes a variable producer
+
+                :param name: Name of the building
+                """
+
+        if temperature_driven:
+            raise (ValueError('GeothermalHeating plant is not yet compatible with temperature driven models.'))
+
+        VariableComponent.__init__(self,
+                                   name=name,
+                                   direction=1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var,
+                                   repr_days=repr_days)
+
+        self.params = self.create_params()
+
+        self.logger = logging.getLogger('modesto.components.GeothermalHeating')
+        self.logger.info('Initializing GeothermalHeating {}'.format(name))
+
+    def create_params(self):
+
+        params = VariableComponent.create_params(self)
+        params.update({
+            'efficiency': DesignParameter('efficiency',
+                                          'Efficiency of the heat source',
+                                          '-',
+                                          val=22  # Assuming input of 8 units for output of 176 units, see DEA 2012
+                                          ),
+            'cost_inv': SeriesParameter('cost_inv',
+                                        description='Investment cost as a function of Qmax',
+                                        unit='EUR',
+                                        unit_index='W',
+                                        val=8
+                                        ),
+            'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
+                                        mutable=False, val=25),  # 15y for CHP
+            'fix_maint': DesignParameter('fix_maint', unit='-',
+                                         description='Annual maintenance cost as a fixed proportion of the investment',
+                                         mutable=False, val=0.025  # Value from DEA: 49k EUR/MW on 2M EUR/MW investment
+                                         ),
+            'temperature_supply': DesignParameter('temperature_supply', unit='K',
+                                                  description='Supply temperature to the network', mutable=True),
+            'temperature_return': DesignParameter('temperature_return', unit='K',
+                                                  description='Return temperature from the network', mutable=True),
+            'PEF': DesignParameter('PEF',
+                                   'Factor to convert heat source to primary energy',
+                                   '-'),
+            'CO2': DesignParameter('CO2',
+                                   'amount of CO2 released when using primary energy source',
+                                   'kg/kWh'),
+            'fuel_cost': UserDataParameter('fuel_cost',
+                                           'cost of fuel to generate heat',
+                                           'euro/kWh'),
+            'Qnom': DesignParameter('Qnom',
+                                    'Nominal fixed heat output',
+                                    'W',
+                                    mutable=True),
+            'CO2_price': UserDataParameter('CO2_price',
+                                           'CO2 price',
+                                           'euro/kg CO2')
+        })
+
+        return params
+
+    def compile(self, model, start_time):
+        """
+        Build the structure of a producer model
+
+        :return:
+        """
+        VariableComponent.compile(self, model, start_time)
+
+        if not self.compiled:
+            if self.repr_days is None:
+
+                self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
+
+                def _mass_ub(m, t):
+                    return m.mass_flow[t] * (
+                            1 + self.heat_var) * self.cp * (m.temperature_supply - m.temperature_return) >= m.Qnom
+
+                def _mass_lb(m, t):
+                    return m.mass_flow[t] * self.cp * (m.temperature_supply - m.temperature_return) <= m.Qnom
+
+                self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+            else:
+                self.block.mass_flow = Var(self.TIME,
+                                           self.REPR_DAYS,
+                                           within=NonNegativeReals)
+
+                def _mass_ub(m, t, c):
+                    return m.mass_flow[t, c] * (
+                            1 + self.heat_var) * self.cp * (m.temperature_supply - m.temperature_return) >= m.Qnom
+
+                def _mass_lb(m, t, c):
+                    return m.mass_flow[t, c] * self.cp * (m.temperature_supply - m.temperature_return) <= m.Qnom
+
+                self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_ub)
+
+        self.compiled = True
+
+    def get_investment_cost(self):
+        """
+        Get investment cost of variable producer as a function of the nominal power rating.
+
+        :return: Cost in EUR
+        """
+        return self.params['cost_inv'].v(self.params['Qnom'].v())
+
+    def obj_energy(self):
+        """
+        Generator for energy objective variables to be summed
+        Unit: kWh (primary energy)
+
+        :return:
+        """
+
+        eta = self.params['efficiency'].v()
+        pef = self.params['PEF'].v()
+
+        if self.repr_days is None:
+            return pef / eta * self.params['Qnom'].v() * sum(self.params[
+                                                                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        else:
+            return pef / eta * self.params['Qnom'].v() * sum(
+                self.repr_count[c] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME for c in
+                self.REPR_DAYS)
+
+    def obj_fuel_cost(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.params[
+            'fuel_cost']  # cost consumed heat source (fuel/electricity)
+        eta = self.params['efficiency'].v()
+        if self.repr_days is None:
+            return sum(cost.v(t) / eta * self.get_heat(t) / 3600 * self.params[
+                'time_step'].v() / 1000 for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * cost.v(t, c) / eta *
+                       self.get_heat(t, c) / 3600 * self.params[
+                           'time_step'].v() / 1000 for t in self.TIME for c in
+                       self.REPR_DAYS)
+
+    def obj_co2(self):
+        """
+        Generator for CO2 objective variables to be summed
+        Unit: kg CO2
+
+        :return:
+        """
+        # TODO this needs to be checked
+        eta = self.params['efficiency'].v()
+        pef = self.params['PEF'].v()
+        co2 = self.params[
+            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        if self.repr_days is None:
+            return sum(co2 / eta * self.get_heat(t) * self.params[
+                'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * co2 / eta * self.get_heat(t, c) *
+                       self.params[
+                           'time_step'].v() / 3600 / 1000 for t in self.TIME for
+                       c in
+                       self.REPR_DAYS)
+
+    def obj_co2_cost(self):
+        """
+        Generator for CO2 cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        # TODO check this
+        eta = self.params['efficiency'].v()
+        pef = self.params['PEF'].v()
+        co2 = self.params[
+            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2_price = self.params['CO2_price']
+
+        if self.repr_days is None:
+            return sum(
+                co2_price.v(t) * co2 / eta * self.get_heat(t) * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in
+                self.TIME)
+        else:
+            return sum(
+                co2_price.v(t, c) * co2 / eta * self.get_heat(t, c
+                                                              ) * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in
+                self.TIME for c in self.REPR_DAYS)
+
+
 class SolarThermalCollector(VariableComponent):
     def __init__(self, name, temperature_driven=False, heat_var=0.15,
                  repr_days=None):
@@ -1239,7 +1440,7 @@ class SolarThermalCollector(VariableComponent):
                                         mutable=False, val=20),
             'fix_maint': DesignParameter('fix_maint', unit='-',
                                          description='Annual maintenance cost as a fixed proportion of the investment',
-                                         mutable=False, val=0.05) # TODO find statistics
+                                         mutable=False, val=0.05)  # TODO find statistics
         })
 
         params['solar_profile'].change_value(ut.read_time_data(datapath,
@@ -1775,24 +1976,26 @@ class StorageCondensed(StorageVariable):
 
             def _limit_initial_repetition_l(b, t):
                 return 0 <= b.soc[t, 0]
+
             def _limit_initial_repetition_u(b, t):
                 return b.soc[t, 0] <= 100
 
             def _limit_final_repetition_l(b, t):
                 return 0 <= b.heat_stor[t, R - 1]
+
             def _limit_final_repetition_u(b, t):
                 return b.heat_stor[t, R - 1] <= 100
 
             self.block.limit_init_l = Constraint(self.X_TIME,
-                                               rule=_limit_initial_repetition_l)
+                                                 rule=_limit_initial_repetition_l)
             self.block.limit_init_u = Constraint(self.X_TIME,
-                                               rule=_limit_initial_repetition_u)
+                                                 rule=_limit_initial_repetition_u)
 
             if R > 1:
                 self.block.limit_final_l = Constraint(self.TIME,
-                                                    rule=_limit_final_repetition_l)
+                                                      rule=_limit_final_repetition_l)
                 self.block.limit_final_u = Constraint(self.TIME,
-                                                    rule=_limit_final_repetition_u)
+                                                      rule=_limit_final_repetition_u)
 
             init_type = self.params['heat_stor'].init_type
             if init_type == 'free':
