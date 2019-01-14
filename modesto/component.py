@@ -1265,6 +1265,18 @@ class GeothermalHeating(VariableComponent):
 
         self.compiled = True
 
+
+    def get_heat(self, t, c=None):
+        """
+        Get heat output for this component
+
+        :param t: time variable
+        :param c: representative week variable
+        :return:
+        """
+
+        return self.block.Qnom
+
     def get_investment_cost(self):
         """
         Get investment cost of variable producer as a function of the nominal power rating.
