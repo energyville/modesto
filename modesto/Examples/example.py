@@ -51,7 +51,7 @@ def construct_model():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(pipe_model='SimplePipe', graph=G)
+    optmodel = Modesto(pipe_model='SimplePipe', graph=G, temperature_driven=False)
 
     ##################################
     # Fill in the parameters         #
@@ -207,12 +207,12 @@ if __name__ == '__main__':
     print('spZwartbergNE: ', optmodel.get_result('mass_flow',
                                                  comp='spZwartbergNE'))
 
-    # Objectives
-    print('\nObjective function')
-    print('Slack: ', optmodel.get_objective('slack'))
-    print('Energy:', optmodel.get_objective('energy'))
-    print('Cost:  ', optmodel.get_objective('cost'))
-    print('Active:', optmodel.get_objective())
+    # # Objectives
+    # print('\nObjective function')
+    # print('Slack: ', optmodel.get_objective('slack'))
+    # print('Energy:', optmodel.get_objective('energy'))
+    # print('Cost:  ', optmodel.get_objective('cost'))
+    # print('Active:', optmodel.get_objective())
 
     fig = plt.figure()
 

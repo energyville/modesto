@@ -153,30 +153,6 @@ class Pipe(Component):
                 warnings.warn('Warning: node not contained in this pipe')
                 exit(1)
 
-    def get_edge_temperature(self, node, t, line):
-        assert self.compiled, "Pipe %s has not been compiled yet" % self.name
-        if node == self.start_node:
-            if line == 'supply':
-                return self.get_value('Tin_sup')[0, t]
-            elif line == 'return':
-                return self.get_value('Tout_ret')[-1, t]
-            else:
-                raise ValueError(
-                    'The input line can only take the values from {}'.format(
-                        self.params['lines'].v()))
-        elif node == self.end_node:
-            if line == 'supply':
-                return self.get_value('Tout_sup')[-1, t]
-            elif line == 'return':
-                return self.get_value('Tin_ret')[0, t]
-            else:
-                raise ValueError(
-                    'The input line can only take the values from {}'.format(
-                        self.params['lines'].v()))
-        else:
-            warnings.warn('Warning: node not contained in this pipe')
-            exit(1)
-
     def get_edge_direction(self, node, line='supply'):
         assert self.opti is not None, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
@@ -239,6 +215,10 @@ class SimplePipe(Pipe):
                         self.opti.subject_to(Tsup_in[t] == Tsup_out[t])
                         self.opti.subject_to(Tret_in[t] == Tret_out[t])
 
+                    # Initial guess
+                    self.opti.set_initial(Tsup_in, 20+273.15)
+                    self.opti.set_initial(mf, 1)
+
                 else:
                     hf_in = self.add_var('heat_flow_in', self.n_steps)
                     hf_out = self.add_var('heat_flow_out', self.n_steps)
@@ -259,6 +239,29 @@ class SimplePipe(Pipe):
 
         self.compiled = True
 
+    def get_edge_temperature(self, node, t, line):
+        assert self.compiled, "Pipe %s has not been compiled yet" % self.name
+        if node == self.start_node:
+            if line == 'supply':
+                return self.get_value('Tsup_in')[t]
+            elif line == 'return':
+                return self.get_value('Tret_out')[t]
+            else:
+                raise ValueError(
+                    'The input line can only take the values from {}'.format(
+                        self.params['lines'].v()))
+        elif node == self.end_node:
+            if line == 'supply':
+                return self.get_value('Tsup_out')[t]
+            elif line == 'return':
+                return self.get_value('Tret_in')[t]
+            else:
+                raise ValueError(
+                    'The input line can only take the values from {}'.format(
+                        self.params['lines'].v()))
+        else:
+            warnings.warn('Warning: node not contained in this pipe')
+            exit(1)
 
 class FiniteVolumePipe(Pipe):
     def __init__(self, name, start_node, end_node,
@@ -353,6 +356,7 @@ class FiniteVolumePipe(Pipe):
         self.compiled = True
 
     def set_parameters(self):
+        Pipe.set_parameters()
         if not self.params['nr_of_volumes'].v() == 0:
             self.n_volumes = self.params['nr_of_volumes'].v()
         else:
@@ -368,6 +372,30 @@ class FiniteVolumePipe(Pipe):
 
         self.opti.set_value(self.get_opti_param('Rs'), self.Rs[self.params['diameter'].v()])
 
+    def get_edge_temperature(self, node, t, line):
+        assert self.compiled, "Pipe %s has not been compiled yet" % self.name
+        if node == self.start_node:
+            if line == 'supply':
+                return self.get_value('Tsup_in')[0, t]
+            elif line == 'return':
+                print(self.get_value('Tret_out').shape)
+                return self.get_value('Tret_out')[-1, t]
+            else:
+                raise ValueError(
+                    'The input line can only take the values from {}'.format(
+                        self.params['lines'].v()))
+        elif node == self.end_node:
+            if line == 'supply':
+                return self.get_value('Tsup_out')[-1, t]
+            elif line == 'return':
+                return self.get_value('Tret_in')[0, t]
+            else:
+                raise ValueError(
+                    'The input line can only take the values from {}'.format(
+                        self.params['lines'].v()))
+        else:
+            warnings.warn('Warning: node not contained in this pipe')
+            exit(1)
 #
 # class ExtensivePipe(Pipe):
 #     def __init__(self, name, start_node,

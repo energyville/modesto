@@ -761,6 +761,8 @@ class ProducerVariable(VariableComponent):
 
             # limit temperatures
             for t in self.TIME:
+                print(self.params['temperature_min'].v() <= temp[0, t])
+                print(self.params['temperature_max'].v() <= temp[0, t])
                 self.opti.subject_to(self.params['temperature_min'].v() <= temp[0, t])
                 self.opti.subject_to(self.params['temperature_max'].v() >= temp[0, t])
 
@@ -1171,23 +1173,29 @@ class Plant(VariableComponent):
 
         # Parameters:
         Qmax = self.add_opti_param('Qmax')
+        Qmax = self.add_opti_param('temperature_max')
+        Qmax = self.add_opti_param('temperature_min')
 
-        # Constraints
+        # Initial guess
+        self.opti.set_initial(mf, 1)
+        self.opti.set_initial(Tsup, 20+273.15)
+        self.opti.set_initial(Tret, 20+273.15)
+
+        # Energy balance
         for t in self.TIME:
             self.opti.subject_to(hf[t] == mf[t] * self.cp * (Tsup[t] - Tret[t]))
 
-        self.opti.subject_to(hf <= Qmax)
-        self.opti.subject_to(hf >= 0)  # TODO Nodig?
+        # Limits
+        # self.opti.subject_to(hf <= Qmax)
+        self.opti.subject_to(hf >= 1000)  # TODO Nodig?
+        self.opti.subject_to(hf >= 1000)
+        self.opti.subject_to(hf >= 1000)
 
+        # Initial guess
         self.compiled = True
 
     def set_parameters(self):
         Submodel.set_parameters(self)
-
-        if self.temperature_driven:
-            self.opti.set_value(self.get_opti_param('mass_flow_tot'), self.params['mass_flow'].v())
-            self.opti.set_value(self.get_opti_param('Tsupply_0'), self.params['temperature_supply'].v())
-            self.opti.set_value(self.get_opti_param('Treturn_0'), self.params['temperature_return'].v())
 
     def get_ramp_cost(self, t, c=None):
         if c is None:
@@ -1225,6 +1233,31 @@ class Plant(VariableComponent):
             return self.direction * self.get_value('mass_flow')[t]
         else:
             return self.direction * self.get_value('mass_flow')[t, c]
+
+    def get_temperature(self, t, line):
+        """
+        Return temperature in one of both lines at time t
+
+        :param t: time
+        :param line: 'supply' or 'return'
+        :return:
+        """
+        if not self.compiled:
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
+        if not line in self.params['lines'].v():
+            raise KeyError(
+                'The input line can only take the values from {}'.format(
+                    self.params['lines'].v()))
+        if not t in self.TIME:
+            raise KeyError(
+                '{} is not a valid point in time'.format(t)
+            )
+
+        if line == 'supply':
+            return self.get_value('Tsup')[t]
+        else:
+            return self.get_value('Tret')[t]
 
     def get_investment_cost(self):
         """
