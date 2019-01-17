@@ -398,6 +398,8 @@ class Modesto:
         try:
             self.results = self.opti.solve()
         except:
+            print(self.opti.debug.g_describe(2052))
+            print(self.opti.debug.x_describe(0))
             raise Exception('Optimization failed')
         print('\nTime to solve: ', time.time() - t0, '\n')
 
@@ -573,7 +575,7 @@ class Modesto:
                 'There is no component named {} at node {}'.format(name, node))
         return self.components[name]
 
-    def get_result(self, name, node=None, comp=None, index=None,
+    def get_result(self, name, node=None, comp=None, index1=None,
                    check_results=True, state=False):
         """
         Returns the numerical values of a certain parameter or time-dependent variable after optimization
@@ -603,7 +605,10 @@ class Modesto:
 
         result = self.results.value(opti_obj)
 
-        return pd.Series(data=result, index=time, name=name)
+        if len(result.shape) == 1:
+            return pd.Series(data=result, index=time, name=name)
+        else:
+            return pd.DataFrame(data=result.transpose(), index=time)
 
 
 
@@ -1188,7 +1193,6 @@ class Node(Submodel):
                     outgoing_comps['supply'].append(name)
 
             for name, pipe in p.items():
-                print('\n', name)
                 if pipe.get_edge_direction(self.name) == 1:
                     incoming_pipes['supply'].append(name)
                     outgoing_pipes['return'].append(name)
@@ -1197,6 +1201,7 @@ class Node(Submodel):
                     outgoing_pipes['supply'].append(name)
 
             mix_temp = self.add_var('mix_temp', self.n_steps, len(lines))
+            self.opti.set_initial(mix_temp, 20+273.15)
             for t in self.TIME:
                 for l, line in enumerate(lines):
                     # TODO No zero mass flow implemented!
@@ -1208,13 +1213,13 @@ class Node(Submodel):
                             for comp in incoming_comps[line]) + \
                         sum(p[pipe].get_edge_mflo(self.name, t) * p[pipe].get_edge_temperature(self.name, t, line)
                             for pipe in incoming_pipes[line]))
-            #
-            #         for comp in list(c.keys()) + list(p.keys()):
-            #             if comp in outgoing_pipes[line]:
-            #                 self.opti.subject_to(p[comp].get_edge_temperature(self.name, t, line) == \
-            #                                     mix_temp[t, l])
-            #             elif comp in outgoing_comps[line]:
-            #                 self.opti.subject_to(c[comp].get_temperature(t, line) == mix_temp[t, l])
+
+                    for comp in list(c.keys()) + list(p.keys()):
+                        if comp in outgoing_pipes[line]:
+                            self.opti.subject_to(p[comp].get_edge_temperature(self.name, t, line) == \
+                                                mix_temp[t, l])
+                        elif comp in outgoing_comps[line]:
+                            self.opti.subject_to(c[comp].get_temperature(t, line) == mix_temp[t, l])
 
         elif self.repr_days is None:
 

@@ -263,6 +263,7 @@ class SimplePipe(Pipe):
             warnings.warn('Warning: node not contained in this pipe')
             exit(1)
 
+
 class FiniteVolumePipe(Pipe):
     def __init__(self, name, start_node, end_node,
                  length, allow_flow_reversal=False, temperature_driven=True,
@@ -290,32 +291,42 @@ class FiniteVolumePipe(Pipe):
         pipe_catalog = self.get_pipe_catalog()
         self.Rs = pipe_catalog['Rs']
         self.di = pipe_catalog['Di']
+
         self.n_volumes = 0
 
-    def create_params(self):
-        params = Pipe.create_params()
+    def calculate_n_volumes(self):
+        vmax = self.params['max_speed'].v()
+        dt = self.params['time_step'].v()
+        co = self.params['Courant'].v()
 
-        params['diameter'] = 20
+        l_vol = vmax * dt / co
+        self.n_volumes = math.ceil(self.length / l_vol)
+        print('{} has {} volumes, one element has a length of {}'.format(self.name, self.n_volumes, self.length/self.n_volumes))
+
+    def create_params(self):
+        params = Pipe.create_params(self)
+
+        params['diameter'].change_value(20)
 
         params.update(
             {'max_speed': DesignParameter('max_speed',
                                           'Maximum speed of the water',
-                                          'm/s'),
-             'nr_of_volumes': DesignParameter('number_of_volumes',
-                                         'Number of finite volumes in the pipe',
-                                         '-',
-                                         val=0),
+                                          'm/s',
+                                          val=3),
              'Rs': DesignParameter('Rs',
                                    'Thermal reistance between water and ground per unit of length',
-                                   'W/m/k'),
+                                   'W/m/k',
+                                    val=0),
              'Courant': DesignParameter('Courant',
                                         'Courant number to ensure numerical stability, default is 1',
                                         '-',
                                         val=1),
              'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
-                                       'K'),}
+                                       'K')}
         )
+
+        return params
 
     def compile(self, model, start_time):
         """
@@ -328,67 +339,99 @@ class FiniteVolumePipe(Pipe):
         :return:
         """
         Component.compile(self, model, start_time)
+        self.calculate_n_volumes()
 
         # Parameters
-        Rs = self.add_opti_param('Rs')
-        l_vol = self.add_opti_param('l_vol')
-
+        Rs = self.Rs[self.params['diameter'].v()] # TODO self.add_opti_param('Rs')
+        Di = self.add_opti_param('Di')
+        l_vol = self.length/self.n_volumes
         Tg = self.params['Tg'].v()
+        m_vol = self.rho * l_vol * pi*Di**2/4
+        dt = self.params['time_step'].v()
 
         # Variables
         mf = self.add_var('mass_flow', self.n_steps)
-        Tin_sup = self.add_var('Tin_sup', self.n_volumes, self.n_steps)
-        Tout_sup = self.add_var('Tout_sup', self.n_volumes, self.n_steps)
-        Tin_ret = self.add_var('Tin_ret', self.n_volumes, self.n_steps)
-        Tout_ret = self.add_var('Tout_ret', self.n_volumes, self.n_steps)
-        Qloss_sup = self.add_var('Qloss', self.n_volumes, self.n_steps)
-        Qloss_ret = self.add_var('Qloss', self.n_volumes, self.n_steps)
+        Tsup = self.add_var('Tsup', self.n_volumes, self.n_steps)
+        Tret = self.add_var('Tret', self.n_volumes, self.n_steps)
+        Tsup_in = self.add_var('Tsup_in', self.n_steps)
+        Tret_in = self.add_var('Tret_in', self.n_steps)
+        Tsup_out = self.add_var('Tsup_out', self.n_steps)  # TODo Nodig?
+        Tret_out = self.add_var('Tret_out', self.n_steps)  # TODO Nodig?
+        Qloss_sup = self.add_var('Qloss_sup', self.n_volumes, self.n_steps)
+        Qloss_ret = self.add_var('Qloss_ret', self.n_volumes, self.n_steps)
+
+        # # Initial guess
+        # self.opti.set_initial(mf, 200)
+        # self.opti.set_initial(Tsup, 70+273.15)
+        # self.opti.set_initial(Tret, 50+273.15)
+        # self.opti.set_initial(Tsup_in, 20+273.15)
+        # self.opti.set_initial(Tsup_out, 20+273.15)
+        # self.opti.set_initial(Tret_in, 20+273.15)
+        # self.opti.set_initial(Tret_out, 20+273.15)
+
+        # TODO Initialize temperatures of each volume?
+
+        # Initialize temperatures
+        self.opti.subject_to(Tsup[:, 0] == 70+273.15)
+        # self.opti.subject_to(Tsup[:, 0] >= 5+273.15)
+        # self.opti.subject_to(Tret[:, 0] <= 95+273.15)
+        self.opti.subject_to(Tret[:, 0] == 50+273.15)
 
         # Energy balance
         for t in self.TIME:
             for v in range(self.n_volumes):
-                self.opti.subject_to(Qloss_sup[v, t] == Rs * l_vol * (Tin_sup[v, t] - Tg[v, t]))
-                self.opti.subject_to(Qloss_ret[v, t] == Rs * l_vol * (Tin_ret[v, t] - Tg[v, t]))
+                self.opti.subject_to(Qloss_sup[v, t] == (Tsup[v, t] - Tg[t]) / (Rs/l_vol))#
+                self.opti.subject_to(Qloss_ret[v, t] == (Tret[v, t] - Tg[t]) / (Rs/l_vol))#
 
-                self.opti.subject_to(mf[t] * self.cp * (Tin_sup[v, t] - Tout_sup[v, t]) == Qloss_sup[v, t])
-                self.opti.subject_to(mf[t] * self.cp * (Tin_ret[v, t] - Tout_ret[v, t]) == Qloss_ret[v, t])
+        for t in self.TIME[1:]:
+            for v in range(self.n_volumes):
+                if v == 0:
+                    Tsi = Tsup_in[t]
+                    Tri = Tret_in[t]
+                else:
+                    Tsi = Tsup[v-1, t]
+                    Tri = Tret[v-1, t]
+
+                self.opti.subject_to(self.cp * m_vol * (Tsup[v, t] - Tsup[v, t-1]) ==
+                                     (mf[t] * self.cp * (Tsi - Tsup[v, t]) - Qloss_sup[v, t]) * dt)#
+                self.opti.subject_to(self.cp * m_vol * (Tret[v, t] - Tret[v, t-1]) ==
+                                     (mf[t] * self.cp * (Tri - Tret[v, t]) - Qloss_ret[v, t]) * dt)#
+
+        self.opti.subject_to(Tret_out == Tret[-1, :].T)
+        self.opti.subject_to(Tsup_out == Tsup[-1, :].T)
+
+        self.opti.subject_to(Tsup_out >= Tret_in + 1)
 
         self.compiled = True
 
     def set_parameters(self):
-        Pipe.set_parameters()
-        if not self.params['nr_of_volumes'].v() == 0:
-            self.n_volumes = self.params['nr_of_volumes'].v()
-        else:
-            vmax = self.params['max_speed'].v()
-            dt = self.params['time_step'].v()
-            co = self.params['Courant'].v()
+        Pipe.set_parameters(self)
 
-            l_vol = vmax*dt/co
-            self.n_volumes = math.ceil(self.length/l_vol)
-            print('{} has {} volumes'.format(self.name, self.n_volumes))
+        # self.opti.set_value(self.get_opti_param('l_vol'), self.length/self.n_volumes)
 
-        self.opti.set_value(self.get_opti_param('l_vol'), self.length/self.n_volumes)
+        # if not self.params['Rs'].v() == 0:
+        #     self.opti.set_value(self.get_opti_param('Rs'), self.Rs[self.params['diameter'].v()])
+        # else:
+        #     self.opti.set_value(self.get_opti_param('Rs'), self.params['Rs'].v())
 
-        self.opti.set_value(self.get_opti_param('Rs'), self.Rs[self.params['diameter'].v()])
+        self.opti.set_value(self.get_opti_param('Di'), self.di[self.params['diameter'].v()])
 
     def get_edge_temperature(self, node, t, line):
         assert self.compiled, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             if line == 'supply':
-                return self.get_value('Tsup_in')[0, t]
+                return self.get_value('Tsup_in')[t]
             elif line == 'return':
-                print(self.get_value('Tret_out').shape)
-                return self.get_value('Tret_out')[-1, t]
+                return self.get_value('Tret_out')[t]
             else:
                 raise ValueError(
                     'The input line can only take the values from {}'.format(
                         self.params['lines'].v()))
         elif node == self.end_node:
             if line == 'supply':
-                return self.get_value('Tsup_out')[-1, t]
+                return self.get_value('Tsup_out')[t]
             elif line == 'return':
-                return self.get_value('Tret_in')[0, t]
+                return self.get_value('Tret_in')[t]
             else:
                 raise ValueError(
                     'The input line can only take the values from {}'.format(

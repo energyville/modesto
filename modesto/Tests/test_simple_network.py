@@ -12,8 +12,8 @@ def test_simple_network():
     #     Main Settings       #
     ###########################
 
-    n_steps = 3 * 1
-    time_step = 3600
+    horizon = 0.5*3600
+    time_step = 30
     start_time = pd.Timestamp('20140604')
 
     ###########################
@@ -23,9 +23,9 @@ def test_simple_network():
     def construct_model():
         G = nx.DiGraph()
 
-        G.add_node('ThorPark', x=4000, y=4000, z=0,
+        G.add_node('ThorPark', x=0, y=0, z=0,
                    comps={'plant': 'Plant'})
-        G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
+        G.add_node('waterscheiGarden', x=200, y=0, z=0,
                    comps={'buildingD': 'Substation'})
         G.add_edge('ThorPark', 'waterscheiGarden', name='pipe')
 
@@ -33,8 +33,8 @@ def test_simple_network():
         # Set up the optimization problem #
         ###################################
 
-        optmodel = Modesto(pipe_model='SimplePipe', graph=G, temperature_driven=True)
-        optmodel.opt_settings(allow_flow_reversal=True)
+        optmodel = Modesto(pipe_model='FiniteVolumePipe', graph=G, temperature_driven=True)
+        optmodel.opt_settings(allow_flow_reversal=False)
 
         ##################################
         # Load data                      #
@@ -67,7 +67,7 @@ def test_simple_network():
                           'Q_sol_S': QsolS,
                           'Q_sol_N': QsolN,
                           'time_step': time_step,
-                          'horizon': n_steps * time_step,
+                          'horizon': horizon,
                           'elec_cost': c_f}
 
         optmodel.change_params(general_params)
@@ -87,7 +87,16 @@ def test_simple_network():
             'temperature_min': 40 + 273.15,
             'lines': ['supply', 'return'],
             'thermal_size_HEx': 15000,
-            'exponential_HEx': 0.7}
+            'exponential_HEx': 0.7
+        }
+
+        # building_params = {'delta_T': 20,
+        #                    'mult': 350,
+        #                    'heat_profile': heat_profile['ZwartbergNEast']/350,
+        #                    'temperature_return': 323.15,
+        #                    'temperature_supply': 303.15,
+        #                    'temperature_max': 363.15,
+        #                    'temperature_min': 283.15}
 
         optmodel.change_params(building_params, node='waterscheiGarden', comp='buildingD')
 
@@ -95,7 +104,11 @@ def test_simple_network():
         # Pipe parameters                #
         ##################################
 
-        pipe_params = {'diameter': 500}
+        pipe_params = {'diameter': 250,
+                       'max_speed': 3,
+                       'Courant': 1,
+                       'Tg': pd.Series(12+273.15, index=t_amb.index)
+                       }
 
         optmodel.change_params(pipe_params, comp='pipe')
 
@@ -112,8 +125,7 @@ def test_simple_network():
                        'fuel_cost': c_f,
                        # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                        'Qmax': 1.5e8,
-                       'ramp_cost': 0.01,
-                       'ramp': 1e8 / 3600,
+                       'ramp_cost': 0,
                        'CO2_price': c_f,
                        'temperature_max': 90 + 273.15,
                        'temperature_min': 5 + 273.15,
@@ -133,23 +145,26 @@ def test_simple_network():
         optmodel.compile(start_time=start_time)
         optmodel.set_objective('cost')
 
-        optmodel.solve(tee=True, mipgap=0.2, verbose=False)
+        optmodel.solve(tee=True, mipgap=0.2, verbose=False, maxiter=10000)
 
         ##################################
         # Collect results                #
         ##################################
 
-        # -- Efficiency calculation --
+        mult = 350
 
         # Heat flows
         prod_hf = optmodel.get_result('heat_flow', node='ThorPark', comp='plant')
         waterschei_hf = optmodel.get_result('heat_flow', node='waterscheiGarden',
-                                            comp='buildingD')
+                                            comp='buildingD')*mult
+        Q_loss_sup = optmodel.get_result('Qloss_sup', comp='pipe')
+        Q_loss_ret = optmodel.get_result('Qloss_ret', comp='pipe')
 
         # Mass flows
         prof_mf = optmodel.get_result('mass_flow', node='ThorPark', comp='plant')
-        build_mf = optmodel.get_result('mf_prim', node='waterscheiGarden', comp='buildingD')
-        rad_mf = optmodel.get_result('mf_sec', node='waterscheiGarden', comp='buildingD')
+        build_mf = optmodel.get_result('mf_prim', node='waterscheiGarden', comp='buildingD')*mult
+        rad_mf = optmodel.get_result('mf_sec', node='waterscheiGarden', comp='buildingD')*mult
+        # pipe_mf = optmodel.get_result('mass_flow', comp='pipe')
 
         # Temperatures
         prod_T_sup = optmodel.get_result('Tsup', node='ThorPark', comp='plant') - 273.15
@@ -160,6 +175,11 @@ def test_simple_network():
         pipe_T_ret_in = optmodel.get_result('Tret_in', comp='pipe') - 273.15
         pipe_T_sup_out = optmodel.get_result('Tsup_out', comp='pipe') - 273.15
         pipe_T_ret_out = optmodel.get_result('Tret_out', comp='pipe') - 273.15
+        pipe_T_sup_vol = optmodel.get_result('Tsup', comp='pipe') - 273.15
+        pipe_T_ret_vol = optmodel.get_result('Tret', comp='pipe') - 273.15
+
+        mix_temp_wg = optmodel.results.value(optmodel.components['waterscheiGarden'].get_value('mix_temp')) - 273.15
+        mix_temp_tp = optmodel.results.value(optmodel.components['ThorPark'].get_value('mix_temp')) - 273.15
 
         # Sum of heat flows
         prod_e = sum(prod_hf)
@@ -167,22 +187,19 @@ def test_simple_network():
 
         # Efficiency
         print('\nNetwork')
-        print('Efficiency', waterschei_e / prod_e * 100, '%')
+        print('Efficiency', waterschei_e / (prod_e + 0.00001) * 100, '%')
 
-        # # Objectives
-        # print('\nObjective function')
-        # print('Slack: ', optmodel.get_objective('slack'))
-        # print('Energy:', optmodel.get_objective('energy'))
-        # print('Cost:  ', optmodel.get_objective('cost'))
-        # print('Active:', optmodel.get_objective())
-
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(prod_hf, label='Producer')
-        ax.plot(waterschei_hf, label='Users and storage')  # , )])  #
-        ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
-        ax.set_title('Heat flows [W]')
-        ax.legend(loc='lower center', ncol=3)
+        fig, ax = plt.subplots(2, 1)
+        ax[0].plot(prod_hf, label='Producer')
+        ax[0].plot(waterschei_hf, label='Users and storage')  # , )])  #
+        ax[0].axhline(y=0, linewidth=2, color='k', linestyle='--')
+        ax[0].set_title('Heat flows [W]')
+        ax[0].legend()
+        for i in range(Q_loss_ret.shape[1]):
+            ax[1].plot(Q_loss_sup.iloc[:, i], label='Supply {}'.format(i+1))
+            # ax[1].plot(Q_loss_ret.iloc[:, i], label='Return {}'.format(i+1))  # , )])  #
+        ax[1].set_title('Heat losses pipe [W]')
+        ax[1].legend()
         fig.tight_layout()
 
         fig1, axarr = plt.subplots(2, 1)
@@ -190,30 +207,30 @@ def test_simple_network():
         axarr[0].set_title('Mass flow producer')
         axarr[1].plot(build_mf, label='primary')
         axarr[1].plot(rad_mf, label='secondary')
+        # axarr[1].plot(pipe_mf, label='pipe')
         axarr[1].set_title('Mass flows building')
         axarr[1].legend()
 
-        fig2, axarr = plt.subplots(2, 1)
+        fig2, axarr = plt.subplots(3, 1)
         axarr[0].plot(prod_T_sup, label='Producer Supply')
         axarr[0].plot(prod_T_ret, label='Producer Return')
         axarr[0].plot(build_T_sup, label='Building Supply')
         axarr[0].plot(build_T_ret, label='Building Return')
-        axarr[0].set_title('Temperatures')
         axarr[0].legend()
         axarr[1].plot(pipe_T_sup_out, label='Supply out')
-        axarr[1].plot(pipe_T_sup_in, label='Supply in')
+        axarr[1].plot(pipe_T_sup_in, label='Supply in', linestyle='--')
         axarr[1].plot(pipe_T_ret_out, label='Return out')
-        axarr[1].plot(pipe_T_ret_in, label='Return in')
+        axarr[1].plot(pipe_T_ret_in, label='Return in', linestyle='--')
         axarr[1].set_title('Pipe temperatures')
         axarr[1].legend()
 
-        fig3 = plt.figure()
-        ax3 = fig3.add_subplot(111)
-        ax3.plot(waterschei_hf, label='Waterschei')
-        ax3.axhline(y=0, linewidth=1.5, color='k', linestyle='--')
-        ax3.legend()
-        ax3.set_ylabel('Heat Flow [W]')
-        # ax3.tight_layout()
+        fig3, axarr = plt.subplots(1, 2)
+        for i in range(pipe_T_ret_vol.shape[1]):
+            axarr[0].plot(pipe_T_sup_vol.iloc[:, i], label='{}'.format(i+1))
+            axarr[1].plot(pipe_T_ret_vol.iloc[:, i], label='{}'.format(i+1), linestyle='--')
+        axarr[0].set_title('Supply')
+        axarr[1].set_title('Return')
+        axarr[0].legend()
 
         plt.show()
 

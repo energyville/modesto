@@ -117,7 +117,7 @@ class Component(Submodel):
                 '{} is not a valid point in time'.format(t)
             )
 
-        return self.get_value('temperatures')[self.params.v().index(line), t]
+        return self.get_value('temperatures')[self.params['lines'].v().index(line), t]
 
     def get_heat(self, t, c=None):
         """
@@ -278,10 +278,6 @@ class FixedProfile(Component):
         })
 
         if self.temperature_driven:
-            params['mass_flow'] = UserDataParameter('mass_flow',
-                                                    'Mass flow through one (average) building substation',
-                                                    'kg/s'
-                                                    )
             params['temperature_supply'] = StateParameter('temperature_supply',
                                                           'Initial supply temperature at the component',
                                                           'K',
@@ -465,25 +461,24 @@ class Substation(Component):
 
         for t in self.TIME:
             self.opti.subject_to(
-                DTlm[t] == (DTa[t] - DTb[t]) / (log(DTa[t] / DTb[t]))) # TODO
+                DTlm[t] == (DTa[t] - DTb[t] + 0.0001) / (log(DTa[t] / DTb[t])))  # TODO
 
             self.opti.subject_to(hf[t] == UA[t] * DTlm[t])
-            self.opti.subject_to(UA[t] == K / (mf_prim[t]**-q + mf_sec[t]**-q))
+            self.opti.subject_to(UA[t] == K / ((0.0001 + mf_prim[t])**-q + mf_sec[t]**-q))  #
             self.opti.subject_to(hf[t] == mf_prim[t] * self.cp * (Tpsup[t] - Tpret[t]))
 
-        # Limitations to keep DTlm solvable
-        self.opti.subject_to(Tpsup >= Tsret + 1)
-        self.opti.subject_to(Tpret >= Tssup + 1)
-        self.opti.subject_to(DTa >= DTb + 0.1)
-
-        # Limitations to keep mf_prim solvable
-        self.opti.subject_to(mf_prim >= 0.01)
+        # # Limitations to keep DTlm solvable
+        # self.opti.subject_to(Tpsup >= Tsret + 1)
+        # self.opti.subject_to(Tpret >= Tssup + 1)
+        # self.opti.subject_to(DTa >= DTb + 0.001)
+        #
+        # # Limitations to keep mf_prim solvable
+        # self.opti.subject_to(mf_prim >= 0.001) # TODO 0.01 maakt optimalisatie sneller, kleiner maakt stabieler?
 
         # TODO Keep inital temperatures mutable?
         self.opti.set_initial(Tpsup, self.params['temperature_supply_0'].v())
         self.opti.set_initial(Tpret, self.params['temperature_return_0'].v())
-        self.opti.set_initial(mf_prim, 1)
-
+        # self.opti.set_initial(mf_prim, 1)
 
         # TODO Nodig?
         # # Initial temperatures
@@ -1173,8 +1168,8 @@ class Plant(VariableComponent):
 
         # Parameters:
         Qmax = self.add_opti_param('Qmax')
-        Qmax = self.add_opti_param('temperature_max')
-        Qmax = self.add_opti_param('temperature_min')
+        Tmax = self.add_opti_param('temperature_max')
+        Tmin = self.add_opti_param('temperature_min')
 
         # Initial guess
         self.opti.set_initial(mf, 1)
@@ -1186,10 +1181,10 @@ class Plant(VariableComponent):
             self.opti.subject_to(hf[t] == mf[t] * self.cp * (Tsup[t] - Tret[t]))
 
         # Limits
-        # self.opti.subject_to(hf <= Qmax)
-        self.opti.subject_to(hf >= 1000)  # TODO Nodig?
-        self.opti.subject_to(hf >= 1000)
-        self.opti.subject_to(hf >= 1000)
+        self.opti.subject_to(hf <= Qmax)
+        self.opti.subject_to(hf >= 0)  # TODO Nodig?
+        self.opti.subject_to(Tsup >= Tmin)
+        self.opti.subject_to(Tsup <= Tmax)
 
         # Initial guess
         self.compiled = True
