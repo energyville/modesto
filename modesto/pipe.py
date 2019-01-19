@@ -328,13 +328,15 @@ class ExtensivePipe(Pipe):
         self.temp_ret = self.params['temperature_return'].v()
 
         if self.compiled:
+            self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
+            self.logger.debug('Redefining mass_flow_max')
+            self.construct_pumping_constraints()
+
             if self.repr_days is None:
                 for t in self.TIME:
                     self.block.heat_loss_nom[t] = (self.temp_sup + self.temp_ret - 2 *
                                                    Tg.v(t)) / Rs
 
-                self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
-                self.construct_pumping_constraints()
             else:
                 for t in self.TIME:
                     for c in self.REPR_DAYS:
@@ -346,6 +348,7 @@ class ExtensivePipe(Pipe):
             """
             self.block.mass_flow_max = Param(
                 initialize=vflomax[self.dn] * 1000 / 3600, mutable=True)
+
 
             # Maximal heat loss per unit length
             def _heat_loss(b, t, c=None):
@@ -476,6 +479,14 @@ class ExtensivePipe(Pipe):
             self.logger.info(
                 'Optimization model Pipe {} compiled'.format(self.name))
             self.compiled = True
+        self.logger.debug('========================')
+        self.logger.debug(self.name)
+        self.logger.debug('DN:', str(self.dn))
+        self.logger.debug('Rs:', str(Rs))
+        # self.logger.debug(self.block.mass_flow.pprint())
+
+        self.logger.debug(self.block.mass_flow_max.pprint())
+        self.logger.debug(self.block.pps.pprint())
 
     def get_diameter(self):
         """
