@@ -284,7 +284,7 @@ class Modesto:
         :return:
         """
 
-        self.objectives = ['energy', 'cost', 'cost_ramp', 'co2', 'cost_fuel_co2', 'slack', 'temp']
+        self.objectives = ['energy', 'cost', 'cost_ramp', 'co2', 'cost_fuel_co2', 'slack', 'temp', 'follow']
 
         slack = self.opti.variable()
 
@@ -314,6 +314,8 @@ class Modesto:
             self.opti.subject_to(obj == 0)
         elif objtype == 'temp':
             self.opti.subject_to(obj == sum(comp.obj_temp() for comp in self.iter_components()))
+        if objtype == 'follow':
+            self.opti.subject_to(obj == sum(comp.obj_follow() for comp in self.iter_components()))
 
         self.opti.minimize(obj + slack)
         self.act_objective = objtype
@@ -398,7 +400,6 @@ class Modesto:
         try:
             self.results = self.opti.solve()
         except:
-            print(self.opti.debug.g_describe(1440))
             if last_results:
                 for comp in self.iter_components():
                     for name, var in comp.opti_vars.items():
@@ -1212,34 +1213,35 @@ class Node(Submodel):
                     incoming_pipes['return'].append(name)
                     outgoing_pipes['supply'].append(name)
 
-            mix_temp = self.add_var('mix_temp', self.n_steps, len(lines))
+            mix_temp = {'supply': self.add_var('mix_temp_sup', self.n_steps),
+                        'return': self.add_var('mix_temp_ret', self.n_steps)}
             # self.opti.set_initial(mix_temp, 20+273.15)
             for t in self.TIME:
                 for l, line in enumerate(lines):
                     # TODO No zero mass flow implemented!
                     if len(incoming_comps[line]) + len(incoming_pipes[line]) == 1:
                         if len(incoming_comps[line]) == 1:
-                            self.opti.subject_to(mix_temp[t, l] ==
+                            self.opti.subject_to(mix_temp[line][t] ==
                                                  c[incoming_comps[line][0]].get_temperature(t, line))
                         else:
-                            self.opti.subject_to(mix_temp[t, l] ==
+                            self.opti.subject_to(mix_temp[line][t] ==
                                                  p[incoming_pipes[line][0]].get_edge_temperature(self.name, t, line))
                     else:
                         self.opti.subject_to(
                             (sum(c[comp].get_mflo(t) for comp in incoming_comps[line]) +
                              sum(p[pipe].get_edge_mflo(self.name, t) for pipe in incoming_pipes[line]))
-                            * mix_temp[t, l] ==
+                            * mix_temp[line][t] ==
                             sum(c[comp].get_mflo(t) * c[comp].get_temperature(t, line)
-                                for comp in incoming_comps[line]) + \
+                                for comp in incoming_comps[line]) +
                             sum(p[pipe].get_edge_mflo(self.name, t) * p[pipe].get_edge_temperature(self.name, t, line)
                                 for pipe in incoming_pipes[line]))
 
                     for comp in list(c.keys()) + list(p.keys()):
                         if comp in outgoing_pipes[line]:
                             self.opti.subject_to(p[comp].get_edge_temperature(self.name, t, line) == \
-                                                mix_temp[t, l])
+                                                mix_temp[line][t])
                         elif comp in outgoing_comps[line]:
-                            self.opti.subject_to(c[comp].get_temperature(t, line) == mix_temp[t, l])
+                            self.opti.subject_to(c[comp].get_temperature(t, line) == mix_temp[line][t])
 
         elif self.repr_days is None:
 

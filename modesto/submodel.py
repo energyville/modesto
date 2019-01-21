@@ -307,7 +307,7 @@ class Submodel(object):
 
     def obj_slack(self):
         """
-        Yield summation of all slacks in the componenet
+        Yield summation of all slacks in the component
 
         :return:
         """
@@ -316,6 +316,15 @@ class Submodel(object):
             slack += sum(self.get_slack(slack_name, t) for t in self.TIME)
 
         return slack
+
+    def obj_follow(self):
+        """
+        Yield summation of all slacks in the component
+
+        :return:
+        """
+
+        return 0
 
     def obj_energy(self):
         """

@@ -358,7 +358,7 @@ def test_finite_volume_pipe():
 
 def test_pipe_and_substation():
     time_step = 30
-    horizon = .5 * 3600
+    horizon = 5 * 3600
     opti = Opti()
 
     """
@@ -544,7 +544,7 @@ def test_pipe_and_substation():
 
 if __name__ == '__main__':
     # test_fixed_profile_not_temp_driven()
-    test_fixed_profile_temp_driven()
+    # test_fixed_profile_temp_driven()
     # test_producer_variable_not_temp_driven()
     # test_producer_variable_temp_driven()
     # test_simple_pipe()

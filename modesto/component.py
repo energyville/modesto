@@ -439,17 +439,13 @@ class Substation(Component):
         UA = self.add_var('UA', self.n_steps)
         K = self.params['thermal_size_HEx'].v()
         q = self.params['exponential_HEx'].v()
-        #Tpsup0 = self.add_opti_param('temperature_supply_0')
-        #Tpret0 = self.add_opti_param('temperature_return_0')
 
         DTa = Tpsup - Tsret
         DTb = Tpret - Tssup
 
-        #log_pos = self.make_slack('log_pos', self.n_steps)
-
         for t in self.TIME:
             self.opti.subject_to(
-                DTlm[t] == (DTa[t] - DTb[t] + 0.0001) / (log(DTa[t] / (DTb[t]))))  # TODO
+                DTlm[t] == (DTa[t] - DTb[t] + 0.0001) / (log(DTa[t] / DTb[t])))  # TODO
 
             self.opti.subject_to(hf[t] == UA[t] * DTlm[t])
             self.opti.subject_to(UA[t] == K / ((0.0001 + mf_prim[t])**-q + mf_sec[t]**-q))  #
@@ -1132,6 +1128,10 @@ class Plant(VariableComponent):
                                      'List of names of the lines that can be found in the network, e.g. '
                                      '\'supply\' and \'return\'',
                                      val=['supply', 'return']),
+            'heat_estimate': UserDataParameter('heat_estimate',
+                                               'W',
+                                               'Estimate of heat flows to be delivered by plant',
+                                               val=0)
         })
 
         return params
@@ -1159,6 +1159,8 @@ class Plant(VariableComponent):
         # self.opti.set_initial(mf, 1)
         # self.opti.set_initial(Tsup, 20+273.15)
         # self.opti.set_initial(Tret, 20+273.15)
+        if isinstance(self.params['heat_estimate'].v(), list):
+            self.opti.set_initial(hf, self.params['heat_estimate'].v())
 
         # Energy balance
         self.opti.subject_to(hf == mf * (Tsup - Tret)) # self.cp
@@ -1194,9 +1196,9 @@ class Plant(VariableComponent):
             raise Exception(
                 "The optimization model for %s has not been compiled" % self.name)
         elif c is None:
-            return self.direction * self.get_value('heat_flow')[t]
+            return self.direction * self.get_value('heat_flow')[t]*4186
         else:
-            return self.direction * self.get_value('heat_flow')[t, c]
+            return self.direction * self.get_value('heat_flow')[t, c]*4186
 
     def get_mflo(self, t, c=None):
         """
@@ -1266,6 +1268,12 @@ class Plant(VariableComponent):
                        time_step *self.cf for t in self.TIME for
                        c in
                        self.REPR_DAYS)
+
+    def obj_follow(self):
+        for t in self.TIME:
+            self.opti.subject_to(self.get_heat(t) >= 1000)
+
+        return sum((self.get_heat(t) - self.params['heat_estimate'].v(t))**2 for t in self.TIME)
 
     def obj_fuel_cost(self):
         """

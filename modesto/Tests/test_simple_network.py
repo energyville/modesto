@@ -16,7 +16,7 @@ def test_simple_network_substation():
     #     Main Settings       #
     ###########################
 
-    horizon = .5*3600
+    horizon = 5*3600
     time_step = 30
     start_time = pd.Timestamp('20140101')
 
@@ -128,7 +128,9 @@ def test_simple_network_substation():
                        'temperature_max': 90 + 273.15,
                        'temperature_min': 57 + 273.15,
                        'temperature_supply_0': 65 + 273.15,
-                       'temperature_return_0': 30 + 273.15}
+                       'temperature_return_0': 30 + 273.15,
+                       'heat_estimate': heat_profile['ZwartbergNEast']
+                       }
 
         optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
@@ -144,9 +146,9 @@ def test_simple_network_substation():
 
         opti = optmodel.opti
 
-        optmodel.set_objective('cost')
+        optmodel.set_objective('energy')
 
-        optmodel.solve(tee=True, mipgap=0.2, verbose=False, maxiter=3000)
+        optmodel.solve(tee=True, mipgap=0.2, verbose=False, last_results=True, maxiter=3000)
 
         ##################################
         # Collect results                #
@@ -179,8 +181,8 @@ def test_simple_network_substation():
         pipe_T_sup_vol = optmodel.get_result('Tsup', comp='pipe') - 273.15
         pipe_T_ret_vol = optmodel.get_result('Tret', comp='pipe') - 273.15
 
-        mix_temp_wg = optmodel.results.value(optmodel.components['waterscheiGarden'].get_value('mix_temp')) - 273.15
-        mix_temp_tp = optmodel.results.value(optmodel.components['ThorPark'].get_value('mix_temp')) - 273.15
+        mix_temp_wg = optmodel.results.value(optmodel.components['waterscheiGarden'].get_value('mix_temp_sup')) - 273.15
+        mix_temp_tp = optmodel.results.value(optmodel.components['ThorPark'].get_value('mix_temp_ret')) - 273.15
 
         # Sum of heat flows
         prod_e = sum(prod_hf)
@@ -202,7 +204,7 @@ def test_simple_network_substation():
         ax[1].set_title('Heat losses pipe [W]')
         ax[1].legend()
         fig.tight_layout()
-        fig.suptitle('test__simple_metwork')
+        fig.suptitle('test__simple_network')
 
         fig1, axarr = plt.subplots(2, 1)
         axarr[0].plot(prod_mf)
@@ -212,7 +214,7 @@ def test_simple_network_substation():
         # axarr[1].plot(pipe_mf, label='pipe')
         axarr[1].set_title('Mass flows building')
         axarr[1].legend()
-        fig1.suptitle('test_simple_metwork')
+        fig1.suptitle('test_simple_network')
 
         fig2, axarr = plt.subplots(1, 1)
         axarr.plot(prod_T_sup, label='Producer Supply')
@@ -221,7 +223,7 @@ def test_simple_network_substation():
         axarr.plot(build_T_ret, label='Building Return')
         axarr.legend()
         axarr.set_title('Network temperatures')
-        fig2.suptitle('test_simple_metwork')
+        fig2.suptitle('test_simple_network')
 
         fig3, axarr = plt.subplots(1, 2)
         for i in range(pipe_T_ret_vol.shape[1]):
@@ -230,7 +232,7 @@ def test_simple_network_substation():
         axarr[0].set_title('Supply')
         axarr[1].set_title('Return')
         axarr[0].legend()
-        fig3.suptitle('test_simple_metwork')
+        fig3.suptitle('test_simple_network')
         plt.show()
 
 
@@ -418,7 +420,7 @@ def test_simple_network_building_fixed():
         ax[1].set_title('Heat losses pipe [W]')
         ax[1].legend()
         fig.tight_layout()
-        fig.suptitle('test__simple_metwork')
+        fig.suptitle('test__simple_network')
 
         fig1, axarr = plt.subplots(2, 1)
         axarr[0].plot(prod_mf)
@@ -427,7 +429,7 @@ def test_simple_network_building_fixed():
         # axarr[1].plot(pipe_mf, label='pipe')
         axarr[1].set_title('Mass flows building')
         axarr[1].legend()
-        fig1.suptitle('test_simple_metwork')
+        fig1.suptitle('test_simple_network')
 
         fig2, axarr = plt.subplots(1, 1)
         axarr.plot(prod_T_sup, label='Producer Supply')
@@ -436,7 +438,7 @@ def test_simple_network_building_fixed():
         axarr.plot(build_T_ret, label='Building Return')
         axarr.legend()
         axarr.set_title('Network temperatures')
-        fig2.suptitle('test_simple_metwork')
+        fig2.suptitle('test_simple_network')
 
         fig3, axarr = plt.subplots(1, 2)
         for i in range(pipe_T_ret_vol.shape[1]):
@@ -445,10 +447,10 @@ def test_simple_network_building_fixed():
         axarr[0].set_title('Supply')
         axarr[1].set_title('Return')
         axarr[0].legend()
-        fig3.suptitle('test_simple_metwork')
+        fig3.suptitle('test_simple_network')
         plt.show()
 
 
 if __name__ == '__main__':
-    test_simple_network_building_fixed()
-    # test_simple_network_substation()
+    # test_simple_network_building_fixed()
+    test_simple_network_substation()
