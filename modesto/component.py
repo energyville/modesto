@@ -117,7 +117,10 @@ class Component(Submodel):
                 '{} is not a valid point in time'.format(t)
             )
 
-        return self.get_value('temperatures')[self.params['lines'].v().index(line), t]
+        if line == 'supply':
+            return self.get_value('Tsup')[t]
+        else:
+            return self.get_value('Tret')[t]
 
     def get_heat(self, t, c=None):
         """
@@ -278,15 +281,6 @@ class FixedProfile(Component):
         })
 
         if self.temperature_driven:
-            params['temperature_supply'] = StateParameter('temperature_supply',
-                                                          'Initial supply temperature at the component',
-                                                          'K',
-                                                          'fixedVal',
-                                                          slack=True)
-            params['temperature_return'] = StateParameter('temperature_return',
-                                                          'Initial return temperature at the component',
-                                                          'K',
-                                                          'fixedVal')
             params['temperature_max'] = DesignParameter('temperature_max',
                                                         'Maximun allowed water temperature at the component',
                                                         'K')
@@ -311,33 +305,24 @@ class FixedProfile(Component):
         """
         Component.compile(self, model, start_time)
 
-        mf_tot = self.add_opti_param('mass_flow_tot', self.n_steps)
-        hf_tot = self.add_opti_param('heat_flow_tot', self.n_steps)
+        self.add_opti_param('mass_flow_tot', self.n_steps)
+        self.add_opti_param('heat_flow_tot', self.n_steps)
+        delta_T = self.add_opti_param('delta_T')
 
         if self.temperature_driven:
-            lines = self.params['lines'].v()
-            temp = self.add_var('temperatures', len(lines), self.n_steps)
-
-            init_temp_sup = self.add_opti_param('temperature_supply')
-            init_temp_ret = self.add_opti_param('temperature_return')
-
-            # Initialization temperature
-            self.opti.subject_to(temp[0, 0] == init_temp_sup)
-            self.opti.subject_to(temp[1, 0] == init_temp_ret)
+            tsup = self.add_var('Tsup', self.n_steps)
+            tret = self.add_var('Tret', self.n_steps)
 
             # Rest of the temperatures
-            for t in self.TIME[1:]:
-                self.opti.subject_to((temp[0, t] - temp[1, t]) * self.cp * mf_tot[t] == hf_tot[t])
-
-            uslack = self.make_slack('temperature_max_slack', self.n_steps)
-            lslack = self.make_slack('temperature_min_slack', self.n_steps)
+            for t in self.TIME:
+                self.opti.subject_to((tsup[t] - tret[t]) == delta_T)
 
             ub = self.params['temperature_max'].v()
             lb = self.params['temperature_min'].v()
 
             for t in self.TIME:
-                self.constrain_value(temp[0, t], ub, ub=True, slack_variable=uslack)
-                self.constrain_value(temp[0, t], lb, ub=False, slack_variable=lslack)
+                self.constrain_value(tsup[t], ub, ub=True)
+                self.constrain_value(tsup[t], lb, ub=False)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -454,15 +439,17 @@ class Substation(Component):
         UA = self.add_var('UA', self.n_steps)
         K = self.params['thermal_size_HEx'].v()
         q = self.params['exponential_HEx'].v()
-        Tpsup0 = self.add_opti_param('temperature_supply_0')
-        Tpret0 = self.add_opti_param('temperature_return_0')
+        #Tpsup0 = self.add_opti_param('temperature_supply_0')
+        #Tpret0 = self.add_opti_param('temperature_return_0')
 
         DTa = Tpsup - Tsret
         DTb = Tpret - Tssup
 
+        #log_pos = self.make_slack('log_pos', self.n_steps)
+
         for t in self.TIME:
             self.opti.subject_to(
-                DTlm[t] == (DTa[t] - DTb[t] + 0.0001) / (log(DTa[t] / DTb[t])))  # TODO
+                DTlm[t] == (DTa[t] - DTb[t] + 0.0001) / (log(DTa[t] / (DTb[t]))))  # TODO
 
             self.opti.subject_to(hf[t] == UA[t] * DTlm[t])
             self.opti.subject_to(UA[t] == K / ((0.0001 + mf_prim[t])**-q + mf_sec[t]**-q))  #
@@ -1144,7 +1131,7 @@ class Plant(VariableComponent):
                                      '-',
                                      'List of names of the lines that can be found in the network, e.g. '
                                      '\'supply\' and \'return\'',
-                                     val=['supply', 'return'])
+                                     val=['supply', 'return']),
         })
 
         return params
@@ -1174,16 +1161,16 @@ class Plant(VariableComponent):
         # self.opti.set_initial(Tret, 20+273.15)
 
         # Energy balance
-        for t in self.TIME:
-            self.opti.subject_to(hf[t] == mf[t]  * (Tsup[t] - Tret[t])) # self.cp
+        self.opti.subject_to(hf == mf * (Tsup - Tret)) # self.cp
 
         # Limits
         # self.opti.subject_to(hf <= Qmax)
         # self.opti.subject_to(hf >= 0)
-        self.opti.subject_to(Tsup >= 47 + 273.15 + 5)
-        self.opti.subject_to(Tsup <= 80 + 273.15)
-        self.opti.subject_to(mf >= 1)
-        #
+        self.opti.subject_to(Tsup >= Tmin)
+        self.opti.subject_to(Tsup <= Tmax)
+
+        self.opti.set_initial(mf, 1)
+
         # Initial guess
         self.compiled = True
 
@@ -1348,7 +1335,7 @@ class Plant(VariableComponent):
 
         # return sum((70+273.15 - self.get_temperature(t, 'supply'))**2 for t in range(self.n_steps))
 
-        return sum(self.get_temperature(t, 'supply') for t in self.TIME)
+        return sum(self.get_temperature(t, 'return') for t in self.TIME)
 
     def obj_co2_cost(self):
         """

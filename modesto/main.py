@@ -361,7 +361,7 @@ class Modesto:
 
     def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False,
               solver='ipopt', warmstart=False, probe=False,
-              timelim=None, threads=None, maxiter=3000):
+              timelim=None, threads=None, maxiter=3000, last_results=False):
         """
         Solve a new optimization
 
@@ -399,7 +399,7 @@ class Modesto:
             self.results = self.opti.solve()
         except:
             print(self.opti.debug.g_describe(1440))
-            if verbose:
+            if last_results:
                 for comp in self.iter_components():
                     for name, var in comp.opti_vars.items():
                         print('\n', comp.name, name, '\n------------------\n')
@@ -1190,8 +1190,6 @@ class Node(Submodel):
         if self.temperature_driven:
 
             lines = self.params['lines'].v()
-
-            # Initial guess
 
             incoming_comps = collections.defaultdict(list)
             incoming_pipes = collections.defaultdict(list)

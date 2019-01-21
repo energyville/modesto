@@ -14,7 +14,6 @@ heat_profile = ut.read_time_data(resource_filename(
     'modesto', 'Data/HeatDemand'), name='TEASER_GenkNET_per_neighb.csv')
 mults = ut.read_file(resource_filename(
     'modesto', 'Data/HeatDemand'), name='TEASER_number_of_buildings.csv', timestamp=False)
-print(mults.index)
 
 c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
                         name='DAM_electricity_prices-2014_BE.csv')['price_BE']
@@ -46,8 +45,6 @@ def test_fixed_profile_temp_driven():
     building_params = {'delta_T': 20,
                        'mult': 500,
                        'heat_profile': heat_profile['ZwartbergNEast'],
-                       'temperature_return': 323.15,
-                       'temperature_supply': 303.15,
                        'temperature_max': 363.15,
                        'temperature_min': 283.15,
                        'time_step': time_step,
@@ -60,21 +57,23 @@ def test_fixed_profile_temp_driven():
 
     building.compile(opti, start_time)
 
-    opti.minimize(sum2(building.opti_vars['temperatures'][0, :]) + 1e5*(
-                  sum1(building.get_slack('temperature_max_slack')) +
-                  sum1(building.get_slack('temperature_min_slack')))
-                  )
+    # Initialization temperature
+    opti.subject_to(building.get_var('Tsup')[0] == 323.15)
+    opti.subject_to(building.get_var('Tret')[0] == 303.15)
+
+    opti.minimize(sum1(building.opti_vars['Tsup']))
 
     options = {'ipopt': {'print_level': 0}}
     opti.solver('ipopt', options)
     building.set_parameters()
-    sol=opti.solve()
-    temps = sol.value(building.opti_vars['temperatures'])
+    sol = opti.solve()
+    tsup = sol.value(building.opti_vars['Tsup'])
+    tret = sol.value(building.opti_vars['Tret'])
 
     flag = True
 
     for t in building.TIME[1:]:
-        if not (abs(temps[0, t] - 283.15) <= 0.001 and abs(temps[1, t] - 263.15) <= 0.001):
+        if not (abs(tsup[t] - 283.15) <= 0.001 and abs(tret[t] - 263.15) <= 0.001):
             flag = False
 
     assert flag, 'The solution of the optimization problem is not correct'
@@ -284,7 +283,9 @@ def test_finite_volume_pipe():
                    'Courant': 1,
                    'Tg': pd.Series(12 + 273.15, index=heat_profile['ZwartbergNEast'].index),
                    'horizon': horizon,
-                   'time_step': time_step
+                   'time_step': time_step,
+                   'Tsup0': 57+273.15,
+                   'Tret0': 40+273.15,
                    }
     for param in pipe_params:
         pipe.change_param(param, pipe_params[param])
@@ -357,7 +358,7 @@ def test_finite_volume_pipe():
 
 def test_pipe_and_substation():
     time_step = 30
-    horizon = 5 * 3600
+    horizon = .5 * 3600
     opti = Opti()
 
     """
@@ -370,7 +371,9 @@ def test_pipe_and_substation():
                    'Courant': 1,
                    'Tg': pd.Series(12 + 273.15, index=heat_profile['ZwartbergNEast'].index),
                    'horizon': horizon,
-                   'time_step': time_step
+                   'time_step': time_step,
+                   'Tsup0': 57+273.15,
+                   'Tret0': 40+273.15,
                    }
     for param in pipe_params:
         pipe.change_param(param, pipe_params[param])
@@ -415,7 +418,7 @@ def test_pipe_and_substation():
     opti.subject_to(pipe.get_var('Tret_in') == ss.get_var('Tpret'))
 
     opti.subject_to(pipe.get_var('Tsup_in') <= 80+273.15)
-    opti.subject_to(pipe.get_var('Tsup_in') >= 47+273.15 + 5)
+    opti.subject_to(pipe.get_var('Tsup_in') >= 57+273.15)
     opti.subject_to(pipe.get_var('mass_flow') >= 1)
     # opti.subject_to(pipe.get_var('Tret_out') >= 35+273.15)
     opti.subject_to((pipe.get_var('Tsup_in') - pipe.get_var('Tret_out')) * pipe.get_var('mass_flow') / 1e6 == hf)
@@ -541,7 +544,7 @@ def test_pipe_and_substation():
 
 if __name__ == '__main__':
     # test_fixed_profile_not_temp_driven()
-    # test_fixed_profile_temp_driven()
+    test_fixed_profile_temp_driven()
     # test_producer_variable_not_temp_driven()
     # test_producer_variable_temp_driven()
     # test_simple_pipe()

@@ -316,14 +316,20 @@ class FiniteVolumePipe(Pipe):
              'Rs': DesignParameter('Rs',
                                    'Thermal reistance between water and ground per unit of length',
                                    'W/m/k',
-                                    val=0),
+                                   val=0),
              'Courant': DesignParameter('Courant',
                                         'Courant number to ensure numerical stability, default is 1',
                                         '-',
                                         val=1),
              'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
-                                       'K')}
+                                       'K'),
+             'Tsup0': DesignParameter('Tsup0',
+                                      'Initial water temperature in the supply line',
+                                      'K'),
+             'Tret0': DesignParameter('Tret0',
+                                      'Initial water temperature in the return line',
+                                      'K')}
         )
 
         return params
@@ -348,6 +354,8 @@ class FiniteVolumePipe(Pipe):
         Tg = self.params['Tg'].v()
         m_vol = self.rho * l_vol * pi*Di**2/4
         dt = self.params['time_step'].v()
+        tsup0 = self.add_opti_param('Tsup0')
+        tret0 = self.add_opti_param('Tret0')
 
         # Variables
         mf = self.add_var('mass_flow', self.n_steps)
@@ -369,11 +377,9 @@ class FiniteVolumePipe(Pipe):
         # self.opti.set_initial(Tret_in, 20+273.15)
         # self.opti.set_initial(Tret_out, 20+273.15)
 
-        # TODO Initialize temperatures of each volume?
-
         # Initialize temperatures
-        self.opti.subject_to(Tsup[:, 0] == 57+273.15)
-        self.opti.subject_to(Tret[:, 0] == 40+273.15)
+        self.opti.subject_to(Tsup[:, 0] == tsup0)
+        self.opti.subject_to(Tret[:, 0] == tret0)
 
         # self.opti.subject_to(mf >= 1)
 
