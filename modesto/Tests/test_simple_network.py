@@ -6,15 +6,18 @@ from pkg_resources import resource_filename
 import modesto.utils as ut
 from modesto.main import Modesto
 
+mults = ut.read_file(resource_filename(
+    'modesto', 'Data/HeatDemand'), name='TEASER_number_of_buildings.csv', timestamp=False)
+
 def test_simple_network():
 
     ###########################
     #     Main Settings       #
     ###########################
 
-    horizon = 0.5*3600
+    horizon = .5*3600
     time_step = 30
-    start_time = pd.Timestamp('20140604')
+    start_time = pd.Timestamp('20140401')
 
     ###########################
     # Set up Graph of network #
@@ -76,9 +79,10 @@ def test_simple_network():
         # Building parameters            #
         ##################################
 
+        mult = mults['ZwartbergNEast']['Number of buildings']
         building_params = {
-            'mult': 350,
-            'heat_flow': heat_profile['ZwartbergNEast'] / 350,
+            'mult': mult,
+            'heat_flow': heat_profile['ZwartbergNEast'] / mult,
             'temperature_radiator_in': 47 + 273.15,
             'temperature_radiator_out': 35 + 273.15,
             'temperature_supply_0': 60 + 273.15,
@@ -90,21 +94,13 @@ def test_simple_network():
             'exponential_HEx': 0.7
         }
 
-        # building_params = {'delta_T': 20,
-        #                    'mult': 350,
-        #                    'heat_profile': heat_profile['ZwartbergNEast']/350,
-        #                    'temperature_return': 323.15,
-        #                    'temperature_supply': 303.15,
-        #                    'temperature_max': 363.15,
-        #                    'temperature_min': 283.15}
-
         optmodel.change_params(building_params, node='waterscheiGarden', comp='buildingD')
 
         ##################################
         # Pipe parameters                #
         ##################################
 
-        pipe_params = {'diameter': 250,
+        pipe_params = {'diameter': 200,
                        'max_speed': 3,
                        'Courant': 1,
                        'Tg': pd.Series(12+273.15, index=t_amb.index)
@@ -143,25 +139,27 @@ def test_simple_network():
     if __name__ == '__main__':
         optmodel = construct_model()
         optmodel.compile(start_time=start_time)
-        optmodel.set_objective('cost')
+        opti = optmodel.opti
 
-        optmodel.solve(tee=True, mipgap=0.2, verbose=False, maxiter=10000)
+        optmodel.set_objective('energy')
+
+        optmodel.solve(tee=True, mipgap=0.2, verbose=True, maxiter=3000)
 
         ##################################
         # Collect results                #
         ##################################
 
-        mult = 350
+        mult = mults['ZwartbergNEast']['Number of buildings']
 
         # Heat flows
-        prod_hf = optmodel.get_result('heat_flow', node='ThorPark', comp='plant')
+        prod_hf = optmodel.get_result('heat_flow', node='ThorPark', comp='plant')*4186
         waterschei_hf = optmodel.get_result('heat_flow', node='waterscheiGarden',
                                             comp='buildingD')*mult
         Q_loss_sup = optmodel.get_result('Qloss_sup', comp='pipe')
         Q_loss_ret = optmodel.get_result('Qloss_ret', comp='pipe')
 
         # Mass flows
-        prof_mf = optmodel.get_result('mass_flow', node='ThorPark', comp='plant')
+        prod_mf = optmodel.get_result('mass_flow', node='ThorPark', comp='plant')
         build_mf = optmodel.get_result('mf_prim', node='waterscheiGarden', comp='buildingD')*mult
         rad_mf = optmodel.get_result('mf_sec', node='waterscheiGarden', comp='buildingD')*mult
         # pipe_mf = optmodel.get_result('mass_flow', comp='pipe')
@@ -197,32 +195,30 @@ def test_simple_network():
         ax[0].legend()
         for i in range(Q_loss_ret.shape[1]):
             ax[1].plot(Q_loss_sup.iloc[:, i], label='Supply {}'.format(i+1))
-            # ax[1].plot(Q_loss_ret.iloc[:, i], label='Return {}'.format(i+1))  # , )])  #
+            ax[1].plot(Q_loss_ret.iloc[:, i], label='Return {}'.format(i+1))  # , )])  #
         ax[1].set_title('Heat losses pipe [W]')
         ax[1].legend()
         fig.tight_layout()
+        fig.suptitle('test__simple_metwork')
 
         fig1, axarr = plt.subplots(2, 1)
-        axarr[0].plot(prof_mf)
+        axarr[0].plot(prod_mf)
         axarr[0].set_title('Mass flow producer')
         axarr[1].plot(build_mf, label='primary')
         axarr[1].plot(rad_mf, label='secondary')
         # axarr[1].plot(pipe_mf, label='pipe')
         axarr[1].set_title('Mass flows building')
         axarr[1].legend()
+        fig1.suptitle('test_simple_metwork')
 
-        fig2, axarr = plt.subplots(3, 1)
-        axarr[0].plot(prod_T_sup, label='Producer Supply')
-        axarr[0].plot(prod_T_ret, label='Producer Return')
-        axarr[0].plot(build_T_sup, label='Building Supply')
-        axarr[0].plot(build_T_ret, label='Building Return')
-        axarr[0].legend()
-        axarr[1].plot(pipe_T_sup_out, label='Supply out')
-        axarr[1].plot(pipe_T_sup_in, label='Supply in', linestyle='--')
-        axarr[1].plot(pipe_T_ret_out, label='Return out')
-        axarr[1].plot(pipe_T_ret_in, label='Return in', linestyle='--')
-        axarr[1].set_title('Pipe temperatures')
-        axarr[1].legend()
+        fig2, axarr = plt.subplots(1, 1)
+        axarr.plot(prod_T_sup, label='Producer Supply')
+        axarr.plot(prod_T_ret, label='Producer Return')
+        axarr.plot(build_T_sup, label='Building Supply')
+        axarr.plot(build_T_ret, label='Building Return')
+        axarr.legend()
+        axarr.set_title('Network temperatures')
+        fig2.suptitle('test_simple_metwork')
 
         fig3, axarr = plt.subplots(1, 2)
         for i in range(pipe_T_ret_vol.shape[1]):
@@ -231,7 +227,7 @@ def test_simple_network():
         axarr[0].set_title('Supply')
         axarr[1].set_title('Return')
         axarr[0].legend()
-
+        fig3.suptitle('test_simple_metwork')
         plt.show()
 
 if __name__ == '__main__':

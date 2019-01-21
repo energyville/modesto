@@ -105,7 +105,7 @@ class Submodel(object):
         :return:
         """
         if not name in self.opti_params:
-            raise KeyError('The variable with the name {} does not exist in {}'.format(name, self.name))
+            raise KeyError('The parameter with the name {} does not exist in {}'.format(name, self.name))
         return self.opti_params[name]
 
     def get_value(self, name):

@@ -372,10 +372,10 @@ class FiniteVolumePipe(Pipe):
         # TODO Initialize temperatures of each volume?
 
         # Initialize temperatures
-        self.opti.subject_to(Tsup[:, 0] == 70+273.15)
-        # self.opti.subject_to(Tsup[:, 0] >= 5+273.15)
-        # self.opti.subject_to(Tret[:, 0] <= 95+273.15)
-        self.opti.subject_to(Tret[:, 0] == 50+273.15)
+        self.opti.subject_to(Tsup[:, 0] == 57+273.15)
+        self.opti.subject_to(Tret[:, 0] == 40+273.15)
+
+        # self.opti.subject_to(mf >= 1)
 
         # Energy balance
         for t in self.TIME:

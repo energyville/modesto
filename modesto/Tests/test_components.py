@@ -11,7 +11,10 @@ horizon = 3*24*3600
 time_step = 3600
 
 heat_profile = ut.read_time_data(resource_filename(
-    'modesto', 'Data/HeatDemand/Old'), name='HeatDemandFiltered.csv')
+    'modesto', 'Data/HeatDemand'), name='TEASER_GenkNET_per_neighb.csv')
+mults = ut.read_file(resource_filename(
+    'modesto', 'Data/HeatDemand'), name='TEASER_number_of_buildings.csv', timestamp=False)
+print(mults.index)
 
 c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
                         name='DAM_electricity_prices-2014_BE.csv')['price_BE']
@@ -353,7 +356,7 @@ def test_finite_volume_pipe():
 
 
 def test_pipe_and_substation():
-    time_step = 20
+    time_step = 30
     horizon = 5 * 3600
     opti = Opti()
 
@@ -380,10 +383,10 @@ def test_pipe_and_substation():
     """
 
     ss = Substation('substation')
-
+    mult = mults['ZwartbergNEast']['Number of buildings']
     ss_params = {
-        'mult': 350,
-        'heat_flow': heat_profile['ZwartbergNEast'] / 350,
+        'mult': mult,
+        'heat_flow': heat_profile['ZwartbergNEast'] / mult,
         'temperature_radiator_in': 47 + 273.15,
         'temperature_radiator_out': 35 + 273.15,
         'temperature_supply_0': 60 + 273.15,
@@ -405,34 +408,25 @@ def test_pipe_and_substation():
     Other constraints
     """
 
-    step_mf = [5] * int(pipe.n_steps / 2) + [12] * (pipe.n_steps - int(pipe.n_steps / 2))
-    # opti.subject_to(pipe.get_var('mass_flow') == step_mf)
+    hf = opti.variable(pipe.n_steps)
 
-    opti.subject_to(pipe.get_var('mass_flow') == ss.get_var('mf_prim')*350)
+    opti.subject_to(pipe.get_var('mass_flow') == ss.get_var('mf_prim')*mult)
     opti.subject_to(pipe.get_var('Tsup_out') == ss.get_var('Tpsup'))
     opti.subject_to(pipe.get_var('Tret_in') == ss.get_var('Tpret'))
 
     opti.subject_to(pipe.get_var('Tsup_in') <= 80+273.15)
     opti.subject_to(pipe.get_var('Tsup_in') >= 47+273.15 + 5)
     opti.subject_to(pipe.get_var('mass_flow') >= 1)
-    opti.subject_to(pipe.get_var('Tret_out') >= 35+273.15)
+    # opti.subject_to(pipe.get_var('Tret_out') >= 35+273.15)
+    opti.subject_to((pipe.get_var('Tsup_in') - pipe.get_var('Tret_out')) * pipe.get_var('mass_flow') / 1e6 == hf)
 
     opti.set_initial(pipe.get_var('mass_flow'), 1)
-
-    # opti.set_initial(pipe.get_var('mass_flow'), 350)
-    # opti.set_initial(pipe.get_var('Tsup_in'), 55+273.15)
-    # opti.set_initial(pipe.get_var('Tret_out'), 35+273.15)
-
-    # opti.subject_to(pipe.get_var('Tret_in') == 50+273.15)
-    # opti.subject_to(pipe.get_var('Tsup_in') == 50+273.15)
-    # opti.subject_to(pipe.get_var('Tsup_out') - pipe.get_var('Tret_in') == 20)
-
 
     """
     Objective
     """
-
-    opti.minimize(sum1(pipe.get_var('Tret_out'))) #
+    step = [0.5] * int(pipe.n_steps/2) + [10] * (pipe.n_steps - int(pipe.n_steps/2))
+    opti.minimize(sum1(hf*step)) #
 
     options = {'ipopt': {'print_level': 0}}
     opti.solver('ipopt')
@@ -441,8 +435,8 @@ def test_pipe_and_substation():
     try:
         sol = opti.solve()
     except:
-        # print(opti.debug.g_describe(2064))
-        # print(opti.debug.x_describe(0))
+        print(opti.debug.g_describe(1894))
+        print(opti.debug.x_describe(1936))
         pass
     for name, var in pipe.opti_vars.items():
         print('\npipe', name, '\n------------------\n')
@@ -458,34 +452,81 @@ def test_pipe_and_substation():
     Tr = sol.value(pipe.opti_vars['Tret']) - 273.15
     Qls = sol.value(pipe.opti_vars['Qloss_sup'])
     Qlr = sol.value(pipe.opti_vars['Qloss_ret'])
-    mf = sol.value(pipe.opti_vars['mass_flow'])
+    prod_mf = sol.value(pipe.opti_vars['mass_flow'])
+    build_mf = sol.value(ss.opti_vars['mf_prim'])*mult
+    rad_mf = sol.value(ss.opti_params['mf_sec'])*mult
+    prod_hf = sol.value(hf)*4186
+    build_hf = sol.value(ss.opti_params['heat_flow']) * mult / 1e6
 
     flag = True
 
-    fig, axarr = plt.subplots(2, 1)
-    axarr[0].plot(Tsi, label='in, supply', color ='r')
-    axarr[0].plot(Tso, label='out, supply', color='b')
-    axarr[0].plot(Tri, label='in, return', color='r', linestyle=':')
-    axarr[0].plot(Tro, label='out, return', color='b', linestyle=':')
-    axarr[0].plot(Tro, label='in')
-    axarr[1].plot(mf)
-    axarr[0].set_title('In- and Outgoing temperatures pipes')
-    axarr[0].legend()
-    axarr[1].set_title('Mass flow rate pipes')
+    fig, ax = plt.subplots(2, 1)
+    ax[0].plot(prod_hf, label='Producer')
+    ax[0].plot(build_hf, label='Users and storage')  # , )])  #
+    ax[0].axhline(y=0, linewidth=2, color='k', linestyle='--')
+    ax[0].set_title('Heat flows [W]')
+    ax[0].legend()
+    for i in range(Qlr.shape[0]):
+        ax[1].plot(Qls[i, :], label='Supply {}'.format(i + 1))
+        ax[1].plot(Qlr[i, :], label='Return {}'.format(i + 1))
+    ax[1].set_title('Heat losses pipe [W]')
+    ax[1].legend()
+    fig.tight_layout()
+    fig.suptitle('test_components')
+
     fig1, axarr = plt.subplots(2, 1)
+    axarr[0].plot(prod_mf)
+    axarr[0].set_title('Mass flow producer')
+    axarr[1].plot(build_mf, label='primary')
+    axarr[1].plot(rad_mf, label='secondary')
+    # axarr[1].plot(pipe_mf, label='pipe')
+    axarr[1].set_title('Mass flows building')
+    axarr[1].legend()
+    fig1.suptitle('test_components')
+
+    fig2, axarr = plt.subplots(1, 1)
+    axarr.plot(Tsi, label='Producer Supply')
+    axarr.plot(Tro, label='Producer Return')
+    axarr.plot(Tso, label='Building Supply')
+    axarr.plot(Tri, label='Building Return')
+    axarr.legend()
+    axarr.set_title('Temperatures in the network')
+    fig2.suptitle('test_components')
+
+    fig3, axarr = plt.subplots(1, 2)
     for i in range(Ts.shape[0]):
-        axarr[0].plot(Ts[i, :], label=i)
-        axarr[1].plot(Tr[i, :], label=i, )
+        axarr[0].plot(Ts[i, :], label='{}'.format(i + 1))
+        axarr[1].plot(Tr[i, :], label='{}'.format(i + 1), linestyle='--')
+    axarr[0].set_title('Supply')
+    axarr[1].set_title('Return')
     axarr[0].legend()
-    axarr[0].set_title('Pipe volumes supply temperatures')
-    axarr[1].set_title('Pipe volumes return temperatures')
-    fig1, axarr = plt.subplots(2, 1)
-    for i in range(Ts.shape[0]):
-        axarr[0].plot(Qls[i, :], label=i)
-        axarr[1].plot(Qlr[i, :], label=i)
-    axarr[0].legend()
-    axarr[0].set_title('Pipe volumes supply heat losses')
-    axarr[1].set_title('Pipe volumes return heat losses')
+    fig3.suptitle('test_components')
+    #
+    # fig, axarr = plt.subplots(2, 1)
+    # axarr[0].plot(Tsi, label='in, supply', color ='r')
+    # axarr[0].plot(Tso, label='out, supply', color='b')
+    # axarr[0].plot(Tri, label='in, return', color='r', linestyle=':')
+    # axarr[0].plot(Tro, label='out, return', color='b', linestyle=':')
+    # axarr[1].plot(mf)
+    # axarr[0].set_title('In- and Outgoing temperatures pipes')
+    # axarr[0].legend()
+    # axarr[1].set_title('Mass flow rate pipes')
+    #
+    # fig1, axarr = plt.subplots(2, 1)
+    # for i in range(Ts.shape[0]):
+    #     axarr[0].plot(Ts[i, :], label=i)
+    #     axarr[1].plot(Tr[i, :], label=i, )
+    # axarr[0].legend()
+    # axarr[0].set_title('Pipe volumes supply temperatures')
+    # axarr[1].set_title('Pipe volumes return temperatures')
+    #
+    # fig1, axarr = plt.subplots(2, 1)
+    # for i in range(Ts.shape[0]):
+    #     axarr[0].plot(Qls[i, :], label=i)
+    #     axarr[1].plot(Qlr[i, :], label=i)
+    # axarr[0].legend()
+    # axarr[0].set_title('Pipe volumes supply heat losses')
+    # axarr[1].set_title('Pipe volumes return heat losses')
 
     plt.show()
 

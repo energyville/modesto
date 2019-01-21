@@ -353,6 +353,7 @@ class FixedProfile(Component):
         self.opti.set_value(self.get_opti_param('heat_flow_tot'),
                             self.params['mult'].v() * self.params['heat_profile'].v())
 
+
 class Substation(Component):
     def __init__(self, name=None,
                  temperature_driven=True, repr_days=None):
@@ -467,18 +468,13 @@ class Substation(Component):
             self.opti.subject_to(UA[t] == K / ((0.0001 + mf_prim[t])**-q + mf_sec[t]**-q))  #
             self.opti.subject_to(hf[t] == mf_prim[t] * self.cp * (Tpsup[t] - Tpret[t]))
 
-        # # Limitations to keep DTlm solvable
-        # self.opti.subject_to(Tpsup >= Tsret + 1)
-        # self.opti.subject_to(Tpret >= Tssup + 1)
-        # self.opti.subject_to(DTa >= DTb + 0.001)
-        #
-        # # Limitations to keep mf_prim solvable
-        # self.opti.subject_to(mf_prim >= 0.001) # TODO 0.01 maakt optimalisatie sneller, kleiner maakt stabieler?
-
         # TODO Keep inital temperatures mutable?
         self.opti.set_initial(Tpsup, self.params['temperature_supply_0'].v())
         self.opti.set_initial(Tpret, self.params['temperature_return_0'].v())
-        # self.opti.set_initial(mf_prim, 1)
+        # self.opti.set_initial(mf_prim, 10)
+        # self.opti.subject_to(Tpsup >= self.params['temperature_radiator_in'].v() + 1)
+
+        # self.opti.subject_to(mf_prim*self.params['mult'].v() >= 10)
 
         # TODO Nodig?
         # # Initial temperatures
@@ -1058,6 +1054,7 @@ class ProducerVariable(VariableComponent):
                 co2_price.v(t, c) * co2 / eta * self.get_heat(t, c) * time_step * self.cf
                 for t in self.TIME for c in self.REPR_DAYS)
 
+
 class Plant(VariableComponent):
     def __init__(self, name, temperature_driven=True, heat_var=0.15,
                  repr_days=None):
@@ -1172,20 +1169,21 @@ class Plant(VariableComponent):
         Tmin = self.add_opti_param('temperature_min')
 
         # Initial guess
-        self.opti.set_initial(mf, 1)
-        self.opti.set_initial(Tsup, 20+273.15)
-        self.opti.set_initial(Tret, 20+273.15)
+        # self.opti.set_initial(mf, 1)
+        # self.opti.set_initial(Tsup, 20+273.15)
+        # self.opti.set_initial(Tret, 20+273.15)
 
         # Energy balance
         for t in self.TIME:
-            self.opti.subject_to(hf[t] == mf[t] * self.cp * (Tsup[t] - Tret[t]))
+            self.opti.subject_to(hf[t] == mf[t]  * (Tsup[t] - Tret[t])) # self.cp
 
         # Limits
-        self.opti.subject_to(hf <= Qmax)
-        self.opti.subject_to(hf >= 0)  # TODO Nodig?
-        self.opti.subject_to(Tsup >= Tmin)
-        self.opti.subject_to(Tsup <= Tmax)
-
+        # self.opti.subject_to(hf <= Qmax)
+        # self.opti.subject_to(hf >= 0)
+        self.opti.subject_to(Tsup >= 47 + 273.15 + 5)
+        self.opti.subject_to(Tsup <= 80 + 273.15)
+        self.opti.subject_to(mf >= 1)
+        #
         # Initial guess
         self.compiled = True
 
@@ -1275,7 +1273,7 @@ class Plant(VariableComponent):
         time_step = self.params['time_step'].v()
 
         if self.repr_days is None:
-            return sum(pef / eta * (self.get_heat(t)) * time_step * self.cf for t in self.TIME)
+            return sum((pef / eta * time_step * self.cf * self.get_heat(t)) for t in self.TIME) # pef / eta * * time_step * self.cf
         else:
             return sum(self.repr_count[c] * pef / eta * (self.get_heat(t, c)) *
                        time_step *self.cf for t in self.TIME for

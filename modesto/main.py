@@ -284,7 +284,7 @@ class Modesto:
         :return:
         """
 
-        self.objectives = ['energy','cost','cost_ramp','co2','cost_fuel_co2','slack','temp']
+        self.objectives = ['energy', 'cost', 'cost_ramp', 'co2', 'cost_fuel_co2', 'slack', 'temp']
 
         slack = self.opti.variable()
 
@@ -398,8 +398,12 @@ class Modesto:
         try:
             self.results = self.opti.solve()
         except:
-            print(self.opti.debug.g_describe(2052))
-            print(self.opti.debug.x_describe(0))
+            print(self.opti.debug.g_describe(1440))
+            if verbose:
+                for comp in self.iter_components():
+                    for name, var in comp.opti_vars.items():
+                        print('\n', comp.name, name, '\n------------------\n')
+                        print(self.opti.debug.value(var))
             raise Exception('Optimization failed')
         print('\nTime to solve: ', time.time() - t0, '\n')
 
@@ -951,6 +955,16 @@ class Modesto:
 
         return out
 
+    def get_opti_var(self, name, node=None, comp=None):
+        component = self.get_component(node=node, name=comp)
+
+        return component.get_var(name)
+
+    def get_opti_param(self, name, node=None, comp=None):
+        component = self.get_component(node=node, name=comp)
+
+        return component.get_opti_param(name)
+
     def update_time(self, new_val):
         """
         Change the start time of all parameters to ensure correct read out of data
@@ -1201,18 +1215,26 @@ class Node(Submodel):
                     outgoing_pipes['supply'].append(name)
 
             mix_temp = self.add_var('mix_temp', self.n_steps, len(lines))
-            self.opti.set_initial(mix_temp, 20+273.15)
+            # self.opti.set_initial(mix_temp, 20+273.15)
             for t in self.TIME:
                 for l, line in enumerate(lines):
                     # TODO No zero mass flow implemented!
-                    self.opti.subject_to(
-                        (sum(c[comp].get_mflo(t) for comp in incoming_comps[line]) +
-                         sum(p[pipe].get_edge_mflo(self.name, t) for pipe in incoming_pipes[line]))
-                        * mix_temp[t, l] ==
-                        sum(c[comp].get_mflo(t) * c[comp].get_temperature(t, line)
-                            for comp in incoming_comps[line]) + \
-                        sum(p[pipe].get_edge_mflo(self.name, t) * p[pipe].get_edge_temperature(self.name, t, line)
-                            for pipe in incoming_pipes[line]))
+                    if len(incoming_comps[line]) + len(incoming_pipes[line]) == 1:
+                        if len(incoming_comps[line]) == 1:
+                            self.opti.subject_to(mix_temp[t, l] ==
+                                                 c[incoming_comps[line][0]].get_temperature(t, line))
+                        else:
+                            self.opti.subject_to(mix_temp[t, l] ==
+                                                 p[incoming_pipes[line][0]].get_edge_temperature(self.name, t, line))
+                    else:
+                        self.opti.subject_to(
+                            (sum(c[comp].get_mflo(t) for comp in incoming_comps[line]) +
+                             sum(p[pipe].get_edge_mflo(self.name, t) for pipe in incoming_pipes[line]))
+                            * mix_temp[t, l] ==
+                            sum(c[comp].get_mflo(t) * c[comp].get_temperature(t, line)
+                                for comp in incoming_comps[line]) + \
+                            sum(p[pipe].get_edge_mflo(self.name, t) * p[pipe].get_edge_temperature(self.name, t, line)
+                                for pipe in incoming_pipes[line]))
 
                     for comp in list(c.keys()) + list(p.keys()):
                         if comp in outgoing_pipes[line]:
