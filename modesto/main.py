@@ -606,16 +606,17 @@ class Modesto:
         obj = self.get_component(comp, node)
         opti_obj = obj.get_value(name)
 
-        time = obj.get_time_axis()
+        n_steps = len(obj.get_time_axis())
 
         result = self.results.value(opti_obj)
+        time = pd.DatetimeIndex(start=self.start_time,
+                                freq=str(self.params['time_step'].v()) + 'S',
+                                periods=n_steps)
 
         if len(result.shape) == 1:
             return pd.Series(data=result, index=time, name=name)
         else:
             return pd.DataFrame(data=result.transpose(), index=time)
-
-
 
         # if isinstance(obj, IndexedVar) and self.repr_days is None:
         #     if index is None:

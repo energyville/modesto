@@ -423,6 +423,7 @@ def test_pipe_and_substation():
     # opti.subject_to(pipe.get_var('Tret_out') >= 35+273.15)
     opti.subject_to((pipe.get_var('Tsup_in') - pipe.get_var('Tret_out')) * pipe.get_var('mass_flow') / 1e6 == hf)
 
+    opti.set_initial(hf, ss.params['heat_flow'].v()/4186)
     opti.set_initial(pipe.get_var('mass_flow'), 1)
 
     """
@@ -504,33 +505,6 @@ def test_pipe_and_substation():
     axarr[1].set_title('Return')
     axarr[0].legend()
     fig3.suptitle('test_components')
-    #
-    # fig, axarr = plt.subplots(2, 1)
-    # axarr[0].plot(Tsi, label='in, supply', color ='r')
-    # axarr[0].plot(Tso, label='out, supply', color='b')
-    # axarr[0].plot(Tri, label='in, return', color='r', linestyle=':')
-    # axarr[0].plot(Tro, label='out, return', color='b', linestyle=':')
-    # axarr[1].plot(mf)
-    # axarr[0].set_title('In- and Outgoing temperatures pipes')
-    # axarr[0].legend()
-    # axarr[1].set_title('Mass flow rate pipes')
-    #
-    # fig1, axarr = plt.subplots(2, 1)
-    # for i in range(Ts.shape[0]):
-    #     axarr[0].plot(Ts[i, :], label=i)
-    #     axarr[1].plot(Tr[i, :], label=i, )
-    # axarr[0].legend()
-    # axarr[0].set_title('Pipe volumes supply temperatures')
-    # axarr[1].set_title('Pipe volumes return temperatures')
-    #
-    # fig1, axarr = plt.subplots(2, 1)
-    # for i in range(Ts.shape[0]):
-    #     axarr[0].plot(Qls[i, :], label=i)
-    #     axarr[1].plot(Qlr[i, :], label=i)
-    # axarr[0].legend()
-    # axarr[0].set_title('Pipe volumes supply heat losses')
-    # axarr[1].set_title('Pipe volumes return heat losses')
-
     plt.show()
 
     assert flag, 'The solution of the optimization problem is not correct'

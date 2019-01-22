@@ -17,7 +17,7 @@ def test_simple_network_substation():
     ###########################
 
     horizon = 5*3600
-    time_step = 30
+    time_step = 10
     start_time = pd.Timestamp('20140101')
 
     ###########################
@@ -204,7 +204,8 @@ def test_simple_network_substation():
         ax[1].set_title('Heat losses pipe [W]')
         ax[1].legend()
         fig.tight_layout()
-        fig.suptitle('test__simple_network')
+        # fig.suptitle('test__simple_network')
+        fig.tight_layout()
 
         fig1, axarr = plt.subplots(2, 1)
         axarr[0].plot(prod_mf)
@@ -214,7 +215,8 @@ def test_simple_network_substation():
         # axarr[1].plot(pipe_mf, label='pipe')
         axarr[1].set_title('Mass flows building')
         axarr[1].legend()
-        fig1.suptitle('test_simple_network')
+        # fig1.suptitle('test_simple_network')
+        fig1.tight_layout()
 
         fig2, axarr = plt.subplots(1, 1)
         axarr.plot(prod_T_sup, label='Producer Supply')
@@ -223,7 +225,8 @@ def test_simple_network_substation():
         axarr.plot(build_T_ret, label='Building Return')
         axarr.legend()
         axarr.set_title('Network temperatures')
-        fig2.suptitle('test_simple_network')
+        # fig2.suptitle('test_simple_network')
+        fig2.tight_layout()
 
         fig3, axarr = plt.subplots(1, 2)
         for i in range(pipe_T_ret_vol.shape[1]):
@@ -232,7 +235,8 @@ def test_simple_network_substation():
         axarr[0].set_title('Supply')
         axarr[1].set_title('Return')
         axarr[0].legend()
-        fig3.suptitle('test_simple_network')
+        # fig3.suptitle('test_simple_network')
+        fig3.tight_layout()
         plt.show()
 
 
@@ -419,8 +423,8 @@ def test_simple_network_building_fixed():
             ax[1].plot(Q_loss_ret.iloc[:, i], label='Return {}'.format(i+1))  # , )])  #
         ax[1].set_title('Heat losses pipe [W]')
         ax[1].legend()
+        # fig.suptitle('test__simple_network')
         fig.tight_layout()
-        fig.suptitle('test__simple_network')
 
         fig1, axarr = plt.subplots(2, 1)
         axarr[0].plot(prod_mf)
@@ -429,7 +433,8 @@ def test_simple_network_building_fixed():
         # axarr[1].plot(pipe_mf, label='pipe')
         axarr[1].set_title('Mass flows building')
         axarr[1].legend()
-        fig1.suptitle('test_simple_network')
+        # fig1.suptitle('test_simple_network')
+        fig1.tight_layout()
 
         fig2, axarr = plt.subplots(1, 1)
         axarr.plot(prod_T_sup, label='Producer Supply')
@@ -438,7 +443,8 @@ def test_simple_network_building_fixed():
         axarr.plot(build_T_ret, label='Building Return')
         axarr.legend()
         axarr.set_title('Network temperatures')
-        fig2.suptitle('test_simple_network')
+        # fig2.suptitle('test_simple_network')
+        fig2.tight_layout()
 
         fig3, axarr = plt.subplots(1, 2)
         for i in range(pipe_T_ret_vol.shape[1]):
@@ -447,7 +453,8 @@ def test_simple_network_building_fixed():
         axarr[0].set_title('Supply')
         axarr[1].set_title('Return')
         axarr[0].legend()
-        fig3.suptitle('test_simple_network')
+        # fig3.suptitle('test_simple_network')
+        fig3.tight_layout()
         plt.show()
 
 
