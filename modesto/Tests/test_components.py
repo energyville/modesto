@@ -206,8 +206,6 @@ def test_substation():
             'temperature_radiator_out': 35 + 273.15,
             'temperature_supply_0': 60 + 273.15,
             'temperature_return_0': 40 + 273.15,
-            'temperature_max': 70 + 273.15,
-            'temperature_min': 40 + 273.15,
             'lines': ['supply', 'return'],
             'thermal_size_HEx': 15000,
             'exponential_HEx': 0.7,
@@ -269,7 +267,7 @@ def test_substation():
     axarr[3].legend()
     axarr[3].set_title('Temperature differences')
 
-    plt.show()
+    # plt.show()
 
 
 def test_finite_volume_pipe():
@@ -278,7 +276,7 @@ def test_finite_volume_pipe():
     opti = Opti()
     pipe = FiniteVolumePipe('pipe', 'start_node', 'end_node', 200)
 
-    pipe_params = {'diameter': 20,
+    pipe_params = {'diameter': 250,
                    'max_speed': 3,
                    'Courant': 1,
                    'Tg': pd.Series(12 + 273.15, index=heat_profile['ZwartbergNEast'].index),
@@ -301,8 +299,8 @@ def test_finite_volume_pipe():
 
     # Extra constraints
     opti.subject_to(pipe.get_var('Tsup_in') == step_up)
-    opti.subject_to((pipe.get_var('Tsup_out')[1:] - pipe.get_var('Tret_in')[1:]) == 4000/pipe.get_var('mass_flow')[1:])
-    opti.subject_to(pipe.get_var('Tsup_out')[1:]/pipe.get_var('Tret_in')[1:] == 1.116)
+    opti.subject_to((pipe.get_var('Tsup')[-1, 1:].T - pipe.get_var('Tret_in')[1:]) == 4000/pipe.get_var('mass_flow')[1:])
+    opti.subject_to(pipe.get_var('Tsup')[-1, 1:].T/pipe.get_var('Tret_in')[1:] == 1.116)
     opti.subject_to(pipe.get_var('Tret_in')[1:] >= 0)
     opti.set_initial(pipe.get_var('Tret_in'), 30+273.15)
     # opti.subject_to(pipe.get_var('mass_flow') == step_mf)
@@ -325,8 +323,8 @@ def test_finite_volume_pipe():
     for name, var in pipe.opti_vars.items():
         print('\npipe', name, '\n------------------\n')
         print(opti.debug.value(var))
-    Tso = sol.value(pipe.opti_vars['Tsup_out'])-273.15
-    Tro = sol.value(pipe.opti_vars['Tret_out'])-273.15
+    Tso = sol.value(pipe.opti_vars['Tsup'])[-1,:].T-273.15
+    Tro = sol.value(pipe.opti_vars['Tret'])[-1,:].T-273.15
     Ts = sol.value(pipe.opti_vars['Tsup'])-273.15
     Tr = sol.value(pipe.opti_vars['Tret'])-273.15
     Qls = sol.value(pipe.opti_vars['Qloss_sup'])
@@ -350,7 +348,7 @@ def test_finite_volume_pipe():
         axarr[1].plot(Qlr[i, :], label=i)
     axarr[0].legend()
 
-    plt.show()
+    # plt.show()
 
     # TODO Set up assert
     assert flag, 'The solution of the optimization problem is not correct'
@@ -394,8 +392,6 @@ def test_pipe_and_substation():
         'temperature_radiator_out': 35 + 273.15,
         'temperature_supply_0': 60 + 273.15,
         'temperature_return_0': 40 + 273.15,
-        'temperature_max': 70 + 273.15,
-        'temperature_min': 40 + 273.15,
         'lines': ['supply', 'return'],
         'thermal_size_HEx': 15000,
         'exponential_HEx': 0.7,
@@ -406,6 +402,7 @@ def test_pipe_and_substation():
         ss.change_param(param, ss_params[param])
 
     ss.compile(opti, start_time)
+    # opti.subject_to(pipe.get_var('Tsup_out') >= pipe.get_var('Tret_in') + 1)
 
     """
     Other constraints
@@ -414,14 +411,14 @@ def test_pipe_and_substation():
     hf = opti.variable(pipe.n_steps)
 
     opti.subject_to(pipe.get_var('mass_flow') == ss.get_var('mf_prim')*mult)
-    opti.subject_to(pipe.get_var('Tsup_out') == ss.get_var('Tpsup'))
+    opti.subject_to(pipe.get_var('Tsup')[-1,:].T == ss.get_var('Tpsup'))
     opti.subject_to(pipe.get_var('Tret_in') == ss.get_var('Tpret'))
 
     opti.subject_to(pipe.get_var('Tsup_in') <= 80+273.15)
     opti.subject_to(pipe.get_var('Tsup_in') >= 57+273.15)
     opti.subject_to(pipe.get_var('mass_flow') >= 1)
     # opti.subject_to(pipe.get_var('Tret_out') >= 35+273.15)
-    opti.subject_to((pipe.get_var('Tsup_in') - pipe.get_var('Tret_out')) * pipe.get_var('mass_flow') / 1e6 == hf)
+    opti.subject_to((pipe.get_var('Tsup_in') - pipe.get_var('Tret')[-1,:].T) * pipe.get_var('mass_flow') / 1e6 == hf)
 
     opti.set_initial(hf, ss.params['heat_flow'].v()/4186)
     opti.set_initial(pipe.get_var('mass_flow'), 1)
@@ -450,8 +447,8 @@ def test_pipe_and_substation():
         print(opti.debug.value(var))
     Tsi = sol.value(pipe.opti_vars['Tsup_in']) - 273.15
     Tri = sol.value(pipe.opti_vars['Tret_in']) - 273.15
-    Tso = sol.value(pipe.opti_vars['Tsup_out']) - 273.15
-    Tro = sol.value(pipe.opti_vars['Tret_out']) - 273.15
+    Tso = sol.value(pipe.opti_vars['Tsup'])[-1,:].T - 273.15
+    Tro = sol.value(pipe.opti_vars['Tret'])[-1,:].T - 273.15
     Ts = sol.value(pipe.opti_vars['Tsup']) - 273.15
     Tr = sol.value(pipe.opti_vars['Tret']) - 273.15
     Qls = sol.value(pipe.opti_vars['Qloss_sup'])
@@ -517,12 +514,12 @@ def test_pipe_and_substation():
     # assert flag, 'The solution of the optimization problem is not correct'
 
 if __name__ == '__main__':
-    # test_fixed_profile_not_temp_driven()
-    # test_fixed_profile_temp_driven()
-    # test_producer_variable_not_temp_driven()
-    # test_producer_variable_temp_driven()
-    # test_simple_pipe()
-    # test_substation()
-    # test_finite_volume_pipe()
+    test_fixed_profile_not_temp_driven()
+    test_fixed_profile_temp_driven()
+    test_producer_variable_not_temp_driven()
+    test_producer_variable_temp_driven()
+    test_simple_pipe()
+    test_substation()
+    test_finite_volume_pipe()
     test_pipe_and_substation()
 

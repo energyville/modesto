@@ -176,8 +176,8 @@ def test_simple_network_substation():
         build_T_ret = optmodel.get_result('Tpret', node='waterscheiGarden', comp='buildingD') - 273.15
         pipe_T_sup_in = optmodel.get_result('Tsup_in', comp='pipe') - 273.15
         pipe_T_ret_in = optmodel.get_result('Tret_in', comp='pipe') - 273.15
-        pipe_T_sup_out = optmodel.get_result('Tsup_out', comp='pipe') - 273.15
-        pipe_T_ret_out = optmodel.get_result('Tret_out', comp='pipe') - 273.15
+        pipe_T_sup_out = optmodel.get_result('Tsup', comp='pipe').iloc[:, -1] - 273.15
+        pipe_T_ret_out = optmodel.get_result('Tret', comp='pipe').iloc[:, -1] - 273.15
         pipe_T_sup_vol = optmodel.get_result('Tsup', comp='pipe') - 273.15
         pipe_T_ret_vol = optmodel.get_result('Tret', comp='pipe') - 273.15
 

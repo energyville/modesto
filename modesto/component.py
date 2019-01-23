@@ -391,12 +391,6 @@ class Substation(Component):
                                                    'Initial return temperature at the component',
                                                    'K',
                                                     'fixedVal'),
-            'temperature_max': DesignParameter('temperature_max',
-                                               'Maximun allowed water temperature at the substation',
-                                               'K'),
-            'temperature_min': DesignParameter('temperature_min',
-                                               'Minimum allowed temperature at the substation',
-                                               'K'),
             'lines': DesignParameter('lines',
                                      unit='-',
                                      description='List of names of the lines that can be found in the network, e.g. '

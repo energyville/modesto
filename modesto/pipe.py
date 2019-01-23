@@ -400,8 +400,8 @@ class FiniteVolumePipe(Pipe):
         Tret = self.add_var('Tret', self.n_volumes, self.n_steps)
         Tsup_in = self.add_var('Tsup_in', self.n_steps)
         Tret_in = self.add_var('Tret_in', self.n_steps)
-        Tsup_out = self.add_var('Tsup_out', self.n_steps)  # TODo Nodig?
-        Tret_out = self.add_var('Tret_out', self.n_steps)  # TODO Nodig?
+        # Tsup_out = self.add_var('Tsup_out', self.n_steps)  # TODo Nodig?
+        # Tret_out = self.add_var('Tret_out', self.n_steps)  # TODO Nodig?
         Qloss_sup = self.add_var('Qloss_sup', self.n_volumes, self.n_steps)
         Qloss_ret = self.add_var('Qloss_ret', self.n_volumes, self.n_steps)
 
@@ -433,10 +433,10 @@ class FiniteVolumePipe(Pipe):
                 self.opti.subject_to(self.cp * m_vol * (Tret[v, t] - Tret[v, t-1]) ==
                                      (mf[t] * self.cp * (Tri - Tret[v, t]) - Qloss_ret[v, t]) * dt)#
 
-        self.opti.subject_to(Tret_out == Tret[-1, :].T)
-        self.opti.subject_to(Tsup_out == Tsup[-1, :].T)
+        # self.opti.subject_to(Tret_out == Tret[-1, :].T)
+        # self.opti.subject_to(Tsup_out == Tsup[-1, :].T)
 
-        self.opti.subject_to(Tsup_out >= Tret_in + 1)
+        self.opti.subject_to(Tsup[-1, :].T >= Tret_in + 1)
 
         self.compiled = True
 
@@ -458,14 +458,14 @@ class FiniteVolumePipe(Pipe):
             if line == 'supply':
                 return self.get_value('Tsup_in')[t]
             elif line == 'return':
-                return self.get_value('Tret_out')[t]
+                return self.get_value('Tret')[-1, t].T
             else:
                 raise ValueError(
                     'The input line can only take the values from {}'.format(
                         self.params['lines'].v()))
         elif node == self.end_node:
             if line == 'supply':
-                return self.get_value('Tsup_out')[t]
+                return self.get_value('Tsup')[-1, t].T
             elif line == 'return':
                 return self.get_value('Tret_in')[t]
             else:
