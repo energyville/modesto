@@ -18,6 +18,34 @@ import math
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
+vflomax = { # Maximal volume flow rate per DN in m3/h
+            # Taken from IsoPlus Double-Pipe catalog p. 7
+            20: 1.547,
+            25: 2.526,
+            32: 4.695,
+            40: 6.303,
+            50: 11.757,
+            65: 19.563,
+            80: 30.791,
+            100: 51.891,
+            125: 89.350,
+            150: 152.573,
+            200: 299.541,
+            250: 348 * 1.55,
+            300: 547 * 1.55,
+            350: 705 * 1.55,
+            400: 1550,
+            450: 1370 * 1.55,
+            500: 1820 * 1.55,
+            600: 2920 * 1.55,
+            700: 4370 * 1.55,
+            800: 6240 * 1.55,
+            900: 9500 * 1.55,
+            1000: 14000 * 1.55
+        }
+
+for dn in vflomax:
+    vflomax[dn] = vflomax[dn]/3.6
 
 def str_to_pipe(string):
     """
@@ -206,6 +234,10 @@ class SimplePipe(Pipe):
             if self.repr_days is None:
                 mf = self.add_var('mass_flow', self.n_steps)
 
+                # Mass flow limits
+                mf_max = self.add_opti_param('mf_max')
+                self.opti.subject_to(mf <= mf_max)
+
                 if self.temperature_driven:
                     Tsup_in = self.add_var('Tsup_in', self.n_steps)
                     Tsup_out = self.add_var('Tsup_out', self.n_steps)
@@ -238,6 +270,10 @@ class SimplePipe(Pipe):
                 #                                   rule=_heat_flow)
 
         self.compiled = True
+
+    def set_parameters(self):
+        Pipe.set_parameters(self)
+        self.opti.set_value(self.get_opti_param('mf_max'), vflomax[self.params['diameter'].v()])
 
     def get_edge_temperature(self, node, t, line):
         assert self.compiled, "Pipe %s has not been compiled yet" % self.name
@@ -299,6 +335,7 @@ class FiniteVolumePipe(Pipe):
         dt = self.params['time_step'].v()
         co = self.params['Courant'].v()
 
+        dmax = 20
         l_vol = vmax * dt / co
         self.n_volumes = math.ceil(self.length / l_vol)
         print('{} has {} volumes, one element has a length of {}'.format(self.name, self.n_volumes, self.length/self.n_volumes))
@@ -368,20 +405,13 @@ class FiniteVolumePipe(Pipe):
         Qloss_sup = self.add_var('Qloss_sup', self.n_volumes, self.n_steps)
         Qloss_ret = self.add_var('Qloss_ret', self.n_volumes, self.n_steps)
 
-        # # Initial guess
-        # self.opti.set_initial(mf, 200)
-        # self.opti.set_initial(Tsup, 70+273.15)
-        # self.opti.set_initial(Tret, 50+273.15)
-        # self.opti.set_initial(Tsup_in, 20+273.15)
-        # self.opti.set_initial(Tsup_out, 20+273.15)
-        # self.opti.set_initial(Tret_in, 20+273.15)
-        # self.opti.set_initial(Tret_out, 20+273.15)
-
         # Initialize temperatures
         self.opti.subject_to(Tsup[:, 0] == tsup0)
         self.opti.subject_to(Tret[:, 0] == tret0)
 
+        # Mass flow limits
         # self.opti.subject_to(mf >= 1)
+        self.opti.subject_to(mf <= vflomax[self.params['diameter'].v()])
 
         # Energy balance
         for t in self.TIME:
