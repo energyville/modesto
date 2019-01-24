@@ -40,6 +40,8 @@ class Submodel(object):
         self.rho = 1000
         self.cf = 1/3600/1000 # Conversion factor from J to kWh
 
+        self.eqs = {}
+
     def add_var(self, name, dim1=None, dim2=None):
         """
         Add a variable to the Opti object
@@ -58,7 +60,7 @@ class Submodel(object):
         elif dim1 is not None:
             self.opti_vars[name] = self.opti.variable(dim1, dim2)
         else:
-            raise Exception('If you a vector variable, only give a value to dim1, if you need a matrix give'
+            raise Exception('If you need a vector variable, only give a value to dim1, if you need a matrix give'
                             'a value to both dim1 and dim2')
 
         return self.opti_vars[name]
@@ -109,10 +111,13 @@ class Submodel(object):
         return self.opti_params[name]
 
     def get_value(self, name):
+
         if name in self.opti_vars:
             return self.get_var(name)
         elif name in self.opti_params:
             return self.get_opti_param(name)
+        elif name in self.eqs:
+            return self.eqs[name]
         else:
             raise KeyError('{} is not a valid variable or parameter name'.format(name))
 

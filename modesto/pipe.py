@@ -94,6 +94,8 @@ class Pipe(Component):
         self.f = 0.03  # Moody friction factor, between 0.015 and 0.04. Includes bends.
         self.lifespan = 30
 
+        self.eqs = {'mass_flow': None}
+
     @staticmethod
     def get_pipe_catalog():
         df = pd.read_csv(
@@ -155,10 +157,17 @@ class Pipe(Component):
 
         return params
 
-    def get_edge_mflo(self, node, t, c=None):
+    def assign_mf(self, value):
+        self.eqs['mass_flow'] = value
+
+    def get_edge_mflo(self, node, t=None, c=None):
         assert self.opti is not None, "Pipe %s has not been compiled yet" % self.name
         if c is None:
-            return self.get_edge_direction(node) * self.get_value('mass_flow')[t]
+            if t is None:
+                return self.get_edge_direction(node) * self.get_value('mass_flow')
+            else:
+                return self.get_edge_direction(node) * self.get_value('mass_flow')[t]
+
         else:
             return self.get_edge_direction(node) * self.get_value('mass_flow')[t, c]
 
@@ -218,7 +227,21 @@ class SimplePipe(Pipe):
 
         self.params['diameter'].change_value(20)
 
-    def compile(self, model, start_time):
+    def prepare(self, model, start_time):
+        Pipe.prepare(self, model, start_time)
+
+        self.add_opti_param('mf_max')
+
+        if self.temperature_driven:
+            self.add_var('Tsup_in', self.n_steps)
+            self.add_var('Tsup_out', self.n_steps)
+            self.add_var('Tret_in', self.n_steps)
+            self.add_var('Tret_out', self.n_steps)
+        else:
+            self.add_var('heat_flow_in', self.n_steps)
+            self.add_var('heat_flow_out', self.n_steps)
+
+    def compile(self):
         """
         Compile the optimization model
 
@@ -228,21 +251,20 @@ class SimplePipe(Pipe):
 
         :return:
         """
-        Component.compile(self, model, start_time)
 
         if not self.compiled:
             if self.repr_days is None:
-                mf = self.add_var('mass_flow', self.n_steps)
+                mf = self.eqs['mass_flow']
 
                 # Mass flow limits
-                mf_max = self.add_opti_param('mf_max')
+                mf_max = self.get_opti_param('mf_max')
                 self.opti.subject_to(mf <= mf_max)
 
                 if self.temperature_driven:
-                    Tsup_in = self.add_var('Tsup_in', self.n_steps)
-                    Tsup_out = self.add_var('Tsup_out', self.n_steps)
-                    Tret_in = self.add_var('Tret_in', self.n_steps)
-                    Tret_out = self.add_var('Tret_out', self.n_steps)
+                    Tsup_in = self.get_var('Tsup_in')
+                    Tsup_out = self.get_var('Tsup_out')
+                    Tret_in = self.get_var('Tret_in')
+                    Tret_out = self.get_var('Tret_out')
                     for t in self.TIME:
                         self.opti.subject_to(Tsup_in[t] == Tsup_out[t])
                         self.opti.subject_to(Tret_in[t] == Tret_out[t])
@@ -252,8 +274,8 @@ class SimplePipe(Pipe):
                     self.opti.set_initial(mf, 1)
 
                 else:
-                    hf_in = self.add_var('heat_flow_in', self.n_steps)
-                    hf_out = self.add_var('heat_flow_out', self.n_steps)
+                    hf_in = self.get_var('heat_flow_in')
+                    hf_out = self.get_var('heat_flow_out')
                     for t in self.TIME:
                         self.opti.subject_to(hf_in[t] == hf_out[t])
 
@@ -371,7 +393,24 @@ class FiniteVolumePipe(Pipe):
 
         return params
 
-    def compile(self, model, start_time):
+    def prepare(self, model, start_time):
+        Pipe.prepare(self, model, start_time)
+
+        self.calculate_n_volumes()
+
+        self.add_opti_param('Tsup0')
+        self.add_opti_param('Tret0')
+
+        self.add_var('Tsup', self.n_volumes, self.n_steps)
+        self.add_var('Tret', self.n_volumes, self.n_steps)
+        self.add_var('Tsup_in', self.n_steps)
+        self.add_var('Tret_in', self.n_steps)
+        # self.add_var('Tsup_out', self.n_steps)  # TODo Nodig?
+        # self.add_var('Tret_out', self.n_steps)  # TODO Nodig?
+        self.add_var('Qloss_sup', self.n_volumes, self.n_steps)
+        self.add_var('Qloss_ret', self.n_volumes, self.n_steps)
+
+    def compile(self):
         """
         Compile the optimization model
 
@@ -381,8 +420,6 @@ class FiniteVolumePipe(Pipe):
 
         :return:
         """
-        Component.compile(self, model, start_time)
-        self.calculate_n_volumes()
 
         # Parameters
         Rs = self.Rs[self.params['diameter'].v()] # TODO self.add_opti_param('Rs')
@@ -391,19 +428,17 @@ class FiniteVolumePipe(Pipe):
         Tg = self.params['Tg'].v()
         m_vol = self.rho * l_vol * pi*Di**2/4
         dt = self.params['time_step'].v()
-        tsup0 = self.add_opti_param('Tsup0')
-        tret0 = self.add_opti_param('Tret0')
+        tsup0 = self.get_opti_param('Tsup0')
+        tret0 = self.get_opti_param('Tret0')
 
         # Variables
-        mf = self.add_var('mass_flow', self.n_steps)
-        Tsup = self.add_var('Tsup', self.n_volumes, self.n_steps)
-        Tret = self.add_var('Tret', self.n_volumes, self.n_steps)
-        Tsup_in = self.add_var('Tsup_in', self.n_steps)
-        Tret_in = self.add_var('Tret_in', self.n_steps)
-        # Tsup_out = self.add_var('Tsup_out', self.n_steps)  # TODo Nodig?
-        # Tret_out = self.add_var('Tret_out', self.n_steps)  # TODO Nodig?
-        Qloss_sup = self.add_var('Qloss_sup', self.n_volumes, self.n_steps)
-        Qloss_ret = self.add_var('Qloss_ret', self.n_volumes, self.n_steps)
+        mf = self.eqs['mass_flow']
+        Tsup = self.get_var('Tsup')
+        Tret = self.get_var('Tret')
+        Tsup_in = self.get_var('Tsup_in')
+        Tret_in = self.get_var('Tret_in')
+        Qloss_sup = self.get_var('Qloss_sup')
+        Qloss_ret = self.get_var('Qloss_ret')
 
         # Initialize temperatures
         self.opti.subject_to(Tsup[:, 0] == tsup0)
@@ -411,7 +446,7 @@ class FiniteVolumePipe(Pipe):
 
         # Mass flow limits
         # self.opti.subject_to(mf >= 1)
-        self.opti.subject_to(mf <= vflomax[self.params['diameter'].v()])
+        # self.opti.subject_to(mf <= vflomax[self.params['diameter'].v()])
 
         # Energy balance
         for t in self.TIME:
@@ -453,7 +488,6 @@ class FiniteVolumePipe(Pipe):
         self.opti.set_value(self.get_opti_param('Di'), self.di[self.params['diameter'].v()])
 
     def get_edge_temperature(self, node, t, line):
-        assert self.compiled, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             if line == 'supply':
                 return self.get_value('Tsup_in')[t]

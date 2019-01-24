@@ -140,7 +140,7 @@ class Component(Submodel):
     def is_heat_source(self):
         return False
 
-    def get_mflo(self, t, c=None):
+    def get_mflo(self, t=None, c=None):
         """
         Return mass_flow variable at time t
 
@@ -152,7 +152,10 @@ class Component(Submodel):
             raise Exception(
                 "The optimization model for %s has not been compiled" % self.name)
         elif c is None:
-            return self.direction * self.get_value('mass_flow_tot')[t]
+            if t is None:
+                return self.direction * self.get_value('mass_flow_tot')
+            else:
+                return self.direction * self.get_value('mass_flow_tot')[t]
         else:
             return self.direction * self.get_value('mass_flow_tot')[t, c]
 
@@ -187,7 +190,7 @@ class Component(Submodel):
         """
         return self.direction
 
-    def compile(self, model, start_time):
+    def prepare(self, model, start_time):
         """
         Compiles the component model
 
@@ -295,7 +298,20 @@ class FixedProfile(Component):
 
         return params
 
-    def compile(self, model, start_time):
+    def prepare(self, model, start_time):
+
+        Component.prepare(self, model, start_time)
+
+        self.add_opti_param('mass_flow_tot', self.n_steps)
+        self.add_opti_param('heat_flow_tot', self.n_steps)
+
+        self.add_opti_param('delta_T')
+
+        if self.temperature_driven:
+            self.add_var('Tsup', self.n_steps)
+            self.add_var('Tret', self.n_steps)
+
+    def compile(self):
         """
         Build the structure of fixed profile
 
@@ -303,15 +319,12 @@ class FixedProfile(Component):
         :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-        Component.compile(self, model, start_time)
 
-        self.add_opti_param('mass_flow_tot', self.n_steps)
-        self.add_opti_param('heat_flow_tot', self.n_steps)
-        delta_T = self.add_opti_param('delta_T')
+        delta_T = self.get_opti_param('delta_T')
 
         if self.temperature_driven:
-            tsup = self.add_var('Tsup', self.n_steps)
-            tret = self.add_var('Tret', self.n_steps)
+            tsup = self.get_var('Tsup')
+            tret = self.get_var('Tret')
 
             # Rest of the temperatures
             for t in self.TIME:
@@ -409,7 +422,21 @@ class Substation(Component):
 
         return params
 
-    def compile(self, model, start_time):
+    def prepare(self, model, start_time):
+        Component.prepare(self, model, start_time)
+
+        self.set_time_axis()
+
+        self.add_opti_param('mf_sec', self.n_steps)
+        self.add_opti_param('heat_flow', self.n_steps)
+
+        self.add_var('Tpsup', self.n_steps)
+        self.add_var('Tpret', self.n_steps)
+        self.add_var('mf_prim', self.n_steps)
+        self.add_var('DTlm', self.n_steps)
+        self.add_var('UA', self.n_steps)
+
+    def compile(self):
         """
         Build the structure of fixed profile
 
@@ -417,58 +444,39 @@ class Substation(Component):
         :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-        Component.compile(self, model, start_time)
 
         # Radiator
-        mf_sec =self.add_opti_param('mf_sec', self.n_steps)
-        hf = self.add_opti_param('heat_flow', self.n_steps)
+        mf_sec = self.get_opti_param('mf_sec')
+        hf = self.get_opti_param('heat_flow')
         Tsret = self.params['temperature_radiator_in'].v()
         Tssup = self.params['temperature_radiator_out'].v()
 
         # Heat exchanger
-        Tpsup = self.add_var('Tpsup', self.n_steps)
-        Tpret = self.add_var('Tpret', self.n_steps)
-        mf_prim = self.add_var('mf_prim', self.n_steps)
-        DTlm = self.add_var('DTlm', self.n_steps)
-        UA = self.add_var('UA', self.n_steps)
+        Tpsup = self.get_var('Tpsup')
+        Tpret = self.get_var('Tpret')
+        mf_prim = self.get_var('mf_prim')
+        DTlm = self.get_var('DTlm')
+        UA = self.get_var('UA')
         K = self.params['thermal_size_HEx'].v()
         q = self.params['exponential_HEx'].v()
 
         DTa = Tpsup - Tsret
         DTb = Tpret - Tssup
 
+        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, inf))
+        self.opti.set_initial(mf_prim, 50/500)
+
         for t in self.TIME:
             self.opti.subject_to(
-                DTlm[t] == (DTa[t] - DTb[t] + 0.0001) / (log(DTa[t] / DTb[t])))  # TODO
+                DTlm[t] == (DTa[t] - DTb[t]) / (log(DTa[t] / DTb[t])))  # TODO
 
             self.opti.subject_to(hf[t] == UA[t] * DTlm[t])
-            self.opti.subject_to(UA[t] == K / ((0.0001 + mf_prim[t])**-q + mf_sec[t]**-q))  #
+            self.opti.subject_to(UA[t] == K / ((0.0001 + mf_prim[t])**-q +mf_sec[t]**-q))  #TODO
             self.opti.subject_to(hf[t] == mf_prim[t] * self.cp * (Tpsup[t] - Tpret[t]))
 
         # TODO Keep inital temperatures mutable?
         self.opti.set_initial(Tpsup, self.params['temperature_supply_0'].v())
         self.opti.set_initial(Tpret, self.params['temperature_return_0'].v())
-        # self.opti.set_initial(mf_prim, 10)
-        # self.opti.subject_to(Tpsup >= self.params['temperature_radiator_in'].v() + 1)
-
-        # self.opti.subject_to(mf_prim*self.params['mult'].v() >= 10)
-
-        # TODO Nodig?
-        # # Initial temperatures
-        # self.opti.subject_to(Tpsup[0] == Tpsup0)
-        # self.opti.subject_to(Tpret[0] == Tpret0)
-
-        # TODO Nodig?
-        # uslack = self.make_slack('temperature_max_slack', self.n_steps)
-        # lslack = self.make_slack('temperature_min_slack', self.n_steps)
-        #
-        # ub = self.params['temperature_max'].v()
-        # lb = self.params['temperature_min'].v()
-        #
-        # for t in self.TIME:
-        #     self.constrain_value(temp[0, t], ub, ub=True, slack_variable=uslack)
-        #     self.constrain_value(temp[0, t], lb, ub=False, slack_variable=lslack)
-
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
 
@@ -481,7 +489,7 @@ class Substation(Component):
                              (self.params['temperature_radiator_in'].v() - self.params['temperature_radiator_out'].v())
                              for t in self.TIME])
 
-    def get_mflo(self, t, c=None):
+    def get_mflo(self, t=None, c=None):
         """
         Return mass_flow variable at time t
 
@@ -493,7 +501,10 @@ class Substation(Component):
             raise Exception(
                 "The optimization model for %s has not been compiled" % self.name)
         elif c is None:
-            return self.direction * self.params['mult'].v() * self.get_value('mf_prim')[t]
+            if t is None:
+                return self.direction * self.params['mult'].v() * self.get_value('mf_prim')
+            else:
+                return self.direction * self.params['mult'].v() * self.get_value('mf_prim')[t]
         else:
             return self.direction * self.get_value('mass_flow_tot')[t, c]
 
@@ -550,8 +561,8 @@ class BuildingFixed(FixedProfile):
                               temperature_driven=temperature_driven,
                               repr_days=repr_days)
 
-    def compile(self, model, start_time):
-        FixedProfile.compile(self, model, start_time)
+    def compile(self):
+        FixedProfile.compile(self)
 
 
 class ProducerFixed(FixedProfile):
@@ -599,8 +610,8 @@ class VariableComponent(Component):
         )
         self.heat_var = heat_var
 
-    def compile(self, model, start_time):
-        Component.compile(self, model, start_time)
+    def prepare(self, model, start_time):
+        Component.prepare(self, model, start_time)
 
 
 class ProducerVariable(VariableComponent):
@@ -704,23 +715,40 @@ class ProducerVariable(VariableComponent):
 
         return params
 
-    def compile(self, model, start_time):
+    def prepare(self, model, start_time):
+        VariableComponent.prepare(self, model, start_time)
+
+        if self.temperature_driven:
+            # Parameters
+            self.add_opti_param('mass_flow_tot', self.n_steps)
+            self.add_opti_param('Tsupply_0')
+            self.add_opti_param('Treturn_0')
+
+            # Variables
+            self.add_var('heat_flow_tot', self.n_steps)
+            self.add_var('temperatures', 2, self.n_steps)  # TODO Lines
+        else:
+            self.add_opti_param('delta_T')
+
+            self.add_var('mass_flow_tot', self.n_steps)
+            self.add_var('heat_flow_tot', self.n_steps)
+
+    def compile(self):
         """
         Build the structure of a producer model
 
         :return:
         """
-        VariableComponent.compile(self, model, start_time)
 
         # Version 1: Temperatures are variable
         if self.temperature_driven:
             lines = self.params['lines'].v()
-            mf =self.add_opti_param('mass_flow_tot', self.n_steps)
-            Ts0 = self.add_opti_param('Tsupply_0')
-            Tr0 = self.add_opti_param('Treturn_0')
+            mf = self.get_opti_param('mass_flow_tot')
+            Ts0 = self.get_opti_param('Tsupply_0')
+            Tr0 = self.get_opti_param('Treturn_0')
 
-            hf = self.add_var('heat_flow_tot', self.n_steps)
-            temp = self.add_var('temperatures', len(lines), self.n_steps)
+            hf = self.get_var('heat_flow_tot')
+            temp = self.get_var('temperatures')
 
             # Initialize
             self.opti.subject_to(hf[0] == (Ts0 - Tr0) * self.cp * mf[0])
@@ -745,10 +773,10 @@ class ProducerVariable(VariableComponent):
         elif not self.compiled:
             if self.repr_days is None:
                 # Version 2: Temperatures are not variables, no representative days
-                dT = self.add_opti_param('delta_T')
+                dT = self.get_opti_param('delta_T')
 
-                mf = self.add_var('mass_flow_tot', self.n_steps)
-                hf = self.add_var('heat_flow_tot', self.n_steps)
+                mf = self.get_var('mass_flow_tot')
+                hf = self.get_var('heat_flow_tot')
 
                 # if not self.params['Qmin'].v() == 0:
                 #     self.block.on = Var(self.TIME, within=Binary)
@@ -1053,6 +1081,8 @@ class Plant(VariableComponent):
         self.logger = logging.getLogger('modesto.components.VarProducer')
         self.logger.info('Initializing VarProducer {}'.format(name))
 
+        self.eqs = {'mass_flow': None}
+
     def is_heat_source(self):
         return True
 
@@ -1130,24 +1160,39 @@ class Plant(VariableComponent):
 
         return params
 
-    def compile(self, model, start_time):
+    def assign_mf(self, value):
+        self.eqs['mass_flow'] = value
+
+    def prepare(self, model, start_time):
+        VariableComponent.prepare(self, model, start_time)
+
+        # Variables:
+        self.add_var('heat_flow', self.n_steps)
+        self.add_var('Tsup', self.n_steps)
+        self.add_var('Tret', self.n_steps)
+
+        # Parameters:
+        self.add_opti_param('Qmax')
+        self.add_opti_param('temperature_max')
+        self.add_opti_param('temperature_min')
+
+    def compile(self):
         """
         Build the structure of a producer model
 
         :return:
         """
-        VariableComponent.compile(self, model, start_time)
 
         # Variables:
-        hf = self.add_var('heat_flow', self.n_steps)
-        mf = self.add_var('mass_flow', self.n_steps)
-        Tsup = self.add_var('Tsup', self.n_steps)
-        Tret = self.add_var('Tret', self.n_steps)
+        hf = self.get_var('heat_flow')
+        Tsup = self.get_var('Tsup')
+        Tret = self.get_var('Tret')
+        mf = self.eqs['mass_flow']
 
         # Parameters:
-        Qmax = self.add_opti_param('Qmax')
-        Tmax = self.add_opti_param('temperature_max')
-        Tmin = self.add_opti_param('temperature_min')
+        Qmax = self.get_opti_param('Qmax')
+        Tmax = self.get_opti_param('temperature_max')
+        Tmin = self.get_opti_param('temperature_min')
 
         # Initial guess
         # self.opti.set_initial(mf, 1)
@@ -1165,9 +1210,8 @@ class Plant(VariableComponent):
         self.opti.subject_to(Tsup >= Tmin)
         self.opti.subject_to(Tsup <= Tmax)
 
-        self.opti.set_initial(mf, 1)
+        # self.opti.set_initial(mf, 1)
 
-        # Initial guess
         self.compiled = True
 
     def set_parameters(self):
@@ -1194,7 +1238,7 @@ class Plant(VariableComponent):
         else:
             return self.direction * self.get_value('heat_flow')[t, c]*4186
 
-    def get_mflo(self, t, c=None):
+    def get_mflo(self, t=None, c=None):
         """
         Return mass_flow variable at time t
 
@@ -1202,11 +1246,11 @@ class Plant(VariableComponent):
         :param compiled: If True, the compilation of the model is assumed to be finished. If False, other means to get to the mass flow are used
         :return:
         """
-        if not self.compiled:
-            raise Exception(
-                "The optimization model for %s has not been compiled" % self.name)
-        elif c is None:
-            return self.direction * self.get_value('mass_flow')[t]
+        if c is None:
+            if t is None:
+                return self.direction * self.get_value('mass_flow')
+            else:
+                return self.direction * self.get_value('mass_flow')[t]
         else:
             return self.direction * self.get_value('mass_flow')[t, c]
 
@@ -1218,9 +1262,6 @@ class Plant(VariableComponent):
         :param line: 'supply' or 'return'
         :return:
         """
-        if not self.compiled:
-            raise Exception(
-                "The optimization model for %s has not been compiled" % self.name)
         if not line in self.params['lines'].v():
             raise KeyError(
                 'The input line can only take the values from {}'.format(
@@ -1337,7 +1378,7 @@ class Plant(VariableComponent):
 
         # return sum((70+273.15 - self.get_temperature(t, 'supply'))**2 for t in range(self.n_steps))
 
-        return sum(self.get_temperature(t, 'return') for t in self.TIME)
+        return sum(self.get_temperature(t, 'supply') for t in self.TIME)
 
     def obj_co2_cost(self):
         """
