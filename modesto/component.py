@@ -105,9 +105,6 @@ class Component(Submodel):
         if not self.temperature_driven:
             raise ValueError(
                 'The model is not temperature driven, with no supply temperature variables')
-        if not self.compiled:
-            raise Exception(
-                "The optimization model for %s has not been compiled" % self.name)
         if not line in self.params['lines'].v():
             raise KeyError(
                 'The input line can only take the values from {}'.format(
@@ -148,10 +145,7 @@ class Component(Submodel):
         :param compiled: If True, the compilation of the model is assumed to be finished. If False, other means to get to the mass flow are used
         :return:
         """
-        if not self.compiled:
-            raise Exception(
-                "The optimization model for %s has not been compiled" % self.name)
-        elif c is None:
+        if c is None:
             if t is None:
                 return self.direction * self.get_value('mass_flow_tot')
             else:
@@ -241,6 +235,17 @@ class Component(Submodel):
             self.compiled = False
             for param in self.params:
                 self.params[param].reinit()
+
+    def assign_mf(self):
+        """
+        Assign an expression the mass flow rate
+
+        :return:
+        """
+        if 'mass_flow' not in self.eqs:
+            raise Exception('This method is not compatibe with this class')
+
+
 
 
 class FixedProfile(Component):
@@ -356,10 +361,9 @@ class Substation(Component):
     def __init__(self, name=None,
                  temperature_driven=True, repr_days=None):
         """
-        Class for a component with a fixed heating profile
+        Base class for substation
 
         :param name: Name of the building
-        :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
         Component.__init__(self,
                            name=name,
@@ -424,8 +428,80 @@ class Substation(Component):
 
     def prepare(self, model, start_time):
         Component.prepare(self, model, start_time)
-
         self.set_time_axis()
+
+    def get_mflo(self, t=None, c=None):
+        """
+        Return mass_flow variable at time t
+
+        :param t:
+        :param compiled: If True, the compilation of the model is assumed to be finished. If False, other means to get to the mass flow are used
+        :return:
+        """
+        if c is None:
+            if t is None:
+                return self.direction * self.params['mult'].v() * self.get_value('mf_prim')
+            else:
+                return self.direction * self.params['mult'].v() * self.get_value('mf_prim')[t]
+        else:
+            return self.direction * self.get_value('mass_flow_tot')[t, c]
+
+    def get_temperature(self, t, line):
+        """
+        Return temperature in one of both lines at time t
+
+        :param t: time
+        :param line: 'supply' or 'return'
+        :return:
+        """
+        if not line in self.params['lines'].v():
+            raise KeyError(
+                'The input line can only take the values from {}'.format(
+                    self.params['lines'].v()))
+        if not t in self.TIME:
+            raise KeyError(
+                '{} is not a valid point in time'.format(t)
+            )
+
+        if line == 'supply':
+            return self.get_value('Tpsup')[t]
+        else:
+            return self.get_value('Tpret')[t]
+
+    def get_heat(self, t, c=None):
+        """
+        Return heat_flow variable at time t
+
+        :param t:
+        :return:
+        """
+        if not self.compiled:
+            raise Exception(
+                "The optimization model for %s has not been compiled" % self.name)
+        elif c is None:
+            return self.direction * self.get_value('heat_flow')[t]
+        else:
+            return self.direction * self.get_value('heat_flow')[t, c]
+
+
+class SubstationLMTD(Substation):
+    def __init__(self, name=None,
+                 temperature_driven=True, repr_days=None):
+        """
+        Class for a component with a fixed heating profile
+
+        :param name: Name of the building
+        :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
+        """
+        Substation.__init__(self,
+                            name=name,
+                            temperature_driven=temperature_driven,
+                            repr_days=repr_days)
+
+        self.params = self.create_params()
+
+    def prepare(self, model, start_time):
+        Substation.prepare(self, model, start_time)
 
         self.add_opti_param('mf_sec', self.n_steps)
         self.add_opti_param('heat_flow', self.n_steps)
@@ -489,64 +565,83 @@ class Substation(Component):
                              (self.params['temperature_radiator_in'].v() - self.params['temperature_radiator_out'].v())
                              for t in self.TIME])
 
-    def get_mflo(self, t=None, c=None):
-        """
-        Return mass_flow variable at time t
 
-        :param t:
-        :param compiled: If True, the compilation of the model is assumed to be finished. If False, other means to get to the mass flow are used
+class SubstationepsNTU(Substation):
+    def __init__(self, name=None,
+                 temperature_driven=True, repr_days=None):
+        """
+        Class for a component with a fixed heating profile
+
+        :param name: Name of the building
+        :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
+        """
+        Substation.__init__(self,
+                           name=name,
+                           temperature_driven=temperature_driven,
+                           repr_days=repr_days)
+
+        self.params = self.create_params()
+
+    def prepare(self, model, start_time):
+        Substation.prepare(self, model, start_time)
+
+        self.add_opti_param('mf_sec', self.n_steps)
+        self.add_opti_param('heat_flow', self.n_steps)
+
+        self.add_var('Tpsup', self.n_steps)
+        self.add_var('Tpret', self.n_steps)
+        self.add_var('mf_prim', self.n_steps)
+
+    def compile(self):
+        """
+        Build the structure of fixed profile
+
+        :param model: The main optimization model
+        :param pd.Timestamp start_time: Start time of optimization horizon.
         :return:
         """
-        if not self.compiled:
-            raise Exception(
-                "The optimization model for %s has not been compiled" % self.name)
-        elif c is None:
-            if t is None:
-                return self.direction * self.params['mult'].v() * self.get_value('mf_prim')
-            else:
-                return self.direction * self.params['mult'].v() * self.get_value('mf_prim')[t]
-        else:
-            return self.direction * self.get_value('mass_flow_tot')[t, c]
 
-    def get_temperature(self, t, line):
-        """
-        Return temperature in one of both lines at time t
+        # Radiator
+        mf_sec = self.get_opti_param('mf_sec')
+        hf = self.get_opti_param('heat_flow')
+        Tssup = self.params['temperature_radiator_out'].v()
 
-        :param t: time
-        :param line: 'supply' or 'return'
-        :return:
-        """
-        if not self.compiled:
-            raise Exception(
-                "The optimization model for %s has not been compiled" % self.name)
-        if not line in self.params['lines'].v():
-            raise KeyError(
-                'The input line can only take the values from {}'.format(
-                    self.params['lines'].v()))
-        if not t in self.TIME:
-            raise KeyError(
-                '{} is not a valid point in time'.format(t)
-            )
+        # Heat exchanger
+        Tpsup = self.get_var('Tpsup')
+        Tpret = self.get_var('Tpret')
+        mf_prim = self.get_var('mf_prim')
 
-        if line == 'supply':
-            return self.get_value('Tpsup')[t]
-        else:
-            return self.get_value('Tpret')[t]
+        K = self.params['thermal_size_HEx'].v()
+        q = self.params['exponential_HEx'].v()
 
-    def get_heat(self, t, c=None):
-        """
-        Return heat_flow variable at time t
+        Cmin = fmin(mf_sec, mf_prim)*self.cp
+        Cmax = fmax(mf_sec, mf_prim)*self.cp
+        UA = K / (mf_prim ** -q + mf_sec ** -q)#
+        Cstar = Cmin/Cmax
+        NTU = UA/Cmin
+        eps = (1 - exp(-NTU * (1 - Cstar))) / (1 - Cstar * exp(-NTU * (1 - Cstar)))
 
-        :param t:
-        :return:
-        """
-        if not self.compiled:
-            raise Exception(
-                "The optimization model for %s has not been compiled" % self.name)
-        elif c is None:
-            return self.direction * self.get_value('heat_flow')[t]
-        else:
-            return self.direction * self.get_value('heat_flow')[t, c]
+        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 100))
+        self.opti.set_initial(mf_prim, 50/500)
+
+        self.opti.subject_to(hf == eps * Cmin * (Tpsup - Tssup))
+        self.opti.subject_to(hf == mf_prim * self.cp * (Tpsup-Tpret))
+
+        # # TODO Keep inital temperatures mutable?
+        self.opti.set_initial(Tpsup, self.params['temperature_supply_0'].v())
+        self.opti.set_initial(Tpret, self.params['temperature_return_0'].v())
+        self.logger.info('Optimization model {} {} compiled'.
+                         format(self.__class__, self.name))
+
+        self.compiled = True
+
+    def set_parameters(self):
+        Submodel.set_parameters(self)
+        self.opti.set_value(self.get_opti_param('mf_sec'),
+                            [self.params['heat_flow'].v(t) / self.cp /
+                             (self.params['temperature_radiator_in'].v() - self.params['temperature_radiator_out'].v())
+                             for t in self.TIME])
+
 
 class BuildingFixed(FixedProfile):
     def __init__(self, name, temperature_driven=False, repr_days=None):

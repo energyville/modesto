@@ -241,6 +241,11 @@ class Modesto:
             for item in compile_order:
                 comp = self.get_component(node=item[0], name=item[1])
                 if isinstance(comp, Node):
+                    comp.add_mass_balance()
+
+            for item in reversed(compile_order):
+                comp = self.get_component(node=item[0], name=item[1])
+                if isinstance(comp, Node):
                     self.get_component(node=item[0], name=item[1]).compile(False)
                 else:
                     self.get_component(node=item[0], name=item[1]).compile()
@@ -412,7 +417,6 @@ class Modesto:
         try:
             self.results = self.opti.solve()
         except:
-            print(self.opti.debug.g_describe(62))
             if last_results:
                 for comp in self.iter_components():
                     for name, var in comp.opti_vars.items():
@@ -1163,8 +1167,6 @@ class Node(Submodel):
         :return:
         """
 
-        self.sort_comps()
-
         if self.compiled:
             if compile_comps:
                 for name, comp in self.components.items():
@@ -1175,7 +1177,7 @@ class Node(Submodel):
                 for name, comp in self.components.items():
                     comp.compile()
 
-            self._add_bal()
+            self.add_temp_balance()
 
         self.logger.info('Compilation of {} finished'.format(self.name))
 
@@ -1233,16 +1235,15 @@ class Node(Submodel):
                 self.incoming_pipes['return'].append(pipe)
                 self.outgoing_pipes['supply'].append(pipe)
 
-    def _add_bal(self):
+    def add_mass_balance(self):
         """
-        Add balance equations after all blocks for this node and subcomponents have been compiled
+        Add mass balance equations to the model
 
         :return:
         """
 
-        lines = self.params['lines'].v()
+        self.sort_comps()
 
-        # mass balance
         incoming = self.incoming_pipes['supply'] + self.incoming_comps['supply']
         if len(incoming) == 1:
             mf = -sum(comp.get_mflo() for comp in self.outgoing_comps['supply']) +\
@@ -1250,9 +1251,15 @@ class Node(Submodel):
             incoming[0].assign_mf(mf)
         else:
             raise Exception('This model cannot handle this topology')
-            # self.opti.subject_to(0 == sum(
-            #     comp.get_mflo(t) for comp in c.values())
-            #                      + sum(pipe.get_edge_mflo(self.name, t) for pipe in p.values()))
+
+    def add_temp_balance(self):
+        """
+        Add temperature balance equations
+
+        :return:
+        """
+
+        lines = self.params['lines'].v()
 
         if self.temperature_driven:
 

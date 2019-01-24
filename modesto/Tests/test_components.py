@@ -1,5 +1,5 @@
 from casadi import *
-from modesto.component import BuildingFixed, ProducerVariable, Substation
+from modesto.component import BuildingFixed, ProducerVariable, SubstationLMTD, SubstationepsNTU
 from modesto.pipe import SimplePipe, FiniteVolumePipe
 import pandas as pd
 import modesto.utils as ut
@@ -201,13 +201,13 @@ def test_simple_pipe():
     assert flag, 'The solution of the optimization problem is not correct'
 
 
-def test_substation():
+def test_substation_lmtd():
     opti = Opti()
-    ss = Substation('substation')
+    ss = SubstationLMTD('substation')
 
     ss_params = {
-            'mult': 350,
-            'heat_flow': heat_profile['ZwartbergNEast']/350,
+            'mult': 500,
+            'heat_flow': heat_profile['ZwartbergNEast']/500,
             'temperature_radiator_in': 47 + 273.15,
             'temperature_radiator_out': 35 + 273.15,
             'temperature_supply_0': 60 + 273.15,
@@ -271,6 +271,154 @@ def test_substation():
     axarr[3].plot(DTlm, label='$DT_{lm}$')
     axarr[3].plot(Tpsup - ss_params['temperature_radiator_in'], label='DTa')
     axarr[3].plot(Tpret - ss_params['temperature_radiator_out'], label='DTb')
+    axarr[3].legend()
+    axarr[3].set_title('Temperature differences')
+
+    # plt.show()
+
+
+def test_substation_entu():
+    opti = Opti()
+    ss = SubstationLMTD('substation')
+
+    ss_params = {
+        'mult': 500,
+        'heat_flow': heat_profile['ZwartbergNEast'] / 500,
+        'temperature_radiator_in': 47 + 273.15,
+        'temperature_radiator_out': 35 + 273.15,
+        'temperature_supply_0': 60 + 273.15,
+        'temperature_return_0': 40 + 273.15,
+        'lines': ['supply', 'return'],
+        'thermal_size_HEx': 15000,
+        'exponential_HEx': 0.7,
+        'horizon': horizon,
+        'time_step': time_step}
+
+    for param in ss_params:
+        ss.change_param(param, ss_params[param])
+
+    ss.prepare(opti, start_time)
+    ss.compile()
+
+    # Limitations to keep DTlm solvable
+    opti.subject_to(ss.get_var('Tpsup') >= ss_params['temperature_radiator_in'] + 0.01)
+    opti.subject_to(ss.get_var('Tpret') >= ss_params['temperature_radiator_out'] + 0.01)
+    opti.subject_to(ss.get_var('Tpsup') - ss_params['temperature_radiator_in'] >=
+                    ss.get_var('Tpret') - ss_params['temperature_radiator_out'] + 0.01)
+
+    # Limitations to keep mf_prim solvable
+    opti.subject_to(ss.get_var('mf_prim') >= 0.01)
+    opti.set_initial(ss.get_var('mf_prim'), 1)
+
+    # Others
+    ss.opti.subject_to(ss.opti.bounded(47 + 273.15, ss.get_var('Tpsup'), 60 + 273.15))
+
+    opti.minimize(sum1(ss.get_var('Tpret')))
+
+    options = {'ipopt': {'print_level': 0}}
+    opti.solver('ipopt', options)
+    ss.set_parameters()
+    try:
+        sol = opti.solve()
+    except:
+        raise Exception('Optimization failed')
+        # print(opti.debug.g_describe(6))
+        # print(opti.debug.x_describe(0))
+        # print(ss.opti_vars)
+
+    hf = sol.value(ss.opti_params['heat_flow'])
+    mf_sec = sol.value(ss.opti_params['mf_sec'])
+    mf_prim = sol.value(ss.opti_vars['mf_prim'])
+    Tpsup = sol.value(ss.opti_vars['Tpsup'])
+    Tpret = sol.value(ss.opti_vars['Tpret'])
+    DTlm = sol.value(ss.opti_vars['DTlm'])
+
+    fig, axarr1 = plt.subplots()
+    axarr1.plot([ss_params['thermal_size_HEx'] / (mf_prim[t] ** -0.7 + mf_sec[t] ** -0.7) for t in ss.TIME])  # TODO ))
+
+    fig, axarr = plt.subplots(4, 1)
+    axarr[0].plot(hf)
+    axarr[0].set_title('Heat flow')
+    axarr[1].plot(mf_prim, label='Primary')
+    axarr[1].plot(mf_sec, label='Secondary')
+    axarr[1].set_title('Mass flow')
+    axarr[1].legend()
+    axarr[2].plot(Tpsup, label='Primary, supply')
+    axarr[2].plot(Tpret, label='Primary, return')
+    axarr[2].legend()
+    axarr[2].set_title('Temperatures')
+    axarr[3].plot(DTlm, label='$DT_{lm}$')
+    axarr[3].plot(Tpsup - ss_params['temperature_radiator_in'], label='DTa')
+    axarr[3].plot(Tpret - ss_params['temperature_radiator_out'], label='DTb')
+    axarr[3].legend()
+    axarr[3].set_title('Temperature differences')
+
+
+    opti = Opti()
+    ss = SubstationepsNTU('substation')
+
+    ss_params = {
+            'mult': 500,
+            'heat_flow': heat_profile['ZwartbergNEast']/500,
+            'temperature_radiator_in': 47 + 273.15,
+            'temperature_radiator_out': 35 + 273.15,
+            'temperature_supply_0': 60 + 273.15,
+            'temperature_return_0': 40 + 273.15,
+            'lines': ['supply', 'return'],
+            'thermal_size_HEx': 15000,
+            'exponential_HEx': 0.7,
+            'horizon': horizon,
+            'time_step': time_step}
+
+    for param in ss_params:
+        ss.change_param(param, ss_params[param])
+
+    ss.prepare(opti, start_time)
+    ss.compile()
+
+    opti.set_initial(ss.get_var('mf_prim'), 1)
+    # Others
+    ss.opti.subject_to(ss.opti.bounded(47 + 273.15, ss.get_var('Tpsup'), 60 + 273.15))
+
+    opti.minimize(sum1(ss.get_var('Tpret')))
+
+    options = {'ipopt': {'print_level': 0}}
+    opti.solver('ipopt')
+    ss.set_parameters()
+    try:
+        sol = opti.solve()
+    except:
+        for name, var in ss.opti_vars.items():
+            print('\nsubstation', name, '\n----------------------\n')
+            print(opti.debug.value(var))
+        print(opti.debug.g_describe(7))
+        raise Exception('Optimization failed')
+        # print(opti.debug.x_describe(0))
+        # print(ss.opti_vars)
+
+
+    hf = sol.value(ss.opti_params['heat_flow'])
+    mf_sec = sol.value(ss.opti_params['mf_sec'])
+    mf_prim = sol.value(ss.opti_vars['mf_prim'])
+    Tpsup = sol.value(ss.opti_vars['Tpsup'])
+    Tpret = sol.value(ss.opti_vars['Tpret'])
+    # DTlm = sol.value(ss.opti_vars['DTlm'])
+
+    axarr1.plot([ss_params['thermal_size_HEx'] / (mf_prim[t]**-0.7 + mf_sec[t]**-0.7) for t in ss.TIME]) # TODO ))
+
+    axarr[0].plot(hf)
+    axarr[0].set_title('Heat flow')
+    axarr[1].plot(mf_prim, label='Primary, entu')
+    axarr[1].plot(mf_sec, label='Secondary, entu')
+    axarr[1].set_title('Mass flow')
+    axarr[1].legend()
+    axarr[2].plot(Tpsup, label='Primary, supply, entu')
+    axarr[2].plot(Tpret, label='Primary, return, entu')
+    axarr[2].legend()
+    axarr[2].set_title('Temperatures')
+    # axarr[3].plot(DTlm, label='$DT_{lm}$')
+    axarr[3].plot(Tpsup - ss_params['temperature_radiator_in'], label='DTa, entu')
+    axarr[3].plot(Tpret - ss_params['temperature_radiator_out'], label='DTb, entu')
     axarr[3].legend()
     axarr[3].set_title('Temperature differences')
 
@@ -363,7 +511,7 @@ def test_finite_volume_pipe():
     assert flag, 'The solution of the optimization problem is not correct'
 
 
-def test_pipe_and_substation():
+def test_pipe_and_substation_lmtd():
     time_step = 30
     horizon = .5 * 3600
     opti = Opti()
@@ -372,7 +520,7 @@ def test_pipe_and_substation():
     Substation    
     """
 
-    ss = Substation('substation')
+    ss = SubstationLMTD('substation')
     mult = mults['ZwartbergNEast']['Number of buildings']
     ss_params = {
         'mult': mult,
@@ -528,14 +676,15 @@ def test_pipe_and_substation():
     # assert flag, 'The solution of the optimization problem is not correct'
 
 if __name__ == '__main__':
-    test_fixed_profile_not_temp_driven()
-    test_fixed_profile_temp_driven()
-    test_producer_variable_not_temp_driven()
-    test_producer_variable_temp_driven()
-    test_simple_pipe()
-    test_substation()
-    test_finite_volume_pipe()
-    test_pipe_and_substation()
+    # test_fixed_profile_not_temp_driven()
+    # test_fixed_profile_temp_driven()
+    # test_producer_variable_not_temp_driven()
+    # test_producer_variable_temp_driven()
+    # test_simple_pipe()
+    test_substation_lmtd()
+    test_substation_entu()
+    # test_finite_volume_pipe()
+    # test_pipe_and_substation_lmtd()
 
     plt.show()
 
