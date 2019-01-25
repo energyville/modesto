@@ -163,7 +163,7 @@ def test_simple_network_substation():
         mult = mults['ZwartbergNEast']['Number of buildings']
 
         # Heat flows
-        prod_hf = optmodel.get_result('heat_flow', node='ThorPark', comp='plant')*4186
+        prod_hf = optmodel.get_result('heat_flow', node='ThorPark', comp='plant')
         waterschei_hf = optmodel.get_result('heat_flow', node='waterscheiGarden',
                                             comp='buildingD')*mult
         Q_loss_sup = optmodel.get_result('Qloss_sup', comp='pipe')
@@ -186,9 +186,6 @@ def test_simple_network_substation():
         pipe_T_ret_out = optmodel.get_result('Tret', comp='pipe').iloc[:, -1] - 273.15
         pipe_T_sup_vol = optmodel.get_result('Tsup', comp='pipe') - 273.15
         pipe_T_ret_vol = optmodel.get_result('Tret', comp='pipe') - 273.15
-
-        mix_temp_wg = optmodel.results.value(optmodel.components['waterscheiGarden'].get_value('mix_temp_sup')) - 273.15
-        mix_temp_tp = optmodel.results.value(optmodel.components['ThorPark'].get_value('mix_temp_ret')) - 273.15
 
         # Sum of heat flows
         prod_e = sum(prod_hf)
@@ -736,7 +733,7 @@ def test_branched_network_substation():
     horizon = 5*3600
     time_step = 30
     start_time = pd.Timestamp('20140101')
-    n_steps = int(horizon/n_steps)
+    n_steps = int(horizon/time_step)
 
     ###########################
     # Set up Graph of network #
@@ -884,7 +881,7 @@ def test_branched_network_substation():
                                     ['Plant', None],
                                     ['Plant', 'plant']],)
 
-    optmodel.set_objective('energy')
+    optmodel.set_objective('cost')
 
     optmodel.solve(tee=True, mipgap=0.2, last_results=True)
 
@@ -893,7 +890,7 @@ def test_branched_network_substation():
     ##################################
 
     # Heat flows
-    prod_hf = optmodel.get_result('heat_flow', node='Plant', comp='plant')*4186
+    prod_hf = optmodel.get_result('heat_flow', node='Plant', comp='plant')
     n1_hf = optmodel.get_result('heat_flow', node='Neighbourhood1', comp='building')*mult1
     n2_hf = optmodel.get_result('heat_flow', node='Neighbourhood2', comp='building')*mult2
     Qls1 = optmodel.get_result('Qloss_sup', comp='pipe1')
@@ -991,6 +988,6 @@ def test_branched_network_substation():
 
 if __name__ == '__main__':
     # test_simple_network_building_fixed()
-    # test_simple_network_substation()
+    test_simple_network_substation()
     # test_branched_network_building_fixed()
-    test_branched_network_substation()
+    # test_branched_network_substation()

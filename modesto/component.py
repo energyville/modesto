@@ -109,15 +109,17 @@ class Component(Submodel):
             raise KeyError(
                 'The input line can only take the values from {}'.format(
                     self.params['lines'].v()))
-        if not t in self.TIME:
-            raise KeyError(
-                '{} is not a valid point in time'.format(t)
-            )
 
         if line == 'supply':
-            return self.get_value('Tsup')[t]
+            if t is None:
+                return self.get_value('Tsup')
+            else:
+                return self.get_value('Tsup')[t]
         else:
-            return self.get_value('Tret')[t]
+            if t is None:
+                return self.get_value('Tret')
+            else:
+                return self.get_value('Tret')[t]
 
     def get_heat(self, t, c=None):
         """
@@ -236,16 +238,21 @@ class Component(Submodel):
             for param in self.params:
                 self.params[param].reinit()
 
-    def assign_mf(self):
+    def assign_mf(self, value):
         """
         Assign an expression the mass flow rate
 
         :return:
         """
-        if 'mass_flow' not in self.eqs:
-            raise Exception('This method is not compatibe with this class')
+        raise Exception('This method is not compatibe with this class')
 
+    def assign_temp(self, value, line):
+        """
+        Assign an expression the mass flow rate
 
+        :return:
+        """
+        raise Exception('This method is not compatibe with this class')
 
 
 class FixedProfile(Component):
@@ -373,6 +380,8 @@ class Substation(Component):
 
         self.params = self.create_params()
 
+        self.heat_sf = 1000 # Scaling factor for heat
+
     def create_params(self):
         """
         Creates all necessary parameters for the component
@@ -388,26 +397,31 @@ class Substation(Component):
                                     '-'),
             'heat_flow': UserDataParameter('heat_profile',
                                            'Heat use in one (average) building',
-                                           'W'),
+                                           'kW'),
             'temperature_radiator_in': DesignParameter('temperature_radiator_in',
                                                        'Temperature of the water coming into the radiator',
                                                        'K',
                                                        val=47 + 273.15
-                                                        ),
+                                                       ),
             'temperature_radiator_out': DesignParameter('temperature_radiator_out',
                                                         'Temperature of the water coming out of the radiator',
                                                         'K',
                                                         val=35 + 273.15
                                                         ),
             'temperature_supply_0': StateParameter('temperature_supply',
-                                                   'Initial supply temperature at the component',
+                                                   'Initial guess supply temperature at the component',
                                                    'K',
                                                    'fixedVal',
                                                    slack=True),
             'temperature_return_0': StateParameter('temperature_return',
-                                                   'Initial return temperature at the component',
+                                                   'Initial guess return temperature at the component',
                                                    'K',
                                                     'fixedVal'),
+            'mf_prim_0': StateParameter('mf_prim',
+                                        'Initial guess primary mass flow rate',
+                                        'K',
+                                        'fixedVal',
+                                        val=0.1),
             'lines': DesignParameter('lines',
                                      unit='-',
                                      description='List of names of the lines that can be found in the network, e.g. '
@@ -446,7 +460,7 @@ class Substation(Component):
         else:
             return self.direction * self.get_value('mass_flow_tot')[t, c]
 
-    def get_temperature(self, t, line):
+    def get_temperature(self, line, t=None):
         """
         Return temperature in one of both lines at time t
 
@@ -458,15 +472,17 @@ class Substation(Component):
             raise KeyError(
                 'The input line can only take the values from {}'.format(
                     self.params['lines'].v()))
-        if not t in self.TIME:
-            raise KeyError(
-                '{} is not a valid point in time'.format(t)
-            )
 
         if line == 'supply':
-            return self.get_value('Tpsup')[t]
+            if t is None:
+                return self.get_value('Tpsup')
+            else:
+                return self.get_value('Tpsup')[t]
         else:
-            return self.get_value('Tpret')[t]
+            if t is None:
+                return self.get_value('Tpret')
+            else:
+                return self.get_value('Tpret')[t]
 
     def get_heat(self, t, c=None):
         """
@@ -479,9 +495,9 @@ class Substation(Component):
             raise Exception(
                 "The optimization model for %s has not been compiled" % self.name)
         elif c is None:
-            return self.direction * self.get_value('heat_flow')[t]
+            return self.direction * self.get_value('heat_flow')[t] * self.heat_sf
         else:
-            return self.direction * self.get_value('heat_flow')[t, c]
+            return self.direction * self.get_value('heat_flow')[t, c] * self.heat_sf
 
 
 class SubstationLMTD(Substation):
@@ -576,9 +592,9 @@ class SubstationepsNTU(Substation):
         :param direction: Indicates  direction of positive heat and mass flows. 1 means into the network (producer node), -1 means into the component (consumer node)
         """
         Substation.__init__(self,
-                           name=name,
-                           temperature_driven=temperature_driven,
-                           repr_days=repr_days)
+                            name=name,
+                            temperature_driven=temperature_driven,
+                            repr_days=repr_days)
 
         self.params = self.create_params()
 
@@ -616,20 +632,17 @@ class SubstationepsNTU(Substation):
 
         Cmin = fmin(mf_sec, mf_prim)*self.cp
         Cmax = fmax(mf_sec, mf_prim)*self.cp
-        UA = K / (mf_prim ** -q + mf_sec ** -q)#
+        UA = K / (mf_prim ** -q + mf_sec ** -q)
         Cstar = Cmin/Cmax
         NTU = UA/Cmin
         eps = (1 - exp(-NTU * (1 - Cstar))) / (1 - Cstar * exp(-NTU * (1 - Cstar)))
 
-        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 100))
-        self.opti.set_initial(mf_prim, 50/500)
-
         self.opti.subject_to(hf == eps * Cmin * (Tpsup - Tssup))
         self.opti.subject_to(hf == mf_prim * self.cp * (Tpsup-Tpret))
 
-        # # TODO Keep inital temperatures mutable?
-        self.opti.set_initial(Tpsup, self.params['temperature_supply_0'].v())
-        self.opti.set_initial(Tpret, self.params['temperature_return_0'].v())
+        # Limits
+        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 100))
+
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
 
@@ -641,6 +654,11 @@ class SubstationepsNTU(Substation):
                             [self.params['heat_flow'].v(t) / self.cp /
                              (self.params['temperature_radiator_in'].v() - self.params['temperature_radiator_out'].v())
                              for t in self.TIME])
+
+        # Initial guess
+        self.opti.set_initial(self.get_var('Tpsup'), self.params['temperature_supply_0'].v())
+        self.opti.set_initial(self.get_var('Tpret'), self.params['temperature_return_0'].v())
+        self.opti.set_initial(self.get_var('mf_prim'), self.params['mf_prim_0'].v())
 
 
 class BuildingFixed(FixedProfile):
@@ -1178,6 +1196,8 @@ class Plant(VariableComponent):
 
         self.eqs = {'mass_flow': None}
 
+        self.heat_sf = 1
+
     def is_heat_source(self):
         return True
 
@@ -1294,10 +1314,10 @@ class Plant(VariableComponent):
         # self.opti.set_initial(Tsup, 20+273.15)
         # self.opti.set_initial(Tret, 20+273.15)
         if isinstance(self.params['heat_estimate'].v(), list):
-            self.opti.set_initial(hf, self.params['heat_estimate'].v())
+            self.opti.set_initial(hf, self.params['heat_estimate'].v() / self.heat_sf)
 
         # Energy balance
-        self.opti.subject_to(hf == mf * (Tsup - Tret)) # self.cp
+        self.opti.subject_to(hf == mf * self.cp * (Tsup - Tret) / self.heat_sf) #
 
         # Limits
         # self.opti.subject_to(hf <= Qmax)
@@ -1329,9 +1349,9 @@ class Plant(VariableComponent):
             raise Exception(
                 "The optimization model for %s has not been compiled" % self.name)
         elif c is None:
-            return self.direction * self.get_value('heat_flow')[t]*4186
+            return self.direction * self.get_value('heat_flow')[t]
         else:
-            return self.direction * self.get_value('heat_flow')[t, c]*4186
+            return self.direction * self.get_value('heat_flow')[t, c]
 
     def get_mflo(self, t=None, c=None):
         """
@@ -1349,7 +1369,7 @@ class Plant(VariableComponent):
         else:
             return self.direction * self.get_value('mass_flow')[t, c]
 
-    def get_temperature(self, t, line):
+    def get_temperature(self, line, t=None):
         """
         Return temperature in one of both lines at time t
 
@@ -1361,15 +1381,17 @@ class Plant(VariableComponent):
             raise KeyError(
                 'The input line can only take the values from {}'.format(
                     self.params['lines'].v()))
-        if not t in self.TIME:
-            raise KeyError(
-                '{} is not a valid point in time'.format(t)
-            )
 
         if line == 'supply':
-            return self.get_value('Tsup')[t]
+            if t is None:
+                return self.get_value('Tsup')
+            else:
+                return self.get_value('Tsup')[t]
         else:
-            return self.get_value('Tret')[t]
+            if t is None:
+                return self.get_value('Tret')
+            else:
+                return self.get_value('Tret')[t]
 
     def get_investment_cost(self):
         """

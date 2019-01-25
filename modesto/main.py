@@ -1201,9 +1201,6 @@ class Node(Submodel):
 
         self.set_time_axis()
 
-        self.add_var('mix_temp_sup', self.n_steps)
-        self.add_var('mix_temp_ret', self.n_steps)
-
     def sort_comps(self):
         """
         Sort components into in and outgoing components and pipes
@@ -1263,35 +1260,28 @@ class Node(Submodel):
 
         if self.temperature_driven:
 
-            mix_temp = {'supply': self.get_var('mix_temp_sup'),
-                        'return': self.get_var('mix_temp_ret')}
-
             for t in self.TIME:
                 for l, line in enumerate(lines):
 
                     if len(self.incoming_comps[line]) + len(self.incoming_pipes[line]) == 1:
                         if len(self.incoming_comps[line]) == 1:
-                            self.opti.subject_to(mix_temp[line][t] ==
-                                                 self.incoming_comps[line][0].get_temperature(t, line))
+                            mix_temp[line] = self.incoming_comps[line][0].get_temperature(line)
                         else:
-                            self.opti.subject_to(mix_temp[line][t] ==
-                                                 self.incoming_pipes[line][0].get_edge_temperature(self.name, t, line))
+                            mix_temp[line] = self.incoming_pipes[line][0].get_edge_temperature(self.name, line)
                     else:
-                        self.opti.subject_to(
-                            mix_temp[line][t] ==
-                            (sum(comp.get_mflo(t) * comp.get_temperature(t, line)
+                        mix_temp = \
+                            (sum(comp.get_mflo() * comp.get_temperature(line)
                                 for comp in self.incoming_comps[line]) +
-                             sum(pipe.get_edge_mflo(self.name, t) * pipe.get_edge_temperature(self.name, t, line)
-                                for pipe in self.incoming_pipes[line]))  /
-                            (sum(comp.get_mflo(t) for comp in self.incoming_comps[line]) +
-                             sum(pipe.get_edge_mflo(self.name, t) for pipe in self.incoming_pipes[line]))
-                        )
+                             sum(pipe.get_edge_mflo(self.name) * pipe.get_edge_temperature(self.name, line)
+                                for pipe in self.incoming_pipes[line])) / \
+                            (sum(comp.get_mflo() for comp in self.incoming_comps[line]) +
+                             sum(pipe.get_edge_mflo(self.name) for pipe in self.incoming_pipes[line]))
 
                     for comp in self.outgoing_pipes[line]:
-                        self.opti.subject_to(comp.get_edge_temperature(self.name, t, line) == \
-                                            mix_temp[line][t])
+                        self.opti.subject_to(comp.get_edge_temperature(self.name, line, t) == \
+                                             mix_temp[line][t])
                     for comp in self.outgoing_comps[line]:
-                        self.opti.subject_to(comp.get_temperature(t, line) == mix_temp[line][t])
+                        self.opti.subject_to(comp.get_temperature(line, t) == mix_temp[line][t])
 
         elif self.repr_days is None:
 

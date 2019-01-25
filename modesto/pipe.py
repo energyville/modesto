@@ -297,22 +297,34 @@ class SimplePipe(Pipe):
         Pipe.set_parameters(self)
         self.opti.set_value(self.get_opti_param('mf_max'), vflomax[self.params['diameter'].v()])
 
-    def get_edge_temperature(self, node, t, line):
+    def get_edge_temperature(self, node, line, t=None):
         assert self.compiled, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             if line == 'supply':
-                return self.get_value('Tsup_in')[t]
+                if t is None:
+                    return self.get_value('Tsup_in')
+                else:
+                    return self.get_value('Tsup_in')[t]
             elif line == 'return':
-                return self.get_value('Tret_out')[t]
+                if t is None:
+                    return self.get_value('Tret_out')
+                else:
+                    return self.get_value('Tret_out')[t]
             else:
                 raise ValueError(
                     'The input line can only take the values from {}'.format(
                         self.params['lines'].v()))
         elif node == self.end_node:
             if line == 'supply':
-                return self.get_value('Tsup_out')[t]
+                if t is None:
+                    return self.get_value('Tsup_out')
+                else:
+                    return self.get_value('Tsup_out')[t]
             elif line == 'return':
-                return self.get_value('Tret_in')[t]
+                if t is None:
+                    return self.get_value('Tret_in')
+                else:
+                    return self.get_value('Tret_in')[t]
             else:
                 raise ValueError(
                     'The input line can only take the values from {}'.format(
@@ -487,21 +499,33 @@ class FiniteVolumePipe(Pipe):
 
         self.opti.set_value(self.get_opti_param('Di'), self.di[self.params['diameter'].v()])
 
-    def get_edge_temperature(self, node, t, line):
+    def get_edge_temperature(self, node, line, t=None):
         if node == self.start_node:
             if line == 'supply':
-                return self.get_value('Tsup_in')[t]
+                if t is None:
+                    return self.get_value('Tsup_in')
+                else:
+                    return self.get_value('Tsup_in')[t]
             elif line == 'return':
-                return self.get_value('Tret')[-1, t].T
+                if t is None:
+                    return self.get_value('Tret')[-1, :].T
+                else:
+                    return self.get_value('Tret')[-1, t].T
             else:
                 raise ValueError(
                     'The input line can only take the values from {}'.format(
                         self.params['lines'].v()))
         elif node == self.end_node:
             if line == 'supply':
-                return self.get_value('Tsup')[-1, t].T
+                if t is None:
+                    return self.get_value('Tsup')[-1, :].T
+                else:
+                    return self.get_value('Tsup')[-1, t].T
             elif line == 'return':
-                return self.get_value('Tret_in')[t]
+                if t is None:
+                    return self.get_value('Tret_in')
+                else:
+                    return self.get_value('Tret_in')[t]
             else:
                 raise ValueError(
                     'The input line can only take the values from {}'.format(
