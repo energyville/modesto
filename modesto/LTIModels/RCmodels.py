@@ -486,7 +486,7 @@ class TeaserFourElement(Component):
         alphaOut = 23
 
         self.block.UeRoof = mutParam(1 / (1 / (alphaOut * ARoof) + mp['RRoof']))
-        self.block.UeFloor = mutParam(1 / (1 / (alphaOut * AFloor) + mp['RFloor']))
+        self.block.UeFloor = mutParam(1 /  mp['RFloor'])
         self.block.UeWin = mutParam(1 / (1 / (alphaOut * ATotWin) + mp['RWin']))
         self.block.UeExt = mutParam(1 / (1 / (alphaOut * ATotExt) + mp['RExtRem']))
 
