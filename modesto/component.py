@@ -94,7 +94,7 @@ class Component(Submodel):
 
         self.params[name] = new_object
 
-    def get_temperature(self, t, line):
+    def get_temperature(self, line, t=None):
         """
         Return temperature in one of both lines at time t
 
