@@ -417,10 +417,6 @@ class FiniteVolumePipe(Pipe):
         self.add_var('Tret', self.n_volumes, self.n_steps)
         self.add_var('Tsup_in', self.n_steps)
         self.add_var('Tret_in', self.n_steps)
-        # self.add_var('Tsup_out', self.n_steps)  # TODo Nodig?
-        # self.add_var('Tret_out', self.n_steps)  # TODO Nodig?
-        self.add_var('Qloss_sup', self.n_volumes, self.n_steps)
-        self.add_var('Qloss_ret', self.n_volumes, self.n_steps)
 
     def compile(self):
         """
@@ -449,8 +445,6 @@ class FiniteVolumePipe(Pipe):
         Tret = self.get_var('Tret')
         Tsup_in = self.get_var('Tsup_in')
         Tret_in = self.get_var('Tret_in')
-        Qloss_sup = self.get_var('Qloss_sup')
-        Qloss_ret = self.get_var('Qloss_ret')
 
         # Initialize temperatures
         self.opti.subject_to(Tsup[:, 0] == tsup0)
@@ -459,12 +453,6 @@ class FiniteVolumePipe(Pipe):
         # Mass flow limits
         # self.opti.subject_to(mf >= 1)
         # self.opti.subject_to(mf <= vflomax[self.params['diameter'].v()])
-
-        # Energy balance
-        for t in self.TIME:
-            for v in range(self.n_volumes):
-                self.opti.subject_to(Qloss_sup[v, t] == (Tsup[v, t] - Tg[t]) / (Rs/l_vol))#
-                self.opti.subject_to(Qloss_ret[v, t] == (Tret[v, t] - Tg[t]) / (Rs/l_vol))#
 
         for t in self.TIME[1:]:
             for v in range(self.n_volumes):
@@ -475,15 +463,19 @@ class FiniteVolumePipe(Pipe):
                     Tsi = Tsup[v-1, t]
                     Tri = Tret[v-1, t]
 
-                self.opti.subject_to(self.cp * m_vol * (Tsup[v, t] - Tsup[v, t-1]) ==
-                                     (mf[t] * self.cp * (Tsi - Tsup[v, t]) - Qloss_sup[v, t]) * dt)#
-                self.opti.subject_to(self.cp * m_vol * (Tret[v, t] - Tret[v, t-1]) ==
-                                     (mf[t] * self.cp * (Tri - Tret[v, t]) - Qloss_ret[v, t]) * dt)#
+                self.opti.subject_to(self.cp * m_vol*(Tsup[v, t] - Tsup[v, t - 1]) ==
+                            (self.cp * mf[t] * (Tsi - Tsup[v, t]) - (Tsup[v, t] - Tg[t]) * l_vol / Rs) * dt)
+                self.opti.subject_to(self.cp * m_vol*(Tret[v, t] - Tret[v, t - 1]) ==
+                            (self.cp * mf[t] * (Tri - Tret[v, t]) - (Tret[v, t] - Tg[t]) * l_vol / Rs) * dt)
 
-        # self.opti.subject_to(Tret_out == Tret[-1, :].T)
-        # self.opti.subject_to(Tsup_out == Tsup[-1, :].T)
+                # self.opti.subject_to(Tsup[v, t] == (self.cp * m_vol * Tsup[v, t-1] + (self.cp * mf[t] * Tsi + Tg[t] * l_vol / Rs) * dt) /
+                #                      (self.cp * m_vol + (self.cp * mf[t] + l_vol / Rs) * dt))#
+                # self.opti.subject_to(Tret[v, t] == (self.cp * m_vol * Tret[v, t-1] + (self.cp * mf[t] * Tri + Tg[t] * l_vol / Rs) * dt) /
+                #                (self.cp * m_vol + (self.cp * mf[t] + l_vol / Rs) * dt))
 
-        self.opti.subject_to(Tsup[-1, :].T >= Tret_in + 1)
+        #self.opti.subject_to(Tsup[-1, :].T >= Tret_in + 1)
+        self.opti.subject_to(Tsup_in >= 50+273.15)
+        self.opti.subject_to(Tret_in <= 40+273.15)
 
         self.compiled = True
 

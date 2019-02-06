@@ -154,7 +154,7 @@ def test_simple_network_substation():
 
         optmodel.set_objective('energy')
 
-        optmodel.solve(tee=True, mipgap=0.2, verbose=False, last_results=True, maxiter=3000)
+        optmodel.solve(tee=True, mipgap=0.2, verbose=False, last_results=True, maxiter=1000)
 
         ##################################
         # Collect results                #
@@ -166,8 +166,8 @@ def test_simple_network_substation():
         prod_hf = optmodel.get_result('heat_flow', node='ThorPark', comp='plant')
         waterschei_hf = optmodel.get_result('heat_flow', node='waterscheiGarden',
                                             comp='buildingD')*mult
-        Q_loss_sup = optmodel.get_result('Qloss_sup', comp='pipe')
-        Q_loss_ret = optmodel.get_result('Qloss_ret', comp='pipe')
+        # Q_loss_sup = optmodel.get_result('Qloss_sup', comp='pipe')
+        # Q_loss_ret = optmodel.get_result('Qloss_ret', comp='pipe')
 
         # Mass flows
         prod_mf = optmodel.get_result('mass_flow', node='ThorPark', comp='plant')
@@ -201,9 +201,9 @@ def test_simple_network_substation():
         ax[0].axhline(y=0, linewidth=2, color='k', linestyle='--')
         ax[0].set_title('Heat flows [W]')
         ax[0].legend()
-        for i in range(Q_loss_ret.shape[1]):
-            ax[1].plot(Q_loss_sup.iloc[:, i], label='Supply {}'.format(i+1))
-            ax[1].plot(Q_loss_ret.iloc[:, i], label='Return {}'.format(i+1))  # , )])  #
+        # for i in range(Q_loss_ret.shape[1]):
+        #     ax[1].plot(Q_loss_sup.iloc[:, i], label='Supply {}'.format(i+1))
+        #     ax[1].plot(Q_loss_ret.iloc[:, i], label='Return {}'.format(i+1))  # , )])  #
         ax[1].set_title('Heat losses pipe [W]')
         ax[1].legend()
         fig.tight_layout()
@@ -371,7 +371,12 @@ def test_simple_network_building_fixed():
 
     if __name__ == '__main__':
         optmodel = construct_model()
-        optmodel.compile(start_time=start_time)
+        optmodel.compile(start_time=start_time, compile_order=[['waterscheiGarden', 'buildingD'],
+                                                               ['waterscheiGarden', None],
+                                                               [None, 'pipe'],
+                                                               ['ThorPark', None],
+                                                               ['ThorPark', 'plant']
+                                                               ])
 
         opti = optmodel.opti
 
@@ -389,8 +394,8 @@ def test_simple_network_building_fixed():
         prod_hf = optmodel.get_result('heat_flow', node='ThorPark', comp='plant')*4186
         waterschei_hf = optmodel.get_result('heat_flow_tot', node='waterscheiGarden',
                                             comp='buildingD')
-        Q_loss_sup = optmodel.get_result('Qloss_sup', comp='pipe')
-        Q_loss_ret = optmodel.get_result('Qloss_ret', comp='pipe')
+        #Q_loss_sup = optmodel.get_result('Qloss_sup', comp='pipe')
+        #Q_loss_ret = optmodel.get_result('Qloss_ret', comp='pipe')
 
         # Mass flows
         prod_mf = optmodel.get_result('mass_flow', node='ThorPark', comp='plant')
@@ -409,8 +414,8 @@ def test_simple_network_building_fixed():
         pipe_T_sup_vol = optmodel.get_result('Tsup', comp='pipe') - 273.15
         pipe_T_ret_vol = optmodel.get_result('Tret', comp='pipe') - 273.15
 
-        mix_temp_wg = optmodel.results.value(optmodel.components['waterscheiGarden'].get_value('mix_temp_sup')) - 273.15
-        mix_temp_tp = optmodel.results.value(optmodel.components['ThorPark'].get_value('mix_temp_ret')) - 273.15
+        #mix_temp_wg = optmodel.results.value(optmodel.components['waterscheiGarden'].get_value('mix_temp_sup')) - 273.15
+        #mix_temp_tp = optmodel.results.value(optmodel.components['ThorPark'].get_value('mix_temp_ret')) - 273.15
 
         # Sum of heat flows
         prod_e = sum(prod_hf)
@@ -420,17 +425,12 @@ def test_simple_network_building_fixed():
         print('\nNetwork')
         print('Efficiency', waterschei_e / (prod_e + 0.00001) * 100, '%')
 
-        fig, ax = plt.subplots(2, 1)
-        ax[0].plot(prod_hf, label='Producer')
-        ax[0].plot(waterschei_hf, label='Users and storage')  # , )])  #
-        ax[0].axhline(y=0, linewidth=2, color='k', linestyle='--')
-        ax[0].set_title('Heat flows [W]')
-        ax[0].legend()
-        for i in range(Q_loss_ret.shape[1]):
-            ax[1].plot(Q_loss_sup.iloc[:, i], label='Supply {}'.format(i+1))
-            ax[1].plot(Q_loss_ret.iloc[:, i], label='Return {}'.format(i+1))  # , )])  #
-        ax[1].set_title('Heat losses pipe [W]')
-        ax[1].legend()
+        fig, ax = plt.subplots(1, 1)
+        ax.plot(prod_hf, label='Producer')
+        ax.plot(waterschei_hf, label='Users and storage')  # , )])  #
+        ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
+        ax.set_title('Heat flows [W]')
+        ax.legend()
         # fig.suptitle('test__simple_network')
         fig.tight_layout()
 
@@ -630,12 +630,12 @@ def test_branched_network_building_fixed():
                                         comp='building')
     n2_hf = optmodel.get_result('heat_flow_tot', node='Neighbourhood2',
                                         comp='building')
-    Qls1 = optmodel.get_result('Qloss_sup', comp='pipe1')
-    Qlr1 = optmodel.get_result('Qloss_ret', comp='pipe1')
-    Qls2 = optmodel.get_result('Qloss_sup', comp='pipe2')
-    Qlr2 = optmodel.get_result('Qloss_ret', comp='pipe2')
-    Qls3 = optmodel.get_result('Qloss_sup', comp='pipe3')
-    Qlr3 = optmodel.get_result('Qloss_ret', comp='pipe3')
+    # Qls1 = optmodel.get_result('Qloss_sup', comp='pipe1')
+    # Qlr1 = optmodel.get_result('Qloss_ret', comp='pipe1')
+    # Qls2 = optmodel.get_result('Qloss_sup', comp='pipe2')
+    # Qlr2 = optmodel.get_result('Qloss_ret', comp='pipe2')
+    # Qls3 = optmodel.get_result('Qloss_sup', comp='pipe3')
+    # Qlr3 = optmodel.get_result('Qloss_ret', comp='pipe3')
 
     # Mass flows
     prod_mf = optmodel.get_result('mass_flow', node='Plant', comp='plant')
@@ -672,15 +672,15 @@ def test_branched_network_building_fixed():
     ax[0].axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax[0].set_title('Heat flows [W]')
     ax[0].legend()
-    for i in range(Qls1.shape[1]):
-        ax[1].plot(Qls1.iloc[:, i], label='Supply {} pipe1'.format(i+1))
-        ax[1].plot(Qlr1.iloc[:, i], label='Return {} pipe1'.format(i+1))
-    for i in range(Qls2.shape[1]):
-        ax[1].plot(Qls2.iloc[:, i], label='Supply {} pipe2'.format(i+1))
-        ax[1].plot(Qlr2.iloc[:, i], label='Return {} pipe2'.format(i+1))
-    for i in range(Qls3.shape[1]):
-        ax[1].plot(Qls3.iloc[:, i], label='Supply {} pipe3'.format(i+1))
-        ax[1].plot(Qlr3.iloc[:, i], label='Return {} pipe3'.format(i+1))
+    # for i in range(Qls1.shape[1]):
+    #     ax[1].plot(Qls1.iloc[:, i], label='Supply {} pipe1'.format(i+1))
+    #     ax[1].plot(Qlr1.iloc[:, i], label='Return {} pipe1'.format(i+1))
+    # for i in range(Qls2.shape[1]):
+    #     ax[1].plot(Qls2.iloc[:, i], label='Supply {} pipe2'.format(i+1))
+    #     ax[1].plot(Qlr2.iloc[:, i], label='Return {} pipe2'.format(i+1))
+    # for i in range(Qls3.shape[1]):
+    #     ax[1].plot(Qls3.iloc[:, i], label='Supply {} pipe3'.format(i+1))
+    #     ax[1].plot(Qlr3.iloc[:, i], label='Return {} pipe3'.format(i+1))
     ax[1].set_title('Heat losses pipe [W]')
     ax[1].legend()
     fig.tight_layout()
@@ -893,12 +893,12 @@ def test_branched_network_substation():
     prod_hf = optmodel.get_result('heat_flow', node='Plant', comp='plant')
     n1_hf = optmodel.get_result('heat_flow', node='Neighbourhood1', comp='building')*mult1
     n2_hf = optmodel.get_result('heat_flow', node='Neighbourhood2', comp='building')*mult2
-    Qls1 = optmodel.get_result('Qloss_sup', comp='pipe1')
-    Qlr1 = optmodel.get_result('Qloss_ret', comp='pipe1')
-    Qls2 = optmodel.get_result('Qloss_sup', comp='pipe2')
-    Qlr2 = optmodel.get_result('Qloss_ret', comp='pipe2')
-    Qls3 = optmodel.get_result('Qloss_sup', comp='pipe3')
-    Qlr3 = optmodel.get_result('Qloss_ret', comp='pipe3')
+    # Qls1 = optmodel.get_result('Qloss_sup', comp='pipe1')
+    # Qlr1 = optmodel.get_result('Qloss_ret', comp='pipe1')
+    # Qls2 = optmodel.get_result('Qloss_sup', comp='pipe2')
+    # Qlr2 = optmodel.get_result('Qloss_ret', comp='pipe2')
+    # Qls3 = optmodel.get_result('Qloss_sup', comp='pipe3')
+    # Qlr3 = optmodel.get_result('Qloss_ret', comp='pipe3')
 
     # Mass flows
     prod_mf = optmodel.get_result('mass_flow', node='Plant', comp='plant')
@@ -935,15 +935,15 @@ def test_branched_network_substation():
     ax[0].axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax[0].set_title('Heat flows [W]')
     ax[0].legend()
-    for i in range(Qls1.shape[1]):
-        ax[1].plot(Qls1.iloc[:, i], label='Supply {} pipe1'.format(i+1))
-        ax[1].plot(Qlr1.iloc[:, i], label='Return {} pipe1'.format(i+1))
-    for i in range(Qls2.shape[1]):
-        ax[1].plot(Qls2.iloc[:, i], label='Supply {} pipe2'.format(i+1))
-        ax[1].plot(Qlr2.iloc[:, i], label='Return {} pipe2'.format(i+1))
-    for i in range(Qls3.shape[1]):
-        ax[1].plot(Qls3.iloc[:, i], label='Supply {} pipe3'.format(i+1))
-        ax[1].plot(Qlr3.iloc[:, i], label='Return {} pipe3'.format(i+1))
+    # for i in range(Qls1.shape[1]):
+    #     ax[1].plot(Qls1.iloc[:, i], label='Supply {} pipe1'.format(i+1))
+    #     ax[1].plot(Qlr1.iloc[:, i], label='Return {} pipe1'.format(i+1))
+    # for i in range(Qls2.shape[1]):
+    #     ax[1].plot(Qls2.iloc[:, i], label='Supply {} pipe2'.format(i+1))
+    #     ax[1].plot(Qlr2.iloc[:, i], label='Return {} pipe2'.format(i+1))
+    # for i in range(Qls3.shape[1]):
+    #     ax[1].plot(Qls3.iloc[:, i], label='Supply {} pipe3'.format(i+1))
+    #     ax[1].plot(Qlr3.iloc[:, i], label='Return {} pipe3'.format(i+1))
     ax[1].set_title('Heat losses pipe [W]')
     # ax[1].legend()
     fig.tight_layout()

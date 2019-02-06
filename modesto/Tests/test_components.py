@@ -391,7 +391,7 @@ def test_finite_volume_pipe():
     # opti.subject_to(pipe.get_var('mass_flow') == step_mf)
 
     # Objective
-    opti.minimize(sum1(pipe.get_var('Tsup_in')))
+    opti.minimize(sum1(pipe.get_var('Tret')[-1, 1:].T))
 
     # Initial guess
     opti.set_initial(pipe.get_value('mass_flow'), 1)
@@ -405,6 +405,7 @@ def test_finite_volume_pipe():
         print(opti.debug.g_describe(1702))
         print(opti.debug.x_describe(0))
         raise Exception('Optimization failed')
+
     for name, var in pipe.opti_vars.items():
         print('\npipe', name, '\n------------------\n')
         print(opti.debug.value(var))
@@ -412,26 +413,26 @@ def test_finite_volume_pipe():
     Tro = sol.value(pipe.opti_vars['Tret'])[-1,:].T-273.15
     Ts = sol.value(pipe.opti_vars['Tsup'])-273.15
     Tr = sol.value(pipe.opti_vars['Tret'])-273.15
-    Qls = sol.value(pipe.opti_vars['Qloss_sup'])
-    Qlr = sol.value(pipe.opti_vars['Qloss_ret'])
+    #Qls = sol.value(pipe.opti_vars['Qloss_sup'])
+    #Qlr = sol.value(pipe.opti_vars['Qloss_ret'])
     mf = sol.value(pipe.get_value('mass_flow'))
 
     flag = True
 
     fig, axarr = plt.subplots(2, 1)
-    axarr[0].plot(Tso)
-    axarr[0].plot(Tro)
+    axarr[0].plot(Tso, label='Supply out')
+    axarr[0].plot(Tro, label='Return out')
     axarr[1].plot(mf)
     fig1, axarr = plt.subplots(2, 1)
     for i in range(Ts.shape[0]):
         axarr[0].plot(Ts[i, :], label=i)
         axarr[1].plot(Tr[i, :], label=i,)
     axarr[0].legend()
-    fig1, axarr = plt.subplots(2, 1)
-    for i in range(Ts.shape[0]):
-        axarr[0].plot(Qls[i, :], label=i)
-        axarr[1].plot(Qlr[i, :], label=i)
-    axarr[0].legend()
+    #fig1, axarr = plt.subplots(2, 1)
+    #for i in range(Ts.shape[0]):
+    #    axarr[0].plot(Qls[i, :], label=i)
+    #    axarr[1].plot(Qlr[i, :], label=i)
+    #axarr[0].legend()
 
     # plt.show()
 
@@ -439,20 +440,20 @@ def test_finite_volume_pipe():
     assert flag, 'The solution of the optimization problem is not correct'
 
 
-def test_pipe_and_substation_lmtd():
+def test_pipe_and_substation_entu():
     time_step = 30
-    horizon = .5 * 3600
+    horizon = 2 * 3600
     opti = Opti()
 
     """
     Substation    
     """
 
-    ss = SubstationLMTD('substation')
+    ss = SubstationepsNTU('substation')
     mult = mults['ZwartbergNEast']['Number of buildings']
     ss_params = {
-        'mult': mult,
-        'heat_flow': heat_profile['ZwartbergNEast'] / mult,
+        'mult': 500,
+        'heat_flow': heat_profile['ZwartbergNEast'] / 500,
         'temperature_radiator_in': 47 + 273.15,
         'temperature_radiator_out': 35 + 273.15,
         'temperature_supply_0': 60 + 273.15,
@@ -541,8 +542,8 @@ def test_pipe_and_substation_lmtd():
     Tro = sol.value(pipe.opti_vars['Tret'])[-1,:].T - 273.15
     Ts = sol.value(pipe.opti_vars['Tsup']) - 273.15
     Tr = sol.value(pipe.opti_vars['Tret']) - 273.15
-    Qls = sol.value(pipe.opti_vars['Qloss_sup'])
-    Qlr = sol.value(pipe.opti_vars['Qloss_ret'])
+    # Qls = sol.value(pipe.opti_vars['Qloss_sup'])
+    # Qlr = sol.value(pipe.opti_vars['Qloss_ret'])
     prod_mf = sol.value(pipe.get_value('mass_flow'))
     build_mf = sol.value(ss.opti_vars['mf_prim'])*mult
     rad_mf = sol.value(ss.opti_params['mf_sec'])*mult
@@ -557,9 +558,9 @@ def test_pipe_and_substation_lmtd():
     ax[0].axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax[0].set_title('Heat flows [W]')
     ax[0].legend()
-    for i in range(Qlr.shape[0]):
-        ax[1].plot(Qls[i, :], label='Supply {}'.format(i + 1))
-        ax[1].plot(Qlr[i, :], label='Return {}'.format(i + 1))
+    # for i in range(Qlr.shape[0]):
+    #     ax[1].plot(Qls[i, :], label='Supply {}'.format(i + 1))
+    #     ax[1].plot(Qlr[i, :], label='Return {}'.format(i + 1))
     ax[1].set_title('Heat losses pipe [W]')
     ax[1].legend()
     fig.tight_layout()
@@ -604,15 +605,15 @@ def test_pipe_and_substation_lmtd():
     # assert flag, 'The solution of the optimization problem is not correct'
 
 if __name__ == '__main__':
-    # test_fixed_profile_not_temp_driven()
-    # test_fixed_profile_temp_driven()
-    # test_producer_variable_not_temp_driven()
-    # test_producer_variable_temp_driven()
-    # test_simple_pipe()
-    # test_substation_lmtd()
+    test_fixed_profile_not_temp_driven()
+    test_fixed_profile_temp_driven()
+    test_producer_variable_not_temp_driven()
+    test_producer_variable_temp_driven()
+    test_simple_pipe()
+    test_substation_lmtd()
     test_substation_entu()
-    # test_finite_volume_pipe()
-    # test_pipe_and_substation_lmtd()
+    test_finite_volume_pipe()
+    test_pipe_and_substation_entu()
 
     plt.show()
 
