@@ -364,6 +364,8 @@ class FiniteVolumePipe(Pipe):
 
         self.n_volumes = 0
 
+        self.heat_sf = 1e6
+
     def calculate_n_volumes(self):
         vmax = self.params['max_speed'].v()
         dt = self.params['time_step'].v()
@@ -463,10 +465,10 @@ class FiniteVolumePipe(Pipe):
                     Tsi = Tsup[v-1, t]
                     Tri = Tret[v-1, t]
 
-                self.opti.subject_to(self.cp * m_vol*(Tsup[v, t] - Tsup[v, t - 1]) ==
-                            (self.cp * mf[t] * (Tsi - Tsup[v, t]) - (Tsup[v, t] - Tg[t]) * l_vol / Rs) * dt)
-                self.opti.subject_to(self.cp * m_vol*(Tret[v, t] - Tret[v, t - 1]) ==
-                            (self.cp * mf[t] * (Tri - Tret[v, t]) - (Tret[v, t] - Tg[t]) * l_vol / Rs) * dt)
+                self.opti.subject_to(self.cp * m_vol*(Tsup[v, t] - Tsup[v, t - 1]) / self.heat_sf ==
+                    (self.cp * mf[t] * (Tsi - Tsup[v, t]) - (Tsup[v, t] - Tg[t]) * l_vol / Rs) * dt / self.heat_sf)
+                self.opti.subject_to(self.cp * m_vol*(Tret[v, t] - Tret[v, t - 1]) / self.heat_sf ==
+                    (self.cp * mf[t] * (Tri - Tret[v, t]) - (Tret[v, t] - Tg[t]) * l_vol / Rs) * dt / self.heat_sf)
 
                 # self.opti.subject_to(Tsup[v, t] == (self.cp * m_vol * Tsup[v, t-1] + (self.cp * mf[t] * Tsi + Tg[t] * l_vol / Rs) * dt) /
                 #                      (self.cp * m_vol + (self.cp * mf[t] + l_vol / Rs) * dt))#

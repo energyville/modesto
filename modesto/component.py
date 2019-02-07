@@ -598,6 +598,8 @@ class SubstationepsNTU(Substation):
 
         self.params = self.create_params()
 
+        self.heat_sf = 1e3
+
     def prepare(self, model, start_time):
         Substation.prepare(self, model, start_time)
 
@@ -637,8 +639,8 @@ class SubstationepsNTU(Substation):
         NTU = UA/Cmin
         eps = (1 - exp(-NTU * (1 - Cstar))) / (1 - Cstar * exp(-NTU * (1 - Cstar)))
 
-        self.opti.subject_to(hf == eps * Cmin * (Tpsup - Tssup))
-        self.opti.subject_to(hf == mf_prim * self.cp * (Tpsup-Tpret))
+        self.opti.subject_to(hf / self.heat_sf == eps * Cmin * (Tpsup - Tssup) / self.heat_sf)
+        self.opti.subject_to(hf / self.heat_sf == mf_prim * self.cp * (Tpsup-Tpret) / self.heat_sf)
 
         # Limits
         self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 100))
@@ -1196,7 +1198,7 @@ class Plant(VariableComponent):
 
         self.eqs = {'mass_flow': None}
 
-        self.heat_sf = 1
+        self.heat_sf = 1e6
 
     def is_heat_source(self):
         return True
@@ -1314,10 +1316,10 @@ class Plant(VariableComponent):
         # self.opti.set_initial(Tsup, 20+273.15)
         # self.opti.set_initial(Tret, 20+273.15)
         if isinstance(self.params['heat_estimate'].v(), list):
-            self.opti.set_initial(hf, self.params['heat_estimate'].v() / self.heat_sf)
+            self.opti.set_initial(hf, self.params['heat_estimate'].v())
 
         # Energy balance
-        self.opti.subject_to(hf == mf * self.cp * (Tsup - Tret) / self.heat_sf) #
+        self.opti.subject_to(hf / self.heat_sf == mf * self.cp * (Tsup - Tret) / self.heat_sf) #
 
         # Limits
         # self.opti.subject_to(hf <= Qmax)
@@ -1338,7 +1340,7 @@ class Plant(VariableComponent):
         else:
             return self.get_value('ramp_cost_tot')[t,c]
 
-    def get_heat(self, t, c=None):
+    def get_heat(self, t, c=None, scaled=True):
         """
         Return heat_flow variable at time t
 
@@ -1348,10 +1350,16 @@ class Plant(VariableComponent):
         if not self.compiled:
             raise Exception(
                 "The optimization model for %s has not been compiled" % self.name)
-        elif c is None:
-            return self.direction * self.get_value('heat_flow')[t]
+
+        if scaled:
+            sf = self.heat_sf
         else:
-            return self.direction * self.get_value('heat_flow')[t, c]
+            sf = 1
+
+        if c is None:
+            return self.direction * self.get_value('heat_flow')[t] / self.heat_sf
+        else:
+            return self.direction * self.get_value('heat_flow')[t, c] / self.heat_sf
 
     def get_mflo(self, t=None, c=None):
         """
@@ -1414,18 +1422,15 @@ class Plant(VariableComponent):
         time_step = self.params['time_step'].v()
 
         if self.repr_days is None:
-            return sum((pef / eta * time_step * self.cf * self.get_heat(t)) for t in self.TIME) # pef / eta * * time_step * self.cf
+            return sum((pef / eta * time_step * self.get_heat(t)) for t in self.TIME) # pef / eta * * time_step * self.cf
         else:
             return sum(self.repr_count[c] * pef / eta * (self.get_heat(t, c)) *
-                       time_step *self.cf for t in self.TIME for
+                       time_step for t in self.TIME for
                        c in
                        self.REPR_DAYS)
 
     def obj_follow(self):
-        for t in self.TIME:
-            self.opti.subject_to(self.get_heat(t) >= 1000)
-
-        return sum((self.get_heat(t) - self.params['heat_estimate'].v(t))**2 for t in self.TIME)
+        return sum(((self.get_heat(t) - self.params['heat_estimate'].v(t)) / self.heat_sf)**2 for t in self.TIME)
 
     def obj_fuel_cost(self):
         """

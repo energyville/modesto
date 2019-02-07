@@ -508,7 +508,7 @@ def test_pipe_and_substation_entu():
     opti.subject_to(pipe.get_var('Tsup_in') >= 57+273.15)
     opti.subject_to(pipe.get_value('mass_flow') >= 1)
     # opti.subject_to(pipe.get_var('Tret_out') >= 35+273.15)
-    opti.subject_to((pipe.get_var('Tsup_in') - pipe.get_var('Tret')[-1,:].T) * pipe.get_value('mass_flow') / 1e6 == hf)
+    opti.subject_to((pipe.get_var('Tsup_in') - pipe.get_var('Tret')[-1,:].T) * pipe.get_value('mass_flow') == hf)
 
     opti.set_initial(hf, ss.params['heat_flow'].v()/4186)
     opti.set_initial(ss.get_var('mf_prim'), 1/mult)
@@ -605,15 +605,15 @@ def test_pipe_and_substation_entu():
     # assert flag, 'The solution of the optimization problem is not correct'
 
 if __name__ == '__main__':
-    test_fixed_profile_not_temp_driven()
-    test_fixed_profile_temp_driven()
-    test_producer_variable_not_temp_driven()
-    test_producer_variable_temp_driven()
-    test_simple_pipe()
-    test_substation_lmtd()
-    test_substation_entu()
+    # test_fixed_profile_not_temp_driven()
+    # test_fixed_profile_temp_driven()
+    # test_producer_variable_not_temp_driven()
+    # test_producer_variable_temp_driven()
+    # test_simple_pipe()
+    # test_substation_lmtd()
+    # test_substation_entu()
     test_finite_volume_pipe()
-    test_pipe_and_substation_entu()
+    # test_pipe_and_substation_entu()
 
     plt.show()
 
