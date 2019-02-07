@@ -97,6 +97,9 @@ class Pipe(Component):
                                             resource_filename('modesto',
                                                               'Data/Investment/Pipe.xlsx'))[
                                             'Cost_m']),
+            'Te': WeatherDataParameter('Te',
+                                       'Ambient temperature',
+                                       'K'),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
                                        'K'),
