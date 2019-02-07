@@ -160,6 +160,23 @@ class Pipe(Component):
     def assign_mf(self, value):
         self.eqs['mass_flow'] = value
 
+    def assign_temp(self, value, line, node=None):
+        """
+        Assign an expression the mass flow rate
+
+        :return:
+        """
+        if node == self.start_node:
+            if line == 'supply':
+                self.eqs['Tsup_in'] = value
+            else:
+                raise Exception('A temperature cannot be assigned to a flow leaving a pipe')
+        elif node == self.end_node:
+            if line == 'return':
+                self.eqs['Tret_in'] = value
+            else:
+                raise Exception('A temperature cannot be assigned to a flow leaving a pipe')
+
     def get_edge_mflo(self, node, t=None, c=None):
         assert self.opti is not None, "Pipe %s has not been compiled yet" % self.name
         if c is None:

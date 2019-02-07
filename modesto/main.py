@@ -238,15 +238,23 @@ class Modesto:
                 node_obj.compile()
 
         else:
+            # Add mass balances from substations to plant
             for item in compile_order:
                 comp = self.get_component(node=item[0], name=item[1])
                 if isinstance(comp, Node):
                     comp.add_mass_balance()
 
+            # Add supply temperature balances from plant to substations
             for item in reversed(compile_order):
                 comp = self.get_component(node=item[0], name=item[1])
                 if isinstance(comp, Node):
+                    comp.add_temp_balance('supply')
+
+            for item in compile_order:
+                comp = self.get_component(node=item[0], name=item[1])
+                if isinstance(comp, Node):
                     self.get_component(node=item[0], name=item[1]).compile(False)
+                    comp.add_temp_balance('return')
                 else:
                     self.get_component(node=item[0], name=item[1]).compile()
 
@@ -1177,8 +1185,6 @@ class Node(Submodel):
                 for name, comp in self.components.items():
                     comp.compile()
 
-            self.add_temp_balance()
-
         self.logger.info('Compilation of {} finished'.format(self.name))
 
         self.compiled = True
@@ -1249,19 +1255,13 @@ class Node(Submodel):
         else:
             raise Exception('This model cannot handle this topology')
 
-    def add_temp_balance(self):
+    def add_temp_balance(self, line):
         """
         Add temperature balance equations
 
         :return:
         """
-
-        lines = self.params['lines'].v()
-
         if self.temperature_driven:
-
-            for l, line in enumerate(lines):
-
                 if len(self.incoming_comps[line]) + len(self.incoming_pipes[line]) == 1:
                     if len(self.incoming_comps[line]) == 1:
                         mix_temp = self.incoming_comps[line][0].get_temperature(line)
@@ -1277,9 +1277,11 @@ class Node(Submodel):
                          sum(pipe.get_edge_mflo(self.name) for pipe in self.incoming_pipes[line]))
 
                 for comp in self.outgoing_pipes[line]:
+                    # comp.assign_temp(mix_temp, line, self.name)
                     self.opti.subject_to(comp.get_edge_temperature(self.name, line) == \
                                          mix_temp)
                 for comp in self.outgoing_comps[line]:
+                    # comp.assign_temp(mix_temp, line)
                     self.opti.subject_to(comp.get_temperature(line) == mix_temp)
 
         elif self.repr_days is None:

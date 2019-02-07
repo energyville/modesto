@@ -246,13 +246,16 @@ class Component(Submodel):
         """
         raise Exception('This method is not compatibe with this class')
 
-    def assign_temp(self, value, line):
+    def assign_temp(self, value, line, node=None):
         """
         Assign an expression the mass flow rate
 
         :return:
         """
-        raise Exception('This method is not compatibe with this class')
+        if line == 'supply':
+            self.eqs['Tsup'] = value
+        elif line == 'return':
+            self.eqs['Tret'] = value
 
 
 class FixedProfile(Component):
@@ -499,6 +502,17 @@ class Substation(Component):
         else:
             return self.direction * self.get_value('heat_flow')[t, c] * self.heat_sf
 
+    def assign_temp(self, value, line, node=None):
+        """
+        Assign an expression the mass flow rate
+
+        :return:
+        """
+        if line == 'supply':
+            self.eqs['Tpsup'] = value
+        elif line == 'return':
+            self.eqs['Tpret'] = value
+
 
 class SubstationLMTD(Substation):
     def __init__(self, name=None,
@@ -658,7 +672,7 @@ class SubstationepsNTU(Substation):
                              for t in self.TIME])
 
         # Initial guess
-        self.opti.set_initial(self.get_var('Tpsup'), self.params['temperature_supply_0'].v())
+        self.opti.set_initial(self.get_value('Tpsup'), self.params['temperature_supply_0'].v())
         self.opti.set_initial(self.get_var('Tpret'), self.params['temperature_return_0'].v())
         self.opti.set_initial(self.get_var('mf_prim'), self.params['mf_prim_0'].v())
 
