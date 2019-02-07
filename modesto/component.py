@@ -1335,10 +1335,8 @@ class Plant(VariableComponent):
         Submodel.set_parameters(self)
 
     def get_ramp_cost(self, t, c=None):
-        if c is None:
-            return self.get_value('ramp_cost_tot')[t]
-        else:
-            return self.get_value('ramp_cost_tot')[t,c]
+        # TODO No ramping
+        return 0
 
     def get_heat(self, t, c=None, scaled=True):
         """
@@ -1444,10 +1442,10 @@ class Plant(VariableComponent):
         time_step = self.params['time_step'].v()
 
         if self.repr_days is None:
-            return sum(cost.v(t) / eta * self.get_heat(t) *self.cf * time_step for t in self.TIME)
+            return sum(cost.v(t) / eta * self.get_heat(t) * time_step for t in self.TIME)
         else:
             return sum(self.repr_count[c] * cost.v(t, c) / eta *
-                       self.get_heat(t, c) * self.cf* time_step for t in self.TIME for c in
+                       self.get_heat(t, c) * time_step for t in self.TIME for c in
                        self.REPR_DAYS)
 
     def obj_cost_ramp(self):
