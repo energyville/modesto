@@ -283,10 +283,10 @@ def test_heat_var_stor_cost():
 def test_pipe_investment():
     gr = setup_graph()
     opt = setup_modesto(gr)
-    assert opt.components['pipe'].get_investment_cost == 635460.0
+    assert opt.components['pipe'].get_investment_cost() == 635460.0
 
     opt.change_param(node=None, comp='pipe', param='diameter', val=250)
-    assert opt.components['pipe'].get_investment_cost == 853460.0
+    assert opt.components['pipe'].get_investment_cost() == 853460.0
     # print(opt.components[])
 
 if __name__ == '__main__':
