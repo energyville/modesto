@@ -9,10 +9,9 @@ import pandas as pd
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
-import modesto.utils as utils
 from modesto.component import Component
 from modesto.parameter import DesignParameter, StateParameter, UserDataParameter, \
-    SeriesParameter, WeatherDataParameter, \
+    WeatherDataParameter, \
     TimeSeriesParameter
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
@@ -79,8 +78,7 @@ class Pipe(Component):
         :param interest_rate: equivalent interest rate as a decimal number
         :return: Cost in EUR
         """
-        return self.length * self.params['cost_inv'].v(
-            self.params['diameter'].v())
+        return self.length * (self.params['c_l'].v() + self.params['diameter'].v() * self.params['c_dl'].v())
 
     def create_params(self):
         params = Component.create_params(self)
@@ -88,15 +86,14 @@ class Pipe(Component):
             'diameter': DesignParameter('diameter',
                                         'Pipe diameter',
                                         'DN (mm)', mutable=True),
-            'cost_inv': SeriesParameter(name='cost_inv',
-                                        description='Investment cost per length as a function of diameter.'
-                                                    'Default value supplied.',
-                                        unit='EUR/m',
-                                        unit_index='DN (mm)',
-                                        val=utils.read_xlsx_data(
-                                            resource_filename('modesto',
-                                                              'Data/Investment/Pipe.xlsx'))[
-                                            'Cost_m']),
+            'c_l': DesignParameter(name='c_l',
+                                   description='Fixed cost per meter',
+                                   unit='EUR/m',
+                                   val=308.46),
+            'c_dl': DesignParameter(name='c_dl',
+                                    description='Variable cost per diameter and per meter',
+                                    unit='EUR/m/mm',
+                                    val=2.18),
             'Te': WeatherDataParameter('Te',
                                        'Ambient temperature',
                                        'K'),
@@ -490,8 +487,7 @@ class ExtensivePipe(Pipe):
         if self.compiled:
             for n in self.n_pump:
                 self.block.pps[n] = 2 * self.f * self.length * (
-                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (
-                                            di ** 5 * 983 ** 2 * pi ** 2)
+                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
         else:
             n_segments = self.n_pump_constr
             self.n_pump = range(n_segments + 1)

@@ -1173,33 +1173,19 @@ Description: Pipe diameter
 Unit: DN (mm)
 Value: 500
 
--cost_inv
-Description: Investment cost per length as a function of diameter.Default value supplied.
+-c_l
+Description: Fixed cost per meter
 Unit: EUR/m
-Value: DN
-20        391.00
-25        396.00
-32        422.00
-40        437.00
-50        495.00
-65        537.00
-80        616.00
-100       760.00
-125       913.00
-150      1101.00
-200      1311.00
-250      1755.00
-300      2144.00
-350      2590.02
-400      3075.04
-450      3599.06
-500      4162.08
-600      5405.12
-700      6804.16
-800      8359.20
-900     10070.24
-1000    11937.28
-Name: Cost_m, dtype: float64
+Value: 308.46
+
+-c_dl
+Description: Variable cost per diameter and per meter
+Unit: EUR/m/mm
+Value: 2.18
+
+-Te
+Description: Ambient temperature
+Unit: K
 
 -Tg
 Description: Undisturbed ground temperature
@@ -1250,33 +1236,19 @@ Description: Pipe diameter
 Unit: DN (mm)
 Value: 500
 
--cost_inv
-Description: Investment cost per length as a function of diameter.Default value supplied.
+-c_l
+Description: Fixed cost per meter
 Unit: EUR/m
-Value: DN
-20        391.00
-25        396.00
-32        422.00
-40        437.00
-50        495.00
-65        537.00
-80        616.00
-100       760.00
-125       913.00
-150      1101.00
-200      1311.00
-250      1755.00
-300      2144.00
-350      2590.02
-400      3075.04
-450      3599.06
-500      4162.08
-600      5405.12
-700      6804.16
-800      8359.20
-900     10070.24
-1000    11937.28
-Name: Cost_m, dtype: float64
+Value: 308.46
+
+-c_dl
+Description: Variable cost per diameter and per meter
+Unit: EUR/m/mm
+Value: 2.18
+
+-Te
+Description: Ambient temperature
+Unit: K
 
 -Tg
 Description: Undisturbed ground temperature
@@ -1327,33 +1299,19 @@ Description: Pipe diameter
 Unit: DN (mm)
 Value: 500
 
--cost_inv
-Description: Investment cost per length as a function of diameter.Default value supplied.
+-c_l
+Description: Fixed cost per meter
 Unit: EUR/m
-Value: DN
-20        391.00
-25        396.00
-32        422.00
-40        437.00
-50        495.00
-65        537.00
-80        616.00
-100       760.00
-125       913.00
-150      1101.00
-200      1311.00
-250      1755.00
-300      2144.00
-350      2590.02
-400      3075.04
-450      3599.06
-500      4162.08
-600      5405.12
-700      6804.16
-800      8359.20
-900     10070.24
-1000    11937.28
-Name: Cost_m, dtype: float64
+Value: 308.46
+
+-c_dl
+Description: Variable cost per diameter and per meter
+Unit: EUR/m/mm
+Value: 2.18
+
+-Te
+Description: Ambient temperature
+Unit: K
 
 -Tg
 Description: Undisturbed ground temperature
