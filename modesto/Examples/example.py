@@ -84,7 +84,7 @@ def construct_model():
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
-                      'horizon': n_steps*time_step,
+                      'horizon': n_steps * time_step,
                       'elec_cost': c_f}
 
     optmodel.change_params(general_params)
@@ -119,7 +119,6 @@ def construct_model():
 
     stor_design = {  # Thi and Tlo need to be compatible with delta_T of previous
 
-
         'Thi': 80 + 273.15,
         'Tlo': 60 + 273.15,
         'mflo_max': 110,
@@ -129,9 +128,9 @@ def construct_model():
         'dIns': 0.3,
         'kIns': 0.024,
         'heat_stor': 0,
-        'mflo_use': pd.Series(0, index=t_amb.index)
+        'mflo_use': pd.Series(0, index=t_amb.index),
+        'cost_inv': 1
     }
-
 
     optmodel.change_params(dict=stor_design, node='waterscheiGarden',
                            comp='storage')
@@ -156,7 +155,8 @@ def construct_model():
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 1.5e8,
                    'ramp_cost': 0.01,
-                   'ramp': 1e6 / 3600}
+                   'ramp': 1e6 / 3600,
+                   'cost_inv': 1}
 
     optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
@@ -175,6 +175,7 @@ def construct_model():
     ##################################
 
     return optmodel
+
 
 if __name__ == '__main__':
     optmodel = construct_model()
@@ -234,7 +235,7 @@ if __name__ == '__main__':
     # Efficiency
     print('\nNetwork')
     print('Efficiency', (
-                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%')
+            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%')
 
     # Diameters
     # print '\nDiameters'

@@ -190,7 +190,8 @@ def construct_model():
                    'temperature_min': 323.15,
                    'ramp': 1e6 / 3600,
                    'ramp_cost': 0.01,
-                   'mass_flow': mfcalc.get_comp_mf(node='ThorPark', comp='plant')}
+                   'mass_flow': mfcalc.get_comp_mf(node='ThorPark', comp='plant'),
+                   'cost_inv': 1}
 
     optmodel.change_params(prod_design, node='ThorPark', comp='plant')
 

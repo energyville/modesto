@@ -741,7 +741,7 @@ Value: 0.01
 -cost_inv
 Description: Investment cost as a function of Qmax
 Unit: EUR
-Value: 0
+Value: 1
 
 -CO2_price
 Description: CO2 price
@@ -1022,7 +1022,7 @@ Length: 35041, dtype: int64
 -cost_inv
 Description: Investment cost as a function of storage volume
 Unit: EUR
-Value: 0
+Value: 1
 
 -Te
 Description: Ambient temperature
@@ -2182,7 +2182,7 @@ Length: 35041, dtype: int64
 -cost_inv
 Description: Investment cost as a function of storage volume
 Unit: EUR
-Value: 0
+Value: 1
 
 -Te
 Description: Ambient temperature

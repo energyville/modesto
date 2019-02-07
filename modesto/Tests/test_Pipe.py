@@ -100,7 +100,8 @@ def setup_modesto_with_stor(graph, objtype='cost'):
                    'fuel_cost': c_f,
                    'Qmax': Pnom,
                    'ramp_cost': 0.00,
-                   'ramp': Pnom}
+                   'ramp': Pnom,
+                   'cost_inv': 1}
 
     optmodel.change_params(prod_design, 'prod', 'prod')
 
@@ -114,7 +115,8 @@ def setup_modesto_with_stor(graph, objtype='cost'):
                    'ar': 2,
                    'dIns': 0.2,
                    'kIns': 0.0024,
-                   'mflo_use': pd.Series(index=c_f.index, data=0)}
+                   'mflo_use': pd.Series(index=c_f.index, data=0),
+                   'cost_inv': 1}
 
     for stor in ['stor', 'stor2']:
         optmodel.change_params(stor_design, stor, 'stor')
@@ -203,7 +205,8 @@ def setup_modesto(graph, objtype='cost'):
                    'fuel_cost': c_f,
                    'Qmax': Pnom * 1.5,
                    'ramp_cost': 0.01,
-                   'ramp': Pnom / 3500}
+                   'ramp': Pnom / 3500,
+                   'cost_inv': 1}
 
     optmodel.change_params(prod_design, 'prod', 'prod')
 

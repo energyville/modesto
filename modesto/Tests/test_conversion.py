@@ -9,4 +9,4 @@ def test_geothermal():
     geo = GeothermalHeating(name='geo')
     geo.params['Qnom'].change_value(1e6)
 
-    assert geo.get_investment_cost() == 8e6
+    assert geo.get_investment_cost() == 1.6e6
