@@ -31,7 +31,6 @@ def test_producer():
 
     optmodel = Modesto(pipe_model='SimplePipe', graph=construct_model())
 
-
     datapath = resource_filename('modesto', 'Data')
     c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
 
@@ -41,7 +40,7 @@ def test_producer():
                       'Q_sol_W': QsolW,
                       'Q_sol_S': QsolS,
                       'Q_sol_N': QsolN,
-                      'horizon': n_steps*time_step,
+                      'horizon': n_steps * time_step,
                       'time_step': time_step,
                       'elec_cost': c_f}
 
@@ -67,7 +66,8 @@ def test_producer():
               'Qmax': 1e5,
               'Qmin': 1e4,
               'ramp_cost': 1,
-              'ramp': 1e5 / 2 / time_step}
+              'ramp': 1e5 / 2 / time_step,
+              'cost_inv': 1}
 
     optmodel.change_params(params, node='plant', comp='gen')
 

@@ -168,7 +168,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
                    'fuel_cost': c_f,
                    'Qmax': 65e6,
                    'ramp_cost': 0.01,
-                   'ramp': 120e6 / 3600}
+                   'ramp': 120e6 / 3600,
+                   'cost_inv': 1}
 
     model.change_params(prod_design, 'Production', 'backup')
 
@@ -182,7 +183,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
         'ar': 1,
         'dIns': 0.3,
         'kIns': 0.024,
-        'heat_stor': 0
+        'heat_stor': 0,
+        'cost_inv': 1
     }
     model.change_params(prod_stor_design, node='Production', comp='tank')
     model.change_init_type('heat_stor', 'cyclic', node='Production', comp='tank')

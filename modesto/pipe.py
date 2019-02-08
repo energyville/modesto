@@ -1,19 +1,17 @@
-
-
 import os
 import sys
 import warnings
-from math import pi
 from functools import reduce
+from math import pi
+
 import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 from modesto.component import Component
-import modesto.utils as utils
 from modesto.parameter import DesignParameter, StateParameter, UserDataParameter, \
-    SeriesParameter, WeatherDataParameter, \
+    WeatherDataParameter, \
     TimeSeriesParameter
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
@@ -63,13 +61,13 @@ class Pipe(Component):
         self.temp_sup = None
         self.temp_ret = None
 
-        self.f = 0.03  # Moody friction factor, between 0.015 and 0.04. Includes bends.
+        self.f_mult = 1.25  # Multiplication factor for darcy friction factor to account for extra pressure drops
         self.lifespan = 30
 
     @staticmethod
     def get_pipe_catalog():
         df = pd.read_csv(
-            os.path.join(CATALOG_PATH, 'IsoPlusDoubleStandard.csv'), sep=';',
+            os.path.join(CATALOG_PATH, 'Twin200Compound1000.csv'), sep=';',
             index_col='DN')
         return df
 
@@ -80,9 +78,7 @@ class Pipe(Component):
         :param interest_rate: equivalent interest rate as a decimal number
         :return: Cost in EUR
         """
-        return self.length * self.params['cost_inv'].v(
-            self.params['diameter'].v())
-
+        return self.length * (self.params['c_l'].v() + self.params['diameter'].v() * self.params['c_dl'].v())
 
     def create_params(self):
         params = Component.create_params(self)
@@ -90,15 +86,17 @@ class Pipe(Component):
             'diameter': DesignParameter('diameter',
                                         'Pipe diameter',
                                         'DN (mm)', mutable=True),
-            'cost_inv': SeriesParameter(name='cost_inv',
-                                        description='Investment cost per length as a function of diameter.'
-                                                    'Default value supplied.',
-                                        unit='EUR/m',
-                                        unit_index='DN (mm)',
-                                        val=utils.read_xlsx_data(
-                                            resource_filename('modesto',
-                                                              'Data/Investment/Pipe.xlsx'))[
-                                            'Cost_m']),
+            'c_l': DesignParameter(name='c_l',
+                                   description='Fixed cost per meter',
+                                   unit='EUR/m',
+                                   val=308.46),
+            'c_dl': DesignParameter(name='c_dl',
+                                    description='Variable cost per diameter and per meter',
+                                    unit='EUR/m/mm',
+                                    val=2.18),
+            'Te': WeatherDataParameter('Te',
+                                       'Ambient temperature',
+                                       'K'),
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
                                        'K'),
@@ -122,7 +120,7 @@ class Pipe(Component):
                                         mutable=False, val=30),
             'fix_maint': DesignParameter('fix_maint', unit='-',
                                          description='Annual maintenance cost as a fixed proportion of the investment',
-                                         mutable=False, val=0.01) # Source IEA ETSAP 2013
+                                         mutable=False, val=0.01)  # Source IEA ETSAP 2013
         })
 
         return params
@@ -264,6 +262,9 @@ class ExtensivePipe(Pipe):
                       repr_days=repr_days)
 
         pipe_catalog = self.get_pipe_catalog()
+
+        self.mflo_max_list = pipe_catalog['Max mflow']
+        self.f_list = pipe_catalog['Friction factor']
         self.Rs = pipe_catalog['Rs']
         self.di = pipe_catalog['Di']
         self.allow_flow_reversal = allow_flow_reversal
@@ -290,65 +291,39 @@ class ExtensivePipe(Pipe):
         :return:
         """
 
-        vflomax = {  # Maximal volume flow rate per DN in m3/h
-            # Taken from IsoPlus Double-Pipe catalog p. 7
-            20: 1.547,
-            25: 2.526,
-            32: 4.695,
-            40: 6.303,
-            50: 11.757,
-            65: 19.563,
-            80: 30.791,
-            100: 51.891,
-            125: 89.350,
-            150: 152.573,
-            200: 299.541,
-            250: 348 * 1.55,
-            300: 547 * 1.55,
-            350: 705 * 1.55,
-            400: 1550,
-            450: 1370 * 1.55,
-            500: 1820 * 1.55,
-            600: 2920 * 1.55,
-            700: 4370 * 1.55,
-            800: 6240 * 1.55,
-            900: 9500 * 1.55,
-            1000: 14000 * 1.55
-        }
-
         Component.compile(self, model, start_time)
         self.dn = self.params['diameter'].v()
 
-        self.mflo_max = vflomax[self.dn] * 1000 / 3600
+        self.mflo_max = self.mflo_max_list[self.dn]
 
-        Tg = self.params["Tg"]
+        Te = self.params["Te"]
         Rs = self.Rs[self.dn]
+        self.f = self.f_mult * self.f_list[self.dn]
 
         self.temp_sup = self.params['temperature_supply'].v()
         self.temp_ret = self.params['temperature_return'].v()
 
         if self.compiled:
-            self.block.mass_flow_max = vflomax[self.dn] * 1000 / 3600
+            self.block.mass_flow_max = self.mflo_max
             self.logger.debug('Redefining mass_flow_max')
             self.construct_pumping_constraints()
 
             if self.repr_days is None:
                 for t in self.TIME:
                     self.block.heat_loss_nom[t] = (self.temp_sup + self.temp_ret - 2 *
-                                                   Tg.v(t)) / Rs
+                                                   Te.v(t)) / Rs
 
             else:
                 for t in self.TIME:
                     for c in self.REPR_DAYS:
                         self.block.heat_loss_nom[t, c] = (self.temp_sup + self.temp_ret - 2 *
-                                                          Tg.v(t, c)) / Rs
+                                                          Te.v(t, c)) / Rs
         else:
             """
             Parameters and sets
             """
             self.block.mass_flow_max = Param(
-                initialize=vflomax[self.dn] * 1000 / 3600, mutable=True)
-
+                initialize=self.mflo_max, mutable=True)
 
             # Maximal heat loss per unit length
             def _heat_loss(b, t, c=None):
@@ -360,7 +335,7 @@ class ExtensivePipe(Pipe):
                 :param dn: DN index
                 :return: Heat loss in W/m
                 """
-                dq = (self.temp_sup + self.temp_ret - 2 * Tg.v(t, c)) / Rs
+                dq = (self.temp_sup + self.temp_ret - 2 * Te.v(t, c)) / Rs
                 return dq
 
             if self.repr_days is None:
@@ -466,9 +441,10 @@ class ExtensivePipe(Pipe):
                     return b.heat_loss_tot[t, c] == b.heat_loss_nom[t, c] * \
                            b.mass_flow_abs[t, c] / (
                                    self.hl_setting * b.mass_flow_max) * self.length
+
             if self.repr_days is None:
                 self.block.eq_heat_loss = Constraint(self.TIME,
-                                                          rule=_eq_heat_loss)
+                                                     rule=_eq_heat_loss)
             else:
                 self.block.eq_heat_loss_forw = Constraint(self.TIME,
                                                           self.REPR_DAYS,
@@ -511,8 +487,7 @@ class ExtensivePipe(Pipe):
         if self.compiled:
             for n in self.n_pump:
                 self.block.pps[n] = 2 * self.f * self.length * (
-                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (
-                                            di ** 5 * 983 ** 2 * pi ** 2)
+                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
         else:
             n_segments = self.n_pump_constr
             self.n_pump = range(n_segments + 1)
@@ -579,12 +554,13 @@ class ExtensivePipe(Pipe):
 
         if self.repr_days is None:
             return 1 / eta_mech / eta_elmo * sum(
-                max(cost.v(t),0.001) * self.block.pumping_power[t] * self.params[
+                max(cost.v(t), 0.001) * self.block.pumping_power[t] * self.params[
                     'time_step'].v() / 3600 / 1000 for t in self.TIME)
 
         else:
             return 1 / eta_mech / eta_elmo * sum(self.repr_count[c] *
-                                                 max(cost.v(t, c), 0.001) * self.block.pumping_power[t, c] * self.params[
+                                                 max(cost.v(t, c), 0.001) * self.block.pumping_power[t, c] *
+                                                 self.params[
                                                      'time_step'].v() / 3600 / 1000 for t in self.TIME for c
                                                  in self.REPR_DAYS)
 
@@ -622,7 +598,6 @@ class NodeMethod(Pipe):
         self.history_length = 0  # Number of known historical values
 
         self.params = self.create_params()
-
 
     def create_params(self):
 

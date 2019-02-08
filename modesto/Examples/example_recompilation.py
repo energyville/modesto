@@ -71,7 +71,8 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
         'dIns': 0.3,
         'kIns': 0.024,
         'heat_stor': 0,
-        'mflo_use': pd.Series(0, index=weather_data.index)
+        'mflo_use': pd.Series(0, index=weather_data.index),
+        'cost_inv': 1
     }
     model.change_params(dict=stor_params, node='demand', comp='stor')
     model.change_init_type('heat_stor', new_type='fixedVal', comp='stor', node='demand')
@@ -98,7 +99,8 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
         'fuel_cost': elec_cost,
         'Qmax': 7e6,
         'ramp_cost': 0,
-        'ramp': 0
+        'ramp': 0,
+        'cost_inv': 1
     }
     model.change_params(backup_params, node='STC', comp='backup')
 
@@ -107,7 +109,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
 
 if __name__ == '__main__':
     t_step = 3600
-    n_steps = 24*30
+    n_steps = 24 * 30
     start_time = pd.Timestamp('20140101')
 
     optmodel_mut = setup_modesto(t_step, n_steps)
@@ -120,7 +122,7 @@ if __name__ == '__main__':
     optmodel_mut.compile(start_time=start_time)
 
     optmodel_rec.change_param(node='STC', comp='solar', param='area', val=3000)
-    optmodel_rec.compile(start_time=start_time,recompile=True)
+    optmodel_rec.compile(start_time=start_time, recompile=True)
 
     optmodel_rec.set_objective('energy')
     optmodel_mut.set_objective('energy')
@@ -147,7 +149,7 @@ if __name__ == '__main__':
     print('Recompiled object')
     print(optmodel_rec.components['STC.solar'].block.area.value)
 
-    fig, ax = plt.subplots(2,1, sharex=True)
+    fig, ax = plt.subplots(2, 1, sharex=True)
     ax[0].plot(h_sol_rec, '-', label='Sol Recompiled')
     ax[0].plot(h_sol_mut, '--', label='Sol Mutable')
 

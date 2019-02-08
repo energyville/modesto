@@ -10,7 +10,7 @@ import modesto.utils as ut
 from modesto.main import Modesto
 
 
-def setup_graph(forward):
+def setup_graph(forward=True):
     """
     Instantiate graph.
 
@@ -100,7 +100,8 @@ def setup_modesto_with_stor(graph, objtype='cost'):
                    'fuel_cost': c_f,
                    'Qmax': Pnom,
                    'ramp_cost': 0.00,
-                   'ramp': Pnom}
+                   'ramp': Pnom,
+                   'cost_inv': 1}
 
     optmodel.change_params(prod_design, 'prod', 'prod')
 
@@ -114,7 +115,8 @@ def setup_modesto_with_stor(graph, objtype='cost'):
                    'ar': 2,
                    'dIns': 0.2,
                    'kIns': 0.0024,
-                   'mflo_use': pd.Series(index=c_f.index, data=0)}
+                   'mflo_use': pd.Series(index=c_f.index, data=0),
+                   'cost_inv': 1}
 
     for stor in ['stor', 'stor2']:
         optmodel.change_params(stor_design, stor, 'stor')
@@ -122,7 +124,6 @@ def setup_modesto_with_stor(graph, objtype='cost'):
 
     # optmodel.change_param('stor', 'stor', 'dIns', 0.001)
     # optmodel.change_param('stor', 'stor', 'kIns', 0.01)
-
 
     # Pipe parameters
     params = {
@@ -203,7 +204,8 @@ def setup_modesto(graph, objtype='cost'):
                    'fuel_cost': c_f,
                    'Qmax': Pnom * 1.5,
                    'ramp_cost': 0.01,
-                   'ramp': Pnom / 3500}
+                   'ramp': Pnom / 3500,
+                   'cost_inv': 1}
 
     optmodel.change_params(prod_design, 'prod', 'prod')
 
@@ -247,6 +249,7 @@ def test_pipe_cost():
 
     assert res1.equals(res2)
 
+
 def test_pipe_en():
     opt_for, opt_rev = run('energy')
 
@@ -267,6 +270,7 @@ def test_heat_var_stor_en():
 
     assert res1 == 0
 
+
 def test_heat_var_stor_cost():
     gr = setup_graph_stor()
     opt = setup_modesto_with_stor(gr, objtype='cost')
@@ -276,139 +280,150 @@ def test_heat_var_stor_cost():
     assert res1 == 0
 
 
+def test_pipe_investment():
+    gr = setup_graph()
+    opt = setup_modesto(gr)
+    assert opt.components['pipe'].get_investment_cost() == 635460.0
+
+    opt.change_param(node=None, comp='pipe', param='diameter', val=250)
+    assert opt.components['pipe'].get_investment_cost() == 853460.0
+    # print(opt.components[])
+
 if __name__ == '__main__':
-    import logging
-    import matplotlib.pyplot as plt
+    test_pipe_investment()
 
-    pipe_type = 'ExtensivePipe'
-    nostor = True
-
-    if nostor:
-        logging.getLogger()
-        G_for = setup_graph(True)
-        G_rev = setup_graph(False)
-
-        opt_for = setup_modesto(G_for)
-        opt_rev = setup_modesto(G_rev)
-
-        opts = {'for': opt_for, 'rev': opt_rev}
-        print('')
-        print(opts)
-
-        for name, opt in opts.items():
-            res = opt.solve(tee=True, mipgap=0.000001, solver='cplex')
-            if not res == 0:
-                raise Exception('Optimization {} failed to solve.'.format(name))
-
-        # print opts['for'].get_result('heat_flow_in', comp='pipe')
-        # print opts['for'].get_result('heat_flow_out', comp='pipe')
-
-        # print "Objective slack"
-        # print opts['for'].model.Slack.pprint()
-
-        print('Are heat losses equal?')
-        print(opts['for'].get_result('heat_loss_tot', comp='pipe').equals(opts['rev'].get_result('heat_loss_tot', comp='pipe')))
-        fig, axs = plt.subplots(4, 1, sharex=True)
-
-        for name, opt in opts.items():
-            axs[0].plot(opt.get_result('heat_flow', node='cons', comp='cons'), linestyle='--', label='cons_' + name)
-            axs[0].plot(opt.get_result('heat_flow', node='prod', comp='prod'), label='prod_' + name)
-
-            axs[0].set_ylabel('Heat flow [W]')
-
-            axs[1].plot(opt.get_result('heat_loss_tot', comp='pipe'), label=name)
-            axs[1].plot(opt.get_result('heat_flow_in', comp='pipe') - opt.get_result('heat_flow_out', comp='pipe'),
-                        label=name)
-            axs[1].set_ylabel('Heat loss [W]')
-
-            axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name + '_in')
-            axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name + '_out')
-            axs[2].set_ylabel('Heat flow in/out [W]')
-
-            axs[3].plot(opt.get_result('mass_flow', comp='pipe'), label=name)
-            axs[3].set_ylabel('Mass flow rate [kg/s]')
-
-        axs[0].legend()
-        axs[1].legend()
-        axs[2].legend()
-        axs[3].legend()
-
-        axs[-1].set_xlabel('Time')
-
-        for ax in axs:
-            ax.grid(alpha=0.3, linestyle=':')
-
-        plt.show()
-    else:
-        import matplotlib.pyplot as plt
-
-
-        gr = setup_graph_stor()
-        opt = setup_modesto_with_stor(gr)
-
-        res1 = opt.solve(tee=True,
-                         solver='gurobi')
-        print(opt.model.Slack.value)
-
-        stor = opt.get_result('heat_flow', 'stor', 'stor')
-        stor2 = opt.get_result('heat_flow', 'stor2', 'stor')
-        prod = opt.get_result('heat_flow', 'prod', 'prod')
-        cons = opt.get_result('heat_flow', 'cons', 'cons')
-
-        if pipe_type is 'ExtensivePipe':
-            dq1 = opt.get_result('heat_loss_tot', None, 'pipe1')
-            dq2 = opt.get_result('heat_loss_tot', None, 'pipe2')
-            dq3 = opt.get_result('heat_loss_tot', None, 'pipe3')
-
-        stor_soc = opt.get_result('soc', 'stor', 'stor', state=True)
-        stor2_soc = opt.get_result('soc', 'stor2', 'stor', state=True)
-
-        m_prod = opt.get_result('mass_flow', 'prod', 'prod')
-        m_stor = opt.get_result('mass_flow', 'stor', 'stor')
-        m_cons = opt.get_result('mass_flow', 'cons', 'cons')
-        m_stor2 = opt.get_result('mass_flow', 'stor2', 'stor')
-
-        fig, axs = plt.subplots(3, 1, sharex=True)
-        axs[0].plot(-stor, label='-Storage')
-        axs[0].plot(stor2, label='Storage2')
-        axs[0].plot(prod, label='Production')
-        axs[0].plot(cons, label='Demand')
-
-        if pipe_type is 'ExtensivePipe':
-            axs[0].plot(dq1, ls=':', label='Heat loss 1')
-            axs[0].plot(dq2, ls=':', label='Heat loss 2')
-
-            axs[0].plot(prod - stor - dq1 - dq2, ls='--', label='Sum stor')
-
-        else:
-            axs[0].plot(prod - stor, ls='--', label='Sum stor')
-
-        axs[0].legend()
-        axs[0].set_ylabel('Heat flow [W]')
-
-        axs[1].plot(stor_soc, label='1')
-        axs[1].plot(stor2_soc, label='2')
-        axs[1].legend()
-
-        axs[1].set_ylabel('State of charge [%]')
-
-        axs[2].plot(-m_stor, label='-Storage')
-        axs[2].plot(-m_stor2, label='-Storage2')
-        axs[2].plot(m_prod, label='Production')
-        axs[2].plot(m_cons, label='Demand')
-
-        axs[2].set_ylabel('Mass flow rate [kg/s]')
-
-        axs[2].legend()
-
-        for ax in axs: ax.grid(ls=':', lw=0.5)
-
-        if pipe_type is 'ExtensivePipe':
-            fig, ax = plt.subplots(2, 1, sharex=True)
-            for pip in ['pipe1', 'pipe2', 'pipe3']:
-                ax[0].plot(opt.get_result('pumping_power', None, pip), label=pip)
-                ax[1].plot(opt.get_result('heat_loss_tot', None, pip), label=pip)
-            for a in ax:
-                a.legend()
-                a.grid(ls=':')
-        plt.show()
+    # import logging
+    # import matplotlib.pyplot as plt
+    #
+    # pipe_type = 'ExtensivePipe'
+    # nostor = True
+    #
+    # if nostor:
+    #     logging.getLogger()
+    #     G_for = setup_graph(True)
+    #     G_rev = setup_graph(False)
+    #
+    #     opt_for = setup_modesto(G_for)
+    #     opt_rev = setup_modesto(G_rev)
+    #
+    #     opts = {'for': opt_for, 'rev': opt_rev}
+    #     print('')
+    #     print(opts)
+    #
+    #     for name, opt in opts.items():
+    #         res = opt.solve(tee=True, mipgap=0.000001, solver='cplex')
+    #         if not res == 0:
+    #             raise Exception('Optimization {} failed to solve.'.format(name))
+    #
+    #     # print opts['for'].get_result('heat_flow_in', comp='pipe')
+    #     # print opts['for'].get_result('heat_flow_out', comp='pipe')
+    #
+    #     # print "Objective slack"
+    #     # print opts['for'].model.Slack.pprint()
+    #
+    #     print('Are heat losses equal?')
+    #     print(opts['for'].get_result('heat_loss_tot', comp='pipe').equals(
+    #         opts['rev'].get_result('heat_loss_tot', comp='pipe')))
+    #     fig, axs = plt.subplots(4, 1, sharex=True)
+    #
+    #     for name, opt in opts.items():
+    #         axs[0].plot(opt.get_result('heat_flow', node='cons', comp='cons'), linestyle='--', label='cons_' + name)
+    #         axs[0].plot(opt.get_result('heat_flow', node='prod', comp='prod'), label='prod_' + name)
+    #
+    #         axs[0].set_ylabel('Heat flow [W]')
+    #
+    #         axs[1].plot(opt.get_result('heat_loss_tot', comp='pipe'), label=name)
+    #         axs[1].plot(opt.get_result('heat_flow_in', comp='pipe') - opt.get_result('heat_flow_out', comp='pipe'),
+    #                     label=name)
+    #         axs[1].set_ylabel('Heat loss [W]')
+    #
+    #         axs[2].plot(opt.get_result('heat_flow_in', comp='pipe'), label=name + '_in')
+    #         axs[2].plot(opt.get_result('heat_flow_out', comp='pipe'), linestyle='--', label=name + '_out')
+    #         axs[2].set_ylabel('Heat flow in/out [W]')
+    #
+    #         axs[3].plot(opt.get_result('mass_flow', comp='pipe'), label=name)
+    #         axs[3].set_ylabel('Mass flow rate [kg/s]')
+    #
+    #     axs[0].legend()
+    #     axs[1].legend()
+    #     axs[2].legend()
+    #     axs[3].legend()
+    #
+    #     axs[-1].set_xlabel('Time')
+    #
+    #     for ax in axs:
+    #         ax.grid(alpha=0.3, linestyle=':')
+    #
+    #     plt.show()
+    # else:
+    #     import matplotlib.pyplot as plt
+    #
+    #     gr = setup_graph_stor()
+    #     opt = setup_modesto_with_stor(gr)
+    #
+    #     res1 = opt.solve(tee=True,
+    #                      solver='gurobi')
+    #     print(opt.model.Slack.value)
+    #
+    #     stor = opt.get_result('heat_flow', 'stor', 'stor')
+    #     stor2 = opt.get_result('heat_flow', 'stor2', 'stor')
+    #     prod = opt.get_result('heat_flow', 'prod', 'prod')
+    #     cons = opt.get_result('heat_flow', 'cons', 'cons')
+    #
+    #     if pipe_type is 'ExtensivePipe':
+    #         dq1 = opt.get_result('heat_loss_tot', None, 'pipe1')
+    #         dq2 = opt.get_result('heat_loss_tot', None, 'pipe2')
+    #         dq3 = opt.get_result('heat_loss_tot', None, 'pipe3')
+    #
+    #     stor_soc = opt.get_result('soc', 'stor', 'stor', state=True)
+    #     stor2_soc = opt.get_result('soc', 'stor2', 'stor', state=True)
+    #
+    #     m_prod = opt.get_result('mass_flow', 'prod', 'prod')
+    #     m_stor = opt.get_result('mass_flow', 'stor', 'stor')
+    #     m_cons = opt.get_result('mass_flow', 'cons', 'cons')
+    #     m_stor2 = opt.get_result('mass_flow', 'stor2', 'stor')
+    #
+    #     fig, axs = plt.subplots(3, 1, sharex=True)
+    #     axs[0].plot(-stor, label='-Storage')
+    #     axs[0].plot(stor2, label='Storage2')
+    #     axs[0].plot(prod, label='Production')
+    #     axs[0].plot(cons, label='Demand')
+    #
+    #     if pipe_type is 'ExtensivePipe':
+    #         axs[0].plot(dq1, ls=':', label='Heat loss 1')
+    #         axs[0].plot(dq2, ls=':', label='Heat loss 2')
+    #
+    #         axs[0].plot(prod - stor - dq1 - dq2, ls='--', label='Sum stor')
+    #
+    #     else:
+    #         axs[0].plot(prod - stor, ls='--', label='Sum stor')
+    #
+    #     axs[0].legend()
+    #     axs[0].set_ylabel('Heat flow [W]')
+    #
+    #     axs[1].plot(stor_soc, label='1')
+    #     axs[1].plot(stor2_soc, label='2')
+    #     axs[1].legend()
+    #
+    #     axs[1].set_ylabel('State of charge [%]')
+    #
+    #     axs[2].plot(-m_stor, label='-Storage')
+    #     axs[2].plot(-m_stor2, label='-Storage2')
+    #     axs[2].plot(m_prod, label='Production')
+    #     axs[2].plot(m_cons, label='Demand')
+    #
+    #     axs[2].set_ylabel('Mass flow rate [kg/s]')
+    #
+    #     axs[2].legend()
+    #
+    #     for ax in axs: ax.grid(ls=':', lw=0.5)
+    #
+    #     if pipe_type is 'ExtensivePipe':
+    #         fig, ax = plt.subplots(2, 1, sharex=True)
+    #         for pip in ['pipe1', 'pipe2', 'pipe3']:
+    #             ax[0].plot(opt.get_result('pumping_power', None, pip), label=pip)
+    #             ax[1].plot(opt.get_result('heat_loss_tot', None, pip), label=pip)
+    #         for a in ax:
+    #             a.legend()
+    #             a.grid(ls=':')
+    #     plt.show()

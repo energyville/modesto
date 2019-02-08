@@ -1,5 +1,3 @@
-
-
 import logging
 
 import matplotlib.pyplot as plt
@@ -57,7 +55,7 @@ def construct_model():
     # Fill in the parameters         #
     ##################################
 
-    df_weather=ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
+    df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
     df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv')
 
     t_amb = df_weather['Te']
@@ -160,7 +158,8 @@ def construct_model():
         'dIns': 0.3,
         'kIns': 0.024,
         'heat_stor': 0,
-        'mflo_use': pd.Series(0, index=t_amb.index)
+        'mflo_use': pd.Series(0, index=t_amb.index),
+        'cost_inv': 1
     }
 
     optmodel.change_params(dict=stor_design, node='waterscheiGarden',
@@ -187,7 +186,8 @@ def construct_model():
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 1.5e7,
                    'ramp_cost': 0.01,
-                   'ramp': 1e6 / 3600}
+                   'ramp': 1e6 / 3600,
+                   'cost_inv': 1}
 
     optmodel.change_params(prod_design, 'ThorPark', 'plant')
 
@@ -295,7 +295,7 @@ if __name__ == '__main__':
     # Efficiency
     print('\nNetwork')
     print('Efficiency', (
-                            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%')
+            storage_e + waterschei_e + zwartberg_e) / prod_e * 100, '%')
 
     # Diameters
     # print '\nDiameters'
@@ -369,7 +369,8 @@ if __name__ == '__main__':
 
     fig4 = plt.figure()
 
-    df_userbehaviour = ut.read_period_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv', time_step=time_step, horizon=n_steps * time_step, start_time=start_time)
+    df_userbehaviour = ut.read_period_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv',
+                                           time_step=time_step, horizon=n_steps * time_step, start_time=start_time)
 
     day_max = df_userbehaviour['day_max']
     day_min = df_userbehaviour['day_min']
