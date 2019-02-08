@@ -407,10 +407,6 @@ class FixedProfile(Component):
         })
 
         if self.temperature_driven:
-            def COP(m, t):
-                return m.temperature_supply / (m.temperature_supply - Te.v(t)) * eff_rel
-
-            self.block.COP = Param(self.TIME, mutable=True, rule=COP)
             params['mass_flow'] = UserDataParameter('mass_flow',
                                                     'Mass flow through one (average) building substation',
                                                     'kg/s'

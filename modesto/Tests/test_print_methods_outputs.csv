@@ -903,12 +903,12 @@ Description: Annual maintenance cost as a fixed proportion of the investment
 Unit: -
 Value: 0.015
 
--Thi
+-temperature_supply
 Description: High temperature in tank
 Unit: K
 Value: 353.15
 
--Tlo
+-temperature_return
 Description: Low temperature in tank
 Unit: K
 Value: 333.15
@@ -2021,12 +2021,12 @@ Description: Annual maintenance cost as a fixed proportion of the investment
 Unit: -
 Value: 0.015
 
--Thi
+-temperature_supply
 Description: High temperature in tank
 Unit: K
 Value: 353.15
 
--Tlo
+-temperature_return
 Description: Low temperature in tank
 Unit: K
 Value: 333.15
