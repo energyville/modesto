@@ -174,8 +174,8 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
     model.change_params(prod_design, 'Production', 'backup')
 
     prod_stor_design = {
-        'Thi': 70 + 273.15,
-        'Tlo': 30 + 273.15,
+        'temperature_supply': 70 + 273.15,
+        'temperature_return': 30 + 273.15,
         'mflo_max': 1100,
         'mflo_min': -1100,
         'mflo_use': pd.Series(0, index=t_amb.index),

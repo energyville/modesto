@@ -1198,7 +1198,7 @@ class AirSourceHeatPump(VariableComponent):
             'CO2': DesignParameter('CO2',
                                    'amount of CO2 released when using primary energy source',
                                    'kg/kWh'),
-            'elec_cost': UserDataParameter('fuel_cost',
+            'elec_cost': UserDataParameter('elec_cost',
                                            'cost of fuel to generate heat',
                                            'euro/kWh'),
             'Qmax': DesignParameter('Qmax',
@@ -1229,7 +1229,7 @@ class AirSourceHeatPump(VariableComponent):
 
             'fix_maint': DesignParameter('fix_maint', unit='-',
                                          description='Annual maintenance cost as a fixed proportion of the investment',
-                                         mutable=False, val=0.05)
+                                         mutable=False, val=0.05),
             'temperature_supply': DesignParameter('temperature_supply',
                                                   'Design supply temperature of the network',
                                                   'K',
@@ -1509,7 +1509,7 @@ class AirSourceHeatPump(VariableComponent):
         :return:
         """
         cost = self.params[
-            'fuel_cost']  # cost consumed heat source (fuel/electricity)
+            'elec_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.block.COP
         if self.repr_days is None:
             return sum(cost.v(t) / eta[t] * self.get_heat(t) / 3600 * self.params[
@@ -1528,7 +1528,7 @@ class AirSourceHeatPump(VariableComponent):
         :return:
         """
         cost = self.params[
-            'fuel_cost']  # cost consumed heat source (fuel/electricity)
+            'elec_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.block.COP
 
         if self.repr_days is None:
@@ -1549,7 +1549,7 @@ class AirSourceHeatPump(VariableComponent):
         :return:
         """
 
-        eta = self.params['efficiency'].v()
+        eta = self.block.COP
         pef = self.params['PEF'].v()
         co2 = self.params[
             'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
@@ -1574,7 +1574,7 @@ class AirSourceHeatPump(VariableComponent):
         :return:
         """
 
-        eta = self.params['efficiency'].v()
+        eta = self.block.COP
         pef = self.params['PEF'].v()
         co2 = self.params[
             'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
@@ -1648,7 +1648,7 @@ class GeothermalHeating(VariableComponent):
             'CO2': DesignParameter('CO2',
                                    'amount of CO2 released when using primary energy source',
                                    'kg/kWh'),
-            'fuel_cost': UserDataParameter('fuel_cost',
+            'elec_cost': UserDataParameter('elec_cost',
                                            'cost of fuel to generate heat',
                                            'euro/kWh'),
             'Qnom': DesignParameter('Qnom',
@@ -1747,7 +1747,7 @@ class GeothermalHeating(VariableComponent):
         :return:
         """
         cost = self.params[
-            'fuel_cost']  # cost consumed heat source (fuel/electricity)
+            'elec_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         if self.repr_days is None:
             return self.block.Qnom * sum(cost.v(t) / eta / 3600 * self.params[
@@ -2061,11 +2061,11 @@ class StorageVariable(VariableComponent):
         params = Component.create_params(self)
 
         params.update({
-            'Thi': DesignParameter('Thi',
+            'temperature_supply': DesignParameter('temperature_supply',
                                    'High temperature in tank',
                                    'K',
                                    mutable=True),
-            'Tlo': DesignParameter('Tlo',
+            'temperature_return': DesignParameter('temperature_return',
                                    'Low temperature in tank',
                                    'K',
                                    mutable=True),
@@ -2138,12 +2138,12 @@ class StorageVariable(VariableComponent):
 
         self.ar = self.params['ar'].v()
 
-        self.temp_diff = self.params['Thi'].v() - self.params['Tlo'].v()
+        self.temp_diff = self.params['temperature_supply'].v() - self.params['temperature_return'].v()
         assert (
                 self.temp_diff > 0), 'Temperature difference should be positive.'
 
-        self.temp_sup = self.params['Thi'].v()
-        self.temp_ret = self.params['Tlo'].v()
+        self.temp_sup = self.params['temperature_supply'].v()
+        self.temp_ret = self.params['temperature_return'].v()
         self.max_en = self.volume * self.cp * self.temp_diff * self.rho / 1000 / 3600
 
         # Geometrical calculations
@@ -2251,7 +2251,7 @@ class StorageVariable(VariableComponent):
                     'time_step'].v() / 3600 * (
                                b.heat_flow[t] / b.mult - b.heat_loss[t]) / 1000 \
                        - (self.mflo_use[t] * self.cp * (
-                        b.Thi - b.Tlo)) / 1000 / 3600
+                        b.temperature_supply - b.temperature_return)) / 1000 / 3600
 
                 # self.tau * (1 - exp(-self.params['time_step'].v() / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -2293,7 +2293,7 @@ class StorageVariable(VariableComponent):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t):
-                return self.cp * b.mass_flow[t] * (b.Thi - b.Tlo) == \
+                return self.cp * b.mass_flow[t] * (b.temperature_supply - b.temperature_return) == \
                        b.heat_flow[t]
 
             ## leq allows that heat losses in the network are supplied from storage tank only when discharging.
@@ -2456,7 +2456,7 @@ class StorageCondensed(StorageVariable):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t):
-                return self.cp * b.mass_flow[t] * (b.Thi - b.Tlo) == \
+                return self.cp * b.mass_flow[t] * (b.temperature_supply - b.temperature_return) == \
                        b.heat_flow[t]
 
             self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
@@ -2702,7 +2702,7 @@ class StorageRepr(StorageVariable):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t, c):
-                return self.cp * b.mass_flow[t, c] * (b.Thi - b.Tlo) == \
+                return self.cp * b.mass_flow[t, c] * (b.temperature_supply - b.temperature_return) == \
                        b.heat_flow[t, c]
 
             self.block.heat_bal = Constraint(self.TIME, self.REPR_DAYS,

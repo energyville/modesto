@@ -71,8 +71,8 @@ def setup_modesto(time_step=3600, n_steps=24 * 365, repr=False):
     model.change_params(build_params, node='demand', comp='build')
 
     stor_params = {
-        'Thi': 80 + 273.15,
-        'Tlo': 60 + 273.15,
+        'temperature_supply': 80 + 273.15,
+        'temperature_return': 60 + 273.15,
         'mflo_max': 110,
         'mflo_min': -110,
         'mult': 1,
