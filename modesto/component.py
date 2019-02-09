@@ -582,6 +582,7 @@ class BuildingFixed(FixedProfile):
                               repr_days=repr_days)
 
         self.params = self.create_params()
+        self.COP = None
 
     def create_params(self):
         params = FixedProfile.create_params(self)
@@ -623,6 +624,8 @@ class BuildingFixed(FixedProfile):
 
         heat_profile = self.params['heat_profile']
         DHW_profile = self.params['DHW_demand']
+
+        self.COP = 0.4 * (55+273.15)/(55+273.15-self.params['temperature_return'].v())
 
         if not self.compiled:
             def _mass_flow(b, t, c=None):
@@ -689,7 +692,7 @@ class BuildingFixed(FixedProfile):
 
         :return:
         """
-        eta = 4.5  # TODO Change to variable COP
+        eta = self.COP
         pef = self.params['PEF_el'].v()
 
         tsup = self.params['temperature_supply'].v()
@@ -712,7 +715,7 @@ class BuildingFixed(FixedProfile):
         :return:
         """
         cost = self.params['elec_cost']  # cost consumed heat source (fuel/electricity)
-        eta = 4.5  # TODO Change COP
+        eta = self.COP
         tsup = self.params['temperature_supply'].v()
 
         if tsup < 55 + 273.15:
@@ -736,7 +739,7 @@ class BuildingFixed(FixedProfile):
         """
 
         co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
-        eta = 4.5  # TODO Change COP
+        eta = self.COP
         tsup = self.params['temperature_supply'].v()
 
         if tsup < 55 + 273.15:
