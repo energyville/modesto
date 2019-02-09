@@ -6,7 +6,7 @@ from math import pi, log, exp
 import modesto.utils as ut
 import pandas as pd
 from modesto.parameter import StateParameter, DesignParameter, \
-    UserDataParameter, SeriesParameter, WeatherDataParameter
+    UserDataParameter, SeriesParameter, WeatherDataParameter, TimeSeriesParameter
 from modesto.submodel import Submodel
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
@@ -584,7 +584,7 @@ class BuildingFixed(FixedProfile):
         self.params = self.create_params()
 
     def create_params(self):
-        params = FixedProfile.create_params()
+        params = FixedProfile.create_params(self)
 
         params.update({
             'DHW_demand': UserDataParameter(
@@ -597,12 +597,12 @@ class BuildingFixed(FixedProfile):
                 description='Primary energy factor for electricity use by DHW booster heat pump (if applicable)',
                 unit='-'
             ),
-            'elec_cost': UserDataParameter(
+            'elec_cost': TimeSeriesParameter(
                 name='elec_cost',
                 description='Price of electricity for DHW Booster heat pump',
                 unit='EUR/kWh'
             ),
-            'CO2': UserDataParameter(
+            'CO2': DesignParameter(
                 name='CO2',
                 description='CO2 emission per kWh of energy used',
                 unit='kg/kWh'
@@ -679,7 +679,7 @@ class BuildingFixed(FixedProfile):
         :param c:
         :return:
         """
-        tsup = self.params['temperature_supply']
+        tsup = self.params['temperature_supply'].v()
         DHW = self.params['DHW_demand']
         return DHW.v(t, c) / 60 * (55 + 273.15 - tsup) * self.cp
 
@@ -692,7 +692,7 @@ class BuildingFixed(FixedProfile):
         eta = 4.5  # TODO Change to variable COP
         pef = self.params['PEF_el'].v()
 
-        tsup = self.params['temperature_supply']
+        tsup = self.params['temperature_supply'].v()
         if tsup >= 55 + 273.15:  # No DHW Booster needed
             return 0
         else:  # DHW demand requires booster heat pump to heat the water above 55 degrees.

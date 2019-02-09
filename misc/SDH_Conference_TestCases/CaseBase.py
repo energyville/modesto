@@ -140,11 +140,14 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
     # If we print the parameters again, we can see the values have now been added:
 
     building_params_common = {
-        'delta_T': 40,
-        'mult': 1
+        'temperature_supply': 70 + 273.15,
+        'temperature_return': 30 + 273.15,
+        'mult': 1,
+        'CO2': 0.3
     }
 
     heat_profile = ut.read_time_data(datapath, name='HeatDemand/Old/HeatDemandFiltered.csv')
+    dhw_demand = ut.read_time_data(datapath, name='HeatDemand/DHW_GenkNet.csv')
 
     print('#######################')
     print('# Sum of heat demands #')
@@ -154,6 +157,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
                  'TermienEast']:  # ['Boxbergheide', 'TermienWest', 'WaterscheiGarden']:
         build_param = building_params_common
         build_param['heat_profile'] = heat_profile[name]
+        build_param['DHW_demand'] = dhw_demand[name]
 
         print(name, ':', str(sum(heat_profile[name]['2014']) / 1e9))  # Quarterly data
 
