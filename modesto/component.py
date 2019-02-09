@@ -3,15 +3,14 @@ import sys
 from functools import reduce
 from math import pi, log, exp
 
-import pandas as pd
-from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
-    Set, Binary, NonPositiveReals
-
 import modesto.utils as ut
+import pandas as pd
 from modesto.parameter import StateParameter, DesignParameter, \
     UserDataParameter, SeriesParameter, WeatherDataParameter
 from modesto.submodel import Submodel
+from pkg_resources import resource_filename
+from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
+    Set, Binary, NonPositiveReals
 
 datapath = resource_filename('modesto', 'Data')
 
@@ -394,10 +393,14 @@ class FixedProfile(Component):
         params = Component.create_params(self)
 
         params.update({
-            'delta_T': DesignParameter('delta_T',
-                                       'Temperature difference across substation',
-                                       'K',
-                                       mutable=True),
+            'temperature_supply': DesignParameter('temperature_supply',
+                                                  'Supply temperature to  substation',
+                                                  'K',
+                                                  mutable=True),
+            'temperature_return': DesignParameter('temperature_return',
+                                                  'Return temperature from substation',
+                                                  'K',
+                                                  mutable=True),
             'mult': DesignParameter('mult',
                                     'Number of buildings in the cluster',
                                     '-',
@@ -449,7 +452,7 @@ class FixedProfile(Component):
 
         if not self.compiled:
             def _mass_flow(b, t, c=None):
-                return b.mult * heat_profile.v(t, c) / self.cp / b.delta_T
+                return b.mult * heat_profile.v(t, c) / self.cp / (b.temperature_supply - b.temperature_return)
 
             def _heat_flow(b, t, c=None):
                 return b.mult * heat_profile.v(t, c)
@@ -578,8 +581,173 @@ class BuildingFixed(FixedProfile):
                               temperature_driven=temperature_driven,
                               repr_days=repr_days)
 
+        self.params = self.create_params()
+
+    def create_params(self):
+        params = FixedProfile.create_params()
+
+        params.update({
+            'DHW_demand': UserDataParameter(
+                name='DHW_demand',
+                description='Demand profile for domestic hot water at 55degC',
+                unit='l/min'
+            ),
+            'PEF_el': DesignParameter(
+                name='PEF_el',
+                description='Primary energy factor for electricity use by DHW booster heat pump (if applicable)',
+                unit='-'
+            ),
+            'elec_cost': UserDataParameter(
+                name='elec_cost',
+                description='Price of electricity for DHW Booster heat pump',
+                unit='EUR/kWh'
+            ),
+            'CO2': UserDataParameter(
+                name='CO2',
+                description='CO2 emission per kWh of energy used',
+                unit='kg/kWh'
+            )
+        })
+
+        return params
+
     def compile(self, model, start_time):
-        FixedProfile.compile(self, model, start_time)
+        """
+        Build the structure of fixed profile
+
+        :param model: The main optimization model
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :return:
+        """
+        Component.compile(self, model, start_time)
+
+        heat_profile = self.params['heat_profile']
+        DHW_profile = self.params['DHW_demand']
+
+        if not self.compiled:
+            def _mass_flow(b, t, c=None):
+                return b.mult * (
+                        heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (b.temperature_supply - 283.15)) / (
+                               b.temperature_supply - b.temperature_return)
+
+            def _heat_flow(b, t, c=None):
+                return b.mult * (
+                        heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (b.temperature_supply - 283.15) * self.cp)
+
+            if self.repr_days is None:
+
+                self.block.mass_flow = Param(self.TIME, rule=_mass_flow,
+                                             mutable=not self.temperature_driven)
+                self.block.heat_flow = Param(self.TIME, rule=_heat_flow,
+                                             mutable=not self.temperature_driven)
+            else:
+                self.block.mass_flow = Param(self.TIME, self.REPR_DAYS,
+                                             rule=_mass_flow,
+                                             mutable=not self.temperature_driven)
+                self.block.heat_flow = Param(self.TIME, self.REPR_DAYS,
+                                             rule=_heat_flow,
+                                             mutable=not self.temperature_driven)
+        else:
+            if self.repr_days is None:
+                for t in self.TIME:
+                    self.block.mass_flow[t] = self.block.mult * (
+                            heat_profile.v(t) / self.cp + DHW_profile.v(t) / 60 * (b.temperature_supply - 283.15)) / (
+                                                      self.block.temperature_supply - self.block.temperature_return)
+                    self.block.heat_flow[t] = self.block.mult * (
+                            heat_profile.v(t) + DHW_profile.v(t) / 60 * (b.temperature_supply - 283.15) * self.cp)
+            else:
+                for t in self.TIME:
+                    for c in self.REPR_DAYS:
+                        self.block.mass_flow[t, c] = self.block.mult * (
+                                heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (
+                                self.block.params['temperature_supply'].v() - 283.15)) / (
+                                                             self.block.temperature_supply - self.block.temperature_return)
+                        self.block.heat_flow[t, c] = self.block.mult * (
+                                heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (
+                                self.params['temperature_supply'].v() - 283.15) * self.cp)
+
+        self.logger.info('Optimization model {} {} compiled'.
+                         format(self.__class__, self.name))
+
+        self.compiled = True
+
+    def dhw_boost(self, t, c=None):
+        """
+        Calculate the amount of boost heat needed each time step
+
+        :param t:
+        :param c:
+        :return:
+        """
+        tsup = self.params['temperature_supply']
+        DHW = self.params['DHW_demand']
+        return DHW.v(t, c) / 60 * (55 + 273.15 - tsup) * self.cp
+
+    def obj_energy(self):
+        """
+        Formulate energy objective
+
+        :return:
+        """
+        eta = 4.5  # TODO Change to variable COP
+        pef = self.params['PEF_el'].v()
+
+        tsup = self.params['temperature_supply']
+        if tsup >= 55 + 273.15:  # No DHW Booster needed
+            return 0
+        else:  # DHW demand requires booster heat pump to heat the water above 55 degrees.
+            if self.repr_days is None:
+                return sum(
+                    pef / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+            else:
+                return sum(
+                    self.repr_count[c] * pef / eta * self.dhw_boost(t, c) * self.params['time_step'].v() / 3600 / 1000
+                    for t in self.TIME for c in self.REPR_DAYS)
+
+    def obj_fuel_cost(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.params['elec_cost']  # cost consumed heat source (fuel/electricity)
+        eta = 4.5  # TODO Change COP
+        tsup = self.params['temperature_supply'].v()
+
+        if tsup < 55 + 273.15:
+            if self.repr_days is None:
+                return sum(cost.v(t) / eta * self.dhw_boost(t) / 3600 * self.params[
+                    'time_step'].v() / 1000 for t in self.TIME)
+            else:
+                return sum(self.repr_count[c] * cost.v(t, c) / eta *
+                           self.dhw_boost(t, c) / 3600 * self.params[
+                               'time_step'].v() / 1000 for t in self.TIME for c in
+                           self.REPR_DAYS)
+        else:
+            return 0
+
+    def obj_co2(self):
+        """
+        Generator for CO2 objective variables to be summed
+        Unit: kg CO2
+
+        :return:
+        """
+
+        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        eta = 4.5  # TODO Change COP
+        tsup = self.params['temperature_supply'].v()
+
+        if tsup < 55 + 273.15:
+            if self.repr_days is None:
+                return sum(
+                    co2 / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+            else:
+                return sum(self.repr_count[c] * co2 / eta * self.dhw_boost(t, c) *
+                           self.params['time_step'].v() / 3600 / 1000 for t in self.TIME for c in self.REPR_DAYS)
+        else:
+            return 0
 
 
 class BuildingVariable(Component):
@@ -1200,7 +1368,8 @@ class GeothermalHeating(VariableComponent):
                                         mutable=False, val=25),  # 15y for CHP
             'fix_maint': DesignParameter('fix_maint', unit='-',
                                          description='Annual maintenance cost as a fixed proportion of the investment',
-                                         mutable=False, val=0.025  # Value from DEA: 37k EUR/MW on 1.6M EUR/MW investment
+                                         mutable=False, val=0.025
+                                         # Value from DEA: 37k EUR/MW on 1.6M EUR/MW investment
                                          ),
             'temperature_supply': DesignParameter('temperature_supply', unit='K',
                                                   description='Supply temperature to the network', mutable=True),
@@ -1265,7 +1434,6 @@ class GeothermalHeating(VariableComponent):
 
         self.compiled = True
 
-
     def get_heat(self, t, c=None):
         """
         Get heat output for this component
@@ -1298,7 +1466,7 @@ class GeothermalHeating(VariableComponent):
 
         if self.repr_days is None:
             return pef / eta * self.block.Qnom * sum(self.params[
-                                                                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
+                                                         'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
             return pef / eta * self.block.Qnom * sum(
                 self.repr_count[c] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME for c in
@@ -1319,8 +1487,8 @@ class GeothermalHeating(VariableComponent):
                 'time_step'].v() / 1000 for t in self.TIME)
         else:
             return self.block.Qnom * sum(self.repr_count[c] * cost.v(t, c) / eta / 3600 * self.params[
-                           'time_step'].v() / 1000 for t in self.TIME for c in
-                       self.REPR_DAYS)
+                'time_step'].v() / 1000 for t in self.TIME for c in
+                                         self.REPR_DAYS)
 
     def obj_co2(self):
         """
