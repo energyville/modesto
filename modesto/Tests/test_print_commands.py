@@ -14,7 +14,7 @@ def test_print_methods(reset=False, disp=False):
     model = example.construct_model()
 
     df['comp_param'] = model.print_comp_param('waterscheiGarden', 'buildingD', disp=disp)
-    df['comp_param_delta_T'] = model.print_comp_param('waterscheiGarden', 'buildingD', disp, 'delta_T')
+    df['comp_param_delta_T'] = model.print_comp_param('waterscheiGarden', 'buildingD', disp, 'temperature_supply')
     df['all_params'] = model.print_all_params(disp=disp)
     df['general_params'] = model.print_general_param(disp=disp)
     df['general_params_Te'] = model.print_general_param('Te', disp=disp)

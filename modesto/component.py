@@ -367,7 +367,7 @@ class Component(Submodel):
 
 
 class FixedProfile(Component):
-    def __init__(self, name=None, direction=None,
+    def __init__(self, name=None, direction=-1,
                  temperature_driven=False, repr_days=None):
         """
         Class for a component with a fixed heating profile
@@ -651,10 +651,10 @@ class BuildingFixed(FixedProfile):
             if self.repr_days is None:
                 for t in self.TIME:
                     self.block.mass_flow[t] = self.block.mult * (
-                            heat_profile.v(t) / self.cp + DHW_profile.v(t) / 60 * (b.temperature_supply - 283.15)) / (
+                            heat_profile.v(t) / self.cp + DHW_profile.v(t) / 60 * (self.block.temperature_supply - 283.15)) / (
                                                       self.block.temperature_supply - self.block.temperature_return)
                     self.block.heat_flow[t] = self.block.mult * (
-                            heat_profile.v(t) + DHW_profile.v(t) / 60 * (b.temperature_supply - 283.15) * self.cp)
+                            heat_profile.v(t) + DHW_profile.v(t) / 60 * (self.block.temperature_supply - 283.15) * self.cp)
             else:
                 for t in self.TIME:
                     for c in self.REPR_DAYS:

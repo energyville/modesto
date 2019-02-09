@@ -5,12 +5,11 @@ Description
 import logging
 
 import matplotlib.pyplot as plt
+import modesto.utils as ut
 import networkx as nx
 import pandas as pd
-from pkg_resources import resource_filename
-
-import modesto.utils as ut
 from modesto.main import Modesto
+from pkg_resources import resource_filename
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -18,12 +17,12 @@ logging.basicConfig(level=logging.DEBUG,
 logger = logging.getLogger('example_recomp')
 
 
-def setup_graph():
+def setup_graph(buildingtype='BuildingFixed'):
     G = nx.DiGraph()
 
     G.add_node('STC', x=0, y=0, z=0, comps={'solar': 'SolarThermalCollector',
                                             'backup': 'ProducerVariable'})
-    G.add_node('demand', x=1000, y=100, z=0, comps={'build': 'BuildingFixed',
+    G.add_node('demand', x=1000, y=100, z=0, comps={'build': buildingtype,
                                                     'stor': 'StorageVariable',
                                                     })
 
@@ -35,6 +34,7 @@ def setup_graph():
 def setup_modesto(time_step=3600, n_steps=24 * 30):
     model = Modesto(pipe_model='ExtensivePipe', graph=setup_graph())
     heat_demand = ut.read_time_data(resource_filename('modesto', 'Data/HeatDemand/Old'), name='HeatDemandFiltered.csv')
+    dhw_demand = ut.read_time_data(resource_filename('modesto', 'Data/HeatDemand'), name='DHW_GenkNet.csv')
     weather_data = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
 
     model.opt_settings(allow_flow_reversal=False)
@@ -55,9 +55,12 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
     model.change_params(general_params)
 
     build_params = {
-        'delta_T': 20,
+        'temperature_supply': 80 + 273.15,
+        'temperature_return': 60 + 273.15,
         'mult': 1,
-        'heat_profile': heat_demand['ZwartbergNEast']
+        'heat_profile': heat_demand['ZwartbergNEast'],
+        'DHW_demand': dhw_demand['ZwartbergNEast'],
+        'CO2': 0.3
     }
     model.change_params(build_params, node='demand', comp='build')
 
