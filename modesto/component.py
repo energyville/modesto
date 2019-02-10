@@ -3,14 +3,15 @@ import sys
 from functools import reduce
 from math import pi, log, exp
 
-import modesto.utils as ut
 import pandas as pd
-from modesto.parameter import StateParameter, DesignParameter, \
-    UserDataParameter, SeriesParameter, WeatherDataParameter, TimeSeriesParameter
-from modesto.submodel import Submodel
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
     Set, Binary, NonPositiveReals
+
+import modesto.utils as ut
+from modesto.parameter import StateParameter, DesignParameter, \
+    UserDataParameter, SeriesParameter, WeatherDataParameter, TimeSeriesParameter
+from modesto.submodel import Submodel
 
 datapath = resource_filename('modesto', 'Data')
 
@@ -625,17 +626,19 @@ class BuildingFixed(FixedProfile):
         heat_profile = self.params['heat_profile']
         DHW_profile = self.params['DHW_demand']
 
-        self.COP = 0.4 * (55+273.15)/(55+273.15-self.params['temperature_return'].v())
+        self.COP = 0.4 * (55 + 273.15) / (55 + 273.15 - self.params['temperature_return'].v())
 
         if not self.compiled:
             def _mass_flow(b, t, c=None):
                 return b.mult * (
-                        heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (b.temperature_supply - 283.15)) / (
+                        heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (
+                        min(b.temperature_supply, 55 + 273.15) - 283.15)) / (
                                b.temperature_supply - b.temperature_return)
 
             def _heat_flow(b, t, c=None):
                 return b.mult * (
-                        heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (b.temperature_supply - 283.15) * self.cp)
+                        heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (
+                        min(b.temperature_supply, 55 + 273.15) - 283.15) * self.cp)
 
             if self.repr_days is None:
 
@@ -654,20 +657,22 @@ class BuildingFixed(FixedProfile):
             if self.repr_days is None:
                 for t in self.TIME:
                     self.block.mass_flow[t] = self.block.mult * (
-                            heat_profile.v(t) / self.cp + DHW_profile.v(t) / 60 * (self.block.temperature_supply - 283.15)) / (
+                            heat_profile.v(t) / self.cp + DHW_profile.v(t) / 60 * (
+                                min(self.block.temperature_supply, 55 + 273.15) - 283.15)) / (
                                                       self.block.temperature_supply - self.block.temperature_return)
                     self.block.heat_flow[t] = self.block.mult * (
-                            heat_profile.v(t) + DHW_profile.v(t) / 60 * (self.block.temperature_supply - 283.15) * self.cp)
+                            heat_profile.v(t) + DHW_profile.v(t) / 60 * (
+                                min(self.block.temperature_supply, 55 + 273.15) - 283.15) * self.cp)
             else:
                 for t in self.TIME:
                     for c in self.REPR_DAYS:
                         self.block.mass_flow[t, c] = self.block.mult * (
                                 heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (
-                                self.block.params['temperature_supply'].v() - 283.15)) / (
+                                    min(self.block.temperature_supply, 55 + 273.15) - 283.15)) / (
                                                              self.block.temperature_supply - self.block.temperature_return)
                         self.block.heat_flow[t, c] = self.block.mult * (
                                 heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (
-                                self.params['temperature_supply'].v() - 283.15) * self.cp)
+                                    min(self.block.temperature_supply, 55 + 273.15) - 283.15) * self.cp)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
