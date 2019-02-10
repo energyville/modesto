@@ -658,21 +658,21 @@ class BuildingFixed(FixedProfile):
                 for t in self.TIME:
                     self.block.mass_flow[t] = self.block.mult * (
                             heat_profile.v(t) / self.cp + DHW_profile.v(t) / 60 * (
-                                min(self.block.temperature_supply, 55 + 273.15) - 283.15)) / (
+                                min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15)) / (
                                                       self.block.temperature_supply - self.block.temperature_return)
                     self.block.heat_flow[t] = self.block.mult * (
                             heat_profile.v(t) + DHW_profile.v(t) / 60 * (
-                                min(self.block.temperature_supply, 55 + 273.15) - 283.15) * self.cp)
+                                min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15) * self.cp)
             else:
                 for t in self.TIME:
                     for c in self.REPR_DAYS:
                         self.block.mass_flow[t, c] = self.block.mult * (
                                 heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (
-                                    min(self.block.temperature_supply, 55 + 273.15) - 283.15)) / (
+                                    min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15)) / (
                                                              self.block.temperature_supply - self.block.temperature_return)
                         self.block.heat_flow[t, c] = self.block.mult * (
                                 heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (
-                                    min(self.block.temperature_supply, 55 + 273.15) - 283.15) * self.cp)
+                                    min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15) * self.cp)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
