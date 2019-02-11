@@ -411,7 +411,7 @@ class Submodel(object):
             if self.repr_days is None:
                 result = []
                 for t in obj:
-                    result.append(obj[t])
+                    result.append(value(obj[t]))
 
             else:
                 for d in self.DAYS_OF_YEAR:

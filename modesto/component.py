@@ -3,15 +3,14 @@ import sys
 from functools import reduce
 from math import pi, log, exp
 
-import pandas as pd
-from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
-    Set, Binary, NonPositiveReals
-
 import modesto.utils as ut
+import pandas as pd
 from modesto.parameter import StateParameter, DesignParameter, \
     UserDataParameter, SeriesParameter, WeatherDataParameter
 from modesto.submodel import Submodel
+from pkg_resources import resource_filename
+from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
+    Set, Binary, NonPositiveReals
 
 datapath = resource_filename('modesto', 'Data')
 
@@ -1158,6 +1157,438 @@ class ProducerVariable(VariableComponent):
                 self.TIME for c in self.REPR_DAYS)
 
 
+class AirSourceHeatPump(VariableComponent):
+    def __init__(self, name, temperature_driven=False, heat_var=0.15,
+                 repr_days=None):
+        """
+        Class that describes a variable producer
+
+        :param name: Name of the building
+        """
+
+        VariableComponent.__init__(self,
+                                   name=name,
+                                   direction=1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var,
+                                   repr_days=repr_days)
+
+        self.params = self.create_params()
+
+        self.logger = logging.getLogger('modesto.components.AirSourceHeatPump')
+        self.logger.info('Initializing AirSouceHeatPump {}'.format(name))
+
+    def is_heat_source(self):
+        return True
+
+    def create_params(self):
+
+        params = Component.create_params(self)
+        params.update({
+            'eff_rel': DesignParameter('eff_rel',
+                                       'Relative efficiency compared to carnot efficiency',
+                                       '-'),
+            'PEF': DesignParameter('PEF',
+                                   'Factor to convert heat source to primary energy',
+                                   '-'),
+            'CO2': DesignParameter('CO2',
+                                   'amount of CO2 released when using primary energy source',
+                                   'kg/kWh'),
+            'elec_cost': UserDataParameter('elec_cost',
+                                           'cost of fuel to generate heat',
+                                           'euro/kWh'),
+            'Qmax': DesignParameter('Qmax',
+                                    'Maximum possible heat output',
+                                    'W',
+                                    mutable=True),
+            'Qmin': DesignParameter('Qmin',
+                                    'Minimum possible heat output',
+                                    'W',
+                                    val=0,
+                                    mutable=True),
+            'ramp': DesignParameter('ramp',
+                                    'Maximum ramp (increase in heat output)',
+                                    'W/s'),
+            'ramp_cost': DesignParameter('ramp_cost',
+                                         'Ramping cost',
+                                         'euro/(W/s)'),
+            'cost_inv': SeriesParameter('cost_inv',
+                                        description='Investment cost as a function of Qmax',
+                                        unit='EUR',
+                                        unit_index='W',
+                                        val=0.66),  # EUR/W according to danish energy agency 2016
+            'CO2_price': UserDataParameter('CO2_price',
+                                           'CO2 price',
+                                           'euro/kg CO2'),
+            'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
+                                        mutable=False, val=25),  # 25 year for heat pump
+
+            'fix_maint': DesignParameter('fix_maint', unit='-',
+                                         description='Annual maintenance cost as a fixed proportion of the investment',
+                                         mutable=False, val=0.05),
+            'temperature_supply': DesignParameter('temperature_supply',
+                                                  'Design supply temperature of the network',
+                                                  'K',
+                                                  mutable=True),
+            'temperature_return': DesignParameter('temperature_return',
+                                                  'Design return temperature of the network',
+                                                  'K',
+                                                  mutable=True),
+            'Te': WeatherDataParameter(
+                name='Te',
+                description='Ambient air temperature',
+                unit='K'
+            )
+        })
+
+        return params
+
+    def compile(self, model, start_time):
+        """
+        Build the structure of a producer model
+
+        :return:
+        """
+        VariableComponent.compile(self, model, start_time)
+
+        Te = self.params['Te']
+        eff_rel = self.params['eff_rel'].v()
+
+        if self.compiled:
+            if self.repr_days is None:
+                for t in self.TIME:
+                    self.block.COP[t] = self.block.temperature_supply / (
+                            self.block.temperature_supply - Te.v(t)) * eff_rel
+            else:
+                for t in self.TIME:
+                    for c in self.REPR_DAYS:
+                        self.block.COP[t, c] = self.block.temperature_supply / (
+                                self.block.temperature_supply - Te.v(t, c)) * eff_rel
+        else:
+            if self.repr_days is None:
+                def COP(m, t):
+                    return m.temperature_supply / (m.temperature_supply - Te.v(t)) * eff_rel
+
+                self.block.COP = Param(self.TIME, mutable=True, rule=COP)
+
+                self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+                self.block.ramping_cost = Var(self.TIME, initialize=0,
+                                              within=NonNegativeReals)
+
+                if not self.params['Qmin'].v() == 0:
+                    self.block.on = Var(self.TIME, within=Binary)
+
+                    def _min_heat(b, t):
+                        return b.Qmin * b.on[t] <= b.heat_flow[t]
+
+                    def _max_heat(b, t):
+                        return b.heat_flow[t] <= b.Qmax * b.on[t]
+
+                else:
+                    def _min_heat(b, t):
+                        return b.heat_flow[t] >= 0
+
+                    def _max_heat(b, t):
+                        return b.heat_flow[t] <= b.Qmax
+
+                self.block.min_heat = Constraint(self.TIME, rule=_min_heat)
+                self.block.max_heat = Constraint(self.TIME, rule=_max_heat)
+
+                self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
+
+                def _mass_ub(m, t):
+                    return m.mass_flow[t] * (
+                            1 + self.heat_var) * self.cp * (m.temperature_supply - m.temperature_return) >= \
+                           m.heat_flow[t]
+
+                def _mass_lb(m, t):
+                    return m.mass_flow[t] * self.cp * (m.temperature_supply - m.temperature_return) <= m.heat_flow[
+                        t]
+
+                self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+            else:
+                def COP(m, t, c):
+                    return m.temperature_supply / (m.temperature_supply - Te.v(t, c)) * eff_rel
+
+                self.block.COP = Param(self.TIME, self.REPR_DAYS, mutable=True, rule=COP)
+                self.block.heat_flow = Var(self.TIME,
+                                           self.REPR_DAYS,
+                                           within=NonNegativeReals)
+                self.block.ramping_cost = Var(self.TIME, self.REPR_DAYS,
+                                              initialize=0,
+                                              within=NonNegativeReals)
+
+                if not self.params['Qmin'].v() == 0:
+                    self.block.on = Var(self.TIME, self.REPR_DAYS,
+                                        within=Binary)
+
+                    def _min_heat(b, t, c):
+                        return b.Qmin * b.on[t, c] <= b.heat_flow[t, c]
+
+                    def _max_heat(b, t, c):
+                        return b.heat_flow[t, c] <= b.Qmax * b.on[t, c]
+
+                else:
+                    def _min_heat(b, t, c):
+                        return b.heat_flow[t, c] >= 0
+
+                    def _max_heat(b, t, c):
+                        return b.heat_flow[t, c] <= b.Qmax
+
+                self.block.min_heat = Constraint(self.TIME,
+                                                 self.REPR_DAYS, rule=_min_heat)
+                self.block.max_heat = Constraint(self.TIME,
+                                                 self.REPR_DAYS, rule=_max_heat)
+
+                self.block.mass_flow = Var(self.TIME,
+                                           self.REPR_DAYS,
+                                           within=NonNegativeReals)
+
+                def _mass_ub(m, t, c):
+                    return m.mass_flow[t, c] * (
+                            1 + self.heat_var) * self.cp * (m.temperature_supply - m.temperature_return) >= \
+                           m.heat_flow[t, c]
+
+                def _mass_lb(m, t, c):
+                    return m.mass_flow[t, c] * self.cp * (m.temperature_supply - m.temperature_return) <= \
+                           m.heat_flow[t, c]
+
+                self.block.ineq_mass_lb = Constraint(self.TIME,
+                                                     self.REPR_DAYS,
+                                                     rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME,
+                                                     self.REPR_DAYS,
+                                                     rule=_mass_ub)
+
+        if not self.compiled:
+            if self.repr_days is None:
+                def _decl_upward_ramp(b, t):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.heat_flow[t] - b.heat_flow[t - 1] <= \
+                               self.params[
+                                   'ramp'].v() * self.params['time_step'].v()
+
+                def _decl_downward_ramp(b, t):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.heat_flow[t - 1] - b.heat_flow[t] <= \
+                               self.params[
+                                   'ramp'].v() * self.params['time_step'].v()
+
+                def _decl_upward_ramp_cost(b, t):
+                    if t == 0:
+                        return b.ramping_cost[t] == 0
+                    else:
+                        return b.ramping_cost[t] >= (
+                                b.heat_flow[t] - b.heat_flow[t - 1]) * \
+                               self.params[
+                                   'ramp_cost'].v()
+
+                def _decl_downward_ramp_cost(b, t):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.ramping_cost[t] >= (
+                                b.heat_flow[t - 1] - b.heat_flow[t]) * \
+                               self.params[
+                                   'ramp_cost'].v()
+
+                if self.params['ramp'].v() > 0 or self.params['ramp'].v() * \
+                        self.params['time_step'].v() > self.params[
+                    'Qmax'].v():
+                    self.block.decl_upward_ramp = Constraint(self.TIME,
+                                                             rule=_decl_upward_ramp)
+                    self.block.decl_downward_ramp = Constraint(self.TIME,
+                                                               rule=_decl_downward_ramp)
+                if self.params['ramp_cost'].v() > 0:
+                    self.block.decl_downward_ramp_cost = Constraint(self.TIME,
+                                                                    rule=_decl_downward_ramp_cost)
+                    self.block.decl_upward_ramp_cost = Constraint(self.TIME,
+                                                                  rule=_decl_upward_ramp_cost)
+            else:
+                def _decl_upward_ramp(b, t, c):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.heat_flow[t, c] - b.heat_flow[t - 1, c] <= \
+                               self.params[
+                                   'ramp'].v() * self.params['time_step'].v()
+
+                def _decl_downward_ramp(b, t, c):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.heat_flow[t - 1, c] - b.heat_flow[t, c] <= \
+                               self.params[
+                                   'ramp'].v() * self.params['time_step'].v()
+
+                def _decl_upward_ramp_cost(b, t, c):
+                    if t == 0:
+                        return b.ramping_cost[t, c] == 0
+                    else:
+                        return b.ramping_cost[t, c] >= (
+                                b.heat_flow[t, c] - b.heat_flow[t - 1, c]) * \
+                               self.params[
+                                   'ramp_cost'].v()
+
+                def _decl_downward_ramp_cost(b, t, c):
+                    if t == 0:
+                        return Constraint.Skip
+                    else:
+                        return b.ramping_cost[t, c] >= (
+                                b.heat_flow[t - 1, c] - b.heat_flow[t, c]) * \
+                               self.params[
+                                   'ramp_cost'].v()
+
+                if self.params['ramp'].v() > 0 or self.params['ramp'].v() * \
+                        self.params['time_step'].v() > self.params[
+                    'Qmax'].v():
+                    self.block.decl_upward_ramp = Constraint(self.TIME,
+                                                             self.REPR_DAYS,
+                                                             rule=_decl_upward_ramp)
+                    self.block.decl_downward_ramp = Constraint(self.TIME,
+                                                               self.REPR_DAYS,
+                                                               rule=_decl_downward_ramp)
+                if self.params['ramp_cost'].v() > 0:
+                    self.block.decl_downward_ramp_cost = Constraint(
+                        self.TIME, self.REPR_DAYS,
+                        rule=_decl_downward_ramp_cost)
+                    self.block.decl_upward_ramp_cost = Constraint(
+                        self.TIME,
+                        self.REPR_DAYS,
+                        rule=_decl_upward_ramp_cost)
+
+        self.compiled = True
+
+    def get_ramp_cost(self, t, c=None):
+        if c is None:
+            return self.block.ramping_cost[t]
+        else:
+            return self.block.ramping_cost[t, c]
+
+    def get_investment_cost(self):
+        """
+        Get investment cost of variable producer as a function of the nominal power rating.
+
+        :return: Cost in EUR
+        """
+        return self.params['cost_inv'].v(self.params['Qmax'].v())
+
+    def obj_energy(self):
+        """
+        Generator for energy objective variables to be summed
+        Unit: kWh (primary energy)
+
+        :return:
+        """
+        eta = self.block.COP
+        pef = self.params['PEF'].v()
+
+        if self.repr_days is None:
+            return sum(pef / eta[t] * (self.get_heat(t)) * self.params[
+                'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * pef / eta[t, c] * (self.get_heat(t, c)) *
+                       self.params[
+                           'time_step'].v() / 3600 / 1000 for t in self.TIME for
+                       c in self.REPR_DAYS)
+
+    def obj_fuel_cost(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.params[
+            'elec_cost']  # cost consumed heat source (fuel/electricity)
+        eta = self.block.COP
+        if self.repr_days is None:
+            return sum(cost.v(t) / eta[t] * self.get_heat(t) / 3600 * self.params[
+                'time_step'].v() / 1000 for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * cost.v(t, c) / eta[t, c] *
+                       self.get_heat(t, c) / 3600 * self.params[
+                           'time_step'].v() / 1000 for t in self.TIME for c in
+                       self.REPR_DAYS)
+
+    def obj_cost_ramp(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.params[
+            'elec_cost']  # cost consumed heat source (fuel/electricity)
+        eta = self.block.COP
+
+        if self.repr_days is None:
+            return sum(self.get_ramp_cost(t) + cost.v(t) / eta[t] *
+                       self.get_heat(t)
+                       / 3600 * self.params['time_step'].v() / 1000 for t in
+                       self.TIME)
+        else:
+            return sum(self.repr_count[c] * (self.get_ramp_cost(t, c) + cost.v(
+                t, c) / eta[t, c] * self.get_heat(t, c) / 3600 * self.params['time_step'].v() / 1000) for t in self.TIME
+                       for c in self.REPR_DAYS)
+
+    def obj_co2(self):
+        """
+        Generator for CO2 objective variables to be summed
+        Unit: kg CO2
+
+        :return:
+        """
+
+        eta = self.block.COP
+        pef = self.params['PEF'].v()
+        co2 = self.params[
+            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        if self.repr_days is None:
+            return sum(co2 * pef / eta[t] * self.get_heat(t) * self.params[
+                'time_step'].v() / 3600 / 1000 for t in self.TIME)
+        else:
+            return sum(self.repr_count[c] * co2 * pef / eta[t, c] * self.get_heat(t, c) *
+                       self.params[
+                           'time_step'].v() / 3600 / 1000 for t in self.TIME for
+                       c in
+                       self.REPR_DAYS)
+
+    def get_known_mflo(self, t, start_time):
+        return 0
+
+    def obj_co2_cost(self):
+        """
+        Generator for CO2 cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+
+        eta = self.block.COP
+        pef = self.params['PEF'].v()
+        co2 = self.params[
+            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2_price = self.params['CO2_price']
+
+        if self.repr_days is None:
+            return sum(
+                co2_price.v(t) * co2 * pef / eta[t] * self.get_heat(t) * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in
+                self.TIME)
+        else:
+            return sum(
+                co2_price.v(t, c) * co2 * pef / eta[t, c] * self.get_heat(t, c
+                                                                          ) * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in
+                self.TIME for c in self.REPR_DAYS)
+
+
 class GeothermalHeating(VariableComponent):
     def __init__(self, name, temperature_driven=False, heat_var=0.05, repr_days=None):
         """
@@ -1200,7 +1631,8 @@ class GeothermalHeating(VariableComponent):
                                         mutable=False, val=25),  # 15y for CHP
             'fix_maint': DesignParameter('fix_maint', unit='-',
                                          description='Annual maintenance cost as a fixed proportion of the investment',
-                                         mutable=False, val=0.025  # Value from DEA: 37k EUR/MW on 1.6M EUR/MW investment
+                                         mutable=False, val=0.025
+                                         # Value from DEA: 37k EUR/MW on 1.6M EUR/MW investment
                                          ),
             'temperature_supply': DesignParameter('temperature_supply', unit='K',
                                                   description='Supply temperature to the network', mutable=True),
@@ -1212,7 +1644,7 @@ class GeothermalHeating(VariableComponent):
             'CO2': DesignParameter('CO2',
                                    'amount of CO2 released when using primary energy source',
                                    'kg/kWh'),
-            'fuel_cost': UserDataParameter('fuel_cost',
+            'elec_cost': UserDataParameter('elec_cost',
                                            'cost of fuel to generate heat',
                                            'euro/kWh'),
             'Qnom': DesignParameter('Qnom',
@@ -1265,7 +1697,6 @@ class GeothermalHeating(VariableComponent):
 
         self.compiled = True
 
-
     def get_heat(self, t, c=None):
         """
         Get heat output for this component
@@ -1298,7 +1729,7 @@ class GeothermalHeating(VariableComponent):
 
         if self.repr_days is None:
             return pef / eta * self.block.Qnom * sum(self.params[
-                                                                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
+                                                         'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
             return pef / eta * self.block.Qnom * sum(
                 self.repr_count[c] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME for c in
@@ -1312,15 +1743,15 @@ class GeothermalHeating(VariableComponent):
         :return:
         """
         cost = self.params[
-            'fuel_cost']  # cost consumed heat source (fuel/electricity)
+            'elec_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         if self.repr_days is None:
             return self.block.Qnom * sum(cost.v(t) / eta / 3600 * self.params[
                 'time_step'].v() / 1000 for t in self.TIME)
         else:
             return self.block.Qnom * sum(self.repr_count[c] * cost.v(t, c) / eta / 3600 * self.params[
-                           'time_step'].v() / 1000 for t in self.TIME for c in
-                       self.REPR_DAYS)
+                'time_step'].v() / 1000 for t in self.TIME for c in
+                                         self.REPR_DAYS)
 
     def obj_co2(self):
         """
@@ -1626,11 +2057,11 @@ class StorageVariable(VariableComponent):
         params = Component.create_params(self)
 
         params.update({
-            'Thi': DesignParameter('Thi',
+            'temperature_supply': DesignParameter('temperature_supply',
                                    'High temperature in tank',
                                    'K',
                                    mutable=True),
-            'Tlo': DesignParameter('Tlo',
+            'temperature_return': DesignParameter('temperature_return',
                                    'Low temperature in tank',
                                    'K',
                                    mutable=True),
@@ -1703,12 +2134,12 @@ class StorageVariable(VariableComponent):
 
         self.ar = self.params['ar'].v()
 
-        self.temp_diff = self.params['Thi'].v() - self.params['Tlo'].v()
+        self.temp_diff = self.params['temperature_supply'].v() - self.params['temperature_return'].v()
         assert (
                 self.temp_diff > 0), 'Temperature difference should be positive.'
 
-        self.temp_sup = self.params['Thi'].v()
-        self.temp_ret = self.params['Tlo'].v()
+        self.temp_sup = self.params['temperature_supply'].v()
+        self.temp_ret = self.params['temperature_return'].v()
         self.max_en = self.volume * self.cp * self.temp_diff * self.rho / 1000 / 3600
 
         # Geometrical calculations
@@ -1816,7 +2247,7 @@ class StorageVariable(VariableComponent):
                     'time_step'].v() / 3600 * (
                                b.heat_flow[t] / b.mult - b.heat_loss[t]) / 1000 \
                        - (self.mflo_use[t] * self.cp * (
-                        b.Thi - b.Tlo)) / 1000 / 3600
+                        b.temperature_supply - b.temperature_return)) / 1000 / 3600
 
                 # self.tau * (1 - exp(-self.params['time_step'].v() / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -1858,7 +2289,7 @@ class StorageVariable(VariableComponent):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t):
-                return self.cp * b.mass_flow[t] * (b.Thi - b.Tlo) == \
+                return self.cp * b.mass_flow[t] * (b.temperature_supply - b.temperature_return) == \
                        b.heat_flow[t]
 
             ## leq allows that heat losses in the network are supplied from storage tank only when discharging.
@@ -2021,7 +2452,7 @@ class StorageCondensed(StorageVariable):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t):
-                return self.cp * b.mass_flow[t] * (b.Thi - b.Tlo) == \
+                return self.cp * b.mass_flow[t] * (b.temperature_supply - b.temperature_return) == \
                        b.heat_flow[t]
 
             self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
@@ -2267,7 +2698,7 @@ class StorageRepr(StorageVariable):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t, c):
-                return self.cp * b.mass_flow[t, c] * (b.Thi - b.Tlo) == \
+                return self.cp * b.mass_flow[t, c] * (b.temperature_supply - b.temperature_return) == \
                        b.heat_flow[t, c]
 
             self.block.heat_bal = Constraint(self.TIME, self.REPR_DAYS,
