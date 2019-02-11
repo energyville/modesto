@@ -108,8 +108,8 @@ def setup_modesto_with_stor(graph, objtype='cost'):
     optmodel.change_params(prod_design, 'prod', 'prod')
 
     # Storage parameters
-    stor_design = {'Thi': 50 + 273.15,
-                   'Tlo': 20 + 273.15,
+    stor_design = {'temperature_supply': 60 + 273.15,
+                   'temperature_return': 20 + 273.15,
                    'mflo_max': 100,
                    'mflo_min': -100,
                    'volume': 5000,

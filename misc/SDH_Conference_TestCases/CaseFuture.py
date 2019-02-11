@@ -197,8 +197,8 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
     pit_cost = utils.read_xlsx_data(STOR_COST, use_sheet='Pit')['Cost']
     tank_cost = utils.read_xlsx_data(STOR_COST, use_sheet='Tank')['Cost']
     prod_stor_design = {
-        'Thi': 70 + 273.15,
-        'Tlo': 30 + 273.15,
+        'temperature_supply': 70 + 273.15,
+        'temperature_return': 30 + 273.15,
         'mflo_max': 1100,
         'mflo_min': -1100,
         'mflo_use': pd.Series(0, index=t_amb.index),
@@ -218,8 +218,8 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
     # ### Storage Unit
 
     stor_design = {
-        'Thi': 70 + 273.15,
-        'Tlo': 30 + 273.15,
+        'temperature_supply': 70 + 273.15,
+        'temperature_return': 30 + 273.15,
         'mflo_max': 11000,
         'mflo_min': -11000,
         'mflo_use': pd.Series(0, index=t_amb.index),
@@ -236,8 +236,8 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
     stor_design = {
         'TermienWest':
             {
-                'Thi': 70 + 273.15,
-                'Tlo': 30 + 273.15,
+                'temperature_supply': 70 + 273.15,
+                'temperature_return': 30 + 273.15,
                 'mflo_max': 11000,
                 'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
@@ -250,8 +250,8 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
             },
         'WaterscheiGarden':
             {
-                'Thi': 70 + 273.15,
-                'Tlo': 30 + 273.15,
+                'temperature_supply': 70 + 273.15,
+                'temperature_return': 30 + 273.15,
                 'mflo_max': 11000,
                 'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),

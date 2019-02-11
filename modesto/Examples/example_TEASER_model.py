@@ -145,8 +145,8 @@ def construct_model():
 
     stor_design = {
         # Thi and Tlo need to be compatible with delta_T of previous
-        'Thi': 80 + 273.15,
-        'Tlo': 60 + 273.15,
+        'temperature_supply': 80 + 273.15,
+        'temperature_return': 60 + 273.15,
         'mflo_max': 110,
         'mflo_min': -110,
         'volume': 2e4,
