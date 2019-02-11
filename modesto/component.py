@@ -639,25 +639,30 @@ class SubstationepsNTU(Substation):
         Tssup = self.params['temperature_radiator_out'].v()
 
         # Heat exchanger
-        Tpsup = self.get_var('Tpsup')
-        Tpret = self.get_var('Tpret')
+        Tpsup = self.get_value('Tpsup')
+        Tpret = self.get_value('Tpret')
         mf_prim = self.get_var('mf_prim')
 
         K = self.params['thermal_size_HEx'].v()
         q = self.params['exponential_HEx'].v()
 
         Cmin = fmin(mf_sec, mf_prim)*self.cp
-        Cmax = fmax(mf_sec, mf_prim)*self.cp
+        Cmax = (mf_sec + mf_prim)*self.cp - Cmin
         UA = K / (mf_prim ** -q + mf_sec ** -q)
-        Cstar = Cmin/Cmax
-        NTU = UA/Cmin
+        Cstar = (Cmin + 1e-3)/(Cmax + 1e-3)
+        NTU = UA/(Cmin + 1e-4)
         eps = (1 - exp(-NTU * (1 - Cstar))) / (1 - Cstar * exp(-NTU * (1 - Cstar)))
 
-        self.opti.subject_to(hf / self.heat_sf == eps * Cmin * (Tpsup - Tssup) / self.heat_sf)
-        self.opti.subject_to(hf / self.heat_sf == mf_prim * self.cp * (Tpsup-Tpret) / self.heat_sf)
+        if False: # TODO Make parameter for this
+            hf_slack = self.make_slack('hf_slack', self.n_steps)
+        else:
+            hf_slack = 0
+
+        self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == eps * Cmin * (Tpsup - Tssup) / self.heat_sf)
+        self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == mf_prim * self.cp * (Tpsup-Tpret) / self.heat_sf)
 
         # Limits
-        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 100))
+        self.opti.subject_to(self.opti.bounded(1e-4/self.mass_sf, mf_prim/self.mass_sf, 100/self.mass_sf))
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
