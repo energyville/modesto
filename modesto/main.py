@@ -1,8 +1,7 @@
 from __future__ import division
 
 import collections
-from math import sqrt
-
+import warnings
 import networkx as nx
 from casadi import *
 import modesto.component as co
@@ -254,10 +253,10 @@ class Modesto:
             for item in compile_order:
                 comp = self.get_component(node=item[0], name=item[1])
                 if isinstance(comp, Node):
-                    self.get_component(node=item[0], name=item[1]).compile(False)
+                    comp.compile(False)
                     comp.add_temp_balance('return')
                 else:
-                    self.get_component(node=item[0], name=item[1]).compile()
+                    comp.compile()
 
         if not self.compiled or recompile:
             self.__build_objectives()
@@ -312,11 +311,7 @@ class Modesto:
 
         self.objectives = ['energy', 'cost', 'cost_ramp', 'co2', 'cost_fuel_co2', 'slack', 'temp', 'follow']
 
-        slack = self.opti.variable()
-
-        self.opti.subject_to(slack == 10**6 * sum(
-            comp.obj_slack() for comp in self.iter_components()
-        ))
+        slack = sum(comp.obj_slack() for comp in self.iter_components())
 
         if objtype not in self.objectives:
             raise ValueError('Choose an objective type from {}'.format(
