@@ -51,6 +51,7 @@ class Modesto:
 
         self.build(graph)
         self.compiled = False
+        self.successful = False
 
         self.objectives = {}
         self.act_objective = None
