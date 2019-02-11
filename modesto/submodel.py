@@ -2,9 +2,7 @@ from __future__ import division
 
 from collections import Counter
 
-from pyomo.core.base import Block, Var, NonNegativeReals, value
-from pyomo.core.base.param import IndexedParam, _ParamData
-from pyomo.core.base.var import IndexedVar
+from casadi import *
 
 import pandas as pd
 
@@ -429,7 +427,7 @@ class Submodel(object):
         # TODO Add parameter: penalization; can be different penalizations for different objectives.
         self.slack_list.append(slack_name)
         slack = self.add_var(slack_name, n_elem)
-        self.opti.subject_to(slack >= 0)
+        self.opti.subject_to(self.opti.bounded(0, slack, inf))
 
         return slack
 
