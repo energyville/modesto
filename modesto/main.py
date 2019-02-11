@@ -388,7 +388,8 @@ class Modesto:
 
     def solve(self, tee=False, mipgap=None, mipfocus=None, verbose=False,
               solver='ipopt', warmstart=False, probe=False,
-              timelim=None, threads=None, maxiter=3000, last_results=False):
+              timelim=None, threads=None, maxiter=3000, last_results=False,
+              g_describe=[], x_describe=[]):
         """
         Solve a new optimization
 
@@ -424,13 +425,19 @@ class Modesto:
         t0 = time.time()
         try:
             self.results = self.opti.solve()
+            self.successful = True
         except:
             if last_results:
-                for comp in self.iter_components():
-                    for name, var in comp.opti_vars.items():
-                        print('\n', comp.name, name, '\n------------------\n')
-                        print(self.opti.debug.value(var))
-            raise Exception('Optimization failed')
+                for g in g_describe:
+                    print(self.opti.debug.g_describe(g))
+                for x in x_describe:
+                    print(self.opti.debug.x_describe(x))
+                # self.results = {}
+                # for comp in self.iter_components():
+                #     for name, var in comp.opti_vars.items():
+                #         self.results['{}.{}'.format(comp.name, name)] =
+                self.successful = False
+            warnings.warn('OPTIMIZATION HAS FAILED')
         print('\nTime to solve: ', time.time() - t0, '\n')
 
         # if solver == 'gurobi':
@@ -628,15 +635,19 @@ class Modesto:
         #         #
         #         # return obj.get_result(name, index, state, self.start_time)
 
-        if self.results is None and check_results:
-            raise Exception('The optimization problem has not been solved yet.')
+        # if self.results is None and check_results:
+        #     raise Exception('The optimization problem has not been solved yet.')
 
         obj = self.get_component(comp, node)
         opti_obj = obj.get_value(name)
 
         n_steps = len(obj.get_time_axis())
 
-        result = self.results.value(opti_obj)
+        if self.successful:
+            result = self.results.value(opti_obj)
+        else:
+            result = self.opti.debug.value(opti_obj)
+
         time = pd.DatetimeIndex(start=self.start_time,
                                 freq=str(self.params['time_step'].v()) + 'S',
                                 periods=n_steps)
