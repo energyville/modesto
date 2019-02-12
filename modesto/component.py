@@ -450,16 +450,53 @@ class FixedProfile(Component):
 
         heat_profile = self.params['heat_profile']
 
-        if not self.compiled:
-            def _mass_flow(b, t, c=None):
-                return b.mult * heat_profile.v(t, c) / self.cp / (b.temperature_supply - b.temperature_return)
+        def _heat_flow(b, t, c=None):
+            return b.mult * heat_profile.v(t, c)
 
-            def _heat_flow(b, t, c=None):
-                return b.mult * heat_profile.v(t, c)
+        if not self.temperature_driven:
+            if not self.compiled:
+                def _mass_flow(b, t, c=None):
+                    return b.mult * heat_profile.v(t, c) / self.cp / (b.temperature_supply - b.temperature_return)
+
+                if self.repr_days is None:
+
+                    self.block.mass_flow = Param(self.TIME, rule=_mass_flow,
+                                                 mutable=not self.temperature_driven)
+                    self.block.heat_flow = Param(self.TIME, rule=_heat_flow,
+                                                 mutable=not self.temperature_driven)
+                else:
+                    self.block.mass_flow = Param(self.TIME, self.REPR_DAYS,
+                                                 rule=_mass_flow,
+                                                 mutable=not self.temperature_driven)
+                    self.block.heat_flow = Param(self.TIME, self.REPR_DAYS,
+                                                 rule=_heat_flow,
+                                                 mutable=not self.temperature_driven)
+            else:
+                if self.repr_days is None:
+                    for t in self.TIME:
+                        self.block.mass_flow[t] = self.block.mult * heat_profile.v(
+                            t) / self.cp / self.block.delta_T
+                        self.block.heat_flow[t] = self.block.mult * heat_profile.v(
+                            t)
+                else:
+                    for t in self.TIME:
+                        for c in self.REPR_DAYS:
+                            self.block.mass_flow[
+                                t, c] = self.block.mult * heat_profile.v(
+                                t, c) / self.cp / self.block.delta_T
+                            self.block.heat_flow[
+                                t, c] = self.block.mult * heat_profile.v(t, c)
+
+        else:
+            lines = self.params['lines'].v()
+            self.block.temperatures = Var(lines, self.TIME)
+
+            def _mass_flow(b, t, c=None):
+                return abs(self.params['mass_flow'].v(t,c))
 
             if self.repr_days is None:
-
-                self.block.mass_flow = Param(self.TIME, rule=_mass_flow,
+                self.block.mass_flow = Param(self.TIME,
+                                             rule=_mass_flow,
                                              mutable=not self.temperature_driven)
                 self.block.heat_flow = Param(self.TIME, rule=_heat_flow,
                                              mutable=not self.temperature_driven)
@@ -470,25 +507,6 @@ class FixedProfile(Component):
                 self.block.heat_flow = Param(self.TIME, self.REPR_DAYS,
                                              rule=_heat_flow,
                                              mutable=not self.temperature_driven)
-        else:
-            if self.repr_days is None:
-                for t in self.TIME:
-                    self.block.mass_flow[t] = self.block.mult * heat_profile.v(
-                        t) / self.cp / self.block.delta_T
-                    self.block.heat_flow[t] = self.block.mult * heat_profile.v(
-                        t)
-            else:
-                for t in self.TIME:
-                    for c in self.REPR_DAYS:
-                        self.block.mass_flow[
-                            t, c] = self.block.mult * heat_profile.v(
-                            t, c) / self.cp / self.block.delta_T
-                        self.block.heat_flow[
-                            t, c] = self.block.mult * heat_profile.v(t, c)
-
-        if self.temperature_driven:
-            lines = self.params['lines'].v()
-            self.block.temperatures = Var(lines, self.TIME)
 
             def _decl_temperatures(b, t):
                 if t == 0:
