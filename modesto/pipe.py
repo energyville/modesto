@@ -271,7 +271,8 @@ class ExtensivePipe(Pipe):
         self.dn = None
         self.heat_var = heat_var
 
-        self.hl_setting = 2 / 3  # Fraction of max mass flow where heat losses are equal to nominal value
+        self.hl_setting = .7233  # Fraction of max mass flow where heat losses are equal to nominal value
+        # 0.7233 is the middle of the economic flow rates according to IsoPlus, taken as average over all diameters
 
         self.n_pump_constr = 3  # Number of linear pieces in pumping power approximation
 
