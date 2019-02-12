@@ -58,7 +58,6 @@ def test_example_RCmodel():
 
 def test_recompilation_stor():
     from modesto.Examples import example_recompilation
-    G = example_recompilation.setup_graph()
     model_recomp = example_recompilation.setup_modesto(n_steps=24)
     model_mutable = example_recompilation.setup_modesto(n_steps=24)
 

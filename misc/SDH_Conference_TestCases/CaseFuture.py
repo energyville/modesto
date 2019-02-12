@@ -7,8 +7,6 @@
 # # Imports and other stuff
 
 
-
-
 import logging
 import os
 import time
@@ -156,11 +154,14 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
     # If we print the parameters again, we can see the values have now been added:
 
     building_params_common = {
-        'delta_T': 40,
-        'mult': 1
+        'temperature_supply': 70 + 273.15,
+        'temperature_return': 30 + 273.15,
+        'mult': 1,
+        'CO2': 0.3
     }
 
     heat_profile = utils.read_time_data(datapath, name='HeatDemand/Old/HeatDemandFiltered.csv', expand=repr)
+    dhw_demand = utils.read_time_data(datapath, name='HeatDemand/DHW_GenkNet.csv', expand=repr)
 
     if verbose:
         print('#######################')
@@ -172,6 +173,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
                  'TermienEast']:  # ['Boxbergheide', 'TermienWest', 'WaterscheiGarden']:
         build_param = building_params_common
         build_param['heat_profile'] = heat_profile[name]
+        build_param['DHW_demand'] = dhw_demand[name]
 
         if verbose:
             print(name, ':', str(sum(heat_profile[name]['2014']) / 1e9))  # Quarterly data

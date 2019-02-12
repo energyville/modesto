@@ -14,6 +14,7 @@ def test_geothermal():
 
     assert geo.get_investment_cost() == 1.6e6
 
+
 def setup_ashp(n_steps=24 * 7, time_step=3600):
     import networkx as nx
     from modesto.main import Modesto
@@ -52,7 +53,9 @@ def setup_ashp(n_steps=24 * 7, time_step=3600):
     ##################################
 
     heat_profile = ut.read_time_data(resource_filename(
-        'modesto', 'Data/HeatDemand/'), name='TEASER_GenkNET_per_neighb.csv')
+        'modesto', 'Data/HeatDemand/'), name='SH_GenkNet.csv')
+    dhw_demand = ut.read_time_data(resource_filename(
+        'modesto', 'Data/HeatDemand/'), name='DHW_GenkNet.csv')
     t_amb = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='extT.csv')['Te']
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
@@ -84,14 +87,18 @@ def setup_ashp(n_steps=24 * 7, time_step=3600):
 
     # building parameters
 
-    zw_building_params = {'delta_T': 20,
+    zw_building_params = {'temperature_supply': 80 + 273.15,
+                          'temperature_return': 60 + 273.15,
                           'mult': 1,
-                          'heat_profile': heat_profile['ZwartbergNEast']
+                          'heat_profile': heat_profile['ZwartbergNEast'],
+                          'CO2': 0,
+                          'DHW_demand': dhw_demand['ZwartbergNEast']
                           }
 
     ws_building_params = zw_building_params.copy()
     ws_building_params['mult'] = 1
     ws_building_params['heat_profile'] = heat_profile['WaterscheiGarden']
+    ws_building_params['DHW_demand'] = dhw_demand['WaterscheiGarden']
 
     optmodel.change_params(zw_building_params, node='zwartbergNE',
                            comp='buildingD')
@@ -165,8 +172,9 @@ def test_airsourceheatpump():
 
     optmodel.solve(tee=True)
 
-    assert round(optmodel.get_objective('energy')) == round(1.527379495e+06)
+    assert round(optmodel.get_objective('energy')) == round(1.562745381e+06)
     return optmodel
+
 
 def test_ashp_mutate():
     optmodel = setup_ashp()
@@ -178,11 +186,13 @@ def test_ashp_mutate():
 
     optmodel.solve(tee=True)
 
-    assert round(optmodel.get_objective('energy')) == round(1.154406624e+06)
+    assert round(optmodel.get_objective('energy')) == round(1.181460826e+06)
     return optmodel
+
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
+
     model = test_airsourceheatpump()
     model2 = test_ashp_mutate()
     plt.plot(model.get_result(node='ThorPark', comp='plant', name='COP'), label='Low COP')

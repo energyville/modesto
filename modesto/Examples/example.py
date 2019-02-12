@@ -1,12 +1,11 @@
 import logging
 
 import matplotlib.pyplot as plt
+import modesto.utils as ut
 import networkx as nx
 import pandas as pd
-from pkg_resources import resource_filename
-
-import modesto.utils as ut
 from modesto.main import Modesto
+from pkg_resources import resource_filename
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(name)-36s %(levelname)-8s %(message)s',
@@ -60,6 +59,8 @@ def construct_model():
 
     heat_profile = ut.read_time_data(resource_filename(
         'modesto', 'Data/HeatDemand/Old'), name='HeatDemandFiltered.csv')
+    dhw_demand = ut.read_time_data(resource_filename(
+        'modesto', 'Data/HeatDemand'), name='DHW_GenkNet.csv')
     t_amb = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='extT.csv')['Te']
     t_g = pd.Series(12 + 273.15, index=t_amb.index)
 
@@ -91,10 +92,14 @@ def construct_model():
 
     # building parameters
 
-    zw_building_params = {'delta_T': 20,
-                          'mult': 1,
-                          'heat_profile': heat_profile['ZwartbergNEast']
-                          }
+    zw_building_params = {
+        'temperature_supply': 80 + 273.15,
+        'temperature_return': 60 + 273.15,
+        'mult': 1,
+        'heat_profile': heat_profile['ZwartbergNEast'],
+        'DHW_demand': dhw_demand['ZwartbergNEast'],
+        'CO2': 0.3
+    }
 
     ws_building_params = zw_building_params.copy()
     ws_building_params['mult'] = 1

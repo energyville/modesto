@@ -85,15 +85,17 @@ def setup_modesto_with_stor(graph, objtype='cost'):
     # Building parameters
     index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=horizon / time_step)
     building_params = {
-        'delta_T': 40,
+        'temperature_supply': 50+273.15,
+        'temperature_return': 20+273.15,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom
-
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom,
+        'CO2': 0.2,
+        'DHW_demand': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * 60
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
 
     # Producer parameters
-    prod_design = {'delta_T': 40,
+    prod_design = {'delta_T': 30,
                    'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
@@ -110,7 +112,7 @@ def setup_modesto_with_stor(graph, objtype='cost'):
                    'temperature_return': 20 + 273.15,
                    'mflo_max': 100,
                    'mflo_min': -100,
-                   'volume': 50,
+                   'volume': 5000,
                    'heat_stor': 10,
                    'ar': 2,
                    'dIns': 0.2,
@@ -131,7 +133,7 @@ def setup_modesto_with_stor(graph, objtype='cost'):
     }
 
     if pipe_model is 'ExtensivePipe':
-        params['temperature_supply'] = 60 + 273.15
+        params['temperature_supply'] = 30 + 273.15
         params['temperature_return'] = 20 + 273.15
 
     for p in ['pipe1', 'pipe2', 'pipe3']: optmodel.change_params(params, node=None, comp=p)
@@ -184,20 +186,22 @@ def setup_modesto(graph, objtype='cost'):
                       'elec_cost': c_f}
     optmodel.change_params(general_params)
 
-    Pnom = 4e6
+    Pnom = 5e6
 
     # Building parameters
     index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=horizon / time_step)
     building_params = {
-        'delta_T': 40,
+        'temperature_supply': 50+273.15,
+        'temperature_return': 20+273.15,
         'mult': 1,
-        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom
-
+        'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom,
+        'CO2': 0.2,
+        'DHW_demand': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * 60
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
 
     # Producer parameters
-    prod_design = {'delta_T': 40,
+    prod_design = {'delta_T': 30,
                    'efficiency': 0.95,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
@@ -212,7 +216,7 @@ def setup_modesto(graph, objtype='cost'):
     # Pipe parameters
     params = {
         'diameter': 150,
-        'temperature_supply': 60 + 273.15,
+        'temperature_supply': 50 + 273.15,
         'temperature_return': 20 + 273.15
     }
     optmodel.change_params(params, node=None, comp='pipe')

@@ -40,7 +40,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 365, repr=False):
                     repr_days=repr_days[16] if repr else None)
     heat_demand = ut.read_time_data(
         resource_filename('modesto', 'Data/HeatDemand'),
-        name='TEASER_GenkNET_per_neighb.csv')
+        name='SH_GenkNet.csv')
     weather_data = ut.read_time_data(
         resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
 

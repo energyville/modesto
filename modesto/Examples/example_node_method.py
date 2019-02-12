@@ -42,11 +42,11 @@ def construct_model():
     G.add_node('p1', x=2600, y=5000, z=0,
                comps={})
     G.add_node('waterscheiGarden', x=2500, y=4600, z=0,
-               comps={'buildingD': 'BuildingFixed',
+               comps={'buildingD': 'FixedProfile',
                       }
                )
     G.add_node('zwartbergNE', x=2000, y=5500, z=0,
-               comps={'buildingD': 'BuildingFixed'})
+               comps={'buildingD': 'FixedProfile'})
 
     G.add_edge('ThorPark', 'p1', name='bbThor')
     G.add_edge('p1', 'waterscheiGarden', name='spWaterschei')
@@ -127,8 +127,7 @@ def construct_model():
     optmodel.test = 'Test'
     # building parameters
 
-    ZW_building_params = {'delta_T': 20,
-                          'mult': 500,
+    ZW_building_params = {'mult': 500,
                           'heat_profile': heat_profile,
                           'temperature_return': return_temp,
                           'temperature_supply': supply_temp,
@@ -141,9 +140,9 @@ def construct_model():
     # Calculating mass flows through network
     mfcalc = MfCalculation(G, time_step, time_step*n_steps)
     mfcalc.add_mf(node='waterscheiGarden', name='buildingD',
-                  mf_df=WS_building_params['mult'] * heat_profile / 4186 / WS_building_params['delta_T'])
+                  mf_df=WS_building_params['mult'] * heat_profile / 4186 / (WS_building_params['temperature_supply'] - WS_building_params['temperature_return']))
     mfcalc.add_mf(node='zwartbergNE', name='buildingD',
-                  mf_df=ZW_building_params['mult'] * heat_profile / 4186 / ZW_building_params['delta_T'])
+                  mf_df=ZW_building_params['mult'] * heat_profile / 4186 / (ZW_building_params['temperature_supply'] - ZW_building_params['temperature_return']))
     mfcalc.set_producer_node('ThorPark')
     mfcalc.set_producer_component('plant')
     mfcalc.calculate_mf()

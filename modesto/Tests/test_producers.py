@@ -50,8 +50,11 @@ def test_producer():
                      pd.Series(([6e4, 1e5, 6e4] + [0, 1e4, 0]) * 4, index=time_index),
                      pd.Series(([5e4, 1e5, 5e4] + [500] * 3) * 4, index=time_index)]
 
-    building_params = {'delta_T': 20,
+    building_params = {'temperature_supply': 80 + 273.15,
+                       'temperature_return': 60 + 273.15,
                        'mult': 1,
+                       'CO2': 0.3,
+                       'DHW_demand': pd.Series(([5e4, 1e5, 5e4] + [0, 1e4, 0]) * 4, index=time_index)
                        }
 
     optmodel.change_params(building_params, node='user', comp='building')

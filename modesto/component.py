@@ -6,7 +6,7 @@ from math import pi, log, exp
 import modesto.utils as ut
 import pandas as pd
 from modesto.parameter import StateParameter, DesignParameter, \
-    UserDataParameter, SeriesParameter, WeatherDataParameter
+    UserDataParameter, SeriesParameter, WeatherDataParameter, TimeSeriesParameter
 from modesto.submodel import Submodel
 from pkg_resources import resource_filename
 from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
@@ -367,7 +367,7 @@ class Component(Submodel):
 
 
 class FixedProfile(Component):
-    def __init__(self, name=None, direction=None,
+    def __init__(self, name=None, direction=-1,
                  temperature_driven=False, repr_days=None):
         """
         Class for a component with a fixed heating profile
@@ -393,10 +393,14 @@ class FixedProfile(Component):
         params = Component.create_params(self)
 
         params.update({
-            'delta_T': DesignParameter('delta_T',
-                                       'Temperature difference across substation',
-                                       'K',
-                                       mutable=True),
+            'temperature_supply': DesignParameter('temperature_supply',
+                                                  'Supply temperature to  substation',
+                                                  'K',
+                                                  mutable=True),
+            'temperature_return': DesignParameter('temperature_return',
+                                                  'Return temperature from substation',
+                                                  'K',
+                                                  mutable=True),
             'mult': DesignParameter('mult',
                                     'Number of buildings in the cluster',
                                     '-',
@@ -446,16 +450,53 @@ class FixedProfile(Component):
 
         heat_profile = self.params['heat_profile']
 
-        if not self.compiled:
-            def _mass_flow(b, t, c=None):
-                return b.mult * heat_profile.v(t, c) / self.cp / b.delta_T
+        def _heat_flow(b, t, c=None):
+            return b.mult * heat_profile.v(t, c)
 
-            def _heat_flow(b, t, c=None):
-                return b.mult * heat_profile.v(t, c)
+        if not self.temperature_driven:
+            if not self.compiled:
+                def _mass_flow(b, t, c=None):
+                    return b.mult * heat_profile.v(t, c) / self.cp / (b.temperature_supply - b.temperature_return)
+
+                if self.repr_days is None:
+
+                    self.block.mass_flow = Param(self.TIME, rule=_mass_flow,
+                                                 mutable=not self.temperature_driven)
+                    self.block.heat_flow = Param(self.TIME, rule=_heat_flow,
+                                                 mutable=not self.temperature_driven)
+                else:
+                    self.block.mass_flow = Param(self.TIME, self.REPR_DAYS,
+                                                 rule=_mass_flow,
+                                                 mutable=not self.temperature_driven)
+                    self.block.heat_flow = Param(self.TIME, self.REPR_DAYS,
+                                                 rule=_heat_flow,
+                                                 mutable=not self.temperature_driven)
+            else:
+                if self.repr_days is None:
+                    for t in self.TIME:
+                        self.block.mass_flow[t] = self.block.mult * heat_profile.v(
+                            t) / self.cp / self.block.delta_T
+                        self.block.heat_flow[t] = self.block.mult * heat_profile.v(
+                            t)
+                else:
+                    for t in self.TIME:
+                        for c in self.REPR_DAYS:
+                            self.block.mass_flow[
+                                t, c] = self.block.mult * heat_profile.v(
+                                t, c) / self.cp / self.block.delta_T
+                            self.block.heat_flow[
+                                t, c] = self.block.mult * heat_profile.v(t, c)
+
+        else:
+            lines = self.params['lines'].v()
+            self.block.temperatures = Var(lines, self.TIME)
+
+            def _mass_flow(b, t, c=None):
+                return abs(self.params['mass_flow'].v(t,c))
 
             if self.repr_days is None:
-
-                self.block.mass_flow = Param(self.TIME, rule=_mass_flow,
+                self.block.mass_flow = Param(self.TIME,
+                                             rule=_mass_flow,
                                              mutable=not self.temperature_driven)
                 self.block.heat_flow = Param(self.TIME, rule=_heat_flow,
                                              mutable=not self.temperature_driven)
@@ -466,25 +507,6 @@ class FixedProfile(Component):
                 self.block.heat_flow = Param(self.TIME, self.REPR_DAYS,
                                              rule=_heat_flow,
                                              mutable=not self.temperature_driven)
-        else:
-            if self.repr_days is None:
-                for t in self.TIME:
-                    self.block.mass_flow[t] = self.block.mult * heat_profile.v(
-                        t) / self.cp / self.block.delta_T
-                    self.block.heat_flow[t] = self.block.mult * heat_profile.v(
-                        t)
-            else:
-                for t in self.TIME:
-                    for c in self.REPR_DAYS:
-                        self.block.mass_flow[
-                            t, c] = self.block.mult * heat_profile.v(
-                            t, c) / self.cp / self.block.delta_T
-                        self.block.heat_flow[
-                            t, c] = self.block.mult * heat_profile.v(t, c)
-
-        if self.temperature_driven:
-            lines = self.params['lines'].v()
-            self.block.temperatures = Var(lines, self.TIME)
 
             def _decl_temperatures(b, t):
                 if t == 0:
@@ -577,8 +599,180 @@ class BuildingFixed(FixedProfile):
                               temperature_driven=temperature_driven,
                               repr_days=repr_days)
 
+        self.params = self.create_params()
+        self.COP = None
+
+    def create_params(self):
+        params = FixedProfile.create_params(self)
+
+        params.update({
+            'DHW_demand': UserDataParameter(
+                name='DHW_demand',
+                description='Demand profile for domestic hot water at 55degC',
+                unit='l/min'
+            ),
+            'PEF_el': DesignParameter(
+                name='PEF_el',
+                description='Primary energy factor for electricity use by DHW booster heat pump (if applicable)',
+                unit='-'
+            ),
+            'elec_cost': TimeSeriesParameter(
+                name='elec_cost',
+                description='Price of electricity for DHW Booster heat pump',
+                unit='EUR/kWh'
+            ),
+            'CO2': DesignParameter(
+                name='CO2',
+                description='CO2 emission per kWh of energy used',
+                unit='kg/kWh'
+            )
+        })
+
+        return params
+
     def compile(self, model, start_time):
-        FixedProfile.compile(self, model, start_time)
+        """
+        Build the structure of fixed profile
+
+        :param model: The main optimization model
+        :param pd.Timestamp start_time: Start time of optimization horizon.
+        :return:
+        """
+        Component.compile(self, model, start_time)
+
+        heat_profile = self.params['heat_profile']
+        DHW_profile = self.params['DHW_demand']
+
+        self.COP = 0.4 * (55 + 273.15) / (55 + 273.15 - self.params['temperature_return'].v())
+
+        if not self.compiled:
+            def _mass_flow(b, t, c=None):
+                return b.mult * (
+                        heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (
+                        min(b.temperature_supply, 55 + 273.15) - 283.15)) / (
+                               b.temperature_supply - b.temperature_return)
+
+            def _heat_flow(b, t, c=None):
+                return b.mult * (
+                        heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (
+                        min(b.temperature_supply, 55 + 273.15) - 283.15) * self.cp)
+
+            if self.repr_days is None:
+
+                self.block.mass_flow = Param(self.TIME, rule=_mass_flow,
+                                             mutable=not self.temperature_driven)
+                self.block.heat_flow = Param(self.TIME, rule=_heat_flow,
+                                             mutable=not self.temperature_driven)
+            else:
+                self.block.mass_flow = Param(self.TIME, self.REPR_DAYS,
+                                             rule=_mass_flow,
+                                             mutable=not self.temperature_driven)
+                self.block.heat_flow = Param(self.TIME, self.REPR_DAYS,
+                                             rule=_heat_flow,
+                                             mutable=not self.temperature_driven)
+        else:
+            if self.repr_days is None:
+                for t in self.TIME:
+                    self.block.mass_flow[t] = self.block.mult * (
+                            heat_profile.v(t) / self.cp + DHW_profile.v(t) / 60 * (
+                                min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15)) / (
+                                                      self.block.temperature_supply - self.block.temperature_return)
+                    self.block.heat_flow[t] = self.block.mult * (
+                            heat_profile.v(t) + DHW_profile.v(t) / 60 * (
+                                min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15) * self.cp)
+            else:
+                for t in self.TIME:
+                    for c in self.REPR_DAYS:
+                        self.block.mass_flow[t, c] = self.block.mult * (
+                                heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (
+                                    min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15)) / (
+                                                             self.block.temperature_supply - self.block.temperature_return)
+                        self.block.heat_flow[t, c] = self.block.mult * (
+                                heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (
+                                    min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15) * self.cp)
+
+        self.logger.info('Optimization model {} {} compiled'.
+                         format(self.__class__, self.name))
+
+        self.compiled = True
+
+    def dhw_boost(self, t, c=None):
+        """
+        Calculate the amount of boost heat needed each time step
+
+        :param t:
+        :param c:
+        :return:
+        """
+        tsup = self.params['temperature_supply'].v()
+        DHW = self.params['DHW_demand']
+        return DHW.v(t, c) / 60 * (55 + 273.15 - tsup) * self.cp
+
+    def obj_energy(self):
+        """
+        Formulate energy objective
+
+        :return:
+        """
+        eta = self.COP
+        pef = self.params['PEF_el'].v()
+
+        tsup = self.params['temperature_supply'].v()
+        if tsup >= 55 + 273.15:  # No DHW Booster needed
+            return 0
+        else:  # DHW demand requires booster heat pump to heat the water above 55 degrees.
+            if self.repr_days is None:
+                return sum(
+                    pef / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+            else:
+                return sum(
+                    self.repr_count[c] * pef / eta * self.dhw_boost(t, c) * self.params['time_step'].v() / 3600 / 1000
+                    for t in self.TIME for c in self.REPR_DAYS)
+
+    def obj_fuel_cost(self):
+        """
+        Generator for cost objective variables to be summed
+        Unit: euro
+
+        :return:
+        """
+        cost = self.params['elec_cost']  # cost consumed heat source (fuel/electricity)
+        eta = self.COP
+        tsup = self.params['temperature_supply'].v()
+
+        if tsup < 55 + 273.15:
+            if self.repr_days is None:
+                return sum(cost.v(t) / eta * self.dhw_boost(t) / 3600 * self.params[
+                    'time_step'].v() / 1000 for t in self.TIME)
+            else:
+                return sum(self.repr_count[c] * cost.v(t, c) / eta *
+                           self.dhw_boost(t, c) / 3600 * self.params[
+                               'time_step'].v() / 1000 for t in self.TIME for c in
+                           self.REPR_DAYS)
+        else:
+            return 0
+
+    def obj_co2(self):
+        """
+        Generator for CO2 objective variables to be summed
+        Unit: kg CO2
+
+        :return:
+        """
+
+        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        eta = self.COP
+        tsup = self.params['temperature_supply'].v()
+
+        if tsup < 55 + 273.15:
+            if self.repr_days is None:
+                return sum(
+                    co2 / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+            else:
+                return sum(self.repr_count[c] * co2 / eta * self.dhw_boost(t, c) *
+                           self.params['time_step'].v() / 3600 / 1000 for t in self.TIME for c in self.REPR_DAYS)
+        else:
+            return 0
 
 
 class BuildingVariable(Component):
