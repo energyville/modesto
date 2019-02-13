@@ -278,10 +278,10 @@ class ExtensivePipe(Pipe):
 
         self.params['temperature_supply'] = DesignParameter(
             'temperature_supply', 'Supply temperature', 'K',
-            mutable=True)
+            mutable=False)
         self.params['temperature_return'] = DesignParameter(
             'temperature_return', 'Return temperature', 'K',
-            mutable=True)
+            mutable=False)
 
     def compile(self, model, start_time):
         """
@@ -462,8 +462,8 @@ class ExtensivePipe(Pipe):
         self.logger.debug('Rs:', str(Rs))
         # self.logger.debug(self.block.mass_flow.pprint())
 
-        self.logger.debug(self.block.mass_flow_max.pprint())
-        self.logger.debug(self.block.pps.pprint())
+        # self.logger.debug(self.block.mass_flow_max.pprint())
+        # self.logger.debug(self.block.pps.pprint())
 
     def get_diameter(self):
         """

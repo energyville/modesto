@@ -160,7 +160,7 @@ def test_recompilation_qmax():
 
 
     assert mut_after.equals(recomp_after)
-    assert not mut_after.equals(heat_mut_first)
+    assert mut_after.equals(heat_mut_first)
 
 
 if __name__ == '__main__':
