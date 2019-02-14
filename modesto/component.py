@@ -396,11 +396,11 @@ class FixedProfile(Component):
             'temperature_supply': DesignParameter('temperature_supply',
                                                   'Supply temperature to  substation',
                                                   'K',
-                                                  mutable=True),
+                                                  mutable=False),
             'temperature_return': DesignParameter('temperature_return',
                                                   'Return temperature from substation',
                                                   'K',
-                                                  mutable=True),
+                                                  mutable=False),
             'mult': DesignParameter('mult',
                                     'Number of buildings in the cluster',
                                     '-',
@@ -456,7 +456,7 @@ class FixedProfile(Component):
         if not self.temperature_driven:
             if not self.compiled:
                 def _mass_flow(b, t, c=None):
-                    return b.mult * heat_profile.v(t, c) / self.cp / (b.temperature_supply - b.temperature_return)
+                    return b.mult * heat_profile.v(t, c) / self.cp / (self.params['temperature_supply'].v() - self.params['temperature_return'].v())
 
                 if self.repr_days is None:
 
@@ -644,18 +644,19 @@ class BuildingFixed(FixedProfile):
         DHW_profile = self.params['DHW_demand']
 
         self.COP = 0.4 * (55 + 273.15) / (55 + 273.15 - self.params['temperature_return'].v())
-
+        t_supply = self.params['temperature_supply'].v()
+        t_return = self.params['temperature_return'].v()
         if not self.compiled:
             def _mass_flow(b, t, c=None):
                 return b.mult * (
                         heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (
-                        min(b.temperature_supply, 55 + 273.15) - 283.15)) / (
-                               b.temperature_supply - b.temperature_return)
+                        min(t_supply, 55 + 273.15) - 283.15)) / (
+                               t_supply - t_return)
 
             def _heat_flow(b, t, c=None):
                 return b.mult * (
                         heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (
-                        min(b.temperature_supply, 55 + 273.15) - 283.15) * self.cp)
+                        min(t_supply, 55 + 273.15) - 283.15) * self.cp)
 
             if self.repr_days is None:
 
@@ -676,7 +677,7 @@ class BuildingFixed(FixedProfile):
                     self.block.mass_flow[t] = self.block.mult * (
                             heat_profile.v(t) / self.cp + DHW_profile.v(t) / 60 * (
                                 min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15)) / (
-                                                      self.block.temperature_supply - self.block.temperature_return)
+                                                      self.params['temperature_supply'].v() - self.params['temperature_return'].v())
                     self.block.heat_flow[t] = self.block.mult * (
                             heat_profile.v(t) + DHW_profile.v(t) / 60 * (
                                 min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15) * self.cp)
@@ -686,7 +687,7 @@ class BuildingFixed(FixedProfile):
                         self.block.mass_flow[t, c] = self.block.mult * (
                                 heat_profile.v(t, c) / self.cp + DHW_profile.v(t, c) / 60 * (
                                     min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15)) / (
-                                                             self.block.temperature_supply - self.block.temperature_return)
+                                                             self.params['temperature_supply'].v() - self.params['temperature_return'].v())
                         self.block.heat_flow[t, c] = self.block.mult * (
                                 heat_profile.v(t, c) + DHW_profile.v(t, c) / 60 * (
                                     min(self.params['temperature_supply'].v(), 55 + 273.15) - 283.15) * self.cp)
@@ -1423,11 +1424,11 @@ class AirSourceHeatPump(VariableComponent):
             'temperature_supply': DesignParameter('temperature_supply',
                                                   'Design supply temperature of the network',
                                                   'K',
-                                                  mutable=True),
+                                                  mutable=False),
             'temperature_return': DesignParameter('temperature_return',
                                                   'Design return temperature of the network',
                                                   'K',
-                                                  mutable=True),
+                                                  mutable=False),
             'Te': WeatherDataParameter(
                 name='Te',
                 description='Ambient air temperature',
@@ -1451,17 +1452,17 @@ class AirSourceHeatPump(VariableComponent):
         if self.compiled:
             if self.repr_days is None:
                 for t in self.TIME:
-                    self.block.COP[t] = self.block.temperature_supply / (
-                            self.block.temperature_supply - Te.v(t)) * eff_rel
+                    self.block.COP[t] = self.params['temperature_supply'].v() / (
+                            self.params['temperature_supply'].v() - Te.v(t)) * eff_rel
             else:
                 for t in self.TIME:
                     for c in self.REPR_DAYS:
-                        self.block.COP[t, c] = self.block.temperature_supply / (
-                                self.block.temperature_supply - Te.v(t, c)) * eff_rel
+                        self.block.COP[t, c] = self.params['temperature_supply'].v() / (
+                                self.params['temperature_supply'].v() - Te.v(t, c)) * eff_rel
         else:
             if self.repr_days is None:
                 def COP(m, t):
-                    return m.temperature_supply / (m.temperature_supply - Te.v(t)) * eff_rel
+                    return self.params['temperature_supply'].v() / (self.params['temperature_supply'].v() - Te.v(t)) * eff_rel
 
                 self.block.COP = Param(self.TIME, mutable=True, rule=COP)
 
@@ -1492,18 +1493,18 @@ class AirSourceHeatPump(VariableComponent):
 
                 def _mass_ub(m, t):
                     return m.mass_flow[t] * (
-                            1 + self.heat_var) * self.cp * (m.temperature_supply - m.temperature_return) >= \
+                            1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) >= \
                            m.heat_flow[t]
 
                 def _mass_lb(m, t):
-                    return m.mass_flow[t] * self.cp * (m.temperature_supply - m.temperature_return) <= m.heat_flow[
+                    return m.mass_flow[t] * self.cp * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= m.heat_flow[
                         t]
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
             else:
                 def COP(m, t, c):
-                    return m.temperature_supply / (m.temperature_supply - Te.v(t, c)) * eff_rel
+                    return self.params['temperature_supply'].v() / (self.params['temperature_supply'].v() - Te.v(t, c)) * eff_rel
 
                 self.block.COP = Param(self.TIME, self.REPR_DAYS, mutable=True, rule=COP)
                 self.block.heat_flow = Var(self.TIME,
@@ -1541,11 +1542,11 @@ class AirSourceHeatPump(VariableComponent):
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] * (
-                            1 + self.heat_var) * self.cp * (m.temperature_supply - m.temperature_return) >= \
+                            1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) >= \
                            m.heat_flow[t, c]
 
                 def _mass_lb(m, t, c):
-                    return m.mass_flow[t, c] * self.cp * (m.temperature_supply - m.temperature_return) <= \
+                    return m.mass_flow[t, c] * self.cp * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= \
                            m.heat_flow[t, c]
 
                 self.block.ineq_mass_lb = Constraint(self.TIME,
@@ -1829,9 +1830,9 @@ class GeothermalHeating(VariableComponent):
                                          # Value from DEA: 37k EUR/MW on 1.6M EUR/MW investment
                                          ),
             'temperature_supply': DesignParameter('temperature_supply', unit='K',
-                                                  description='Supply temperature to the network', mutable=True),
+                                                  description='Supply temperature to the network', mutable=False),
             'temperature_return': DesignParameter('temperature_return', unit='K',
-                                                  description='Return temperature from the network', mutable=True),
+                                                  description='Return temperature from the network', mutable=False),
             'PEF': DesignParameter('PEF',
                                    'Factor to convert heat source to primary energy',
                                    '-'),
@@ -1867,10 +1868,10 @@ class GeothermalHeating(VariableComponent):
 
                 def _mass_ub(m, t):
                     return m.mass_flow[t] * (
-                            1 + self.heat_var) * self.cp * (m.temperature_supply - m.temperature_return) >= m.Qnom
+                            1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) >= m.Qnom
 
                 def _mass_lb(m, t):
-                    return m.mass_flow[t] * self.cp * (m.temperature_supply - m.temperature_return) <= m.Qnom
+                    return m.mass_flow[t] * self.cp * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= m.Qnom
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
@@ -1881,10 +1882,10 @@ class GeothermalHeating(VariableComponent):
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] * (
-                            1 + self.heat_var) * self.cp * (m.temperature_supply - m.temperature_return) >= m.Qnom
+                            1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) >= m.Qnom
 
                 def _mass_lb(m, t, c):
-                    return m.mass_flow[t, c] * self.cp * (m.temperature_supply - m.temperature_return) <= m.Qnom
+                    return m.mass_flow[t, c] * self.cp * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= m.Qnom
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_ub)
@@ -2038,11 +2039,11 @@ class SolarThermalCollector(VariableComponent):
                                     mutable=True),
             'temperature_supply': DesignParameter('temperature_supply',
                                                   'Outlet temperature of the solar thermal panel, input to the network',
-                                                  'K', mutable=True),
+                                                  'K', mutable=False),
             'temperature_return': DesignParameter('temperature_return',
                                                   description='Inlet temperature of the panel. Input from the network.',
                                                   unit='K',
-                                                  mutable=True),
+                                                  mutable=False),
             'solar_profile': UserDataParameter(name='solar_profile',
                                                description='Maximum heat generation per unit area of the solar panel',
                                                unit='W/m2'),
@@ -2133,11 +2134,11 @@ class SolarThermalCollector(VariableComponent):
 
                 def _mass_lb(m, t):
                     return m.mass_flow[t] >= m.heat_flow[
-                        t] / self.cp / (m.temperature_supply - m.temperature_return) / (1 + self.heat_var)
+                        t] / self.cp / (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) / (1 + self.heat_var)
 
                 def _mass_ub(m, t):
                     return m.mass_flow[t] <= m.heat_flow[
-                        t] / self.cp / (m.temperature_supply - m.temperature_return)
+                        t] / self.cp / (self.params['temperature_supply'].v() - self.params['temperature_return'].v())
 
                 self.block.eq_heat_bal = Constraint(self.TIME, rule=_heat_bal)
                 self.block.eq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
@@ -2165,11 +2166,11 @@ class SolarThermalCollector(VariableComponent):
 
                 def _mass_lb(m, t, c):
                     return m.mass_flow[t, c] >= m.heat_flow[
-                        t, c] / self.cp / (m.temperature_supply - m.temperature_return) / (1 + self.heat_var)
+                        t, c] / self.cp / (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) / (1 + self.heat_var)
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] <= m.heat_flow[
-                        t, c] / self.cp / (m.temperature_supply - m.temperature_return)
+                        t, c] / self.cp / (self.params['temperature_supply'].v() - self.params['temperature_return'].v())
 
                 self.block.eq_heat_bal = Constraint(self.TIME,
                                                     self.REPR_DAYS,
@@ -2254,11 +2255,11 @@ class StorageVariable(VariableComponent):
             'temperature_supply': DesignParameter('temperature_supply',
                                    'High temperature in tank',
                                    'K',
-                                   mutable=True),
+                                   mutable=False),
             'temperature_return': DesignParameter('temperature_return',
                                    'Low temperature in tank',
                                    'K',
-                                   mutable=True),
+                                   mutable=False),
             'mflo_max': DesignParameter('mflo_max',
                                         'Maximal mass flow rate to and from storage vessel',
                                         'kg/s',
@@ -2441,7 +2442,7 @@ class StorageVariable(VariableComponent):
                     'time_step'].v() / 3600 * (
                                b.heat_flow[t] / b.mult - b.heat_loss[t]) / 1000 \
                        - (self.mflo_use[t] * self.cp * (
-                        b.temperature_supply - b.temperature_return)) / 1000 / 3600
+                        self.params['temperature_supply'].v() - self.params['temperature_return'].v())) / 1000 / 3600
 
                 # self.tau * (1 - exp(-self.params['time_step'].v() / self.tau)) * (b.heat_flow[t] -b.heat_loss_ct[t])
 
@@ -2483,7 +2484,7 @@ class StorageVariable(VariableComponent):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t):
-                return self.cp * b.mass_flow[t] * (b.temperature_supply - b.temperature_return) == \
+                return self.cp * b.mass_flow[t] * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) == \
                        b.heat_flow[t]
 
             ## leq allows that heat losses in the network are supplied from storage tank only when discharging.
@@ -2646,7 +2647,7 @@ class StorageCondensed(StorageVariable):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t):
-                return self.cp * b.mass_flow[t] * (b.temperature_supply - b.temperature_return) == \
+                return self.cp * b.mass_flow[t] * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) == \
                        b.heat_flow[t]
 
             self.block.heat_bal = Constraint(self.TIME, rule=_heat_bal)
@@ -2892,7 +2893,7 @@ class StorageRepr(StorageVariable):
 
             ## Mass flow and heat flow link
             def _heat_bal(b, t, c):
-                return self.cp * b.mass_flow[t, c] * (b.temperature_supply - b.temperature_return) == \
+                return self.cp * b.mass_flow[t, c] * (self.params['temperature_supply'].v() - self.params['temperature_return'].v()) == \
                        b.heat_flow[t, c]
 
             self.block.heat_bal = Constraint(self.TIME, self.REPR_DAYS,
