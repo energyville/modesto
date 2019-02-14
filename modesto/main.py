@@ -423,17 +423,17 @@ class Modesto:
             self.results = self.opti.solve()
             self.successful = True
         except:
-            if last_results:
-                for g in g_describe:
-                    print(self.opti.debug.g_describe(g))
-                for x in x_describe:
-                    print(self.opti.debug.x_describe(x))
                 # self.results = {}
                 # for comp in self.iter_components():
                 #     for name, var in comp.opti_vars.items():
                 #         self.results['{}.{}'.format(comp.name, name)] =
-                self.successful = False
+            self.successful = False
             warnings.warn('OPTIMIZATION HAS FAILED')
+
+        for g in g_describe:
+            print(self.opti.debug.g_describe(g))
+        for x in x_describe:
+            print(self.opti.debug.x_describe(x))
         print('\nTime to solve: ', time.time() - t0, '\n')
 
         # if solver == 'gurobi':
@@ -1288,8 +1288,8 @@ class Node(Submodel):
                     self.opti.subject_to(comp.get_edge_temperature(self.name, line) == \
                                          mix_temp)
                 for comp in self.outgoing_comps[line]:
-                    # comp.assign_temp(mix_temp, line)
-                    self.opti.subject_to(comp.get_temperature(line) == mix_temp)
+                    comp.assign_temp(mix_temp, line)
+                    # self.opti.subject_to(comp.get_temperature(line) == mix_temp)
 
         elif self.repr_days is None:
 

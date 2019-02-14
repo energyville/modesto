@@ -2,7 +2,6 @@ from __future__ import division
 
 import logging
 import sys
-from math import pi, log, exp
 from functools import reduce
 import pandas as pd
 from pkg_resources import resource_filename
@@ -323,7 +322,7 @@ class FixedProfile(Component):
         self.add_opti_param('delta_T')
 
         if self.temperature_driven:
-            self.add_var('Tsup', self.n_steps)
+        #     self.add_var('Tsup', self.n_steps)
             self.add_var('Tret', self.n_steps)
 
     def compile(self):
@@ -338,8 +337,8 @@ class FixedProfile(Component):
         delta_T = self.get_opti_param('delta_T')
 
         if self.temperature_driven:
-            tsup = self.get_var('Tsup')
-            tret = self.get_var('Tret')
+            tsup = self.get_value('Tsup')
+            tret = self.get_value('Tret')
 
             # Rest of the temperatures
             for t in self.TIME:
@@ -613,6 +612,7 @@ class SubstationepsNTU(Substation):
         self.params = self.create_params()
 
         self.heat_sf = 1e3
+        self.mass_sf = 10
 
     def prepare(self, model, start_time):
         Substation.prepare(self, model, start_time)
@@ -620,7 +620,7 @@ class SubstationepsNTU(Substation):
         self.add_opti_param('mf_sec', self.n_steps)
         self.add_opti_param('heat_flow', self.n_steps)
 
-        self.add_var('Tpsup', self.n_steps)
+        # self.add_var('Tpsup', self.n_steps)
         self.add_var('Tpret', self.n_steps)
         self.add_var('mf_prim', self.n_steps)
 
@@ -648,7 +648,7 @@ class SubstationepsNTU(Substation):
 
         Cmin = fmin(mf_sec, mf_prim)*self.cp
         Cmax = (mf_sec + mf_prim)*self.cp - Cmin
-        UA = K / (mf_prim ** -q + mf_sec ** -q)
+        UA = K / (fmax(0.001, mf_prim) ** -q + mf_sec ** -q)
         Cstar = (Cmin + 1e-3)/(Cmax + 1e-3)
         NTU = UA/(Cmin + 1e-4)
         eps = (1 - exp(-NTU * (1 - Cstar))) / (1 - Cstar * exp(-NTU * (1 - Cstar)))
@@ -1305,7 +1305,7 @@ class Plant(VariableComponent):
         # Variables:
         self.add_var('heat_flow', self.n_steps)
         self.add_var('Tsup', self.n_steps)
-        self.add_var('Tret', self.n_steps)
+        # self.add_var('Tret', self.n_steps)
 
         # Parameters:
         self.add_opti_param('Qmax')
@@ -1321,8 +1321,8 @@ class Plant(VariableComponent):
 
         # Variables:
         hf = self.get_var('heat_flow')
-        Tsup = self.get_var('Tsup')
-        Tret = self.get_var('Tret')
+        Tsup = self.get_value('Tsup')
+        Tret = self.get_value('Tret')
         mf = self.eqs['mass_flow']
 
         # Parameters:
@@ -1331,7 +1331,6 @@ class Plant(VariableComponent):
         Tmin = self.get_opti_param('temperature_min')
 
         # Initial guess
-        # self.opti.set_initial(mf, 1)
         # self.opti.set_initial(Tsup, 20+273.15)
         # self.opti.set_initial(Tret, 20+273.15)
         if isinstance(self.params['heat_estimate'].v(), list):
@@ -1341,12 +1340,10 @@ class Plant(VariableComponent):
         self.opti.subject_to(hf / self.heat_sf == mf * self.cp * (Tsup - Tret) / self.heat_sf) #
 
         # Limits
-        # self.opti.subject_to(hf <= Qmax)
-        # self.opti.subject_to(hf >= 0)
+        # TODO Add heat limits
+        # self.opti.subject_to(self.opti.bounded(Tmin, Tsup, Tmax))
         self.opti.subject_to(Tsup >= Tmin)
         self.opti.subject_to(Tsup <= Tmax)
-
-        # self.opti.set_initial(mf, 1)
 
         self.compiled = True
 

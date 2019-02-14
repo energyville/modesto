@@ -453,53 +453,53 @@ class Submodel(object):
         else:
             self.opti.subject_to(f * variable <= f * bound + slack_variable)
 
-    def get_result(self, name, index, state, start_time):
-        obj = self.block.get_value(name)
-
-        result = []
-
-        time = self.get_time_axis(state)
-
-        if isinstance(obj, IndexedVar) and self.repr_days is None:
-            if index is None:
-                for i in obj:
-                    result.append(value(obj[i]))
-
-                resname = self.name + '.' + name
-
-            else:
-                for i in time:
-                    result.append(obj[(index, i)].value)
-
-                    resname = self.name + '.' + name + '.' + index
-        elif isinstance(obj, IndexedVar) and self.repr_days is not None:
-            for d in self.DAYS_OF_YEAR:
-                for t in time:
-                    result.append(value(obj[t, self.repr_days[d]]))
-
-                    resname = self.name + '.' +name
-
-        elif isinstance(obj, IndexedParam):
-            resname = self.name + '.' + name
-            if self.repr_days is None:
-                result = []
-                for t in obj:
-                    result.append(obj[t])
-
-            else:
-                for d in self.DAYS_OF_YEAR:
-                    for t in time:
-                        result.append(value(obj[t, self.repr_days[d]]))
-
-        else:
-            self.logger.warning(
-                '{}.{} was a different type of variable/parameter than what has been implemented: '
-                '{}'.format(self.name, name, type(obj)))
-            return None
-
-        timeindex = pd.DatetimeIndex(start=start_time,
-                                     freq=str(
-                                         self.params['time_step'].v()) + 'S',
-                                     periods=len(result))
-
-        return pd.Series(data=result, index=timeindex, name=resname)
+    # def get_result(self, name, index, state, start_time):
+    #     obj = self.block.get_value(name)
+    #
+    #     result = []
+    #
+    #     time = self.get_time_axis(state)
+    #
+    #     if isinstance(obj, IndexedVar) and self.repr_days is None:
+    #         if index is None:
+    #             for i in obj:
+    #                 result.append(value(obj[i]))
+    #
+    #             resname = self.name + '.' + name
+    #
+    #         else:
+    #             for i in time:
+    #                 result.append(obj[(index, i)].value)
+    #
+    #                 resname = self.name + '.' + name + '.' + index
+    #     elif isinstance(obj, IndexedVar) and self.repr_days is not None:
+    #         for d in self.DAYS_OF_YEAR:
+    #             for t in time:
+    #                 result.append(value(obj[t, self.repr_days[d]]))
+    #
+    #                 resname = self.name + '.' +name
+    #
+    #     elif isinstance(obj, IndexedParam):
+    #         resname = self.name + '.' + name
+    #         if self.repr_days is None:
+    #             result = []
+    #             for t in obj:
+    #                 result.append(obj[t])
+    #
+    #         else:
+    #             for d in self.DAYS_OF_YEAR:
+    #                 for t in time:
+    #                     result.append(value(obj[t, self.repr_days[d]]))
+    #
+    #     else:
+    #         self.logger.warning(
+    #             '{}.{} was a different type of variable/parameter than what has been implemented: '
+    #             '{}'.format(self.name, name, type(obj)))
+    #         return None
+    #
+    #     timeindex = pd.DatetimeIndex(start=start_time,
+    #                                  freq=str(
+    #                                      self.params['time_step'].v()) + 'S',
+    #                                  periods=len(result))
+    #
+    #     return pd.Series(data=result, index=timeindex, name=resname)

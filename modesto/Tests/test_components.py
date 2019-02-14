@@ -605,15 +605,15 @@ def test_pipe_and_substation_entu():
     # assert flag, 'The solution of the optimization problem is not correct'
 
 if __name__ == '__main__':
-    # test_fixed_profile_not_temp_driven()
-    # test_fixed_profile_temp_driven()
-    # test_producer_variable_not_temp_driven()
-    # test_producer_variable_temp_driven()
-    # test_simple_pipe()
-    # test_substation_lmtd()
-    # test_substation_entu()
+    test_fixed_profile_not_temp_driven()
+    test_fixed_profile_temp_driven()
+    test_producer_variable_not_temp_driven()
+    test_producer_variable_temp_driven()
+    test_simple_pipe()
+    test_substation_lmtd()
+    test_substation_entu()
     test_finite_volume_pipe()
-    # test_pipe_and_substation_entu()
+    test_pipe_and_substation_entu()
 
     plt.show()
 

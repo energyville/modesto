@@ -18,7 +18,7 @@ def test_simple_network_substation():
     ###########################
 
     horizon = 5*3600
-    time_step = 30
+    time_step = 75
     n_steps = int(horizon/time_step)
     start_time = pd.Timestamp('20140101')
 
@@ -92,7 +92,8 @@ def test_simple_network_substation():
             'temperature_return_0': 40 + 273.15,
             'lines': ['supply', 'return'],
             'thermal_size_HEx': 15000,
-            'exponential_HEx': 0.7
+            'exponential_HEx': 0.7,
+            'mf_prim_0': 0.1
         }
 
         optmodel.change_params(building_params, node='waterscheiGarden', comp='buildingD')
@@ -105,7 +106,8 @@ def test_simple_network_substation():
                        'max_speed': 3,
                        'Courant': 1,
                        'Tsup0': 57+273.15,
-                       'Tret0': 40+273.15
+                       'Tret0': 40+273.15,
+                       'estimated_mass_flows': heat_profile['ZwartbergNEast']/4186/20
                        }
 
         optmodel.change_params(pipe_params, comp='pipe')
@@ -154,7 +156,10 @@ def test_simple_network_substation():
 
         optmodel.set_objective('energy')
 
-        optmodel.solve(tee=True, mipgap=0.2, verbose=False, last_results=True, maxiter=1000)
+        try:
+            optmodel.solve(tee=True, mipgap=0.2, verbose=False, last_results=False, maxiter=3000)
+        except:
+            print(opti.debug.g_describe(1087))
 
         ##################################
         # Collect results                #
@@ -194,6 +199,10 @@ def test_simple_network_substation():
         # Efficiency
         print('\nNetwork')
         print('Efficiency', waterschei_e / (prod_e + 0.00001) * 100, '%')
+
+        # Slack
+        # slack = optmodel.get_result('hf_slack', node='waterscheiGarden', comp='buildingD')
+        # print('Slack {}'.format(slack))
 
         fig, ax = plt.subplots(2, 1)
         ax[0].plot(prod_hf, label='Producer')
@@ -264,9 +273,9 @@ def test_simple_network_building_fixed():
     def construct_model():
         G = nx.DiGraph()
 
-        G.add_node('ThorPark', x=0, y=0, z=0,
+        G.add_node('ThorPark', x=5000, y=5000, z=0,
                    comps={'plant': 'Plant'})
-        G.add_node('waterscheiGarden', x=200, y=0, z=0,
+        G.add_node('waterscheiGarden', x=0, y=0, z=0,
                    comps={'buildingD': 'BuildingFixed'})
         G.add_edge('ThorPark', 'waterscheiGarden', name='pipe')
 
@@ -725,13 +734,19 @@ def test_branched_network_building_fixed():
 
 
 def test_branched_network_substation():
+    horizon = 5*3600
+    time_step = 30
+    v_max = [2, 2, 2]
+
+    branched_network_substation(horizon, time_step, v_max)
+
+
+def branched_network_substation(horizon, time_step, vmax):
 
     ###########################
     #     Main Settings       #
     ###########################
 
-    horizon = 5*3600
-    time_step = 30
     start_time = pd.Timestamp('20140101')
     n_steps = int(horizon/time_step)
 
@@ -827,19 +842,21 @@ def test_branched_network_substation():
     ##################################
 
     pipe_params = {'diameter': 400,
-                   'max_speed': 3,
+                   'max_speed': vmax[0],
                    'Courant': 1,
                    'Tg': pd.Series(12+273.15, index=t_amb.index),
                    'Tsup0': 57+273.15,
-                   'Tret0': 40+273.15,
+                   'Tret0': 40+273.15
                    }
 
     optmodel.change_params(pipe_params, comp='pipe1')
 
     pipe_params['diameter'] = 200
+    pipe_params['max_speed'] = vmax[1]
     optmodel.change_params(pipe_params, comp='pipe2')
 
     pipe_params['diameter'] = 350
+    pipe_params['max_speed'] = vmax[2]
     optmodel.change_params(pipe_params, comp='pipe3')
 
     ##################################
@@ -854,7 +871,7 @@ def test_branched_network_substation():
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': pd.Series([0.25] * int(n_steps/2) + [0.5] * (n_steps - int(n_steps/2))),
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
-                   'Qmax': 1.5e10,
+                   'Qmax': 1.5e12,
                    'ramp_cost': 0,
                    'CO2_price': c_f,
                    'temperature_max': 90 + 273.15,
@@ -976,15 +993,16 @@ def test_branched_network_substation():
     for i in range(pipe_T_ret_vol_2.shape[1]):
         axarr[0].plot(pipe_T_sup_vol_2.iloc[:, i], label='{}'.format(i+1))
         axarr[1].plot(pipe_T_ret_vol_2.iloc[:, i], label='{}'.format(i+1), linestyle='--')
-    for i in range(pipe_T_ret_vol_3.shape[1]):
-        axarr[0].plot(pipe_T_sup_vol_3.iloc[:, i], label='{}'.format(i+1))
-        axarr[1].plot(pipe_T_ret_vol_3.iloc[:, i], label='{}'.format(i+1), linestyle='--')
+    # for i in range(pipe_T_ret_vol_3.shape[1]):
+    #     axarr[0].plot(pipe_T_sup_vol_3.iloc[:, i], label='{}'.format(i+1))
+    #     axarr[1].plot(pipe_T_ret_vol_3.iloc[:, i], label='{}'.format(i+1), linestyle='--')
     axarr[0].set_title('Supply')
     axarr[1].set_title('Return')
     axarr[0].legend()
     # fig3.suptitle('test_simple_network')
     fig3.tight_layout()
-    plt.show()
+
+    return optmodel
 
 
 def test_genk():
@@ -993,33 +1011,41 @@ def test_genk():
     #     Main Settings       #
     ###########################
 
-    horizon = 1.5*3600
+    horizon = 24*3600
     time_step = 60
     start_time = pd.Timestamp('20140101')
     n_steps = int(horizon/time_step)
 
-    n_neighs = 9 # TODO 1, 7 and higher does not work (yet)
+    n_neighs = 2 # TODO 1, 7 and higher does not work (yet)
     neighs = ['WaterscheiGarden', 'ZwartbergNEast', 'ZwartbergNWest', 'ZwartbergSouth', 'OudWinterslag', 'Winterslag',
               'Boxbergheide', 'TermienEast', 'TermienWest']
     all_pipes = ['dist_pipe{}'.format(i) for i in range(14)]
     if n_neighs == 1:
         diameters = [350, 0, 350]
     elif n_neighs == 2:
-        diameters = [400, 200, 350]
+        diameters = [400, 250, 350]
+        # diameters = [400, 250, 350]
     elif n_neighs == 3:
-        diameters = [400, 200, 350, 200, 200]
+        diameters = [450, 250, 350, 200, 200]
+        # diameters = [450, 250, 350, 200, 200]
     elif n_neighs == 4:
-        diameters = [450, 200, 350, 350, 200, 300]
+        diameters = [500, 250, 350, 350, 200, 300]
+        # diameters = [500, 250, 350, 350, 200, 300]
     elif n_neighs == 5:
-        diameters = [500, 200, 350, 350, 200, 300, 200, 200]
+        diameters = [500, 250, 350, 350, 400, 300, 200, 200]
+        # diameters = [500, 250, 350, 350, 400, 300, 200, 200]
     elif n_neighs == 6:
-        diameters = [600, 200, 350, 450, 200, 300, 350, 200, 300, 0, 300]
+        diameters = [600, 250, 350, 500, 200, 300, 400, 200, 350, 0, 350]
+        # diameters = [600, 250, 350, 500, 200, 300, 400, 200, 350, 0, 350]
     elif n_neighs == 7:
-        diameters = [600, 200, 350, 500, 200, 300, 450, 200, 450, 350, 300]
+        diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350]
+        # diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350]
     elif n_neighs == 8:
-        diameters = [600, 200, 350, 600, 200, 300, 500, 200, 450, 350, 300, 200, 200]
+        diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350, 200, 200]
+        # diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350, 200, 200]
     else:
-        diameters = [600, 200, 350, 600, 200, 300, 500, 200, 500, 350, 300, 250, 200, 200]
+        diameters = [700, 250, 350, 600, 200, 300, 600, 200, 500, 400, 350, 300, 200, 250]
+        # diameters = [700, 250, 350, 600, 200, 300, 600, 200, 500, 400, 350, 300, 200, 250]
 
     pipes = []
 
@@ -1031,14 +1057,14 @@ def test_genk():
 
     g.add_node('Producer', x=5000, y=5000, z=0,
                comps={'plant': 'Plant'})
-    g.add_node('p1', x=3500, y=6100, z=0,
+    g.add_node('p1', x=0, y=800, z=0,
                comps={})
     if n_neighs >= 1:
-        g.add_node('WaterscheiGarden', x=3500, y=5100, z=0,
+        g.add_node('WaterscheiGarden', x=0, y=0, z=0,
                    comps={'building': 'SubstationepsNTU',})
                           # 'DHW': 'BuildingFixed'})
     if n_neighs >= 2:
-        g.add_node('ZwartbergNEast', x=3300, y=6700, z=0,
+        g.add_node('ZwartbergNEast', x=800, y=800, z=0,
                    comps={'building': 'SubstationepsNTU',})
                          # 'DHW': 'BuildingFixed'})
     if n_neighs >= 3:
@@ -1264,7 +1290,7 @@ def test_genk():
 
     optmodel.set_objective('cost')
 
-    optmodel.solve(tee=True, mipgap=0.2, last_results=True)
+    optmodel.solve(tee=True, mipgap=0.2, last_results=False, g_describe=[429])
 
     ##################################
     # Collect results                #
@@ -1336,7 +1362,6 @@ if __name__ == '__main__':
     # test_simple_network_building_fixed()
     # test_simple_network_substation()
     # test_branched_network_building_fixed()
-    # test_branched_network_substation()
-    test_genk()
-    #
+    test_branched_network_substation()
+    # test_genk()
     plt.show()

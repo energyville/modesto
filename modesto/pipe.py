@@ -113,7 +113,6 @@ class Pipe(Component):
         return self.length * self.params['cost_inv'].v(
             self.params['diameter'].v())
 
-
     def create_params(self):
         params = Component.create_params(self)
         params.update({
@@ -493,8 +492,8 @@ class FiniteVolumePipe(Pipe):
                 #                (self.cp * m_vol + (self.cp * mf[t] + l_vol / Rs) * dt))
 
         #self.opti.subject_to(Tsup[-1, :].T >= Tret_in + 1)
-        self.opti.subject_to(Tsup_in >= 50+273.15)
-        self.opti.subject_to(Tret_in <= 40+273.15)
+        # self.opti.subject_to(Tsup_in >= 50+273.15)
+        # self.opti.subject_to(Tret_in <= 40+273.15)
 
         self.compiled = True
 
