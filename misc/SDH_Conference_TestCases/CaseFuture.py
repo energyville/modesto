@@ -203,9 +203,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
         'mflo_min': -1100,
         'mflo_use': pd.Series(0, index=t_amb.index),
         'volume': 3e3,
-        'ar': 1,
-        'dIns': 0.3,
-        'kIns': 0.024,
+        'stor_type': 1,
         'heat_stor': 0,
         'cost_inv': tank_cost
     }
@@ -224,9 +222,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
         'mflo_min': -11000,
         'mflo_use': pd.Series(0, index=t_amb.index),
         'volume': 50e3,
-        'ar': 1,
-        'dIns': 1,
-        'kIns': 0.024,
+        'stor_type': 0,
         'heat_stor': 0,
         'cost_inv': pit_cost
     }
@@ -242,9 +238,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
                 'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
                 'volume': 20e3,
-                'ar': 1,
-                'dIns': 1,
-                'kIns': 0.024,
+                'stor_type': 0, # Pit
                 'heat_stor': 0,
                 'cost_inv': pit_cost
             },
@@ -256,9 +250,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
                 'mflo_min': -11000,
                 'mflo_use': pd.Series(0, index=t_amb.index),
                 'volume': 60e3,
-                'ar': 1,
-                'dIns': 1,
-                'kIns': 0.024,
+                'stor_type': 0, # pit
                 'heat_stor': 0,
                 'cost_inv': pit_cost
             }

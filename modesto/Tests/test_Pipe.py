@@ -85,8 +85,8 @@ def setup_modesto_with_stor(graph, objtype='cost'):
     # Building parameters
     index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=horizon / time_step)
     building_params = {
-        'temperature_supply': 50+273.15,
-        'temperature_return': 20+273.15,
+        'temperature_supply': 50 + 273.15,
+        'temperature_return': 20 + 273.15,
         'mult': 1,
         'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom,
         'CO2': 0.2,
@@ -114,9 +114,7 @@ def setup_modesto_with_stor(graph, objtype='cost'):
                    'mflo_min': -100,
                    'volume': 5000,
                    'heat_stor': 10,
-                   'ar': 2,
-                   'dIns': 0.2,
-                   'kIns': 0.0024,
+                   'stor_type': 0,  # 0 pit, 1 tank
                    'mflo_use': pd.Series(index=c_f.index, data=0),
                    'cost_inv': 1}
 
@@ -191,8 +189,8 @@ def setup_modesto(graph, objtype='cost'):
     # Building parameters
     index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=horizon / time_step)
     building_params = {
-        'temperature_supply': 50+273.15,
-        'temperature_return': 20+273.15,
+        'temperature_supply': 50 + 273.15,
+        'temperature_return': 20 + 273.15,
         'mult': 1,
         'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom,
         'CO2': 0.2,
@@ -292,6 +290,7 @@ def test_pipe_investment():
     opt.change_param(node=None, comp='pipe', param='diameter', val=250)
     assert opt.components['pipe'].get_investment_cost() == 853460.0
     # print(opt.components[])
+
 
 if __name__ == '__main__':
     test_pipe_investment()

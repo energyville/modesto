@@ -129,9 +129,7 @@ def construct_model():
         'mflo_max': 110,
         'mflo_min': -110,
         'volume': 2e4,
-        'ar': 1,
-        'dIns': 0.3,
-        'kIns': 0.024,
+        'stor_type': 0,
         'heat_stor': 0,
         'mflo_use': pd.Series(0, index=t_amb.index),
         'cost_inv': 1

@@ -1096,20 +1096,10 @@ Description: Storage volume
 Unit: m3
 Value: 20000.0
 
--ar
-Description: Aspect ratio (height/width)
+-stor_type
+Description: Pit (0) or tank (1)
 Unit: -
-Value: 1
-
--dIns
-Description: Insulation thickness
-Unit: m
-Value: 0.3
-
--kIns
-Description: Thermal conductivity of insulation material
-Unit: W/(m.K)
-Value: 0.024
+Value: 0
 
 -heat_stor
 Description: Heat stored in the thermal storage unit
@@ -1194,6 +1184,10 @@ Value: 1
 
 -Te
 Description: Ambient temperature
+Unit: K
+
+-Tg
+Description: Ground temperature
 Unit: K
 
 -mult
@@ -2382,20 +2376,10 @@ Description: Storage volume
 Unit: m3
 Value: 20000.0
 
--ar
-Description: Aspect ratio (height/width)
+-stor_type
+Description: Pit (0) or tank (1)
 Unit: -
-Value: 1
-
--dIns
-Description: Insulation thickness
-Unit: m
-Value: 0.3
-
--kIns
-Description: Thermal conductivity of insulation material
-Unit: W/(m.K)
-Value: 0.024
+Value: 0
 
 -heat_stor
 Description: Heat stored in the thermal storage unit
@@ -2480,6 +2464,10 @@ Value: 1
 
 -Te
 Description: Ambient temperature
+Unit: K
+
+-Tg
+Description: Ground temperature
 Unit: K
 
 -mult

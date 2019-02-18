@@ -126,9 +126,7 @@ def setup_ashp(n_steps=24 * 7, time_step=3600):
         'mflo_max': 110,
         'mflo_min': -110,
         'volume': 2e4,
-        'ar': 1,
-        'dIns': 0.3,
-        'kIns': 0.024,
+        'stor_type': 0,
         'heat_stor': 0,
         'mflo_use': pd.Series(0, index=t_amb.index),
         'cost_inv': 1
@@ -172,7 +170,7 @@ def test_airsourceheatpump():
 
     optmodel.solve(tee=True)
 
-    assert round(optmodel.get_objective('energy')) == round(1555856.0)
+    assert round(optmodel.get_objective('energy')) == round(1.565400061e+06)
     return optmodel
 
 
@@ -186,7 +184,7 @@ def test_ashp_mutate():
 
     optmodel.solve(tee=True)
 
-    assert round(optmodel.get_objective('energy')) == round(1174537.0)
+    assert round(optmodel.get_objective('energy')) == round(1.181824072e+06)
     return optmodel
 
 
