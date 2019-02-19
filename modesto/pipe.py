@@ -104,6 +104,10 @@ class Pipe(Component):
                                       'Factor to convert electric energy to primary energy',
                                       '-',
                                       val=2.1),
+            'CO2_elec': UserDataParameter('CO2_elec',
+                                          'CO2 emission per kWh of electricity',
+                                          'kg CO2/kWh elec',
+                                          val=0.223),
             'eta_mech': DesignParameter('eta_mech',
                                         'Mechanical efficiency of circulation pump',
                                         '-',
@@ -561,6 +565,30 @@ class ExtensivePipe(Pipe):
         else:
             return 1 / eta_mech / eta_elmo * sum(self.repr_count[c] *
                                                  max(cost.v(t, c), 0.001) * self.block.pumping_power[t, c] *
+                                                 self.params[
+                                                     'time_step'].v() / 3600 / 1000 for t in self.TIME for c
+                                                 in self.REPR_DAYS)
+
+    def obj_co2(self):
+        """
+        CO2 emission objective
+
+        :return:
+        """
+        eta_mech = self.params['eta_mech'].v()
+        eta_elmo = self.params['eta_elmo'].v()
+        # Using 0.001 EUR/kWh as minimum
+
+        co2_elec = self.params['CO2_elec']
+
+        if self.repr_days is None:
+            return 1 / eta_mech / eta_elmo * sum(
+                co2_elec.v(t) * self.block.pumping_power[t] * self.params[
+                    'time_step'].v() / 3600 / 1000 for t in self.TIME)
+
+        else:
+            return 1 / eta_mech / eta_elmo * sum(self.repr_count[c] *
+                                                 co2_elec.v(t, c) * self.block.pumping_power[t, c] *
                                                  self.params[
                                                      'time_step'].v() / 3600 / 1000 for t in self.TIME for c
                                                  in self.REPR_DAYS)
