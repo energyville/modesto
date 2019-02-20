@@ -118,6 +118,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
     # In[11]:
 
     c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+    elec_data = ut.read_time_data(datapath, name='ElectricityPrices/AvgPEF_CO2.csv')
 
     # ## Changing parameters
 
@@ -131,7 +132,9 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': horizon,
-                      'elec_cost': c_f}
+                      'elec_cost': c_f,
+                      'PEF_elec': elec_data['AvgPEF'],
+                      'CO2_elec': elec_data['AvgCO2/kWh']}
 
     model.change_params(general_params)
 

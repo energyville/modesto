@@ -41,6 +41,9 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
 
     elec_cost = ut.read_time_data(resource_filename('modesto', 'Data/ElectricityPrices'),
                                   name='DAM_electricity_prices-2014_BE.csv')['price_BE']
+    elec_data = ut.read_time_data(resource_filename('modesto', 'Data/ElectricityPrices'), name='AvgPEF_CO2.csv')
+
+
 
     general_params = {'Te': weather_data['Te'],
                       'Tg': weather_data['Tg'],
@@ -50,7 +53,10 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
                       'Q_sol_N': weather_data['QsolN'],
                       'time_step': time_step,
                       'horizon': n_steps * time_step,
-                      'elec_cost': pd.Series(0.1, index=weather_data.index)}
+                      'elec_cost': pd.Series(0.1, index=weather_data.index),
+                      'PEF_elec': elec_data['AvgPEF'],
+                      'CO2_elec': elec_data['AvgCO2/kWh']
+                      }
 
     model.change_params(general_params)
 

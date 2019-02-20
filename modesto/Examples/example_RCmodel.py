@@ -57,6 +57,8 @@ def construct_model():
 
     df_weather = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='weatherData.csv')
     df_userbehaviour = ut.read_time_data(resource_filename('modesto', 'Data/UserBehaviour'), name='ISO13790.csv')
+    elec_data = ut.read_time_data(resource_filename('modesto', 'Data'), name='ElectricityPrices/AvgPEF_CO2.csv')
+
 
     t_amb = df_weather['Te']
     t_g = df_weather['Tg']
@@ -90,7 +92,10 @@ def construct_model():
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': n_steps * time_step,
-                      'elec_cost': c_f}
+                      'elec_cost': c_f,
+                      'PEF_elec': elec_data['AvgPEF'],
+                      'CO2_elec': elec_data['AvgCO2/kWh']
+                      }
 
     optmodel.change_params(general_params)
 
@@ -176,6 +181,7 @@ def construct_model():
                             name='DAM_electricity_prices-2014_BE.csv')['price_BE']
     # cf = pd.Series(0.5, index=t_amb.index)
 
+
     prod_design = {'delta_T': 20,
                    'efficiency': 0.95,
                    'PEF': 1,
@@ -185,7 +191,8 @@ def construct_model():
                    'Qmax': 1.5e7,
                    'ramp_cost': 0.01,
                    'ramp': 1e6 / 3600,
-                   'cost_inv': 1}
+                   'cost_inv': 1
+                   }
 
     optmodel.change_params(prod_design, 'ThorPark', 'plant')
 

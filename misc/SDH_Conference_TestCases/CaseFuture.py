@@ -132,6 +132,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
 
     c_f = utils.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv', expand=repr)[
         'price_BE']
+    elec_data = utils.read_time_data(datapath, name='ElectricityPrices/AvgPEF_CO2.csv')
 
     # ## Changing parameters
 
@@ -145,7 +146,10 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': horizon,
-                      'elec_cost': c_f}
+                      'elec_cost': c_f,
+                      'PEF_elec': elec_data['AvgPEF'],
+                      'CO2_elec': elec_data['AvgCO2/kWh']
+                      }
 
     model.change_params(general_params)
 
