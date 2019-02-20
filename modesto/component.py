@@ -611,8 +611,8 @@ class BuildingFixed(FixedProfile):
                 description='Demand profile for domestic hot water at 55degC',
                 unit='l/min'
             ),
-            'PEF_el': DesignParameter(
-                name='PEF_el',
+            'PEF_elec': UserDataParameter(
+                name='PEF_elec',
                 description='Primary energy factor for electricity use by DHW booster heat pump (if applicable)',
                 unit='-'
             ),
@@ -716,7 +716,7 @@ class BuildingFixed(FixedProfile):
         :return:
         """
         eta = self.COP
-        pef = self.params['PEF_el'].v()
+        pef = self.params['PEF_elec']
 
         tsup = self.params['temperature_supply'].v()
         if tsup >= 55 + 273.15:  # No DHW Booster needed
@@ -724,10 +724,10 @@ class BuildingFixed(FixedProfile):
         else:  # DHW demand requires booster heat pump to heat the water above 55 degrees.
             if self.repr_days is None:
                 return sum(
-                    pef / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+                    pef.v(t) / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
             else:
                 return sum(
-                    self.repr_count[c] * pef / eta * self.dhw_boost(t, c) * self.params['time_step'].v() / 3600 / 1000
+                    self.repr_count[c] * pef.v(t,c) / eta * self.dhw_boost(t, c) * self.params['time_step'].v() / 3600 / 1000
                     for t in self.TIME for c in self.REPR_DAYS)
 
     def obj_fuel_cost(self):

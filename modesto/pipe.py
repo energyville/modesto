@@ -100,14 +100,12 @@ class Pipe(Component):
             'Tg': WeatherDataParameter('Tg',
                                        'Undisturbed ground temperature',
                                        'K'),
-            'PEF_el': DesignParameter('PEF_el',
-                                      'Factor to convert electric energy to primary energy',
-                                      '-',
-                                      val=2.1),
+            'PEF_elec': UserDataParameter('PEF_elec',
+                                          'Factor to convert electric energy to primary energy',
+                                          '-'),
             'CO2_elec': UserDataParameter('CO2_elec',
                                           'CO2 emission per kWh of electricity',
-                                          'kg CO2/kWh elec',
-                                          val=0.223),
+                                          'kg CO2/kWh elec'),
             'eta_mech': DesignParameter('eta_mech',
                                         'Mechanical efficiency of circulation pump',
                                         '-',
@@ -538,18 +536,18 @@ class ExtensivePipe(Pipe):
                                                         rule=_ineq_pumping))
 
     def obj_energy(self):
-        pef_el = self.params['PEF_el'].v()
+        pef_el = self.params['PEF_elec']
         eta_mech = self.params['eta_mech'].v()
         eta_elmo = self.params['eta_elmo'].v()
         if self.repr_days is None:
-            return pef_el / eta_mech / eta_elmo * sum(
-                self.block.pumping_power[t] * self.params[
-                    'time_step'].v() / 3600 / 1000 for t in self.TIME)
+            return 1 / eta_mech / eta_elmo * sum(pef_el.v(t) *
+                                                 self.block.pumping_power[t] * self.params[
+                                                     'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
-            return pef_el / eta_mech / eta_elmo * sum(self.repr_count[c] *
-                                                      self.block.pumping_power[t, c] * self.params[
-                                                          'time_step'].v() / 3600 / 1000 for t in self.TIME for c
-                                                      in self.REPR_DAYS)
+            return 1 / eta_mech / eta_elmo * sum(self.repr_count[c] * pef_el.v(t, c) *
+                                                 self.block.pumping_power[t, c] * self.params[
+                                                     'time_step'].v() / 3600 / 1000 for t in self.TIME for c
+                                                 in self.REPR_DAYS)
 
     def obj_elec_cost(self):
         cost = self.params['elec_cost']

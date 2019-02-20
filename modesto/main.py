@@ -5,6 +5,7 @@ import networkx as nx
 from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constraint, Var, NonNegativeReals, Block
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
+import pyomo.environ
 
 import modesto.component as co
 import modesto.pipe as pip
@@ -101,12 +102,10 @@ class Modesto:
                                            val=0),
             'CO2_elec': UserDataParameter('CO2_elec',
                                           'CO2 emission per kWh of electricity',
-                                          'kg CO2/kWh elec',
-                                          val=0.223),
-            'PEF_el': UserDataParameter('PEF_el',
-                                        'Factor to convert electric energy to primary energy',
-                                        '-',
-                                        val=2.1),
+                                          'kg CO2/kWh elec'),
+            'PEF_elec': UserDataParameter('PEF_elec',
+                                          'Factor to convert electric energy to primary energy',
+                                          '-'),
             'elec_cost': TimeSeriesParameter('elec_cost',
                                              'Electricity cost, used for pumping power',
                                              'EUR/kWh')
