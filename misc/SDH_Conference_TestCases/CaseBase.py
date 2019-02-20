@@ -184,9 +184,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
         'mflo_min': -1100,
         'mflo_use': pd.Series(0, index=t_amb.index),
         'volume': 3e3,
-        'ar': 1,
-        'dIns': 0.3,
-        'kIns': 0.024,
+        'stor_type': 1, # 1 tank
         'heat_stor': 0,
         'cost_inv': 1
     }

@@ -70,9 +70,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
         'mflo_max': 110,
         'mflo_min': -110,
         'volume': 30000,
-        'ar': 1,
-        'dIns': 0.3,
-        'kIns': 0.024,
+        'stor_type': 0,
         'heat_stor': 0,
         'mflo_use': pd.Series(0, index=weather_data.index),
         'cost_inv': 1
