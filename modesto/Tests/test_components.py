@@ -299,13 +299,16 @@ def test_substation_entu():
         ss.change_param(param, ss_params[param])
 
     ss.prepare(opti, start_time)
+
+    Tpsup = opti.variable(ss.n_steps)
+    ss.assign_temp(Tpsup, 'supply')
     ss.compile()
 
     print(ss.params['heat_flow'].v())
 
     opti.set_initial(ss.get_var('mf_prim'), 1)
     # Others
-    ss.opti.subject_to(ss.opti.bounded(47 + 273.15, ss.get_var('Tpsup'), 60 + 273.15))
+    ss.opti.subject_to(ss.opti.bounded(47 + 273.15, ss.get_value('Tpsup'), 60 + 273.15))
 
     opti.minimize(sum1(ss.get_var('Tpret')))
 
@@ -326,12 +329,15 @@ def test_substation_entu():
     hf = sol.value(ss.opti_params['heat_flow'])
     mf_sec = sol.value(ss.opti_params['mf_sec'])
     mf_prim = sol.value(ss.opti_vars['mf_prim'])
-    Tpsup = sol.value(ss.opti_vars['Tpsup'])
+    Tpsup = sol.value(ss.get_value('Tpsup'))
     Tpret = sol.value(ss.opti_vars['Tpret'])
     # DTlm = sol.value(ss.opti_vars['DTlm'])
 
     fig, axarr1 = plt.subplots(1, 1)
-    axarr1.plot([ss_params['thermal_size_HEx'] / (mf_prim[t]**-0.7 + mf_sec[t]**-0.7) for t in ss.TIME]) # TODO ))
+    axarr1.plot([ss_params['thermal_size_HEx'] / (mf_prim[t]**-0.7 + mf_sec[t]**-0.7) for t in ss.TIME])
+    x0 = 0.09
+    axarr1.plot([ss_params['thermal_size_HEx'] / (x0**-0.7 + mf_sec[t]**-0.7) +
+                 (-ss_params['thermal_size_HEx']) * (x0**-0.7 + mf_sec[t]**-0.7)**-2 * (-0.7) * x0**-1.7 * (mf_prim[t] - x0) for t in ss.TIME])
 
     fig, axarr = plt.subplots(4, 1)
     axarr[0].plot(hf)
@@ -605,15 +611,15 @@ def test_pipe_and_substation_entu():
     # assert flag, 'The solution of the optimization problem is not correct'
 
 if __name__ == '__main__':
-    test_fixed_profile_not_temp_driven()
-    test_fixed_profile_temp_driven()
-    test_producer_variable_not_temp_driven()
-    test_producer_variable_temp_driven()
-    test_simple_pipe()
-    test_substation_lmtd()
+    # test_fixed_profile_not_temp_driven()
+    # test_fixed_profile_temp_driven()
+    # test_producer_variable_not_temp_driven()
+    # test_producer_variable_temp_driven()
+    # test_simple_pipe()
+    # test_substation_lmtd()
     test_substation_entu()
-    test_finite_volume_pipe()
-    test_pipe_and_substation_entu()
+    # test_finite_volume_pipe()
+    # test_pipe_and_substation_entu()
 
     plt.show()
 

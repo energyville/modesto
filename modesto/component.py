@@ -643,12 +643,21 @@ class SubstationepsNTU(Substation):
         Tpret = self.get_value('Tpret')
         mf_prim = self.get_var('mf_prim')
 
+        # Limits
+        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 10))
+
+        # eps-NTU model
         K = self.params['thermal_size_HEx'].v()
         q = self.params['exponential_HEx'].v()
 
         Cmin = fmin(mf_sec, mf_prim)*self.cp
         Cmax = (mf_sec + mf_prim)*self.cp - Cmin
-        UA = K / (fmax(0.001, mf_prim) ** -q + mf_sec ** -q)
+        # UA = K / ((0.001 + mf_prim) ** -q + mf_sec ** -q)
+
+        x0 = 0.08
+        UA = K / (x0 ** -0.7 + mf_sec ** -0.7) + \
+            (-K) * (x0 ** -0.7 + mf_sec ** -0.7) ** -2 * (-0.7) * x0 ** -1.7 * (
+                    mf_prim - x0)
         Cstar = (Cmin + 1e-3)/(Cmax + 1e-3)
         NTU = UA/(Cmin + 1e-4)
         eps = (1 - exp(-NTU * (1 - Cstar))) / (1 - Cstar * exp(-NTU * (1 - Cstar)))
@@ -661,8 +670,6 @@ class SubstationepsNTU(Substation):
         self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == eps * Cmin * (Tpsup - Tssup) / self.heat_sf)
         self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == mf_prim * self.cp * (Tpsup-Tpret) / self.heat_sf)
 
-        # Limits
-        self.opti.subject_to(self.opti.bounded(1e-4/self.mass_sf, mf_prim/self.mass_sf, 100/self.mass_sf))
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
