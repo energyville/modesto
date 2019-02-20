@@ -322,7 +322,7 @@ class FixedProfile(Component):
         self.add_opti_param('delta_T')
 
         if self.temperature_driven:
-        #     self.add_var('Tsup', self.n_steps)
+            self.add_var('Tsup', self.n_steps)
             self.add_var('Tret', self.n_steps)
 
     def compile(self):
@@ -620,9 +620,11 @@ class SubstationepsNTU(Substation):
         self.add_opti_param('mf_sec', self.n_steps)
         self.add_opti_param('heat_flow', self.n_steps)
 
+        mf_prim = self.add_var('mf_prim', self.n_steps)
+        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 10))
+
         # self.add_var('Tpsup', self.n_steps)
         self.add_var('Tpret', self.n_steps)
-        self.add_var('mf_prim', self.n_steps)
 
     def compile(self):
         """
@@ -643,24 +645,22 @@ class SubstationepsNTU(Substation):
         Tpret = self.get_value('Tpret')
         mf_prim = self.get_var('mf_prim')
 
-        # Limits
-        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 10))
-
         # eps-NTU model
         K = self.params['thermal_size_HEx'].v()
         q = self.params['exponential_HEx'].v()
 
-        Cmin = fmin(mf_sec, mf_prim)*self.cp
-        Cmax = (mf_sec + mf_prim)*self.cp - Cmin
-        # UA = K / ((0.001 + mf_prim) ** -q + mf_sec ** -q)
+        Cmin = self.add_eq('Cmin', mf_prim*self.cp) # TODO fmin(mf_sec, mf_prim)*self.cp
+        Cmax = self.add_eq('Cmax', mf_sec*self.cp) # TODO (mf_sec + mf_prim)*self.cp - Cmin
+        UA = self.add_eq('UA', K / ((0.001 + mf_prim) ** -q + mf_sec ** -q))
 
-        x0 = 0.08
-        UA = K / (x0 ** -0.7 + mf_sec ** -0.7) + \
-            (-K) * (x0 ** -0.7 + mf_sec ** -0.7) ** -2 * (-0.7) * x0 ** -1.7 * (
-                    mf_prim - x0)
-        Cstar = (Cmin + 1e-3)/(Cmax + 1e-3)
-        NTU = UA/(Cmin + 1e-4)
-        eps = (1 - exp(-NTU * (1 - Cstar))) / (1 - Cstar * exp(-NTU * (1 - Cstar)))
+        # x0 = 0.08
+        # UA = self.add_eq('UA', K / (x0 ** -q + mf_sec ** -q) +  \
+        #     (-K) * (x0 ** -q + mf_sec ** -q) ** -2 * (-q) * x0 ** (-q-1) * (
+        #             mf_prim - x0))
+
+        Cstar = self.add_eq('Cstar', (Cmin + 1e-3)/(Cmax + 1e-3))
+        NTU = self.add_eq('NTU', UA/(Cmin + 1e-4))
+        eps = self.add_eq('eps', (1 - exp(-NTU * (1 - Cstar))) / (1 - Cstar * exp(-NTU * (1 - Cstar))))
 
         if False: # TODO Make parameter for this
             hf_slack = self.make_slack('hf_slack', self.n_steps)
@@ -669,7 +669,6 @@ class SubstationepsNTU(Substation):
 
         self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == eps * Cmin * (Tpsup - Tssup) / self.heat_sf)
         self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == mf_prim * self.cp * (Tpsup-Tpret) / self.heat_sf)
-
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -1338,8 +1337,8 @@ class Plant(VariableComponent):
         Tmin = self.get_opti_param('temperature_min')
 
         # Initial guess
-        # self.opti.set_initial(Tsup, 20+273.15)
-        # self.opti.set_initial(Tret, 20+273.15)
+        self.opti.set_initial(Tsup, self.params['temperature_min'].v())
+        self.opti.set_initial(Tret, self.params['temperature_min'].v()-30)
         if isinstance(self.params['heat_estimate'].v(), list):
             self.opti.set_initial(hf, self.params['heat_estimate'].v())
 
@@ -1348,7 +1347,7 @@ class Plant(VariableComponent):
 
         # Limits
         # TODO Add heat limits
-        # self.opti.subject_to(self.opti.bounded(Tmin, Tsup, Tmax))
+        # self.opti.subject_to(self.opti.bounded(1, hf, inf))
         self.opti.subject_to(Tsup >= Tmin)
         self.opti.subject_to(Tsup <= Tmax)
 

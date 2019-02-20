@@ -63,6 +63,11 @@ class Submodel(object):
 
         return self.opti_vars[name]
 
+    def add_eq(self, name, value):
+        self.eqs[name] = value
+
+        return self.eqs[name]
+
     def get_var(self, name):
         """
         Get a variable from the Opti object

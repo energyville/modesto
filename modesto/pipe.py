@@ -273,8 +273,8 @@ class SimplePipe(Pipe):
                 mf = self.eqs['mass_flow']
 
                 # Mass flow limits
-                mf_max = self.get_opti_param('mf_max')
-                self.opti.subject_to(mf <= mf_max)
+                # mf_max = self.get_opti_param('mf_max')
+                # self.opti.subject_to(mf <= mf_max)
 
                 if self.temperature_driven:
                     Tsup_in = self.get_var('Tsup_in')
@@ -460,8 +460,8 @@ class FiniteVolumePipe(Pipe):
         mf = self.eqs['mass_flow']
         Tsup = self.get_var('Tsup')
         Tret = self.get_var('Tret')
-        Tsup_in = self.get_var('Tsup_in')
-        Tret_in = self.get_var('Tret_in')
+        Tsup_in = self.get_value('Tsup_in')
+        Tret_in = self.get_value('Tret_in')
 
         # Initialize temperatures
         self.opti.subject_to(Tsup[:, 0] == tsup0)

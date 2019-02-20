@@ -18,7 +18,7 @@ def test_simple_network_substation():
     ###########################
 
     horizon = 5*3600
-    time_step = 75
+    time_step = 30
     n_steps = int(horizon/time_step)
     start_time = pd.Timestamp('20140101')
 
@@ -107,7 +107,7 @@ def test_simple_network_substation():
                        'Courant': 1,
                        'Tsup0': 57+273.15,
                        'Tret0': 40+273.15,
-                       'estimated_mass_flows': heat_profile['ZwartbergNEast']/4186/20
+                       # 'estimated_mass_flows': heat_profile['ZwartbergNEast']/4186/20
                        }
 
         optmodel.change_params(pipe_params, comp='pipe')
@@ -253,7 +253,7 @@ def test_simple_network_substation():
         axarr[0].legend()
         # fig3.suptitle('test_simple_network')
         fig3.tight_layout()
-        plt.show()
+        # plt.show()
 
 
 def test_simple_network_building_fixed():
@@ -273,7 +273,7 @@ def test_simple_network_building_fixed():
     def construct_model():
         G = nx.DiGraph()
 
-        G.add_node('ThorPark', x=5000, y=5000, z=0,
+        G.add_node('ThorPark', x=200, y=200, z=0,
                    comps={'plant': 'Plant'})
         G.add_node('waterscheiGarden', x=0, y=0, z=0,
                    comps={'buildingD': 'BuildingFixed'})
@@ -389,7 +389,7 @@ def test_simple_network_building_fixed():
 
         opti = optmodel.opti
 
-        optmodel.set_objective('cost')
+        optmodel.set_objective('energy')
 
         optmodel.solve(tee=True, mipgap=0.2, last_results=True, maxiter=3000)
 
@@ -472,7 +472,7 @@ def test_simple_network_building_fixed():
         axarr[0].legend()
         # fig3.suptitle('test_simple_network')
         fig3.tight_layout()
-        plt.show()
+        # plt.show()
 
 
 def test_branched_network_building_fixed():
@@ -730,13 +730,13 @@ def test_branched_network_building_fixed():
     axarr[0].legend()
     # fig3.suptitle('test_simple_network')
     fig3.tight_layout()
-    plt.show()
+    # plt.show()
 
 
 def test_branched_network_substation():
     horizon = 5*3600
-    time_step = 30
-    v_max = [2, 2, 2]
+    time_step = 60
+    v_max = [3, 3, 3]
 
     branched_network_substation(horizon, time_step, v_max)
 
@@ -1011,12 +1011,12 @@ def test_genk():
     #     Main Settings       #
     ###########################
 
-    horizon = 24*3600
-    time_step = 60
+    horizon = 7*24*3600
+    time_step = 5*60
     start_time = pd.Timestamp('20140101')
     n_steps = int(horizon/time_step)
 
-    n_neighs = 2 # TODO 1, 7 and higher does not work (yet)
+    n_neighs = 9  # TODO 1, 7 and higher does not work (yet)
     neighs = ['WaterscheiGarden', 'ZwartbergNEast', 'ZwartbergNWest', 'ZwartbergSouth', 'OudWinterslag', 'Winterslag',
               'Boxbergheide', 'TermienEast', 'TermienWest']
     all_pipes = ['dist_pipe{}'.format(i) for i in range(14)]
@@ -1057,14 +1057,14 @@ def test_genk():
 
     g.add_node('Producer', x=5000, y=5000, z=0,
                comps={'plant': 'Plant'})
-    g.add_node('p1', x=0, y=800, z=0,
+    g.add_node('p1', x=3500, y=6100, z=0,
                comps={})
     if n_neighs >= 1:
-        g.add_node('WaterscheiGarden', x=0, y=0, z=0,
+        g.add_node('WaterscheiGarden', x=3500, y=5100, z=0,
                    comps={'building': 'SubstationepsNTU',})
                           # 'DHW': 'BuildingFixed'})
     if n_neighs >= 2:
-        g.add_node('ZwartbergNEast', x=800, y=800, z=0,
+        g.add_node('ZwartbergNEast', x=3300, y=6700, z=0,
                    comps={'building': 'SubstationepsNTU',})
                          # 'DHW': 'BuildingFixed'})
     if n_neighs >= 3:
@@ -1146,7 +1146,7 @@ def test_genk():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(pipe_model='FiniteVolumePipe', graph=g, temperature_driven=True)
+    optmodel = Modesto(pipe_model='SimplePipe', graph=g, temperature_driven=True)
     optmodel.opt_settings(allow_flow_reversal=False)
 
     ##################################
@@ -1213,11 +1213,11 @@ def test_genk():
 
     for i, pipe in enumerate(pipes):
         pipe_params = {'diameter': diameters[all_pipes.index(pipe)],
-                       'max_speed': 3,
-                       'Courant': 1,
-                       'Tg': pd.Series(12+273.15, index=t_amb.index),
-                       'Tsup0': 57+273.15,
-                       'Tret0': 40+273.15,
+                       # 'max_speed': 3,
+                       # 'Courant': 1,
+                       # 'Tg': pd.Series(12+273.15, index=t_amb.index),
+                       # 'Tsup0': 57+273.15,
+                       # 'Tret0': 40+273.15,
                        }
 
         optmodel.change_params(pipe_params, comp=pipe)
@@ -1290,7 +1290,9 @@ def test_genk():
 
     optmodel.set_objective('cost')
 
-    optmodel.solve(tee=True, mipgap=0.2, last_results=False, g_describe=[429])
+    optmodel.solve(tee=True, mipgap=0.2, last_results=False, g_describe=[], x_describe=[])
+
+    # plt.show()
 
     ##################################
     # Collect results                #
@@ -1333,7 +1335,8 @@ def test_genk():
 
     fig, ax = plt.subplots(1, 1)
     ax.plot(prod_hf, label='Producer')
-    ax.plot(neigh_hf.sum(axis=1), label='Users and storage')
+    for n in range(n_neighs):
+        ax.plot(neigh_hf[neighs[n]], label=neighs[n])
     ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax.set_title('Heat flows [W]')
     ax.legend()
@@ -1358,10 +1361,36 @@ def test_genk():
     axarr.set_title('Network temperatures')
     fig2.tight_layout()
 
+    fig3, axarr = plt.subplots(3, 2)
+    for n in range(n_neighs):
+        Cmin = (optmodel.get_result('Cmin', node=neighs[n], comp='building'))
+        Cmax = (optmodel.get_result('Cmax', node=neighs[n], comp='building'))
+        Cstar = (optmodel.get_result('Cstar', node=neighs[n], comp='building'))
+        NTU = (optmodel.get_result('NTU', node=neighs[n], comp='building'))
+        eps = (optmodel.get_result('eps', node=neighs[n], comp='building'))
+        UA = optmodel.get_result('UA', node=neighs[n], comp='building')
+
+        axarr[0, 0].plot(Cstar, label=neighs[n])
+        axarr[1, 0].plot(NTU, label=neighs[n])
+        axarr[2, 0].plot(eps, label=neighs[n])
+        axarr[0, 1].plot(Cmin, label=neighs[n])
+        axarr[1, 1].plot(Cmax, label=neighs[n])
+        axarr[2, 1].plot(UA, label=neighs[n])
+
+    axarr[0, 0].set_title('Cstar')
+    axarr[1, 0].set_title('NTU')
+    axarr[2, 0].set_title('eps')
+    axarr[0, 1].set_title('Cmin')
+    axarr[1, 1].set_title('Cmax')
+    axarr[2, 1].set_title('UA')
+    axarr[0, 0].legend()
+
+    fig3.tight_layout()
+
 if __name__ == '__main__':
     # test_simple_network_building_fixed()
     # test_simple_network_substation()
     # test_branched_network_building_fixed()
-    test_branched_network_substation()
-    # test_genk()
+    # test_branched_network_substation()
+    test_genk()
     plt.show()
