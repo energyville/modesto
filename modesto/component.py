@@ -556,37 +556,6 @@ class FixedProfile(Component):
         self.compiled = True
 
 
-class VariableProfile(Component):
-    # TODO Assuming that variable profile means State-Space model
-
-    def __init__(self, name, direction, temperature_driven=False,
-                 repr_days=None):
-        """
-        Class for components with a variable heating profile
-
-        :param name: Name of the building
-        :param direction: Standard heat and mass flow direction for positive flows. 1 for producer components, -1 for consumer components
-        """
-        Component.__init__(self,
-                           name=name,
-                           direction=direction,
-                           temperature_driven=temperature_driven,
-                           repr_days=repr_days)
-
-        self.params = self.create_params()
-
-    def compile(self, model, start_time):
-        """
-        Build the structure of a component model
-
-        :param ContreteModel model: The optimization model
-        :param pd.Timestamp start_time: Start time of optimization horizon.
-        :return:
-        """
-
-        Component.compile(self, model, start_time)
-        self.compiled = True
-
 
 class BuildingFixed(FixedProfile):
     def __init__(self, name, temperature_driven=False, repr_days=None):
