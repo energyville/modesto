@@ -180,14 +180,13 @@ Name: ZwartbergNEast, Length: 35041, dtype: float64
 Description: Primary energy factor for electricity use by DHW booster heat pump (if applicable)
 Unit: -
 
--elec_cost
+-cost_elec
 Description: Price of electricity for DHW Booster heat pump
 Unit: EUR/kWh
 
--CO2
+-CO2_elec
 Description: CO2 emission per kWh of energy used
 Unit: kg/kWh
-Value: 0.3
 
 "
 all_params,"
@@ -743,7 +742,7 @@ Value: 2014-01-01 00:00:00    2.230118
 2014-12-31 23:00:00    2.195952
 Name: AvgPEF, Length: 8760, dtype: float64
 
--elec_cost
+-cost_elec
 Description: Electricity cost, used for pumping power
 Unit: EUR/kWh
 Value: datetime_be
@@ -851,11 +850,6 @@ Value: 0.05
 Description: Efficiency of the heat source
 Unit: -
 Value: 0.95
-
--PEF
-Description: Factor to convert heat source to primary energy
-Unit: -
-Value: 1
 
 -CO2
 Description: amount of CO2 released when using primary energy source
@@ -1168,14 +1162,13 @@ Name: ZwartbergNEast, Length: 35041, dtype: float64
 Description: Primary energy factor for electricity use by DHW booster heat pump (if applicable)
 Unit: -
 
--elec_cost
+-cost_elec
 Description: Price of electricity for DHW Booster heat pump
 Unit: EUR/kWh
 
--CO2
+-CO2_elec
 Description: CO2 emission per kWh of energy used
 Unit: kg/kWh
-Value: 0.3
 
 
 --- waterscheiGarden.storage ---
@@ -1511,14 +1504,13 @@ Name: ZwartbergNEast, Length: 35041, dtype: float64
 Description: Primary energy factor for electricity use by DHW booster heat pump (if applicable)
 Unit: -
 
--elec_cost
+-cost_elec
 Description: Price of electricity for DHW Booster heat pump
 Unit: EUR/kWh
 
--CO2
+-CO2_elec
 Description: CO2 emission per kWh of energy used
 Unit: kg/kWh
-Value: 0.3
 
 
 --- bbThor ---
@@ -1582,7 +1574,7 @@ Description: Electric motor efficiency
 Unit: -
 Value: 0.9
 
--elec_cost
+-cost_elec
 Description: Electricity cost, used for pumping power
 Unit: EUR/kWh
 
@@ -1648,7 +1640,7 @@ Description: Electric motor efficiency
 Unit: -
 Value: 0.9
 
--elec_cost
+-cost_elec
 Description: Electricity cost, used for pumping power
 Unit: EUR/kWh
 
@@ -1714,7 +1706,7 @@ Description: Electric motor efficiency
 Unit: -
 Value: 0.9
 
--elec_cost
+-cost_elec
 Description: Electricity cost, used for pumping power
 Unit: EUR/kWh
 
@@ -2272,7 +2264,7 @@ Value: 2014-01-01 00:00:00    2.230118
 2014-12-31 23:00:00    2.195952
 Name: AvgPEF, Length: 8760, dtype: float64
 
--elec_cost
+-cost_elec
 Description: Electricity cost, used for pumping power
 Unit: EUR/kWh
 Value: datetime_be
@@ -2584,14 +2576,13 @@ Name: ZwartbergNEast, Length: 35041, dtype: float64
 Description: Primary energy factor for electricity use by DHW booster heat pump (if applicable)
 Unit: -
 
--elec_cost
+-cost_elec
 Description: Price of electricity for DHW Booster heat pump
 Unit: EUR/kWh
 
--CO2
+-CO2_elec
 Description: CO2 emission per kWh of energy used
 Unit: kg/kWh
-Value: 0.3
 
 
 --- waterscheiGarden.storage ---

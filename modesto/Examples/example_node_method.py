@@ -121,7 +121,7 @@ def construct_model():
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': n_steps*time_step,
-                      'elec_cost': c_f['price_BE'],
+                      'cost_elec': c_f['price_BE'],
                       'PEF_elec': elec_data['AvgPEF'],
                       'CO2_elec': elec_data['AvgCO2/kWh']
                       }
@@ -182,7 +182,6 @@ def construct_model():
     # production parameters
 
     prod_design = {'efficiency': 3.5,
-                   'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f['price_BE'],
                    'Qmax': 2e6,

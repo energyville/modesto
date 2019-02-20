@@ -132,7 +132,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': horizon,
-                      'elec_cost': c_f,
+                      'cost_elec': c_f,
                       'PEF_elec': elec_data['AvgPEF'],
                       'CO2_elec': elec_data['AvgCO2/kWh']}
 
@@ -145,8 +145,7 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
     building_params_common = {
         'temperature_supply': 70 + 273.15,
         'temperature_return': 30 + 273.15,
-        'mult': 1,
-        'CO2': 0.3
+        'mult': 1
     }
 
     heat_profile = ut.read_time_data(datapath, name='HeatDemand/Old/HeatDemandFiltered.csv')
@@ -170,7 +169,6 @@ def setup_opt(horizon=365 * 24 * 3600, time_step=6 * 3600):
 
     prod_design = {'delta_T': 40,
                    'efficiency': 0.95,
-                   'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    'Qmax': 65e6,

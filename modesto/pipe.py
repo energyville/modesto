@@ -115,7 +115,7 @@ class Pipe(Component):
                                         'Electric motor efficiency',
                                         '-',
                                         val=0.9),
-            'elec_cost': TimeSeriesParameter('elec_cost',
+            'cost_elec': UserDataParameter('cost_elec',
                                              'Electricity cost, used for pumping power',
                                              'EUR/kWh'),
             'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
@@ -550,7 +550,7 @@ class ExtensivePipe(Pipe):
                                                  in self.REPR_DAYS)
 
     def obj_elec_cost(self):
-        cost = self.params['elec_cost']
+        cost = self.params['cost_elec']
         eta_mech = self.params['eta_mech'].v()
         eta_elmo = self.params['eta_elmo'].v()
         # Using 0.001 EUR/kWh as minimum

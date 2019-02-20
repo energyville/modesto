@@ -106,7 +106,7 @@ class Modesto:
             'PEF_elec': UserDataParameter('PEF_elec',
                                           'Factor to convert electric energy to primary energy',
                                           '-'),
-            'elec_cost': TimeSeriesParameter('elec_cost',
+            'cost_elec': UserDataParameter('cost_elec',
                                              'Electricity cost, used for pumping power',
                                              'EUR/kWh')
         }

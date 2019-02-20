@@ -53,7 +53,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
                       'Q_sol_N': weather_data['QsolN'],
                       'time_step': time_step,
                       'horizon': n_steps * time_step,
-                      'elec_cost': pd.Series(0.1, index=weather_data.index),
+                      'cost_elec': pd.Series(0.1, index=weather_data.index),
                       'PEF_elec': elec_data['AvgPEF'],
                       'CO2_elec': elec_data['AvgCO2/kWh']
                       }
@@ -65,8 +65,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
         'temperature_return': 60 + 273.15,
         'mult': 1,
         'heat_profile': heat_demand['ZwartbergNEast'],
-        'DHW_demand': dhw_demand['ZwartbergNEast'],
-        'CO2': 0.3
+        'DHW_demand': dhw_demand['ZwartbergNEast']
     }
     model.change_params(build_params, node='demand', comp='build')
 
@@ -101,7 +100,6 @@ def setup_modesto(time_step=3600, n_steps=24 * 30):
     backup_params = {
         'delta_T': 20,
         'efficiency': 0.95,
-        'PEF': 1,
         'CO2': 0.178,
         'fuel_cost': elec_cost,
         'Qmax': 7e6,

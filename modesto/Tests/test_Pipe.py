@@ -78,7 +78,7 @@ def setup_modesto_with_stor(graph, objtype='cost'):
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': horizon,
-                      'elec_cost': c_f,
+                      'cost_elec': c_f,
                       'CO2_elec': elec_data['AvgCO2/kWh'],
                       'PEF_elec': elec_data['AvgPEF']
                       }
@@ -93,7 +93,6 @@ def setup_modesto_with_stor(graph, objtype='cost'):
         'temperature_return': 20 + 273.15,
         'mult': 1,
         'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom,
-        'CO2': 0.2,
         'DHW_demand': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * 60
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
@@ -101,7 +100,6 @@ def setup_modesto_with_stor(graph, objtype='cost'):
     # Producer parameters
     prod_design = {'delta_T': 30,
                    'efficiency': 0.95,
-                   'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    'Qmax': Pnom,
@@ -187,7 +185,7 @@ def setup_modesto(graph, objtype='cost'):
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': horizon,
-                      'elec_cost': c_f,
+                      'cost_elec': c_f,
                       'CO2_elec': elec_data['AvgCO2/kWh'],
                       'PEF_elec': elec_data['AvgPEF']}
     optmodel.change_params(general_params)
@@ -201,7 +199,6 @@ def setup_modesto(graph, objtype='cost'):
         'temperature_return': 20 + 273.15,
         'mult': 1,
         'heat_profile': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * Pnom,
-        'CO2': 0.2,
         'DHW_demand': pd.Series(index=index, name='Heat demand', data=[0, 1, 0, 0, 1, 1] * 4 * numdays) * 60
     }
     optmodel.change_params(building_params, node='cons', comp='cons')
@@ -209,7 +206,6 @@ def setup_modesto(graph, objtype='cost'):
     # Producer parameters
     prod_design = {'delta_T': 30,
                    'efficiency': 0.95,
-                   'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    'Qmax': Pnom * 1.5,

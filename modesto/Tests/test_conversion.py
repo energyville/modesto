@@ -82,7 +82,7 @@ def setup_ashp(n_steps=24 * 7, time_step=3600):
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': n_steps * time_step,
-                      'elec_cost': c_f,
+                      'cost_elec': c_f,
                       'PEF_elec': elec_data['AvgPEF'],
                       'CO2_elec': elec_data['AvgCO2/kWh']
                       }
@@ -95,7 +95,6 @@ def setup_ashp(n_steps=24 * 7, time_step=3600):
                           'temperature_return': 60 + 273.15,
                           'mult': 1,
                           'heat_profile': heat_profile['ZwartbergNEast'],
-                          'CO2': 0,
                           'DHW_demand': dhw_demand['ZwartbergNEast']
                           }
 
@@ -154,9 +153,6 @@ def setup_ashp(n_steps=24 * 7, time_step=3600):
     prod_design = {'temperature_supply': 80 + 273.15,
                    'temperature_return': 60 + 273.15,
                    'eff_rel': 0.6,
-                   'PEF': 1,
-                   'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'elec_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 1.5e8,
                    'ramp_cost': 0.01,
@@ -174,7 +170,7 @@ def test_airsourceheatpump():
 
     optmodel.solve(tee=True)
 
-    assert round(optmodel.get_objective('energy')) == round(1.565400061e+06)
+    assert round(optmodel.get_objective('energy')) == round(3.312438156e+06)
     return optmodel
 
 
@@ -188,7 +184,7 @@ def test_ashp_mutate():
 
     optmodel.solve(tee=True)
 
-    assert round(optmodel.get_objective('energy')) == round(1.181824072e+06)
+    assert round(optmodel.get_objective('energy')) == round(2.491779497e+06)
     return optmodel
 
 
