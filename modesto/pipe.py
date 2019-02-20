@@ -287,7 +287,7 @@ class SimplePipe(Pipe):
 
                     # Initial guess
                     self.opti.set_initial(Tsup_in, 20+273.15)
-                    self.opti.set_initial(mf, 1)
+                    # self.opti.set_initial(mf, 1)
 
                 else:
                     hf_in = self.get_var('heat_flow_in')
@@ -314,7 +314,6 @@ class SimplePipe(Pipe):
         self.opti.set_value(self.get_opti_param('mf_max'), vflomax[self.params['diameter'].v()])
 
     def get_edge_temperature(self, node, line, t=None):
-        assert self.compiled, "Pipe %s has not been compiled yet" % self.name
         if node == self.start_node:
             if line == 'supply':
                 if t is None:
