@@ -118,9 +118,7 @@ def setup_modesto_with_stor(graph, objtype='cost'):
                    'mflo_min': -100,
                    'volume': 5000,
                    'heat_stor': 10,
-                   'ar': 2,
-                   'dIns': 0.2,
-                   'kIns': 0.0024,
+                   'stor_type': 0,  # 0 pit, 1 tank
                    'mflo_use': pd.Series(index=c_f.index, data=0),
                    'cost_inv': 1}
 

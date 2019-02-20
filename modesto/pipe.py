@@ -276,7 +276,7 @@ class ExtensivePipe(Pipe):
         self.hl_setting = .7233  # Fraction of max mass flow where heat losses are equal to nominal value
         # 0.7233 is the middle of the economic flow rates according to IsoPlus, taken as average over all diameters
 
-        self.n_pump_constr = 5  # Number of linear pieces in pumping power approximation
+        self.n_pump_constr = 8  # Number of linear pieces in pumping power approximation
 
         self.params['temperature_supply'] = DesignParameter(
             'temperature_supply', 'Supply temperature', 'K',
