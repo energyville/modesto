@@ -188,6 +188,11 @@ Unit: EUR/kWh
 Description: CO2 emission per kWh of energy used
 Unit: kg/kWh
 
+-num_buildings
+Description: number of buildings for investment
+Unit: -
+Value: 1
+
 "
 all_params,"
 --- general ---
@@ -1170,6 +1175,11 @@ Unit: EUR/kWh
 Description: CO2 emission per kWh of energy used
 Unit: kg/kWh
 
+-num_buildings
+Description: number of buildings for investment
+Unit: -
+Value: 1
+
 
 --- waterscheiGarden.storage ---
 
@@ -1511,6 +1521,11 @@ Unit: EUR/kWh
 -CO2_elec
 Description: CO2 emission per kWh of energy used
 Unit: kg/kWh
+
+-num_buildings
+Description: number of buildings for investment
+Unit: -
+Value: 1
 
 
 --- bbThor ---
@@ -2583,6 +2598,11 @@ Unit: EUR/kWh
 -CO2_elec
 Description: CO2 emission per kWh of energy used
 Unit: kg/kWh
+
+-num_buildings
+Description: number of buildings for investment
+Unit: -
+Value: 1
 
 
 --- waterscheiGarden.storage ---
