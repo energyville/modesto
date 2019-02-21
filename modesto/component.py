@@ -1858,7 +1858,7 @@ class GeothermalHeating(VariableComponent):
                 self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
                 self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
 
-                self.block.modulation = Var(self.DAYS, within=NonNegativeReals, bounds=(0, 1))
+                self.block.modulation = Var(self.DAYS, within=Binary, bounds=(0, 1))
                 steps_per_day = len(self.TIME) / len(self.DAYS)
 
                 def _mass_ub(m, t):
@@ -1883,7 +1883,7 @@ class GeothermalHeating(VariableComponent):
                                            within=NonNegativeReals)
                 self.block.heat_flow = Var(self.TIME, self.REPR_DAYS,
                                            within=NonNegativeReals)
-                self.block.modulation = Var(self.REPR_DAYS, within=NonNegativeReals, bounds=(0, 1))
+                self.block.modulation = Var(self.REPR_DAYS, within=Binary, bounds=(0, 1))
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] * (
