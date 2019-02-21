@@ -77,6 +77,7 @@ def construct_model():
     # general parameters
 
     c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+    elec_data = ut.read_time_data(datapath, name='ElectricityPrices/AvgPEF_CO2.csv')
 
     general_params = {'Te': t_amb,
                       'Tg': t_g,
@@ -86,7 +87,10 @@ def construct_model():
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': n_steps * time_step,
-                      'elec_cost': c_f}
+                      'cost_elec': c_f,
+                      'PEF_elec': elec_data['AvgPEF'],
+                      'CO2_elec': elec_data['AvgCO2/kWh']
+                      }
 
     optmodel.change_params(general_params)
 
@@ -97,8 +101,7 @@ def construct_model():
         'temperature_return': 60 + 273.15,
         'mult': 1,
         'heat_profile': heat_profile['ZwartbergNEast'],
-        'DHW_demand': dhw_demand['ZwartbergNEast'],
-        'CO2': 0.3
+        'DHW_demand': dhw_demand['ZwartbergNEast']
     }
 
     ws_building_params = zw_building_params.copy()
@@ -152,7 +155,6 @@ def construct_model():
 
     prod_design = {'delta_T': 20,
                    'efficiency': 0.95,
-                   'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)

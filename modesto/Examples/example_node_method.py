@@ -102,8 +102,8 @@ def construct_model():
     # Fuel costs
     c_f = ut.read_time_data(path=resource_filename('modesto', 'Data/ElectricityPrices'),
                             name='DAM_electricity_prices-2014_BE.csv')
-    # Converting to euro per kWh
-    c_f = c_f['price_BE'] / 1000
+    elec_data = ut.read_time_data(datapath, name='ElectricityPrices/AvgPEF_CO2.csv')
+
 
     # c_f = [0.034] * int(n_steps/2) + [0.034] * int(n_steps/2) # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
 
@@ -121,7 +121,10 @@ def construct_model():
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': n_steps*time_step,
-                      'elec_cost': c_f}
+                      'cost_elec': c_f['price_BE'],
+                      'PEF_elec': elec_data['AvgPEF'],
+                      'CO2_elec': elec_data['AvgCO2/kWh']
+                      }
 
     optmodel.change_params(general_params)
     optmodel.test = 'Test'
@@ -179,9 +182,8 @@ def construct_model():
     # production parameters
 
     prod_design = {'efficiency': 3.5,
-                   'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'fuel_cost': c_f,
+                   'fuel_cost': c_f['price_BE'],
                    'Qmax': 2e6,
                    'temperature_supply': supply_temp,
                    'temperature_return': return_temp,
