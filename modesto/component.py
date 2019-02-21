@@ -594,6 +594,12 @@ class BuildingFixed(FixedProfile):
                 name='CO2_elec',
                 description='CO2 emission per kWh of energy used',
                 unit='kg/kWh'
+            ),
+            'num_buildings': DesignParameter(
+                name='num_buildings',
+                description='number of buildings for investment',
+                unit='-',
+                val=1
             )
         })
 
@@ -744,6 +750,14 @@ class BuildingFixed(FixedProfile):
             else:
                 return sum(self.repr_count[c] * co2.v(t, c) / eta * self.dhw_boost(t, c) *
                            self.params['time_step'].v() / 3600 / 1000 for t in self.TIME for c in self.REPR_DAYS)
+        else:
+            return 0
+
+    def get_investment_cost(self):
+        if self.params['temperature_supply'].v() < 45 + 273.15:
+            return self.params['num_buildings'].v() * 670
+        elif self.params['temperature_supply'].v() < 55 + 273.15:
+            return self.params['num_buildings'].v() * 220
         else:
             return 0
 
