@@ -205,10 +205,14 @@ class Submodel(object):
 
         if self.repr_days is None:
             n_steps = int(horizon // time_step)
+            if horizon % (24*3600) == 0:
+                extra_day=0
+            else:
+                extra_day=1
             self.X_TIME = list(range(n_steps + 1))
             # X_Time are time steps for state variables. Each X_Time is preceeds the flow time step with the same value and comes after the flow time step one step lower.
             self.TIME = self.X_TIME[:-1]
-            self.DAYS = list(range(horizon/24/3600))
+            self.DAYS = list(range(int(horizon/24/3600+extra_day)))
         else:
             n_steps = int(24 * 3600 // time_step)
             self.X_TIME = list(range(n_steps + 1))

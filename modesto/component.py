@@ -1748,7 +1748,7 @@ class AirSourceHeatPump(VariableComponent):
         else:
             return sum(
                 co2_price.v(t, c) * co2.v(t, c) / eta[t, c] * self.get_heat(t, c
-                                                                                  ) * self.params[
+                                                                            ) * self.params[
                     'time_step'].v() / 3600 / 1000 for t in
                 self.TIME for c in self.REPR_DAYS)
 
@@ -1834,8 +1834,6 @@ class GeothermalHeating(VariableComponent):
                                                 273.15 + 15,
                                                 Q_geo=self.params['Qnom'].v())
 
-
-
         if not self.compiled:
             self.block.Qmax = Param(initialize=self.Qmax, mutable=True)
             self.block.COP = Param(initialize=self.COP, mutable=True)
@@ -1844,8 +1842,7 @@ class GeothermalHeating(VariableComponent):
                 self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
                 self.block.on_off = Var(self.DAYS, within=Binary)
 
-
-                steps_per_day = len(self.TIME)/len(self.DAYS)
+                steps_per_day = len(self.TIME) / len(self.DAYS)
 
                 def _mass_ub(m, t):
                     return m.mass_flow[t] * (
@@ -1854,10 +1851,11 @@ class GeothermalHeating(VariableComponent):
 
                 def _mass_lb(m, t):
                     return m.mass_flow[t] * self.cp * (
-                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= m.heat_flow[t]
+                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= \
+                           m.heat_flow[t]
 
                 def _heat(m, t):
-                    return m.heat_flow[t] == m.Qmax * m.on_off[t//steps_per_day]
+                    return m.heat_flow[t] == m.Qmax * m.on_off[t // steps_per_day]
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
@@ -1873,12 +1871,14 @@ class GeothermalHeating(VariableComponent):
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] * (
                             1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params[
-                        'temperature_return'].v()) >= m.heat_flow[t,c]
+                        'temperature_return'].v()) >= m.heat_flow[t, c]
+
                 def _mass_lb(m, t, c):
                     return m.mass_flow[t, c] * self.cp * (
-                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= m.heat_flow[t,c]
+                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= \
+                           m.heat_flow[t, c]
 
-                def _heat(m,t,c):
+                def _heat(m, t, c):
                     return m.heat_flow[t, c] == m.Qmax * m.on_off[c]
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
@@ -1907,17 +1907,17 @@ class GeothermalHeating(VariableComponent):
         :return:
         """
 
-        eta = self.params['efficiency'].v()
+        eta = self.block.COP
         pef = self.params['PEF']
 
         if self.repr_days is None:
-            return 1 / eta * self.block.Qnom * sum(pef.v(t) * self.params[
+            return 1 / eta * sum(self.get_heat(t) * pef.v(t) * self.params[
                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
-            return 1 / eta * self.block.Qnom * sum(pef.v(t, c) *
-                                                   self.repr_count[c] * self.params['time_step'].v() / 3600 / 1000 for t
-                                                   in self.TIME for c in
-                                                   self.REPR_DAYS)
+            return 1 / eta * sum(self.get_heat(t, c) * pef.v(t, c) *
+                                 self.repr_count[c] * self.params['time_step'].v() / 3600 / 1000 for t
+                                 in self.TIME for c in
+                                 self.REPR_DAYS)
 
     def obj_fuel_cost(self):
         """
@@ -1928,14 +1928,14 @@ class GeothermalHeating(VariableComponent):
         """
         cost = self.params[
             'cost_elec']  # cost consumed heat source (fuel/electricity)
-        eta = self.params['efficiency'].v()
+        eta = self.block.COP
         if self.repr_days is None:
-            return self.block.Qnom * sum(cost.v(t) / eta / 3600 * self.params[
+            return sum(self.get_heat(t) * cost.v(t) / eta / 3600 * self.params[
                 'time_step'].v() / 1000 for t in self.TIME)
         else:
-            return self.block.Qnom * sum(self.repr_count[c] * cost.v(t, c) / eta / 3600 * self.params[
+            return sum(self.get_heat(t, c) * self.repr_count[c] * cost.v(t, c) / eta / 3600 * self.params[
                 'time_step'].v() / 1000 for t in self.TIME for c in
-                                         self.REPR_DAYS)
+                       self.REPR_DAYS)
 
     def obj_co2(self):
         """
@@ -1945,13 +1945,13 @@ class GeothermalHeating(VariableComponent):
         :return:
         """
         # TODO this needs to be checked
-        eta = self.params['efficiency'].v()
+        eta = self.block.COP
         co2 = self.params['CO2_elec']  # CO2 emission per kWh of heat source (fuel/electricity)
         if self.repr_days is None:
-            return sum(co2.v(t) / eta * self.block.Qnom * self.params[
+            return sum(co2.v(t) / eta * self.get_heat(t) * self.params[
                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
-            return sum(self.repr_count[c] * co2.v(t, c) / eta * self.block.Qnom *
+            return sum(self.repr_count[c] * co2.v(t, c) / eta * self.get_heat(t, c) *
                        self.params[
                            'time_step'].v() / 3600 / 1000 for t in self.TIME for
                        c in
@@ -1965,19 +1965,19 @@ class GeothermalHeating(VariableComponent):
         :return:
         """
         # TODO check this
-        eta = self.params['efficiency'].v()
+        eta = self.block.COP
         co2 = self.params[
             'CO2_elec']  # CO2 emission per kWh of heat source (fuel/electricity)
         co2_price = self.params['CO2_price'].v()
 
         if self.repr_days is None:
             return sum(
-                co2_price * co2.v(t) / eta * self.block.Qnom * self.params[
+                co2_price * co2.v(t) / eta * self.get_heat(t) * self.params[
                     'time_step'].v() / 3600 / 1000 for t in
                 self.TIME)
         else:
             return sum(
-                co2_price * co2.v(t, c) / eta * self.block.Qnom * self.params[
+                co2_price * co2.v(t, c) / eta * self.get_heat(t, c) * self.params[
                     'time_step'].v() / 3600 / 1000 for t in
                 self.TIME for c in self.REPR_DAYS)
 
