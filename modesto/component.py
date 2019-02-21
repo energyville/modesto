@@ -1818,15 +1818,13 @@ class GeothermalHeating(VariableComponent):
         self.logger = logging.getLogger('modesto.components.GeothermalHeating')
         self.logger.info('Initializing GeothermalHeating {}'.format(name))
 
+        self.Qmax = None
+        self.COP = None
+
     def create_params(self):
 
         params = VariableComponent.create_params(self)
         params.update({
-            'efficiency': DesignParameter('efficiency',
-                                          'Efficiency of the heat source',
-                                          '-',
-                                          val=4.5  # see DEA 2012 with electric heat pump
-                                          ),
             'cost_inv': SeriesParameter('cost_inv',
                                         description='Investment cost as a function of Qmax',
                                         unit='EUR',
@@ -1854,7 +1852,7 @@ class GeothermalHeating(VariableComponent):
                                            'cost of fuel to generate heat',
                                            'euro/kWh'),
             'Qnom': DesignParameter('Qnom',
-                                    'Nominal fixed heat output',
+                                    'Nominal heat from geothermal well (heat pump will increase this)',
                                     'W',
                                     mutable=True),
             'CO2_price': UserDataParameter('CO2_price',
@@ -1872,51 +1870,68 @@ class GeothermalHeating(VariableComponent):
         """
         VariableComponent.compile(self, model, start_time)
 
-        if not self.compiled:
-            if self.repr_days is None:
+        self.Qmax, self.COP = ut.geothermal_cop(self.params['temperature_supply'].v(),
+                                                self.params['temperature_return'].v(),
+                                                273.15 + 70,
+                                                273.15 + 15,
+                                                Q_geo=self.params['Qnom'].v())
 
+
+
+        if not self.compiled:
+            self.block.Qmax = Param(initialize=self.Qmax, mutable=True)
+            self.block.COP = Param(initialize=self.COP, mutable=True)
+            if self.repr_days is None:
                 self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
+                self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+                self.block.on_off = Var(self.DAYS, within=Binary)
+
+
+                steps_per_day = len(self.TIME)/len(self.DAYS)
 
                 def _mass_ub(m, t):
                     return m.mass_flow[t] * (
                             1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params[
-                        'temperature_return'].v()) >= m.Qnom
+                        'temperature_return'].v()) >= m.heat_flow[t]
 
                 def _mass_lb(m, t):
                     return m.mass_flow[t] * self.cp * (
-                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= m.Qnom
+                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= m.heat_flow[t]
+
+                def _heat(m, t):
+                    return m.heat_flow[t] == m.Qmax * m.on_off[t//steps_per_day]
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+                self.block.eq_heat = Constraint(self.TIME, rule=_heat)
             else:
                 self.block.mass_flow = Var(self.TIME,
                                            self.REPR_DAYS,
                                            within=NonNegativeReals)
+                self.block.heat_flow = Var(self.TIME, self.REPR_DAYS,
+                                           within=NonNegativeReals)
+                self.on_off = Var(self.REPR_DAYS, within=Binary)
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] * (
                             1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params[
-                        'temperature_return'].v()) >= m.Qnom
-
+                        'temperature_return'].v()) >= m.heat_flow[t,c]
                 def _mass_lb(m, t, c):
                     return m.mass_flow[t, c] * self.cp * (
-                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= m.Qnom
+                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= m.heat_flow[t,c]
+
+                def _heat(m,t,c):
+                    return m.heat_flow[t, c] == m.Qmax * m.on_off[c]
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_ub)
+                self.block.eq_heat = Constraint(self.TIME, self.REPR_DAYS, rule=_heat)
+
+        else:
+            self.block.Qmax = self.Qmax
+            self.block.COP = self.COP
 
         self.compiled = True
-
-    def get_heat(self, t, c=None):
-        """
-        Get heat output for this component
-
-        :param t: time variable
-        :param c: representative week variable
-        :return:
-        """
-
-        return self.block.Qnom
 
     def get_investment_cost(self):
         """
