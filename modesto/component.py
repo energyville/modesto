@@ -1839,6 +1839,7 @@ class GeothermalHeating(VariableComponent):
                 self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
                 self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
 
+                self.block.modulation = Var(self.DAYS, within=NonNegativeReals, bounds=(0, 1))
                 steps_per_day = len(self.TIME) / len(self.DAYS)
 
                 def _mass_ub(m, t):
@@ -1852,7 +1853,7 @@ class GeothermalHeating(VariableComponent):
                            m.heat_flow[t]
 
                 def _heat(m, t):
-                    return m.heat_flow[t] >= m.Qmax * 0.5
+                    return m.heat_flow[t] == m.Qmax*m.modulation[t//steps_per_day]
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
@@ -1863,6 +1864,7 @@ class GeothermalHeating(VariableComponent):
                                            within=NonNegativeReals)
                 self.block.heat_flow = Var(self.TIME, self.REPR_DAYS,
                                            within=NonNegativeReals)
+                self.block.modulation = Var(self.REPR_DAYS, within=NonNegativeReals, bounds=(0, 1))
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] * (
@@ -1875,7 +1877,7 @@ class GeothermalHeating(VariableComponent):
                            m.heat_flow[t, c]
 
                 def _heat(m, t, c):
-                    return m.heat_flow[t, c] >= m.Qmax * 0.5
+                    return m.heat_flow[t, c] == m.Qmax*m.modulation[c]
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_ub)
