@@ -3,15 +3,14 @@ import sys
 from functools import reduce
 from math import pi, log, exp
 
-import pandas as pd
-from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
-    Set, Binary, NonPositiveReals
-
 import modesto.utils as ut
+import pandas as pd
 from modesto.parameter import StateParameter, DesignParameter, \
     UserDataParameter, SeriesParameter, WeatherDataParameter
 from modesto.submodel import Submodel
+from pkg_resources import resource_filename
+from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
+    Set, Binary, NonPositiveReals
 
 datapath = resource_filename('modesto', 'Data')
 
@@ -1800,12 +1799,12 @@ class GeothermalHeating(VariableComponent):
                                                   description='Supply temperature to the network', mutable=False),
             'temperature_return': DesignParameter('temperature_return', unit='K',
                                                   description='Return temperature from the network', mutable=False),
-            'PEF_elec': DesignParameter('PEF_elec',
-                                        'Factor to convert heat source to primary energy',
-                                        '-'),
-            'CO2_elec': DesignParameter('CO2_elec',
-                                        'amount of CO2 released when using primary energy source',
-                                        'kg/kWh'),
+            'PEF_elec': UserDataParameter('PEF_elec',
+                                          'Factor to convert heat source to primary energy',
+                                          '-'),
+            'CO2_elec': UserDataParameter('CO2_elec',
+                                          'amount of CO2 released when using primary energy source',
+                                          'kg/kWh'),
             'cost_elec': UserDataParameter('cost_elec',
                                            'cost of fuel to generate heat',
                                            'euro/kWh'),
@@ -1813,9 +1812,9 @@ class GeothermalHeating(VariableComponent):
                                     'Nominal heat from geothermal well (heat pump will increase this)',
                                     'W',
                                     mutable=True),
-            'CO2_price': DesignParameter('CO2_price',
-                                         'CO2 price',
-                                         'euro/kg CO2')
+            'CO2_price': UserDataParameter('CO2_price',
+                                           'CO2 price',
+                                           'euro/kg CO2')
         })
 
         return params
@@ -1836,11 +1835,9 @@ class GeothermalHeating(VariableComponent):
 
         if not self.compiled:
             self.block.Qmax = Param(initialize=self.Qmax, mutable=True)
-            self.block.COP = Param(initialize=self.COP, mutable=True)
             if self.repr_days is None:
                 self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
                 self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
-                self.block.on_off = Var(self.DAYS, within=Binary)
 
                 steps_per_day = len(self.TIME) / len(self.DAYS)
 
@@ -1855,7 +1852,7 @@ class GeothermalHeating(VariableComponent):
                            m.heat_flow[t]
 
                 def _heat(m, t):
-                    return m.heat_flow[t] == m.Qmax * m.on_off[t // steps_per_day]
+                    return m.heat_flow[t] >= m.Qmax * 0.5
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
@@ -1866,7 +1863,6 @@ class GeothermalHeating(VariableComponent):
                                            within=NonNegativeReals)
                 self.block.heat_flow = Var(self.TIME, self.REPR_DAYS,
                                            within=NonNegativeReals)
-                self.on_off = Var(self.REPR_DAYS, within=Binary)
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] * (
@@ -1879,7 +1875,7 @@ class GeothermalHeating(VariableComponent):
                            m.heat_flow[t, c]
 
                 def _heat(m, t, c):
-                    return m.heat_flow[t, c] == m.Qmax * m.on_off[c]
+                    return m.heat_flow[t, c] => m.Qmax * 0.5
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_ub)
@@ -1887,7 +1883,6 @@ class GeothermalHeating(VariableComponent):
 
         else:
             self.block.Qmax = self.Qmax
-            self.block.COP = self.COP
 
         self.compiled = True
 
@@ -1907,8 +1902,8 @@ class GeothermalHeating(VariableComponent):
         :return:
         """
 
-        eta = self.block.COP
-        pef = self.params['PEF']
+        eta = self.COP
+        pef = self.params['PEF_elec']
 
         if self.repr_days is None:
             return 1 / eta * sum(self.get_heat(t) * pef.v(t) * self.params[
@@ -1928,7 +1923,7 @@ class GeothermalHeating(VariableComponent):
         """
         cost = self.params[
             'cost_elec']  # cost consumed heat source (fuel/electricity)
-        eta = self.block.COP
+        eta = self.COP
         if self.repr_days is None:
             return sum(self.get_heat(t) * cost.v(t) / eta / 3600 * self.params[
                 'time_step'].v() / 1000 for t in self.TIME)
@@ -1945,7 +1940,7 @@ class GeothermalHeating(VariableComponent):
         :return:
         """
         # TODO this needs to be checked
-        eta = self.block.COP
+        eta = self.COP
         co2 = self.params['CO2_elec']  # CO2 emission per kWh of heat source (fuel/electricity)
         if self.repr_days is None:
             return sum(co2.v(t) / eta * self.get_heat(t) * self.params[
@@ -1953,9 +1948,7 @@ class GeothermalHeating(VariableComponent):
         else:
             return sum(self.repr_count[c] * co2.v(t, c) / eta * self.get_heat(t, c) *
                        self.params[
-                           'time_step'].v() / 3600 / 1000 for t in self.TIME for
-                       c in
-                       self.REPR_DAYS)
+                           'time_step'].v() / 3600 / 1000 for t in self.TIME for c in self.REPR_DAYS)
 
     def obj_co2_cost(self):
         """
@@ -1965,19 +1958,19 @@ class GeothermalHeating(VariableComponent):
         :return:
         """
         # TODO check this
-        eta = self.block.COP
+        eta = self.COP
         co2 = self.params[
             'CO2_elec']  # CO2 emission per kWh of heat source (fuel/electricity)
-        co2_price = self.params['CO2_price'].v()
+        co2_price = self.params['CO2_price']
 
         if self.repr_days is None:
             return sum(
-                co2_price * co2.v(t) / eta * self.get_heat(t) * self.params[
+                co2_price.v(t) * co2.v(t) / eta * self.get_heat(t) * self.params[
                     'time_step'].v() / 3600 / 1000 for t in
                 self.TIME)
         else:
             return sum(
-                co2_price * co2.v(t, c) / eta * self.get_heat(t, c) * self.params[
+                co2_price.v(t, c) * co2.v(t, c) / eta * self.get_heat(t, c) * self.params[
                     'time_step'].v() / 3600 / 1000 for t in
                 self.TIME for c in self.REPR_DAYS)
 
