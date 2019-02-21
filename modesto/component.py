@@ -2989,7 +2989,7 @@ class StorageRepr(StorageVariable):
                                                        start_time)
 
 
-class ResidualHeat(VariableProfile):
+class ResidualHeat(VariableComponent):
 
     def __init__(self, name, temperature_driven=False, heat_var=0.15,
                  repr_days=None):
@@ -3022,15 +3022,24 @@ class ResidualHeat(VariableProfile):
         """
         params = Component.create_params(self)
         params.update({
+            'temperature_supply': DesignParameter('temperature_supply',
+                                                  'Design supply temperature of the network',
+                                                  'K',
+                                                  mutable=False),
+            'temperature_return': DesignParameter('temperature_return',
+                                                  'Design return temperature of the network',
+                                                  'K',
+                                                  mutable=False),
             'heat_cost': DesignParameter('heat_cost',
                                          'cost per MWh of heat',
                                          'euro/MWh'),
             'Qmax': DesignParameter('Qmax',
                                     'Maximum possible heat output',
                                     'W',
-                                    mutable=True),
-
+                                    mutable=True)
         })
+
+        return params
 
     def compile(self, model, start_time):
         """
