@@ -1875,7 +1875,7 @@ class GeothermalHeating(VariableComponent):
                            m.heat_flow[t, c]
 
                 def _heat(m, t, c):
-                    return m.heat_flow[t, c] => m.Qmax * 0.5
+                    return m.heat_flow[t, c] >= m.Qmax * 0.5
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_ub)
