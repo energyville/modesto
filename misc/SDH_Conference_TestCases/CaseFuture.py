@@ -132,6 +132,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
 
     c_f = utils.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv', expand=repr)[
         'price_BE']
+    elec_data = utils.read_time_data(datapath, name='ElectricityPrices/AvgPEF_CO2.csv')
 
     # ## Changing parameters
 
@@ -145,7 +146,10 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': horizon,
-                      'elec_cost': c_f}
+                      'cost_elec': c_f,
+                      'PEF_elec': elec_data['AvgPEF'],
+                      'CO2_elec': elec_data['AvgCO2/kWh']
+                      }
 
     model.change_params(general_params)
 
@@ -156,8 +160,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
     building_params_common = {
         'temperature_supply': 70 + 273.15,
         'temperature_return': 30 + 273.15,
-        'mult': 1,
-        'CO2': 0.3
+        'mult': 1
     }
 
     heat_profile = utils.read_time_data(datapath, name='HeatDemand/Old/HeatDemandFiltered.csv', expand=repr)
@@ -183,8 +186,7 @@ def set_params(model, pipe_model, verbose=True, repr=False, horizon=3600 * 24, t
     # ### Heat generation unit
 
     prod_design = {'delta_T': 40,
-                   'efficiency': 3,
-                   'PEF': 2,
+                   'efficiency': 0.97,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
                    'fuel_cost': c_f,
                    'Qmax': 7.5e7,

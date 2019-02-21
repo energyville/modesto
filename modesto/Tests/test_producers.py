@@ -33,6 +33,7 @@ def test_producer():
 
     datapath = resource_filename('modesto', 'Data')
     c_f = ut.read_time_data(path=datapath, name='ElectricityPrices/DAM_electricity_prices-2014_BE.csv')['price_BE']
+    elec_data = ut.read_time_data(datapath, name='ElectricityPrices/AvgPEF_CO2.csv')
 
     general_params = {'Te': t_amb,
                       'Tg': t_g,
@@ -42,7 +43,10 @@ def test_producer():
                       'Q_sol_N': QsolN,
                       'horizon': n_steps * time_step,
                       'time_step': time_step,
-                      'elec_cost': c_f}
+                      'cost_elec': c_f,
+                      'PEF_elec': elec_data['AvgPEF'],
+                      'CO2_elec': elec_data['AvgCO2/kWh']
+                      }
 
     optmodel.change_params(general_params)
 
@@ -53,7 +57,6 @@ def test_producer():
     building_params = {'temperature_supply': 80 + 273.15,
                        'temperature_return': 60 + 273.15,
                        'mult': 1,
-                       'CO2': 0.3,
                        'DHW_demand': pd.Series(([5e4, 1e5, 5e4] + [0, 1e4, 0]) * 4, index=time_index)
                        }
 
@@ -63,7 +66,6 @@ def test_producer():
 
     params = {'delta_T': 20,
               'efficiency': 0.95,
-              'PEF': 1,
               'CO2': 0.2052,
               'fuel_cost': c_f,
               'Qmax': 1e5,

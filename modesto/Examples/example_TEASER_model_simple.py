@@ -81,7 +81,7 @@ def construct_model():
                       'Q_sol_N': QsolN,
                       'time_step': time_step,
                       'horizon': n_steps * time_step,
-                      'elec_cost': c_f}
+                      'cost_elec': c_f}
 
     optmodel.change_params(general_params)
 

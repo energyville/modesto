@@ -1,5 +1,3 @@
-
-
 import collections
 from math import sqrt
 
@@ -8,6 +6,7 @@ from pyomo.core.base import ConcreteModel, Objective, minimize, value, Constrain
 from pyomo.opt import SolverFactory
 from pyomo.opt import SolverStatus, TerminationCondition
 import pyomo.environ
+
 import modesto.component as co
 import modesto.pipe as pip
 from modesto.LTIModels import RCmodels as rc
@@ -101,11 +100,13 @@ class Modesto:
                                            'CO2 price',
                                            'euro/kg CO2',
                                            val=0),
-            'PEF_el': DesignParameter('PEF_el',
-                                      'Factor to convert electric energy to primary energy',
-                                      '-',
-                                      val=2.1),
-            'elec_cost': TimeSeriesParameter('elec_cost',
+            'CO2_elec': UserDataParameter('CO2_elec',
+                                          'CO2 emission per kWh of electricity',
+                                          'kg CO2/kWh elec'),
+            'PEF_elec': UserDataParameter('PEF_elec',
+                                          'Factor to convert electric energy to primary energy',
+                                          '-'),
+            'cost_elec': UserDataParameter('cost_elec',
                                              'Electricity cost, used for pumping power',
                                              'EUR/kWh')
         }
