@@ -467,9 +467,8 @@ class FiniteVolumePipe(Pipe):
         self.opti.subject_to(Tsup[:, 0] == tsup0)
         self.opti.subject_to(Tret[:, 0] == tret0)
 
-        # Mass flow limits
-        # self.opti.subject_to(mf >= 1)
-        # self.opti.subject_to(mf <= vflomax[self.params['diameter'].v()])
+        F = lambda Tv1t, Tvt1, mfr: ((self.cp*mfr*Tv1t + Tg[t]*l_vol/Rs)*dt + self.cp*m_vol*Tvt1)/\
+                                    (self.cp*m_vol + dt*(self.cp*mfr + l_vol/Rs))
 
         for t in self.TIME[1:]:
             for v in range(self.n_volumes):
@@ -480,15 +479,13 @@ class FiniteVolumePipe(Pipe):
                     Tsi = Tsup[v-1, t]
                     Tri = Tret[v-1, t]
 
-                self.opti.subject_to(self.cp * m_vol*(Tsup[v, t] - Tsup[v, t - 1]) / self.heat_sf ==
-                    (self.cp * mf[t] * (Tsi - Tsup[v, t]) - (Tsup[v, t] - Tg[t]) * l_vol / Rs) * dt / self.heat_sf)
-                self.opti.subject_to(self.cp * m_vol*(Tret[v, t] - Tret[v, t - 1]) / self.heat_sf ==
-                    (self.cp * mf[t] * (Tri - Tret[v, t]) - (Tret[v, t] - Tg[t]) * l_vol / Rs) * dt / self.heat_sf)
+                self.opti.subject_to(F(Tsi, Tsup[v, t-1], mf[t]) == Tsup[v, t])
+                self.opti.subject_to(F(Tri, Tret[v, t-1], mf[t]) == Tret[v, t])
 
-                # self.opti.subject_to(Tsup[v, t] == (self.cp * m_vol * Tsup[v, t-1] + (self.cp * mf[t] * Tsi + Tg[t] * l_vol / Rs) * dt) /
-                #                      (self.cp * m_vol + (self.cp * mf[t] + l_vol / Rs) * dt))#
-                # self.opti.subject_to(Tret[v, t] == (self.cp * m_vol * Tret[v, t-1] + (self.cp * mf[t] * Tri + Tg[t] * l_vol / Rs) * dt) /
-                #                (self.cp * m_vol + (self.cp * mf[t] + l_vol / Rs) * dt))
+                # self.opti.subject_to(self.cp * m_vol*(Tsup[v, t] - Tsup[v, t - 1]) / self.heat_sf ==
+                #     (self.cp * mf[t] * (Tsi - Tsup[v, t]) - (Tsup[v, t] - Tg[t]) * l_vol / Rs) * dt / self.heat_sf)
+                # self.opti.subject_to(self.cp * m_vol*(Tret[v, t] - Tret[v, t - 1]) / self.heat_sf ==
+                #     (self.cp * mf[t] * (Tri - Tret[v, t]) - (Tret[v, t] - Tg[t]) * l_vol / Rs) * dt / self.heat_sf)
 
         #self.opti.subject_to(Tsup[-1, :].T >= Tret_in + 1)
         # self.opti.subject_to(Tsup_in >= 50+273.15)
