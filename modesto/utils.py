@@ -186,3 +186,64 @@ def json_str2int(ordereddict):
             pass
 
     return out
+
+
+def geothermal_cop(temperature_supply, temperature_return, temperature_source, temperature_reinject, Q_geo=100, pump_ratio=0.08):
+    """
+    Function to calculate the overall COP of a geothermal heat plant with an electric heat pump that maximizes the
+    heat extraction from the geothermal well. The heat pump's COP is based on a Lorenz cycle with a 0.5 relative
+    efficiency.
+
+    The plant consists of a series connection of a cross-flow heat exchanger with a 5K pinch point, followed by the
+    heat pump which boosts the outlet temperature of the heat exchanger to the desired network supply temperature.
+
+    :param temperature_supply: Network supply temperature (K)
+    :param temperature_return: Network return temperature (K)
+    :param temperature_source: Geothermal source temperature (K)
+    :param temperature_reinject: Geothermal reinjection temperature (K)
+    :param pump_ratio: Power needed for pumping per watt of geothermal heat extracted
+    :return: Qdh, COP (Qdh/(Pumping+Work)
+    """
+    from scipy.optimize import fsolve
+    from math import log
+
+    Ts = temperature_supply
+    Tr = temperature_return
+
+    Tg = temperature_source
+    Ti = temperature_reinject
+
+    def lmtd(t_in, t_out):
+        return (t_in - t_out) / log(t_in / t_out)
+
+    def lorenz_cop(th_in, th_out, tl_in, tl_out):
+        TH = lmtd(th_in, th_out)
+        TL = lmtd(tl_in, tl_out)
+        return TH / (TH - TL)
+
+    def equations(p):
+        dTghx, dTghp, dTdhx, dTdhp, mdh, mg, W, Qdh, COP = p
+        return (dTghx + dTghp - Tg + Ti, # Geo total temperature difference
+                dTdhx + dTdhp - Ts + Tr, # DH total temperature difference
+                mdh * dTdhx - mg * dTghx, # Heat exchanger heat balance
+                mg * dTghp - mdh * dTdhp * (1 - 1 / COP), # Heat pump energy balance
+                mg * 4180 * (Tg - Ti) - Q_geo, # Total heat extraction from geothermal well energy equation
+                Tg - dTghx - (Tr + dTdhx) - 5,  # min 5K between DH and Geo in HEx
+                Qdh - 4180 * (Ts - Tr) * mdh, # Total heat supplied to district heating
+                W - (Qdh - Q_geo), # Heat pump work/energy balance
+                COP - 0.5 * lorenz_cop(Ts - dTdhp, Ts, Ti + dTghp, Ti) # Calculation of COP
+                )
+
+    sol = fsolve(equations, ((Tg - Ti) / 2,
+                             (Tg - Ti) / 2,
+                             (Ts - Tr) / 2,
+                             (Ts - Tr) / 2,
+                             Q_geo / (Ts - Tr) / 4180,
+                             Q_geo / (Tg - Ti) / 4180,
+                             Q_geo / 5,
+                             Q_geo * 1.2,
+                             5))  # Initialization of variables uses a HP COP of 5 and the actual temperature levels
+
+    dTghx, dTghp, dTdhx, dTdhp, mdh, mg, W, Qdh, COP = sol
+
+    return Qdh, Qdh / (Q_geo * pump_ratio + W)
