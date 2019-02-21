@@ -3,15 +3,14 @@ import sys
 from functools import reduce
 from math import pi, log, exp
 
-import pandas as pd
-from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
-    Set, Binary, NonPositiveReals
-
 import modesto.utils as ut
+import pandas as pd
 from modesto.parameter import StateParameter, DesignParameter, \
     UserDataParameter, SeriesParameter, WeatherDataParameter, TimeSeriesParameter
 from modesto.submodel import Submodel
+from pkg_resources import resource_filename
+from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
+    Set, Binary, NonPositiveReals
 
 datapath = resource_filename('modesto', 'Data')
 
@@ -2292,9 +2291,9 @@ class StorageVariable(VariableComponent):
                                       'm3',
                                       mutable=True),
             'stor_type': DesignParameter('stor_type',
-                                    'Pit (0) or tank (1)',
-                                    '-',
-                                    mutable=False),
+                                         'Pit (0) or tank (1)',
+                                         '-',
+                                         mutable=False),
             'heat_stor': StateParameter(name='heat_stor',
                                         description='Heat stored in the thermal storage unit',
                                         unit='kWh',
@@ -3021,3 +3020,111 @@ class StorageRepr(StorageVariable):
         else:
             return super(StorageRepr, self).get_result(name, index, state,
                                                        start_time)
+
+
+class ResidualHeat(VariableProfile):
+
+    def __init__(self, name, temperature_driven=False, heat_var=0.15,
+                 repr_days=None):
+        """
+        Class that describes an industrial residual heat producer
+
+        :param name: Name of the building
+        """
+
+        VariableComponent.__init__(self,
+                                   name=name,
+                                   direction=1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var,
+                                   repr_days=repr_days)
+
+        self.params = self.create_params()
+
+        self.logger = logging.getLogger('modesto.components.ResidualHeat')
+        self.logger.info('Initializing ResidualHeat {}'.format(name))
+
+    def is_heat_source(self):
+        return True
+
+    def create_params(self):
+        """
+        Initialize the parameters for this component
+
+        :return:
+        """
+        params = Component.create_params(self)
+        params.update({
+            'heat_cost': DesignParameter('heat_cost',
+                                         'cost per MWh of heat',
+                                         'euro/MWh'),
+            'Qmax': DesignParameter('Qmax',
+                                    'Maximum possible heat output',
+                                    'W',
+                                    mutable=True),
+
+        })
+
+    def compile(self, model, start_time):
+        """
+        Compile this component.
+
+        :param model:
+        :param start_time:
+        :return:
+        """
+        VariableComponent.compile(self, model, start_time)
+
+        if not self.compiled:
+            if self.repr_days is None:
+
+                self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
+                self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+
+                def _mass_ub(m, t):
+                    return m.mass_flow[t] * (
+                            1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params[
+                        'temperature_return'].v()) >= m.heat_flow[t]
+
+                def _mass_lb(m, t):
+                    return m.mass_flow[t] * self.cp * (
+                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= \
+                           m.heat_flow[t]
+
+                def _heat(m, t):
+                    return m.heat_flow[t] <= m.Qmax
+
+                self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+                self.block.ineq_heat = Constraint(self.TIME, rule=_heat)
+            else:
+                self.block.mass_flow = Var(self.TIME,
+                                           self.REPR_DAYS,
+                                           within=NonNegativeReals)
+                self.block.heat_flow = Var(self.TIME, self.REPR_DAYS, within=NonNegativeReals)
+
+                def _mass_ub(m, t, c):
+                    return m.mass_flow[t, c] * (
+                            1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params[
+                        'temperature_return'].v()) >= m.heat_flow[t, c]
+
+                def _mass_lb(m, t, c):
+                    return m.mass_flow[t, c] * self.cp * (
+                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= \
+                           m.heat_flow[t, c]
+
+                def _heat(m, t, c):
+                    return m.heat_flow[t, c] <= m.Qmax
+
+                self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_ub)
+                self.block.ineq_heat = Constraint(self.TIME, self.REPR_DAYS, rule=_heat)
+
+        self.compiled = True
+
+    def obj_cost(self):
+
+        if self.repr_days is None:
+            return self.params['heat_cost'].v()/1000 * sum(self.get_heat(t)/1000/3600*self.params['time_step'].v() for t in self.TIME)
+        else:
+            return self.params['heat_cost'].v()/1000 * sum(self.get_heat(t, c)/1000/3600*self.params['time_step'].v() for t in self.TIME for c in self.REPR_DAYS)
