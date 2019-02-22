@@ -447,7 +447,7 @@ class FiniteVolumePipe(Pipe):
         """
 
         # Parameters
-        Rs = self.Rs[self.params['diameter'].v()] # TODO self.add_opti_param('Rs')
+        Rs = self.Rs[self.params['diameter'].v()]  # TODO self.add_opti_param('Rs')
         Di = self.add_opti_param('Di')
         l_vol = self.length/self.n_volumes
         Tg = self.params['Tg'].v()
@@ -504,6 +504,11 @@ class FiniteVolumePipe(Pipe):
         #     self.opti.set_value(self.get_opti_param('Rs'), self.params['Rs'].v())
 
         self.opti.set_value(self.get_opti_param('Di'), self.di[self.params['diameter'].v()])
+
+        self.opti.set_initial(self.get_var('Tsup'), self.params['Tsup0'].v())
+        self.opti.set_initial(self.get_var('Tret'), self.params['Tret0'].v())
+        self.opti.set_initial(self.get_var('Tsup_in'), self.params['Tsup0'].v())
+        self.opti.set_initial(self.get_var('Tret_in'), self.params['Tret0'].v())
 
     def get_edge_temperature(self, node, line, t=None):
         if node == self.start_node:

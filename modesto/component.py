@@ -576,7 +576,7 @@ class SubstationLMTD(Substation):
                 DTlm[t] == (DTa[t] - DTb[t]) / (log(DTa[t] / DTb[t])))  # TODO
 
             self.opti.subject_to(hf[t] == UA[t] * DTlm[t])
-            self.opti.subject_to(UA[t] == K / ((0.0001 + mf_prim[t])**-q +mf_sec[t]**-q))  #TODO
+            self.opti.subject_to(UA[t] == K / ((0.0001 + mf_prim[t])**-q + mf_sec[t]**-q))  #TODO
             self.opti.subject_to(hf[t] == mf_prim[t] * self.cp * (Tpsup[t] - Tpret[t]))
 
         # TODO Keep inital temperatures mutable?
@@ -623,7 +623,7 @@ class SubstationepsNTU(Substation):
         mf_prim = self.add_var('mf_prim', self.n_steps)
         self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 10))
 
-        # self.add_var('Tpsup', self.n_steps)
+        self.add_var('Tpsup', self.n_steps)
         self.add_var('Tpret', self.n_steps)
 
     def compile(self):
@@ -1311,7 +1311,7 @@ class Plant(VariableComponent):
         # Variables:
         self.add_var('heat_flow', self.n_steps)
         self.add_var('Tsup', self.n_steps)
-        # self.add_var('Tret', self.n_steps)
+        self.add_var('Tret', self.n_steps)
 
         # Parameters:
         self.add_opti_param('Qmax')
@@ -1347,9 +1347,12 @@ class Plant(VariableComponent):
 
         # Limits
         # TODO Add heat limits
-        # self.opti.subject_to(self.opti.bounded(1, hf, inf))
-        self.opti.subject_to(Tsup >= Tmin)
-        self.opti.subject_to(Tsup <= Tmax)
+        # self.opti.subject_to(self.opti.bounded(0, hf, inf))
+
+        # TODO eave it like this?
+        self.opti.subject_to(self.opti.bounded(Tmin, Tsup, Tmax))
+        # self.opti.subject_to(Tsup >= Tmin)
+        # self.opti.subject_to(Tsup <= Tmax)
 
         self.compiled = True
 

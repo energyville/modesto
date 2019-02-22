@@ -1011,12 +1011,12 @@ def test_genk():
     #     Main Settings       #
     ###########################
 
-    horizon = 7*24*3600
+    horizon = 5*3600
     time_step = 5*60
     start_time = pd.Timestamp('20140101')
     n_steps = int(horizon/time_step)
 
-    n_neighs = 9  # TODO 1, 7 and higher does not work (yet)
+    n_neighs = 5  # TODO 4 and higher does not work (yet)
     neighs = ['WaterscheiGarden', 'ZwartbergNEast', 'ZwartbergNWest', 'ZwartbergSouth', 'OudWinterslag', 'Winterslag',
               'Boxbergheide', 'TermienEast', 'TermienWest']
     all_pipes = ['dist_pipe{}'.format(i) for i in range(14)]
@@ -1146,7 +1146,7 @@ def test_genk():
     # Set up the optimization problem #
     ###################################
 
-    optmodel = Modesto(pipe_model='SimplePipe', graph=g, temperature_driven=True)
+    optmodel = Modesto(pipe_model='FiniteVolumePipe', graph=g, temperature_driven=True)
     optmodel.opt_settings(allow_flow_reversal=False)
 
     ##################################
@@ -1197,8 +1197,8 @@ def test_genk():
             'heat_flow': heat_profile[neigh] / mult,
             'temperature_radiator_in': 47 + 273.15,
             'temperature_radiator_out': 35 + 273.15,
-            'temperature_supply_0': 60 + 273.15,
-            'temperature_return_0': 40 + 273.15,
+            'temperature_supply_0': 57 + 273.15,
+            'temperature_return_0': 37 + 273.15,
             'lines': ['supply', 'return'],
             'thermal_size_HEx': 15000,
             'exponential_HEx': 0.7,
@@ -1213,11 +1213,11 @@ def test_genk():
 
     for i, pipe in enumerate(pipes):
         pipe_params = {'diameter': diameters[all_pipes.index(pipe)],
-                       # 'max_speed': 3,
-                       # 'Courant': 1,
-                       # 'Tg': pd.Series(12+273.15, index=t_amb.index),
-                       # 'Tsup0': 57+273.15,
-                       # 'Tret0': 40+273.15,
+                       'max_speed': 3,
+                       'Courant': 1,
+                       'Tg': pd.Series(12+273.15, index=t_amb.index),
+                       'Tsup0': 57+273.15,
+                       'Tret0': 37+273.15,
                        }
 
         optmodel.change_params(pipe_params, comp=pipe)
@@ -1290,7 +1290,7 @@ def test_genk():
 
     optmodel.set_objective('cost')
 
-    optmodel.solve(tee=True, mipgap=0.2, last_results=False, g_describe=[], x_describe=[])
+    optmodel.solve(tee=True, mipgap=0.2, last_results=False, g_describe=[1000], x_describe=[])
 
     # plt.show()
 
@@ -1335,6 +1335,7 @@ def test_genk():
 
     fig, ax = plt.subplots(1, 1)
     ax.plot(prod_hf, label='Producer')
+    ax.plot(neigh_hf.sum(axis=1), label='All users')
     for n in range(n_neighs):
         ax.plot(neigh_hf[neighs[n]], label=neighs[n])
     ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
@@ -1350,6 +1351,8 @@ def test_genk():
     axarr.set_title('Mass flows network')
     axarr.legend()
     fig1.tight_layout()
+
+    colors = ['r', 'b', 'g', 'c', 'm', 'y', 'k']
 
     fig2, axarr = plt.subplots(1, 1)
     axarr.plot(prod_T_sup, label='Producer Supply', color='r')
@@ -1384,6 +1387,8 @@ def test_genk():
     axarr[1, 1].set_title('Cmax')
     axarr[2, 1].set_title('UA')
     axarr[0, 0].legend()
+
+    fig3.suptitle('Heat exchangers')
 
     fig3.tight_layout()
 
