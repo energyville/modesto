@@ -1872,7 +1872,7 @@ class GeothermalHeating(VariableComponent):
                            m.heat_flow[t]
 
                 def _heat(m, t):
-                    if 150 <= t // steps_per_day < 260:
+                    if 150 <= t // steps_per_day < 270:
                         return m.heat_flow[t] == 0
                     else:
                         return m.heat_flow[t] == m.Qmax
@@ -1899,7 +1899,7 @@ class GeothermalHeating(VariableComponent):
                            m.heat_flow[t, c]
 
                 def _heat(m, t, c):
-                    if 150 <= c < 260:
+                    if 150 <= c < 270:
                         return m.heat_flow[t, c] == 0
                     else:
                         return m.heat_flow[t, c] == m.Qmax
