@@ -594,6 +594,12 @@ class BuildingFixed(FixedProfile):
                 name='CO2_elec',
                 description='CO2 emission per kWh of energy used',
                 unit='kg/kWh'
+            ),
+            'num_buildings': DesignParameter(
+                name='num_buildings',
+                description='number of buildings for investment',
+                unit='-',
+                val=1
             )
         })
 
@@ -612,7 +618,12 @@ class BuildingFixed(FixedProfile):
         heat_profile = self.params['heat_profile']
         DHW_profile = self.params['DHW_demand']
 
-        self.COP = 0.4 * (55 + 273.15) / (55 + 273.15 - self.params['temperature_return'].v())
+        if self.params['temperature_return'].v() < 45 + 273.15:
+            self.COP = 0.4 * (55 + 273.15) / (55 + 273.15 - self.params['temperature_return'].v())
+        elif self.params['temperature_return'].v() < 55 + 273.15:
+            self.COP = 1
+        else:
+            self.COP = None
         t_supply = self.params['temperature_supply'].v()
         t_return = self.params['temperature_return'].v()
         if not self.compiled:
@@ -744,6 +755,14 @@ class BuildingFixed(FixedProfile):
             else:
                 return sum(self.repr_count[c] * co2.v(t, c) / eta * self.dhw_boost(t, c) *
                            self.params['time_step'].v() / 3600 / 1000 for t in self.TIME for c in self.REPR_DAYS)
+        else:
+            return 0
+
+    def get_investment_cost(self):
+        if self.params['temperature_supply'].v() < 45 + 273.15:
+            return self.params['num_buildings'].v() * 670
+        elif self.params['temperature_supply'].v() < 55 + 273.15:
+            return self.params['num_buildings'].v() * 220
         else:
             return 0
 
@@ -1839,7 +1858,7 @@ class GeothermalHeating(VariableComponent):
                 self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
                 self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
 
-                self.block.modulation = Var(self.DAYS, within=NonNegativeReals, bounds=(0, 1))
+                # self.block.modulation = Var(self.DAYS, within=Binary, bounds=(0, 1))
                 steps_per_day = len(self.TIME) / len(self.DAYS)
 
                 def _mass_ub(m, t):
@@ -1853,7 +1872,10 @@ class GeothermalHeating(VariableComponent):
                            m.heat_flow[t]
 
                 def _heat(m, t):
-                    return m.heat_flow[t] == m.Qmax*m.modulation[t//steps_per_day]
+                    if 150 <= t // steps_per_day < 260:
+                        return m.heat_flow[t] == 0
+                    else:
+                        return m.heat_flow[t] == m.Qmax
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
@@ -1864,7 +1886,7 @@ class GeothermalHeating(VariableComponent):
                                            within=NonNegativeReals)
                 self.block.heat_flow = Var(self.TIME, self.REPR_DAYS,
                                            within=NonNegativeReals)
-                self.block.modulation = Var(self.REPR_DAYS, within=NonNegativeReals, bounds=(0, 1))
+                # self.block.modulation = Var(self.REPR_DAYS, within=Binary, bounds=(0, 1))
 
                 def _mass_ub(m, t, c):
                     return m.mass_flow[t, c] * (
@@ -1877,7 +1899,10 @@ class GeothermalHeating(VariableComponent):
                            m.heat_flow[t, c]
 
                 def _heat(m, t, c):
-                    return m.heat_flow[t, c] == m.Qmax*m.modulation[c]
+                    if 150 <= c < 260:
+                        return m.heat_flow[t, c] == 0
+                    else:
+                        return m.heat_flow[t, c] == m.Qmax
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_ub)
@@ -2987,3 +3012,123 @@ class StorageRepr(StorageVariable):
         else:
             return super(StorageRepr, self).get_result(name, index, state,
                                                        start_time)
+
+
+class ResidualHeat(VariableComponent):
+
+    def __init__(self, name, temperature_driven=False, heat_var=0.15,
+                 repr_days=None):
+        """
+        Class that describes an industrial residual heat producer
+
+        :param name: Name of the building
+        """
+
+        VariableComponent.__init__(self,
+                                   name=name,
+                                   direction=1,
+                                   temperature_driven=temperature_driven,
+                                   heat_var=heat_var,
+                                   repr_days=repr_days)
+
+        self.params = self.create_params()
+
+        self.logger = logging.getLogger('modesto.components.ResidualHeat')
+        self.logger.info('Initializing ResidualHeat {}'.format(name))
+
+    def is_heat_source(self):
+        return True
+
+    def create_params(self):
+        """
+        Initialize the parameters for this component
+
+        :return:
+        """
+        params = Component.create_params(self)
+        params.update({
+            'temperature_supply': DesignParameter('temperature_supply',
+                                                  'Design supply temperature of the network',
+                                                  'K',
+                                                  mutable=False),
+            'temperature_return': DesignParameter('temperature_return',
+                                                  'Design return temperature of the network',
+                                                  'K',
+                                                  mutable=False),
+            'heat_cost': DesignParameter('heat_cost',
+                                         'cost per MWh of heat',
+                                         'euro/MWh'),
+            'Qmax': DesignParameter('Qmax',
+                                    'Maximum possible heat output',
+                                    'W',
+                                    mutable=True)
+        })
+
+        return params
+
+    def compile(self, model, start_time):
+        """
+        Compile this component.
+
+        :param model:
+        :param start_time:
+        :return:
+        """
+        VariableComponent.compile(self, model, start_time)
+
+        if not self.compiled:
+            if self.repr_days is None:
+
+                self.block.mass_flow = Var(self.TIME, within=NonNegativeReals)
+                self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
+
+                def _mass_ub(m, t):
+                    return m.mass_flow[t] * (
+                            1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params[
+                        'temperature_return'].v()) >= m.heat_flow[t]
+
+                def _mass_lb(m, t):
+                    return m.mass_flow[t] * self.cp * (
+                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= \
+                           m.heat_flow[t]
+
+                def _heat(m, t):
+                    return m.heat_flow[t] <= m.Qmax
+
+                self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
+                self.block.ineq_heat = Constraint(self.TIME, rule=_heat)
+            else:
+                self.block.mass_flow = Var(self.TIME,
+                                           self.REPR_DAYS,
+                                           within=NonNegativeReals)
+                self.block.heat_flow = Var(self.TIME, self.REPR_DAYS, within=NonNegativeReals)
+
+                def _mass_ub(m, t, c):
+                    return m.mass_flow[t, c] * (
+                            1 + self.heat_var) * self.cp * (self.params['temperature_supply'].v() - self.params[
+                        'temperature_return'].v()) >= m.heat_flow[t, c]
+
+                def _mass_lb(m, t, c):
+                    return m.mass_flow[t, c] * self.cp * (
+                            self.params['temperature_supply'].v() - self.params['temperature_return'].v()) <= \
+                           m.heat_flow[t, c]
+
+                def _heat(m, t, c):
+                    return m.heat_flow[t, c] <= m.Qmax
+
+                self.block.ineq_mass_lb = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_lb)
+                self.block.ineq_mass_ub = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_ub)
+                self.block.ineq_heat = Constraint(self.TIME, self.REPR_DAYS, rule=_heat)
+
+        self.compiled = True
+
+    def obj_cost(self):
+
+        if self.repr_days is None:
+            return self.params['heat_cost'].v() / 1000 * sum(
+                self.get_heat(t) / 1000 / 3600 * self.params['time_step'].v() for t in self.TIME)
+        else:
+            return self.params['heat_cost'].v() / 1000 * sum(
+                self.get_heat(t, c) / 1000 / 3600 * self.params['time_step'].v() for t in self.TIME for c in
+                self.REPR_DAYS)
