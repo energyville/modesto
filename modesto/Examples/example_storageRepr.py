@@ -59,7 +59,7 @@ def setup_modesto(time_step=3600, n_steps=24 * 365, repr=False):
                       'Q_sol_N': weather_data['QsolN'],
                       'time_step': time_step,
                       'horizon': n_steps * time_step,
-                      'elec_cost': pd.Series(0.1, index=weather_data.index)}
+                      'cost_elec': pd.Series(0.1, index=weather_data.index)}
 
     model.change_params(general_params)
 

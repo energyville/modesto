@@ -10,7 +10,7 @@ from pyomo.core.base import Param, Var, Constraint, NonNegativeReals, value, \
 
 import modesto.utils as ut
 from modesto.parameter import StateParameter, DesignParameter, \
-    UserDataParameter, SeriesParameter, WeatherDataParameter, TimeSeriesParameter
+    UserDataParameter, SeriesParameter, WeatherDataParameter
 from modesto.submodel import Submodel
 
 datapath = resource_filename('modesto', 'Data')
@@ -556,38 +556,6 @@ class FixedProfile(Component):
         self.compiled = True
 
 
-class VariableProfile(Component):
-    # TODO Assuming that variable profile means State-Space model
-
-    def __init__(self, name, direction, temperature_driven=False,
-                 repr_days=None):
-        """
-        Class for components with a variable heating profile
-
-        :param name: Name of the building
-        :param direction: Standard heat and mass flow direction for positive flows. 1 for producer components, -1 for consumer components
-        """
-        Component.__init__(self,
-                           name=name,
-                           direction=direction,
-                           temperature_driven=temperature_driven,
-                           repr_days=repr_days)
-
-        self.params = self.create_params()
-
-    def compile(self, model, start_time):
-        """
-        Build the structure of a component model
-
-        :param ContreteModel model: The optimization model
-        :param pd.Timestamp start_time: Start time of optimization horizon.
-        :return:
-        """
-
-        Component.compile(self, model, start_time)
-        self.compiled = True
-
-
 class BuildingFixed(FixedProfile):
     def __init__(self, name, temperature_driven=False, repr_days=None):
         """
@@ -613,18 +581,18 @@ class BuildingFixed(FixedProfile):
                 description='Demand profile for domestic hot water at 55degC',
                 unit='l/min'
             ),
-            'PEF_el': DesignParameter(
-                name='PEF_el',
+            'PEF_elec': UserDataParameter(
+                name='PEF_elec',
                 description='Primary energy factor for electricity use by DHW booster heat pump (if applicable)',
                 unit='-'
             ),
-            'elec_cost': TimeSeriesParameter(
-                name='elec_cost',
+            'cost_elec': UserDataParameter(
+                name='cost_elec',
                 description='Price of electricity for DHW Booster heat pump',
                 unit='EUR/kWh'
             ),
-            'CO2': DesignParameter(
-                name='CO2',
+            'CO2_elec': UserDataParameter(
+                name='CO2_elec',
                 description='CO2 emission per kWh of energy used',
                 unit='kg/kWh'
             )
@@ -720,7 +688,7 @@ class BuildingFixed(FixedProfile):
         :return:
         """
         eta = self.COP
-        pef = self.params['PEF_el'].v()
+        pef = self.params['PEF_elec']
 
         tsup = self.params['temperature_supply'].v()
         if tsup >= 55 + 273.15:  # No DHW Booster needed
@@ -728,10 +696,11 @@ class BuildingFixed(FixedProfile):
         else:  # DHW demand requires booster heat pump to heat the water above 55 degrees.
             if self.repr_days is None:
                 return sum(
-                    pef / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+                    pef.v(t) / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
             else:
                 return sum(
-                    self.repr_count[c] * pef / eta * self.dhw_boost(t, c) * self.params['time_step'].v() / 3600 / 1000
+                    self.repr_count[c] * pef.v(t, c) / eta * self.dhw_boost(t, c) * self.params[
+                        'time_step'].v() / 3600 / 1000
                     for t in self.TIME for c in self.REPR_DAYS)
 
     def obj_fuel_cost(self):
@@ -741,7 +710,7 @@ class BuildingFixed(FixedProfile):
 
         :return:
         """
-        cost = self.params['elec_cost']  # cost consumed heat source (fuel/electricity)
+        cost = self.params['cost_elec']  # cost consumed heat source (fuel/electricity)
         eta = self.COP
         tsup = self.params['temperature_supply'].v()
 
@@ -765,16 +734,16 @@ class BuildingFixed(FixedProfile):
         :return:
         """
 
-        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2 = self.params['CO2_elec']  # CO2 emission per kWh of heat source (fuel/electricity)
         eta = self.COP
         tsup = self.params['temperature_supply'].v()
 
         if tsup < 55 + 273.15:
             if self.repr_days is None:
                 return sum(
-                    co2 / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
+                    co2.v(t) / eta * self.dhw_boost(t) * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME)
             else:
-                return sum(self.repr_count[c] * co2 / eta * self.dhw_boost(t, c) *
+                return sum(self.repr_count[c] * co2.v(t, c) / eta * self.dhw_boost(t, c) *
                            self.params['time_step'].v() / 3600 / 1000 for t in self.TIME for c in self.REPR_DAYS)
         else:
             return 0
@@ -879,9 +848,6 @@ class ProducerVariable(VariableComponent):
             'efficiency': DesignParameter('efficiency',
                                           'Efficiency of the heat source',
                                           '-'),
-            'PEF': DesignParameter('PEF',
-                                   'Factor to convert heat source to primary energy',
-                                   '-'),
             'CO2': DesignParameter('CO2',
                                    'amount of CO2 released when using primary energy source',
                                    'kg/kWh'),
@@ -1236,13 +1202,12 @@ class ProducerVariable(VariableComponent):
         """
 
         eta = self.params['efficiency'].v()
-        pef = self.params['PEF'].v()
 
         if self.repr_days is None:
-            return sum(pef / eta * (self.get_heat(t)) * self.params[
+            return sum(1 / eta * (self.get_heat(t)) * self.params[
                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
-            return sum(self.repr_count[c] * pef / eta * (self.get_heat(t, c)) *
+            return sum(self.repr_count[c] / eta * (self.get_heat(t, c)) *
                        self.params[
                            'time_step'].v() / 3600 / 1000 for t in self.TIME for
                        c in
@@ -1301,9 +1266,7 @@ class ProducerVariable(VariableComponent):
         """
 
         eta = self.params['efficiency'].v()
-        pef = self.params['PEF'].v()
-        co2 = self.params[
-            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
         if self.repr_days is None:
             return sum(co2 / eta * self.get_heat(t) * self.params[
                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
@@ -1338,9 +1301,7 @@ class ProducerVariable(VariableComponent):
         """
 
         eta = self.params['efficiency'].v()
-        pef = self.params['PEF'].v()
-        co2 = self.params[
-            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2 = self.params['CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
         co2_price = self.params['CO2_price']
 
         if self.repr_days is None:
@@ -1387,13 +1348,13 @@ class AirSourceHeatPump(VariableComponent):
             'eff_rel': DesignParameter('eff_rel',
                                        'Relative efficiency compared to carnot efficiency',
                                        '-'),
-            'PEF': DesignParameter('PEF',
-                                   'Factor to convert heat source to primary energy',
-                                   '-'),
-            'CO2': DesignParameter('CO2',
-                                   'amount of CO2 released when using primary energy source',
-                                   'kg/kWh'),
-            'elec_cost': UserDataParameter('elec_cost',
+            'PEF_elec': UserDataParameter('PEF',
+                                          'Factor to convert heat source to primary energy',
+                                          '-'),
+            'CO2_elec': UserDataParameter('CO2',
+                                          'amount of CO2 released when using primary energy source',
+                                          'kg/kWh'),
+            'cost_elec': UserDataParameter('cost_elec',
                                            'cost of fuel to generate heat',
                                            'euro/kWh'),
             'Qmax': DesignParameter('Qmax',
@@ -1692,13 +1653,13 @@ class AirSourceHeatPump(VariableComponent):
         :return:
         """
         eta = self.block.COP
-        pef = self.params['PEF'].v()
+        pef = self.params['PEF_elec']
 
         if self.repr_days is None:
-            return sum(pef / eta[t] * (self.get_heat(t)) * self.params[
+            return sum(pef.v(t) / eta[t] * (self.get_heat(t)) * self.params[
                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
-            return sum(self.repr_count[c] * pef / eta[t, c] * (self.get_heat(t, c)) *
+            return sum(self.repr_count[c] * pef.v(t, c) / eta[t, c] * (self.get_heat(t, c)) *
                        self.params[
                            'time_step'].v() / 3600 / 1000 for t in self.TIME for
                        c in self.REPR_DAYS)
@@ -1711,7 +1672,7 @@ class AirSourceHeatPump(VariableComponent):
         :return:
         """
         cost = self.params[
-            'elec_cost']  # cost consumed heat source (fuel/electricity)
+            'cost_elec']  # cost consumed heat source (fuel/electricity)
         eta = self.block.COP
         if self.repr_days is None:
             return sum(cost.v(t) / eta[t] * self.get_heat(t) / 3600 * self.params[
@@ -1730,7 +1691,7 @@ class AirSourceHeatPump(VariableComponent):
         :return:
         """
         cost = self.params[
-            'elec_cost']  # cost consumed heat source (fuel/electricity)
+            'cost_elec']  # cost consumed heat source (fuel/electricity)
         eta = self.block.COP
 
         if self.repr_days is None:
@@ -1752,14 +1713,12 @@ class AirSourceHeatPump(VariableComponent):
         """
 
         eta = self.block.COP
-        pef = self.params['PEF'].v()
-        co2 = self.params[
-            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2 = self.params['CO2_elec']  # CO2 emission per kWh of heat source (fuel/electricity)
         if self.repr_days is None:
-            return sum(co2 * pef / eta[t] * self.get_heat(t) * self.params[
+            return sum(co2.v(t) / eta[t] * self.get_heat(t) * self.params[
                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
-            return sum(self.repr_count[c] * co2 * pef / eta[t, c] * self.get_heat(t, c) *
+            return sum(self.repr_count[c] * co2.v(t, c) / eta[t, c] * self.get_heat(t, c) *
                        self.params[
                            'time_step'].v() / 3600 / 1000 for t in self.TIME for
                        c in
@@ -1777,20 +1736,19 @@ class AirSourceHeatPump(VariableComponent):
         """
 
         eta = self.block.COP
-        pef = self.params['PEF'].v()
         co2 = self.params[
-            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+            'CO2_elec']  # CO2 emission per kWh of heat source (fuel/electricity)
         co2_price = self.params['CO2_price']
 
         if self.repr_days is None:
             return sum(
-                co2_price.v(t) * co2 * pef / eta[t] * self.get_heat(t) * self.params[
+                co2_price.v(t) * co2.v(t) / eta[t] * self.get_heat(t) * self.params[
                     'time_step'].v() / 3600 / 1000 for t in
                 self.TIME)
         else:
             return sum(
-                co2_price.v(t, c) * co2 * pef / eta[t, c] * self.get_heat(t, c
-                                                                          ) * self.params[
+                co2_price.v(t, c) * co2.v(t, c) / eta[t, c] * self.get_heat(t, c
+                                                                                  ) * self.params[
                     'time_step'].v() / 3600 / 1000 for t in
                 self.TIME for c in self.REPR_DAYS)
 
@@ -1844,22 +1802,22 @@ class GeothermalHeating(VariableComponent):
                                                   description='Supply temperature to the network', mutable=False),
             'temperature_return': DesignParameter('temperature_return', unit='K',
                                                   description='Return temperature from the network', mutable=False),
-            'PEF': DesignParameter('PEF',
-                                   'Factor to convert heat source to primary energy',
-                                   '-'),
-            'CO2': DesignParameter('CO2',
-                                   'amount of CO2 released when using primary energy source',
-                                   'kg/kWh'),
-            'elec_cost': UserDataParameter('elec_cost',
+            'PEF_elec': DesignParameter('PEF_elec',
+                                        'Factor to convert heat source to primary energy',
+                                        '-'),
+            'CO2_elec': DesignParameter('CO2_elec',
+                                        'amount of CO2 released when using primary energy source',
+                                        'kg/kWh'),
+            'cost_elec': UserDataParameter('cost_elec',
                                            'cost of fuel to generate heat',
                                            'euro/kWh'),
             'Qnom': DesignParameter('Qnom',
                                     'Nominal fixed heat output',
                                     'W',
                                     mutable=True),
-            'CO2_price': UserDataParameter('CO2_price',
-                                           'CO2 price',
-                                           'euro/kg CO2')
+            'CO2_price': DesignParameter('CO2_price',
+                                         'CO2 price',
+                                         'euro/kg CO2')
         })
 
         return params
@@ -1935,15 +1893,16 @@ class GeothermalHeating(VariableComponent):
         """
 
         eta = self.params['efficiency'].v()
-        pef = self.params['PEF'].v()
+        pef = self.params['PEF']
 
         if self.repr_days is None:
-            return pef / eta * self.block.Qnom * sum(self.params[
-                                                         'time_step'].v() / 3600 / 1000 for t in self.TIME)
+            return 1 / eta * self.block.Qnom * sum(pef.v(t) * self.params[
+                'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
-            return pef / eta * self.block.Qnom * sum(
-                self.repr_count[c] * self.params['time_step'].v() / 3600 / 1000 for t in self.TIME for c in
-                self.REPR_DAYS)
+            return 1 / eta * self.block.Qnom * sum(pef.v(t, c) *
+                                                   self.repr_count[c] * self.params['time_step'].v() / 3600 / 1000 for t
+                                                   in self.TIME for c in
+                                                   self.REPR_DAYS)
 
     def obj_fuel_cost(self):
         """
@@ -1953,7 +1912,7 @@ class GeothermalHeating(VariableComponent):
         :return:
         """
         cost = self.params[
-            'elec_cost']  # cost consumed heat source (fuel/electricity)
+            'cost_elec']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
         if self.repr_days is None:
             return self.block.Qnom * sum(cost.v(t) / eta / 3600 * self.params[
@@ -1972,14 +1931,12 @@ class GeothermalHeating(VariableComponent):
         """
         # TODO this needs to be checked
         eta = self.params['efficiency'].v()
-        pef = self.params['PEF'].v()
-        co2 = self.params[
-            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2 = self.params['CO2_elec']  # CO2 emission per kWh of heat source (fuel/electricity)
         if self.repr_days is None:
-            return sum(co2 / eta * self.block.Qnom * self.params[
+            return sum(co2.v(t) / eta * self.block.Qnom * self.params[
                 'time_step'].v() / 3600 / 1000 for t in self.TIME)
         else:
-            return sum(self.repr_count[c] * co2 / eta * self.block.Qnom *
+            return sum(self.repr_count[c] * co2.v(t, c) / eta * self.block.Qnom *
                        self.params[
                            'time_step'].v() / 3600 / 1000 for t in self.TIME for
                        c in
@@ -1994,19 +1951,18 @@ class GeothermalHeating(VariableComponent):
         """
         # TODO check this
         eta = self.params['efficiency'].v()
-        pef = self.params['PEF'].v()
         co2 = self.params[
-            'CO2'].v()  # CO2 emission per kWh of heat source (fuel/electricity)
-        co2_price = self.params['CO2_price']
+            'CO2_elec']  # CO2 emission per kWh of heat source (fuel/electricity)
+        co2_price = self.params['CO2_price'].v()
 
         if self.repr_days is None:
             return sum(
-                co2_price.v(t) * co2 / eta * self.block.Qnom * self.params[
+                co2_price * co2.v(t) / eta * self.block.Qnom * self.params[
                     'time_step'].v() / 3600 / 1000 for t in
                 self.TIME)
         else:
             return sum(
-                co2_price.v(t, c) * co2 / eta * self.block.Qnom * self.params[
+                co2_price * co2.v(t, c) / eta * self.block.Qnom * self.params[
                     'time_step'].v() / 3600 / 1000 for t in
                 self.TIME for c in self.REPR_DAYS)
 
@@ -2292,9 +2248,9 @@ class StorageVariable(VariableComponent):
                                       'm3',
                                       mutable=True),
             'stor_type': DesignParameter('stor_type',
-                                    'Pit (0) or tank (1)',
-                                    '-',
-                                    mutable=False),
+                                         'Pit (0) or tank (1)',
+                                         '-',
+                                         mutable=False),
             'heat_stor': StateParameter(name='heat_stor',
                                         description='Heat stored in the thermal storage unit',
                                         unit='kWh',
