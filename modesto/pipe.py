@@ -6,13 +6,11 @@ from math import pi
 
 import numpy as np
 import pandas as pd
-from pkg_resources import resource_filename
-from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
-
 from modesto.component import Component
 from modesto.parameter import DesignParameter, StateParameter, UserDataParameter, \
-    WeatherDataParameter, \
-    TimeSeriesParameter
+    WeatherDataParameter
+from pkg_resources import resource_filename
+from pyomo.core.base import Param, Var, Constraint, Set, NonNegativeReals
 
 CATALOG_PATH = resource_filename('modesto', 'Data/PipeCatalog')
 
@@ -119,8 +117,8 @@ class Pipe(Component):
                                         '-',
                                         val=0.9),
             'cost_elec': UserDataParameter('cost_elec',
-                                             'Electricity cost, used for pumping power',
-                                             'EUR/kWh'),
+                                           'Electricity cost, used for pumping power',
+                                           'EUR/kWh'),
             'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
                                         mutable=False, val=30),
             'fix_maint': DesignParameter('fix_maint', unit='-',
@@ -279,7 +277,7 @@ class ExtensivePipe(Pipe):
         self.hl_setting = .7233  # Fraction of max mass flow where heat losses are equal to nominal value
         # 0.7233 is the middle of the economic flow rates according to IsoPlus, taken as average over all diameters
 
-        self.n_pump_constr = 8  # Number of linear pieces in pumping power approximation
+        self.n_pump_constr = 5  # Number of linear pieces in pumping power approximation
 
         self.params['temperature_supply'] = DesignParameter(
             'temperature_supply', 'Supply temperature', 'K',
@@ -309,7 +307,6 @@ class ExtensivePipe(Pipe):
             self.mflo_max = 0
             self.f = 0
 
-
         Te = self.params["Te"]
 
         self.temp_sup = self.params['temperature_supply'].v()
@@ -324,7 +321,7 @@ class ExtensivePipe(Pipe):
                 for t in self.TIME:
                     if self.dn is not 0:
                         self.block.heat_loss_nom[t] = (self.temp_sup + self.temp_ret - 2 *
-                                                   Te.v(t)) / Rs
+                                                       Te.v(t)) / Rs
                     else:
                         self.block.heat_loss_nom[t] = 0
 
@@ -333,7 +330,7 @@ class ExtensivePipe(Pipe):
                     for c in self.REPR_DAYS:
                         if self.dn is not 0:
                             self.block.heat_loss_nom[t, c] = (self.temp_sup + self.temp_ret - 2 *
-                                                          Te.v(t, c)) / Rs
+                                                              Te.v(t, c)) / Rs
                         else:
                             self.block.heat_loss_nom[t, c] = 0
         else:
@@ -455,27 +452,19 @@ class ExtensivePipe(Pipe):
 
             def _eq_heat_loss(b, t, c=None):
                 if self.repr_days is None:
-                    if self.dn is not 0:
-                        return b.heat_loss_tot[t] == b.heat_loss_nom[t] * \
-                               b.mass_flow_abs[t] / (
-                                       self.hl_setting * b.mass_flow_max) * self.length
-                    else:
-                        return b.heat_loss_tot[t] == 0
+                    return b.heat_loss_tot[t] * (self.hl_setting * b.mass_flow_max) == b.heat_loss_nom[t] * \
+                           b.mass_flow_abs[t] * self.length
                 else:
-                    if self.dn is not 0:
-                        return b.heat_loss_tot[t, c] == b.heat_loss_nom[t, c] * \
-                               b.mass_flow_abs[t, c] / (
-                                       self.hl_setting * b.mass_flow_max) * self.length
-                    else:
-                        return b.heat_loss_tot[t, c] == 0
+                    return b.heat_loss_tot[t, c] * (self.hl_setting * b.mass_flow_max) == b.heat_loss_nom[t, c] * \
+                           b.mass_flow_abs[t, c] * self.length
 
             if self.repr_days is None:
                 self.block.eq_heat_loss = Constraint(self.TIME,
                                                      rule=_eq_heat_loss)
             else:
                 self.block.eq_heat_loss = Constraint(self.TIME,
-                                                          self.REPR_DAYS,
-                                                          rule=_eq_heat_loss)
+                                                     self.REPR_DAYS,
+                                                     rule=_eq_heat_loss)
 
             self.construct_pumping_constraints()
 
@@ -516,8 +505,11 @@ class ExtensivePipe(Pipe):
 
         if self.compiled:
             for n in self.n_pump:
-                self.block.pps[n] = 2 * self.f * self.length * (
-                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
+                if self.dn is not 0:
+                    self.block.pps[n] = 2 * self.f * self.length * (
+                            self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (di ** 5 * 983 ** 2 * pi ** 2)
+                else:
+                    self.block.pps[n] = 0
         else:
             n_segments = self.n_pump_constr
             self.n_pump = range(n_segments + 1)
@@ -525,9 +517,12 @@ class ExtensivePipe(Pipe):
             self.block.pps = Param(self.n_pump, mutable=True)
 
             for n in self.n_pump:
-                self.block.pps[n] = 2 * self.f * self.length * (
-                        self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (
-                                            di ** 5 * 983 ** 2 * pi ** 2)
+                if self.dn is not 0:
+                    self.block.pps[n] = 2 * self.f * self.length * (
+                            self.mfs_ratio[n] * self.mflo_max) ** 3 * 8 / (
+                                                di ** 5 * 983 ** 2 * pi ** 2)
+                else:
+                    self.block.pps[n] = 0
 
             if self.repr_days:
                 self.block.pumping_power = Var(self.TIME, self.REPR_DAYS,
@@ -538,25 +533,17 @@ class ExtensivePipe(Pipe):
             for i in range(n_segments):
                 def _ineq_pumping(b, t, c=None):
                     if self.repr_days is None:
-                        if self.dn is not 0:
-                            return b.pumping_power[t] >= (
-                                    b.mass_flow_abs[t] / b.mass_flow_max -
-                                    self.mfs_ratio[
-                                        i]) / (
-                                           self.mfs_ratio[i + 1] - self.mfs_ratio[
-                                       i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
-                        else:
-                            return b.pumping_power[t] == 0
+                        return b.pumping_power[t] * b.mass_flow_max >= (
+                                b.mass_flow_abs[t] - b.mass_flow_max * self.mfs_ratio[i]) / (
+                                           self.mfs_ratio[i + 1] - self.mfs_ratio[i]) * (
+                                           b.pps[i + 1] - b.pps[i]) + b.mass_flow_max * b.pps[i]
+
                     else:
-                        if self.dn is not 0:
-                            return b.pumping_power[t, c] >= (
-                                    b.mass_flow_abs[t, c] / b.mass_flow_max -
-                                    self.mfs_ratio[
-                                        i]) / (
-                                           self.mfs_ratio[i + 1] - self.mfs_ratio[
-                                       i]) * (b.pps[i + 1] - b.pps[i]) + b.pps[i]
-                        else:
-                            return b.pumping_power[t, c] == 0
+                        return b.pumping_power[t, c] *  b.mass_flow_max >= (
+                                b.mass_flow_abs[t, c] -  b.mass_flow_max * self.mfs_ratio[
+                                    i]) / (
+                                       self.mfs_ratio[i + 1] - self.mfs_ratio[
+                                   i]) * (b.pps[i + 1] - b.pps[i]) +  b.mass_flow_max * b.pps[i]
 
                 if self.repr_days is None:
                     self.block.add_component('ineq_pumping_' + str(i),
