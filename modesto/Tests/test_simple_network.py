@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import networkx as nx
 import pandas as pd
 from pkg_resources import resource_filename
@@ -6,6 +7,8 @@ from collections import OrderedDict
 
 import modesto.utils as ut
 from modesto.main import Modesto
+
+mpl.style.use('seaborn')
 
 mults = ut.read_file(resource_filename(
     'modesto', 'Data/HeatDemand'), name='TEASER_number_of_buildings.csv', timestamp=False)
