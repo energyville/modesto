@@ -3,7 +3,10 @@ import matplotlib as mpl
 import networkx as nx
 import pandas as pd
 from pkg_resources import resource_filename
+import pickle
 from collections import OrderedDict
+import datetime
+import os
 
 import modesto.utils as ut
 from modesto.main import Modesto
@@ -15,12 +18,32 @@ mults = ut.read_file(resource_filename(
 
 
 def run_genk():
-    genk(horizon=48*3600,
-         time_step=5*60,
-         start_time=pd.Timestamp('20140101'),
-         n_neighs=9,
-         case='cost'
-        )
+
+    horizon = 48*3600
+    time_step = 5*60
+    start_time = pd.Timestamp('20140101')
+    n_neighs = 2
+    case = 'energy'
+
+    results = genk(horizon=horizon,
+                   time_step=time_step,
+                   start_time=start_time,
+                   n_neighs=n_neighs,
+                   case=case
+                   )
+
+    # results_ref = genk(horizon=horizon,
+    #                    time_step=time_step,
+    #                    start_time=start_time,
+    #                    n_neighs=n_neighs,
+    #                    case='energy'
+    #                    )
+    #
+    # fig, axarr = plt.subplots(1, 1)
+    # axarr.plot(results['prod_hf'] - results_ref['prod_hf'])
+    # axarr.set_title('Response function')
+    #
+    # save_plot(n_neighs, time_step, horizon, case, fig, 'Response')
 
 
 def genk(horizon, time_step, start_time, n_neighs, case):
@@ -94,7 +117,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
         diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350, 200, 200]
         # diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350, 200, 200]
     else:
-        diameters = [800, 250, 350, 600, 200, 300, 600, 200, 500, 400, 350, 300, 200, 250]
+        diameters = [700, 250, 350, 600, 200, 300, 600, 200, 500, 400, 350, 300, 200, 250]
         # diameters = [700, 250, 350, 600, 200, 300, 600, 200, 500, 400, 350, 300, 200, 250]
 
     pipes = []
@@ -293,7 +316,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
                    'Qmax': 1.5e12,
                    'ramp_cost': 0,
                    'CO2_price': c_f,
-                   'temperature_max': 90 + 273.15,
+                   'temperature_max': 67 + 273.15,
                    'temperature_min': 57 + 273.15,
                    'temperature_supply_0': Tinit,
                    'temperature_return_0': Tinit-20,
@@ -399,41 +422,8 @@ def genk(horizon, time_step, start_time, n_neighs, case):
 
     title = 'Horizon: {}h, Time step: {}, Neighbourhoods: {}, case: {}'.format(horizon/3600, time_step, n_neighs, case)
 
-    fig, ax = plt.subplots(1, 1)
-    ax.plot(prod_hf, label='Producer')
-    ax.plot(neigh_hf.sum(axis=1), label='All users')
-    for n in range(n_neighs):
-        ax.plot(neigh_hf[neighs[n]], label=neighs[n])
-    ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
-    ax.set_title('Heat flows [W]')
-    ax.legend()
-    fig.suptitle(title)
-    # fig.tight_layout()
-
-    fig1, axarr = plt.subplots(1, 1)
-    axarr.plot(prod_mf, label='Producer')
-    for neigh in [neighs[i] for i in range(n_neighs)]:
-        axarr.plot(neigh_mf[neigh], label=neigh)
-    axarr.plot(neigh_mf.sum(axis=1), label='all users')
-    axarr.set_title('Mass flows network')
-    axarr.legend()
-    fig1.suptitle(title)
-    # fig1.tight_layout()
-
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
               '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-
-    fig2, axarr = plt.subplots(1, 1)
-    axarr.plot(prod_T_sup, label='Producer Supply', color=colors[0])
-    axarr.plot(prod_T_ret, label='Producer Return', linestyle='--', color=colors[0])
-    for i in range(n_neighs):
-        neigh = neighs[i]
-        axarr.plot(neigh_T_sup[neigh], label='{} Supply'.format(neigh), color=colors[i+1])
-        axarr.plot(neigh_T_ret[neigh], label='{} Return'.format(neigh), linestyle='--', color=colors[i+1])
-    axarr.legend()
-    axarr.set_title('Network temperatures')
-    fig2.suptitle(title)
-    # fig2.tight_layout()
 
     fig3, axarr = plt.subplots(3, 2)
     for n in range(n_neighs):
@@ -510,21 +500,20 @@ def genk(horizon, time_step, start_time, n_neighs, case):
     # fig4.tight_layout()
 
     if flag:
-        save_plot(n_neighs, time_step, horizon, case, fig, 'HeatFlows')
-        save_plot(n_neighs, time_step, horizon, case, fig1, 'MassFlows')
-        save_plot(n_neighs, time_step, horizon, case, fig2, 'Temperatures')
         save_plot(n_neighs, time_step, horizon, case, fig3, 'HEx')
         save_plot(n_neighs, time_step, horizon, case, fig4, 'SpeedCourant')
         save_plot(n_neighs, time_step, horizon, case, fig5, 'Synthesis')
 
+        base_name = '{}N_{}s_{}h_{}_'.format(n_neighs, time_step, int(horizon / 3600), case)
+        save_obj(results, base_name)
         return results
     else:
         return None
 
 
 def save_plot(n_neighs, time_step, horizon, case, fig, fig_name):
-    import datetime
-    import os
+    title = 'Horizon: {}h, Time step: {}, Neighbourhoods: {}, case: {}'.format(horizon/3600, time_step, n_neighs, case)
+
     date = datetime.datetime.today().strftime('%Y%m%d')
     base_name = '{}N_{}s_{}h_{}_'.format(n_neighs, time_step, int(horizon / 3600), case)
 
@@ -533,8 +522,23 @@ def save_plot(n_neighs, time_step, horizon, case, fig, fig_name):
     if not os.path.isdir(os.path.join(path, date)):
         os.mkdir(os.path.join(path, date))
 
+    fig.suptitle(title)
     fig.savefig(os.path.join(path, date, base_name + fig_name + '.svg'))
     fig.savefig(os.path.join(path, date, base_name + fig_name + '.pdf'))
+
+
+def save_obj(obj, name):
+    date = datetime.datetime.today().strftime('%Y%m%d')
+
+    with open(os.path.join(date, name + '.pickle'), 'wb') as handle:
+        pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def load_obj(path, name):
+    with open(os.path.join(path, name + '.pickle'), 'rb') as handle:
+        b = pickle.load(handle)
+
+    return b
 
 
 def add_result(results, name, new_result):
