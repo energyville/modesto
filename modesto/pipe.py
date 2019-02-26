@@ -386,9 +386,11 @@ class FiniteVolumePipe(Pipe):
         dt = self.params['time_step'].v()
         co = self.params['Courant'].v()
 
-        dmax = 20
+        dmax = 100
         l_vol = vmax * dt / co
-        self.n_volumes = math.ceil(self.length / l_vol)
+        self.n_volumes = int(self.length / l_vol)
+        if self.n_volumes == 0:
+            self.n_volumes = 1
         print('{} has {} volumes, one element has a length of {}'.format(self.name, self.n_volumes, self.length/self.n_volumes))
 
     def create_params(self):
@@ -449,7 +451,8 @@ class FiniteVolumePipe(Pipe):
         # Parameters
         Rs = self.Rs[self.params['diameter'].v()]  # TODO self.add_opti_param('Rs')
         Di = self.add_opti_param('Di')
-        l_vol = self.length/self.n_volumes
+        l_vol = self.add_opti_param('l_volumes')
+        self.opti.set_value(l_vol, self.length/self.n_volumes)
         Tg = self.params['Tg'].v()
         m_vol = self.rho * l_vol * pi*Di**2/4
         dt = self.params['time_step'].v()
@@ -482,14 +485,7 @@ class FiniteVolumePipe(Pipe):
                 self.opti.subject_to(F(Tsi, Tsup[v, t-1], mf[t]) == Tsup[v, t])
                 self.opti.subject_to(F(Tri, Tret[v, t-1], mf[t]) == Tret[v, t])
 
-                # self.opti.subject_to(self.cp * m_vol*(Tsup[v, t] - Tsup[v, t - 1]) / self.heat_sf ==
-                #     (self.cp * mf[t] * (Tsi - Tsup[v, t]) - (Tsup[v, t] - Tg[t]) * l_vol / Rs) * dt / self.heat_sf)
-                # self.opti.subject_to(self.cp * m_vol*(Tret[v, t] - Tret[v, t - 1]) / self.heat_sf ==
-                #     (self.cp * mf[t] * (Tri - Tret[v, t]) - (Tret[v, t] - Tg[t]) * l_vol / Rs) * dt / self.heat_sf)
-
-        #self.opti.subject_to(Tsup[-1, :].T >= Tret_in + 1)
-        # self.opti.subject_to(Tsup_in >= 50+273.15)
-        # self.opti.subject_to(Tret_in <= 40+273.15)
+        self.add_eq('speed', mf/pi/Di**2*4/self.rho)
 
         self.compiled = True
 
