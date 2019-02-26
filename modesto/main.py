@@ -309,7 +309,8 @@ class Modesto:
         :return:
         """
 
-        self.objectives = ['energy', 'cost', 'cost_ramp', 'co2', 'cost_fuel_co2', 'slack', 'temp', 'follow']
+        self.objectives = ['energy', 'cost', 'cost_ramp', 'co2', 'cost_fuel_co2',
+                           'slack', 'temp', 'follow_heat', 'follow_temp']
 
         slack = sum(comp.obj_slack() for comp in self.iter_components())
 
@@ -320,23 +321,25 @@ class Modesto:
         obj = self.opti.variable()
 
         if objtype == 'energy':
-            self.opti.subject_to(obj == sum(comp.obj_energy() for comp in self.iter_components()))
+            obj = sum(comp.obj_energy() for comp in self.iter_components())
         elif objtype == 'cost':
-            self.opti.subject_to(obj == sum(comp.obj_fuel_cost() + comp.obj_elec_cost()
-                                                 for comp in self.iter_components()))
+            obj = sum(comp.obj_fuel_cost() + comp.obj_elec_cost()
+                                                 for comp in self.iter_components())
         elif objtype == 'cost_ramp':
-            self.opti.subject_to(obj == sum(comp.obj_cost_ramp() for comp in self.iter_components()))
+            obj = sum(comp.obj_cost_ramp() for comp in self.iter_components())
         elif objtype == 'co2':
-            self.opti.subject_to(obj == sum(comp.obj_co2() for comp in self.iter_components()))
+            obj = sum(comp.obj_co2() for comp in self.iter_components())
         elif objtype == 'cost_fuel_co2':
-            self.opti.subject_to(obj == sum(comp.obj_co2_cost() + comp.obj_fuel_cost()
-                                                          for comp in self.iter_components()))
+            obj = sum(comp.obj_co2_cost() + comp.obj_fuel_cost()
+                                                          for comp in self.iter_components())
         elif objtype == 'slack':
-            self.opti.subject_to(obj == 0)
+            obj = 0
         elif objtype == 'temp':
-            self.opti.subject_to(obj == sum(comp.obj_temp() for comp in self.iter_components()))
-        if objtype == 'follow':
-            self.opti.subject_to(obj == sum(comp.obj_follow() for comp in self.iter_components()))
+            obj = sum(comp.obj_temp() for comp in self.iter_components())
+        elif objtype == 'follow_temp':
+            obj = sum(comp.obj_follow_temp() for comp in self.iter_components())
+        elif objtype == 'follow_heat':
+            obj = sum(comp.obj_follow_heat() for comp in self.iter_components())
 
         self.opti.minimize(obj + slack)
         self.act_objective = objtype
@@ -435,6 +438,8 @@ class Modesto:
         for x in x_describe:
             print(self.opti.debug.x_describe(x))
         print('\nTime to solve: ', time.time() - t0, '\n')
+
+        return self.successful
 
         # if solver == 'gurobi':
         #     # opt.options["Crossover"] = 0

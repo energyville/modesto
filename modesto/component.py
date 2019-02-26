@@ -1297,7 +1297,11 @@ class Plant(VariableComponent):
             'heat_estimate': UserDataParameter('heat_estimate',
                                                'W',
                                                'Estimate of heat flows to be delivered by plant',
-                                               val=0)
+                                               val=0),
+            'temperature_profile': UserDataParameter('temperature_profile',
+                                                     'K',
+                                                     'Profile of a prescribed temperature profile',
+                                                     val=0)
         })
 
         return params
@@ -1358,6 +1362,12 @@ class Plant(VariableComponent):
 
     def set_parameters(self):
         Submodel.set_parameters(self)
+
+        # Initial guess
+        # self.opti.set_initial(self.get_value('Tsup'), self.params['temperature_supply_0'].v())
+        # self.opti.set_initial(self.get_value('Tret'), self.params['temperature_return_0'].v())
+        # if isinstance(self.params['heat_estimate'].v(), list):
+        #     self.opti.set_initial(self.get_value('heat_flow'), self.params['heat_estimate'].v())
 
     def get_ramp_cost(self, t, c=None):
         # TODO No ramping
@@ -1452,8 +1462,11 @@ class Plant(VariableComponent):
                        c in
                        self.REPR_DAYS)
 
-    def obj_follow(self):
+    def obj_follow_heat(self):
         return sum(((self.get_heat(t) - self.params['heat_estimate'].v(t)) / self.heat_sf)**2 for t in self.TIME)
+
+    def obj_follow_temp(self):
+        return sum((self.get_temperature('supply', t) - self.params['temperature_profile'].v(t))**2 for t in self.TIME)
 
     def obj_fuel_cost(self):
         """
