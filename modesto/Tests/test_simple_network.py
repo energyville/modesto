@@ -1239,8 +1239,8 @@ def test_genk():
                    'CO2_price': c_f,
                    'temperature_max': 90 + 273.15,
                    'temperature_min': 57 + 273.15,
-                   'temperature_supply_0': 65 + 273.15,
-                   'temperature_return_0': 30 + 273.15,
+                   'temperature_supply_0': 57 + 273.15,
+                   'temperature_return_0': 37 + 273.15,
                    'heat_estimate': heat_profile['WaterscheiGarden'] + heat_profile['ZwartbergNEast']}
 
     optmodel.change_params(prod_design, 'Producer', 'plant')
