@@ -325,7 +325,16 @@ class Submodel(object):
 
         return slack
 
-    def obj_follow(self):
+    def obj_follow_heat(self):
+        """
+        Yield summation of all slacks in the component
+
+        :return:
+        """
+
+        return 0
+
+    def obj_follow_temp(self):
         """
         Yield summation of all slacks in the component
 
