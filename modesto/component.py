@@ -638,7 +638,7 @@ class SubstationepsNTU(Substation):
         # Radiator
         mf_sec = self.get_opti_param('mf_sec')
         hf = self.get_opti_param('heat_flow')
-        Tssup = self.params['temperature_radiator_out'].v()
+        Tsret = self.params['temperature_radiator_out'].v()
 
         # Heat exchanger
         Tpsup = self.get_value('Tpsup')
@@ -667,7 +667,7 @@ class SubstationepsNTU(Substation):
         else:
             hf_slack = 0
 
-        self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == eps * Cmin * (Tpsup - Tssup) / self.heat_sf)
+        self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == eps * Cmin * (Tpsup - Tsret) / self.heat_sf)
         self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == mf_prim * self.cp * (Tpsup-Tpret) / self.heat_sf)
 
         self.logger.info('Optimization model {} {} compiled'.
