@@ -647,8 +647,9 @@ class Modesto:
         time = pd.DatetimeIndex(start=self.start_time,
                                 freq=str(self.params['time_step'].v()) + 'S',
                                 periods=n_steps)
-
-        if len(result.shape) == 1:
+        if isinstance(result, float):
+            return result
+        elif len(result.shape) == 1:
             return pd.Series(data=result, index=time, name=name)
         else:
             return pd.DataFrame(data=result.transpose(), index=time)
