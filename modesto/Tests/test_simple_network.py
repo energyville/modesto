@@ -1333,6 +1333,8 @@ def test_genk():
     print('\nNetwork')
     print('Efficiency', (sum(neigh_e)) / (prod_e + 0.00001) * 100, '%')
 
+    title = 'Horizon: {}h, Time step: {}, Neighbourhoods: {}'.format(horizon/3600, time_step, n_neighs)
+
     fig, ax = plt.subplots(1, 1)
     ax.plot(prod_hf, label='Producer')
     ax.plot(neigh_hf.sum(axis=1), label='All users')
@@ -1341,7 +1343,8 @@ def test_genk():
     ax.axhline(y=0, linewidth=2, color='k', linestyle='--')
     ax.set_title('Heat flows [W]')
     ax.legend()
-    fig.tight_layout()
+    fig.suptitle(title)
+    # fig.tight_layout()
 
     fig1, axarr = plt.subplots(1, 1)
     axarr.plot(prod_mf, label='Producer')
@@ -1350,19 +1353,23 @@ def test_genk():
     axarr.plot(neigh_mf.sum(axis=1), label='all users')
     axarr.set_title('Mass flows network')
     axarr.legend()
-    fig1.tight_layout()
+    fig1.suptitle(title)
+    # fig1.tight_layout()
 
-    colors = ['r', 'b', 'g', 'c', 'm', 'y', 'k']
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
     fig2, axarr = plt.subplots(1, 1)
-    axarr.plot(prod_T_sup, label='Producer Supply', color='r')
-    axarr.plot(prod_T_ret, label='Producer Return', linestyle='--', color='r')
-    for neigh in [neighs[i] for i in range(n_neighs)]:
-        axarr.plot(neigh_T_sup[neigh], label='{} Supply'.format(neigh))
-        axarr.plot(neigh_T_ret[neigh], label='{} Return'.format(neigh), linestyle='--')
+    axarr.plot(prod_T_sup, label='Producer Supply', color=colors[0])
+    axarr.plot(prod_T_ret, label='Producer Return', linestyle='--', color=colors[0])
+    for i in range(n_neighs):
+        neigh = neighs[i]
+        axarr.plot(neigh_T_sup[neigh], label='{} Supply'.format(neigh), color=colors[i+1])
+        axarr.plot(neigh_T_ret[neigh], label='{} Return'.format(neigh), linestyle='--', color=colors[i+1])
     axarr.legend()
     axarr.set_title('Network temperatures')
-    fig2.tight_layout()
+    fig2.suptitle(title)
+    # fig2.tight_layout()
 
     fig3, axarr = plt.subplots(3, 2)
     for n in range(n_neighs):
@@ -1388,9 +1395,80 @@ def test_genk():
     axarr[2, 1].set_title('UA')
     axarr[0, 0].legend()
 
-    fig3.suptitle('Heat exchangers')
+    fig3.suptitle(title)
 
-    fig3.tight_layout()
+    # fig3.tight_layout()
+
+    fig4, axarr = plt.subplots(2, 1)
+    axarr[0].set_title('Water speed')
+    axarr[1].set_title('Courant numbers')
+
+    axarr[1].plot_date([neigh_hf.index[0], neigh_hf.index[-1]], [1, 1], color='k', linestyle=':')
+
+    maxspeed = {}
+    for pipe in pipes:
+        pipe_speed = optmodel.get_result('speed', node=None, comp=pipe)
+        pipe_l_volumes = optmodel.get_result('l_volumes', node=None, comp=pipe)
+        courant = pipe_speed*time_step/pipe_l_volumes
+        axarr[0].plot(pipe_speed, label=pipe)
+        axarr[1].plot(courant, label=pipe)
+        axarr[0].legend()
+        maxspeed[pipe] = (max(pipe_speed))
+
+    fig4.suptitle(title)
+
+    fig5, axarr = plt.subplots(3, 1, sharex=True)
+    axarr[0].plot(prod_hf, label='Producer', color=colors[0])
+    axarr[0].plot(neigh_hf.sum(axis=1), label='All users', color='k', linestyle=':')
+    for n in range(n_neighs):
+        axarr[0].plot(neigh_hf[neighs[n]], label=neighs[n], color=colors[n+1])
+    axarr[0].axhline(y=0, linewidth=2, color='k', linestyle=':')
+    axarr[0].set_title('Heat flows [W]')
+    axarr[0].legend()
+
+    axarr[1].plot(prod_mf, label='Producer', color=colors[0])
+    for i in range(n_neighs):
+        neigh = neighs[i]
+        axarr[1].plot(neigh_mf[neigh], label=neigh, color=colors[i+1])
+    axarr[1].plot(neigh_mf.sum(axis=1), label='all users', color='k', linestyle=':')
+    axarr[1].set_title('Mass flows network')
+    axarr[1].legend()
+
+    axarr[2].plot(prod_T_sup, label='Producer Supply', color=colors[0])
+    axarr[2].plot(prod_T_ret, label='Producer Return', linestyle='--', color=colors[0])
+    for i in range(n_neighs):
+        neigh = neighs[i]
+        axarr[2].plot(neigh_T_sup[neigh], label='{} Supply'.format(neigh), color=colors[i + 1])
+        axarr[2].plot(neigh_T_ret[neigh], label='{} Return'.format(neigh), linestyle='--', color=colors[i + 1])
+    axarr[2].legend()
+    axarr[2].set_title('Network temperatures')
+    fig5.suptitle(title)
+
+    print(maxspeed)
+    # fig4.tight_layout()
+
+    import datetime
+    import os
+    date = datetime.datetime.today().strftime('%Y%m%d')
+    base_name = '{}N_{}s_{}h'.format(n_neighs, time_step, int(horizon/3600))
+
+    path = os.path.abspath('../../misc/SpeedUpNonLinear')
+
+    if not os.path.isdir(os.path.join(path, date)):
+        os.mkdir(os.path.join(path, date))
+
+    fig.savefig(os.path.join(path, date, base_name + 'HeatFlows.svg'))
+    fig.savefig(os.path.join(path, date, base_name + 'HeatFlows.pdf'))
+    fig1.savefig(os.path.join(path, date, base_name + 'MassFlows.svg'))
+    fig1.savefig(os.path.join(path, date, base_name + 'MassFlows.pdf'))
+    fig2.savefig(os.path.join(path, date, base_name + 'Temperatures.svg'))
+    fig2.savefig(os.path.join(path, date, base_name + 'Temperatures.pdf'))
+    fig3.savefig(os.path.join(path, date, base_name + 'HEx.svg'))
+    fig3.savefig(os.path.join(path, date, base_name + 'HEx.pdf'))
+    fig4.savefig(os.path.join(path, date, base_name + 'SpeedCourant.svg'))
+    fig4.savefig(os.path.join(path, date, base_name + 'SpeedCourant.pdf'))
+    fig5.savefig(os.path.join(path, date, base_name + 'Synthesis.svg'))
+    fig5.savefig(os.path.join(path, date, base_name + 'Synthesis.pdf'))
 
 if __name__ == '__main__':
     # test_simple_network_building_fixed()
