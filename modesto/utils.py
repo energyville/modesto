@@ -90,7 +90,10 @@ def resample(df, new_sample_time, old_sample_time=None, method=None):
     if (new_sample_time == old_sample_time) or (new_sample_time is None):
         return df
     else:
-        if method == 'pad' or new_sample_time < old_sample_time:
+        if method == 'interpolate':
+            upsampled = df.resample(str(new_sample_time) + 'S')
+            return upsampled.interpolate(method='linear')
+        elif method == 'pad' or new_sample_time < old_sample_time:
             return df.resample(str(new_sample_time) + 'S').pad()
         elif method == 'sum':
             return df.resample(str(new_sample_time) + 'S').sum()
