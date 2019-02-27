@@ -621,7 +621,7 @@ class SubstationepsNTU(Substation):
         self.add_opti_param('heat_flow', self.n_steps)
 
         mf_prim = self.add_var('mf_prim', self.n_steps)
-        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 10))
+        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 0.3))
 
         self.add_var('Tpsup', self.n_steps)
         self.add_var('Tpret', self.n_steps)
@@ -1340,23 +1340,13 @@ class Plant(VariableComponent):
         Tmax = self.get_opti_param('temperature_max')
         Tmin = self.get_opti_param('temperature_min')
 
-        # Initial guess
-        self.opti.set_initial(Tsup, self.params['temperature_min'].v())
-        self.opti.set_initial(Tret, self.params['temperature_min'].v()-30)
-        if isinstance(self.params['heat_estimate'].v(), list):
-            self.opti.set_initial(hf, self.params['heat_estimate'].v())
-
         # Energy balance
         self.opti.subject_to(hf / self.heat_sf == mf * self.cp * (Tsup - Tret) / self.heat_sf) #
 
         # Limits
         # TODO Add heat limits
-        # self.opti.subject_to(self.opti.bounded(0, hf, inf))
-
-        # TODO eave it like this?
+        # self.opti.subject_to(self.opti.bounded(1e-1, hf, inf))
         self.opti.subject_to(self.opti.bounded(Tmin, Tsup, Tmax))
-        # self.opti.subject_to(Tsup >= Tmin)
-        # self.opti.subject_to(Tsup <= Tmax)
 
         self.compiled = True
 
@@ -1364,10 +1354,10 @@ class Plant(VariableComponent):
         Submodel.set_parameters(self)
 
         # Initial guess
-        # self.opti.set_initial(self.get_value('Tsup'), self.params['temperature_supply_0'].v())
-        # self.opti.set_initial(self.get_value('Tret'), self.params['temperature_return_0'].v())
-        # if isinstance(self.params['heat_estimate'].v(), list):
-        #     self.opti.set_initial(self.get_value('heat_flow'), self.params['heat_estimate'].v())
+        self.opti.set_initial(self.get_value('Tsup'), self.params['temperature_supply_0'].v())
+        self.opti.set_initial(self.get_value('Tret'), self.params['temperature_return_0'].v())
+        if isinstance(self.params['heat_estimate'].v(), np.ndarray):
+            self.opti.set_initial(self.get_value('heat_flow'), self.params['heat_estimate'].v())
 
     def get_ramp_cost(self, t, c=None):
         # TODO No ramping
@@ -1455,7 +1445,7 @@ class Plant(VariableComponent):
         time_step = self.params['time_step'].v()
 
         if self.repr_days is None:
-            return sum((pef / eta * time_step * self.get_heat(t)) for t in self.TIME) # pef / eta * * time_step * self.cf
+            return sum((pef / eta * time_step * self.get_heat(t))/self.n_steps/time_step for t in self.TIME) # pef / eta * * time_step * self.cf
         else:
             return sum(self.repr_count[c] * pef / eta * (self.get_heat(t, c)) *
                        time_step for t in self.TIME for
@@ -1466,7 +1456,7 @@ class Plant(VariableComponent):
         return sum(((self.get_heat(t) - self.params['heat_estimate'].v(t)) / self.heat_sf)**2 for t in self.TIME)
 
     def obj_follow_temp(self):
-        return sum((self.get_temperature('supply', t) - self.params['temperature_profile'].v(t))**2 for t in self.TIME)
+        return sum((self.get_temperature('supply', t) - self.params['temperature_profile'].v(t))**2/self.n_steps for t in self.TIME)
 
     def obj_fuel_cost(self):
         """

@@ -318,8 +318,7 @@ class Modesto:
             raise ValueError('Choose an objective type from {}'.format(
                 self.objectives.keys()))
 
-        obj = self.opti.variable()
-
+        obj = 0
         if objtype == 'energy':
             obj = sum(comp.obj_energy() for comp in self.iter_components())
         elif objtype == 'cost':

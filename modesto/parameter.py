@@ -464,7 +464,7 @@ class TimeSeriesParameter(Parameter):
         :return:
         """
         if self.time_data:  # TODO This is a TimeSeries Parameter, a Boolean indicating whether or not it contains time data should be unnecessary
-            self.value = ut.resample(self.value, new_sample_time=self.time_step)
+            self.value = ut.resample(self.value, new_sample_time=self.time_step, method='interpolate')
 
 
 class UserDataParameter(TimeSeriesParameter):
