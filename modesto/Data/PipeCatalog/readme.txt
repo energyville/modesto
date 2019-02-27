@@ -12,3 +12,8 @@ For double pipes, the following variables are used:
     Do:     Outer diameter of single pipes                  [m]
     h:      Distance between pipe walls                     [m]
     s:      Wall thickness of pipe                          [m]
+
+Twin200Compound1000:
+	Friction factor assuming fully turbulent flow
+	Maximum ressure drop of 200 Pa/m
+	Max mflow 					    [kg/s]

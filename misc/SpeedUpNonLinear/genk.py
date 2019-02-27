@@ -7,6 +7,7 @@ import pickle
 from collections import OrderedDict
 import datetime
 import os
+import numpy as np
 
 import modesto.utils as ut
 from modesto.main import Modesto
@@ -14,7 +15,7 @@ from modesto.main import Modesto
 mpl.style.use('seaborn')
 
 mults = ut.read_file(resource_filename(
-    'modesto', 'Data/HeatDemand'), name='TEASER_number_of_buildings.csv', timestamp=False)
+    'modesto', 'Data/HeatDemand'), name='TEASER_number_of_buildings.csv', timestamp=False).loc['Number of buildings']
 
 
 def run_genk():
@@ -22,8 +23,8 @@ def run_genk():
     horizon = 48*3600
     time_step = 5*60
     start_time = pd.Timestamp('20140101')
-    n_neighs = 2
-    case = 'energy'
+    n_neighs = 3
+    case = 'cost'
 
     results = genk(horizon=horizon,
                    time_step=time_step,
@@ -77,48 +78,56 @@ def genk(horizon, time_step, start_time, n_neighs, case):
               'Boxbergheide', 'TermienEast', 'TermienWest']
     all_pipes = ['dist_pipe{}'.format(i) for i in range(14)]
 
-    if n_neighs == 1:
-        vmax = [2.82, 0, 2.9]
-    if n_neighs == 2:
-        vmax = [2.82, 1.29, 2.9]
-    if n_neighs == 3:
-        vmax = [2.55, 1.30, 2.94, 1.51, 1.51, 3, 3, 3, 3,
-                3, 3, 3, 3, 3, 3, 3, ]
-    elif n_neighs == 4:
-        vmax = [2.51, 1.3, 2.94, 1.52, 1.5, 1.20]
-    elif n_neighs == 5:
-        vmax = [2.73, 2, 2.94, 2, 2, 2, 2,
-                2, 3, 3, 3, 3, 3, 3, ]
-    elif n_neighs >= 6:
-        vmax = [2, 2, 2, 2, 2, 2, 2,
-                2, 2, 2, 2, 2, 2, 2 ]
+    # if n_neighs == 1:
+    #     vmax = [2.82, 0, 2.9]
+    # if n_neighs == 2:
+    #     vmax = [2.82, 1.29, 2.9]
+    # if n_neighs == 3:
+    #     vmax = [2.55, 1.30, 2.94, 1.51, 1.51, 3, 3, 3, 3,
+    #             3, 3, 3, 3, 3, 3, 3, ]
+    # elif n_neighs == 4:
+    #     vmax = [2.51, 1.3, 2.94, 1.52, 1.5, 1.20]
+    # elif n_neighs == 5:
+    #     vmax = [2.73, 2, 2.94, 2, 2, 2, 2,
+    #             2, 3, 3, 3, 3, 3, 3, ]
+    # elif n_neighs >= 6:
+    #     vmax = [2, 2, 2, 2, 2, 2, 2,
+    #             2, 2, 2, 2, 2, 2, 2 ]
 
-    if n_neighs == 1:
-        diameters = [350, 0, 350]
-    elif n_neighs == 2:
-        diameters = [400, 250, 350]
-        # diameters = [400, 250, 350]
-    elif n_neighs == 3:
-        diameters = [450, 250, 350, 200, 200]
-        # diameters = [450, 250, 350, 200, 200]
-    elif n_neighs == 4:
-        diameters = [500, 250, 350, 350, 200, 300]
-        # diameters = [500, 250, 350, 350, 200, 300]
-    elif n_neighs == 5:
-        diameters = [500, 250, 350, 350, 400, 300, 200, 200]
-        # diameters = [500, 250, 350, 350, 400, 300, 200, 200]
-    elif n_neighs == 6:
-        diameters = [600, 250, 350, 500, 200, 300, 400, 200, 350, 0, 350]
-        # diameters = [600, 250, 350, 500, 200, 300, 400, 200, 350, 0, 350]
-    elif n_neighs == 7:
-        diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350]
-        # diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350]
-    elif n_neighs == 8:
-        diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350, 200, 200]
-        # diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350, 200, 200]
-    else:
-        diameters = [700, 250, 350, 600, 200, 300, 600, 200, 500, 400, 350, 300, 200, 250]
-        # diameters = [700, 250, 350, 600, 200, 300, 600, 200, 500, 400, 350, 300, 200, 250]
+    diameters = size_network(n_neighs)
+
+    print(diameters)
+
+    heat_profile = ut.read_period_data(resource_filename(
+        'modesto', 'Data/HeatDemand'), 'TEASER_GenkNET_per_neighb.csv', time_step, horizon, start_time, method='interpolation', )
+
+    vmax = get_v_max(n_neighs, heat_profile, diameters)
+    # if n_neighs == 1:
+    #     diameters = [350, 0, 350]
+    # elif n_neighs == 2:
+    #     diameters = [400, 250, 350]
+    #     # diameters = [400, 250, 350]
+    # elif n_neighs == 3:
+    #     diameters = [450, 250, 350, 200, 200]
+    #     # diameters = [450, 250, 350, 200, 200]
+    # elif n_neighs == 4:
+    #     diameters = [500, 250, 350, 350, 200, 300]
+    #     # diameters = [500, 250, 350, 350, 200, 300]
+    # elif n_neighs == 5:
+    #     diameters = [500, 250, 350, 350, 400, 300, 200, 200]
+    #     # diameters = [500, 250, 350, 350, 400, 300, 200, 200]
+    # elif n_neighs == 6:
+    #     diameters = [600, 250, 350, 500, 200, 300, 400, 200, 350, 0, 350]
+    #     # diameters = [600, 250, 350, 500, 200, 300, 400, 200, 350, 0, 350]
+    # elif n_neighs == 7:
+    #     diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350]
+    #     # diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350]
+    # elif n_neighs == 8:
+    #     diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350, 200, 200]
+    #     # diameters = [700, 250, 350, 600, 200, 300, 500, 200, 500, 400, 350, 200, 200]
+    # else:
+    #     diameters = [700, 250, 350, 600, 200, 300, 600, 200, 500, 400, 350, 300, 200, 250]
+    #     # diameters = [700, 250, 350, 600, 200, 300, 600, 200, 500, 400, 350, 300, 200, 250]
 
     pipes = []
 
@@ -264,7 +273,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
 
     for n in range(n_neighs):
         neigh = neighs[n]
-        mult = mults[neigh]['Number of buildings']
+        mult = mults[neigh]
         building_params = {
             'mult': mult,
             'heat_flow': heat_profile[neigh] / mult,
@@ -285,8 +294,8 @@ def genk(horizon, time_step, start_time, n_neighs, case):
     ##################################
 
     for i, pipe in enumerate(pipes):
-        pipe_params = {'diameter': diameters[all_pipes.index(pipe)],
-                       'max_speed': vmax[all_pipes.index(pipe)],
+        pipe_params = {'diameter': diameters[pipe],
+                       'max_speed': vmax[pipe],
                        'Courant': 1,
                        'Tg': pd.Series(12+273.15, index=t_amb.index),
                        'Tsup0': Tinit,
@@ -311,7 +320,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
     prod_design = {'efficiency': 1,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'fuel_cost': pd.Series([0.25] * int(n_steps/2) + [0.5] * (n_steps - int(n_steps/2))),
+                   'fuel_cost': pd.Series([1] * int(n_steps/2) + [2] * (n_steps - int(n_steps/2))),
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 1.5e12,
                    'ramp_cost': 0,
@@ -388,11 +397,14 @@ def genk(horizon, time_step, start_time, n_neighs, case):
 
     for n in range(n_neighs):
         neigh = neighs[n]
-        mult = mults[neigh]['Number of buildings']
+        mult = mults[neigh]
         neigh_hf[neigh] = (optmodel.get_result('heat_flow', node=neigh, comp='building')*mult)
         neigh_mf[neigh] = (optmodel.get_result('mf_prim', node=neigh, comp='building')*mult)
+        print(neigh)
+        print(max(neigh_mf[neigh]/mult))
 
     add_result(results, 'neigh_mf', neigh_mf)
+
 
     # Temperatures
     prod_T_sup = add_result(results, 'prod_T_sup', optmodel.get_result('Tsup', node='Producer', comp='plant') - 273.15)
@@ -403,7 +415,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
 
     for n in range(n_neighs):
         neigh = neighs[n]
-        mult = mults[neigh]['Number of buildings']
+        mult = mults[neigh]
         neigh_T_sup[neigh] = (optmodel.get_result('Tpsup', node=neigh, comp='building') - 273.15)
         neigh_T_ret[neigh] = (optmodel.get_result('Tpret', node=neigh, comp='building') - 273.15)
         # slack[neigh] = optmodel.get_result('hf_slack', node=neigh, comp='building')
@@ -540,6 +552,125 @@ def load_obj(path, name):
 
     return b
 
+
+def get_neighs_per_pipe(n_neighs):
+    neighs = ['WaterscheiGarden', 'ZwartbergNEast', 'ZwartbergNWest', 'ZwartbergSouth', 'OudWinterslag', 'Winterslag',
+              'Boxbergheide', 'TermienEast', 'TermienWest']
+    pipes = ['dist_pipe{}'.format(i) for i in range(14)]
+
+    neighs_per_pipe = {pipe: [] for pipe in pipes}
+
+    if n_neighs >= 1:
+        neighs_per_pipe['dist_pipe2'].append(neighs[0])
+        neighs_per_pipe['dist_pipe0'].append(neighs[0])
+    if n_neighs >= 2:
+        neighs_per_pipe['dist_pipe1'].append(neighs[1])
+        neighs_per_pipe['dist_pipe0'].append(neighs[1])
+    if n_neighs >= 3:
+        neighs_per_pipe['dist_pipe4'].append(neighs[2])
+        neighs_per_pipe['dist_pipe3'].append(neighs[2])
+        neighs_per_pipe['dist_pipe0'].append(neighs[2])
+    if n_neighs >= 4:
+        neighs_per_pipe['dist_pipe5'].append(neighs[3])
+        neighs_per_pipe['dist_pipe3'].append(neighs[3])
+        neighs_per_pipe['dist_pipe0'].append(neighs[3])
+    if n_neighs >= 5:
+        neighs_per_pipe['dist_pipe7'].append(neighs[4])
+        neighs_per_pipe['dist_pipe6'].append(neighs[4])
+        neighs_per_pipe['dist_pipe3'].append(neighs[4])
+        neighs_per_pipe['dist_pipe0'].append(neighs[4])
+    if n_neighs >= 6:
+        neighs_per_pipe['dist_pipe10'].append(neighs[5])
+        neighs_per_pipe['dist_pipe8'].append(neighs[5])
+        neighs_per_pipe['dist_pipe6'].append(neighs[5])
+        neighs_per_pipe['dist_pipe3'].append(neighs[5])
+        neighs_per_pipe['dist_pipe0'].append(neighs[5])
+    if n_neighs >= 7:
+        neighs_per_pipe['dist_pipe9'].append(neighs[6])
+        neighs_per_pipe['dist_pipe8'].append(neighs[6])
+        neighs_per_pipe['dist_pipe6'].append(neighs[6])
+        neighs_per_pipe['dist_pipe3'].append(neighs[6])
+        neighs_per_pipe['dist_pipe0'].append(neighs[6])
+    if n_neighs >= 8:
+        neighs_per_pipe['dist_pipe12'].append(neighs[7])
+        neighs_per_pipe['dist_pipe11'].append(neighs[7])
+        neighs_per_pipe['dist_pipe8'].append(neighs[7])
+        neighs_per_pipe['dist_pipe6'].append(neighs[7])
+        neighs_per_pipe['dist_pipe3'].append(neighs[7])
+        neighs_per_pipe['dist_pipe0'].append(neighs[7])
+    if n_neighs >= 9:
+        neighs_per_pipe['dist_pipe13'].append(neighs[8])
+        neighs_per_pipe['dist_pipe11'].append(neighs[8])
+        neighs_per_pipe['dist_pipe8'].append(neighs[8])
+        neighs_per_pipe['dist_pipe6'].append(neighs[8])
+        neighs_per_pipe['dist_pipe3'].append(neighs[8])
+        neighs_per_pipe['dist_pipe0'].append(neighs[8])
+
+    return neighs_per_pipe
+
+
+def get_peak_power_per_pipe(n_neighs):
+
+    peak_powers = {'Boxbergheide': 18350,
+                   'OudWinterslag': 19150,
+                   'TermienEast': 30400,
+                   'TermienWest': 15000,
+                   'WaterscheiGarden': 28900,
+                   'Winterslag': 26900,
+                   'ZwartbergNEast': 22250,
+                   'ZwartbergNWest': 19050,
+                   'ZwartbergSouth': 14050}
+
+    neighs_per_pipe = get_neighs_per_pipe(n_neighs)
+
+    peak_power_per_pipe = {pipe: 0 for pipe in neighs_per_pipe}
+
+    for pipe, neighs in neighs_per_pipe.items():
+        for neigh in neighs:
+            peak_power_per_pipe[pipe] += mults[neigh]*peak_powers[neigh]
+
+    return peak_power_per_pipe
+
+
+def size_network(n_neighs):
+    catalog = ut.read_file(resource_filename(
+        'modesto', 'Data/PipeCatalog'), name='Twin200Compound1000.csv', timestamp=False)
+
+    peak_power_per_pipe = get_peak_power_per_pipe(n_neighs)
+
+    diameters = {}
+
+    for pipe, peak_power in peak_power_per_pipe.items():
+        mf = peak_power/4186/20
+        diameters[pipe] = catalog[catalog['Max mflow'].gt(mf)].index[0]
+
+    return diameters
+
+
+def get_v_max(n_neighs, heat_profiles, diameters):
+    neighs_per_pipe = get_neighs_per_pipe(n_neighs)
+
+    max_speed = {pipe: 0 for pipe in neighs_per_pipe}
+
+    for pipe, neighs in neighs_per_pipe.items():
+        if neighs:
+            total_heat_flow = 0
+            for neigh in neighs:
+                total_heat_flow += heat_profiles[neigh]
+
+            max_heat_flow = max(total_heat_flow)
+            max_speed[pipe] = get_speed(max_heat_flow, diameters[pipe])*1.1
+
+    return max_speed
+
+
+def get_speed(hf, diameter):
+    catalog = ut.read_file(resource_filename(
+        'modesto', 'Data/PipeCatalog'), name='Twin200Compound1000.csv', timestamp=False)
+
+    Di = catalog.loc[diameter]['Di']
+
+    return hf/25/4186/np.pi/Di**2*4/1000
 
 def add_result(results, name, new_result):
     results[name] = new_result
