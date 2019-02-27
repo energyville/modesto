@@ -380,6 +380,8 @@ class FiniteVolumePipe(Pipe):
         self.n_volumes = 0
 
         self.heat_sf = 1e6
+        self.mf_sf = 1e2
+        self.temp_sf = 10
 
     def calculate_n_volumes(self):
         vmax = self.params['max_speed'].v()
@@ -467,8 +469,8 @@ class FiniteVolumePipe(Pipe):
         Tret_in = self.get_value('Tret_in')
 
         # Initialize temperatures
-        self.opti.subject_to(Tsup[:, 0] == tsup0)
-        self.opti.subject_to(Tret[:, 0] == tret0)
+        self.opti.subject_to(Tsup[:, 0]/self.temp_sf == tsup0/self.temp_sf)
+        self.opti.subject_to(Tret[:, 0]/self.temp_sf == tret0/self.temp_sf)
 
         F = lambda Tv1t, Tvt1, mfr: ((self.cp*mfr*Tv1t + Tg[t]*l_vol/Rs)*dt + self.cp*m_vol*Tvt1)/\
                                     (self.cp*m_vol + dt*(self.cp*mfr + l_vol/Rs))
@@ -482,8 +484,8 @@ class FiniteVolumePipe(Pipe):
                     Tsi = Tsup[v-1, t]
                     Tri = Tret[v-1, t]
 
-                self.opti.subject_to(F(Tsi, Tsup[v, t-1], mf[t]) == Tsup[v, t])
-                self.opti.subject_to(F(Tri, Tret[v, t-1], mf[t]) == Tret[v, t])
+                self.opti.subject_to(F(Tsi, Tsup[v, t-1], mf[t])/self.temp_sf == Tsup[v, t]/self.temp_sf)
+                self.opti.subject_to(F(Tri, Tret[v, t-1], mf[t])/self.temp_sf == Tret[v, t]/self.temp_sf)
 
         self.add_eq('speed', mf/pi/Di**2*4/self.rho)
 

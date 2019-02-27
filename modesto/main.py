@@ -1062,6 +1062,9 @@ class Node(Submodel):
 
         self.build()
 
+        self.temp_sf = 1e2
+        self.mf_sf = 10
+
     def contains_heat_source(self):
         for comp, comp_obj in self.components.items():
             if comp_obj.is_heat_source():
@@ -1290,11 +1293,11 @@ class Node(Submodel):
 
                 for comp in self.outgoing_pipes[line]:
                     # comp.assign_temp(mix_temp, line, self.name)
-                    self.opti.subject_to(comp.get_edge_temperature(self.name, line) == \
-                                         mix_temp)
+                    self.opti.subject_to(comp.get_edge_temperature(self.name, line)/self.temp_sf == \
+                                         mix_temp/self.temp_sf)
                 for comp in self.outgoing_comps[line]:
                     # comp.assign_temp(mix_temp, line)
-                    self.opti.subject_to(comp.get_temperature(line) == mix_temp)
+                    self.opti.subject_to(comp.get_temperature(line)/self.temp_sf == mix_temp/self.temp_sf)
 
         elif self.repr_days is None:
 

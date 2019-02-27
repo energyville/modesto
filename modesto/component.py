@@ -611,8 +611,8 @@ class SubstationepsNTU(Substation):
 
         self.params = self.create_params()
 
-        self.heat_sf = 1e3
-        self.mass_sf = 10
+        self.heat_sf = 1e4
+        self.mf_sf = 10
 
     def prepare(self, model, start_time):
         Substation.prepare(self, model, start_time)
@@ -621,7 +621,7 @@ class SubstationepsNTU(Substation):
         self.add_opti_param('heat_flow', self.n_steps)
 
         mf_prim = self.add_var('mf_prim', self.n_steps)
-        self.opti.subject_to(self.opti.bounded(1e-4, mf_prim, 0.3))
+        self.opti.subject_to(self.opti.bounded(1e-4/self.mf_sf, mf_prim/self.mf_sf, 0.3/self.mf_sf))
 
         self.add_var('Tpsup', self.n_steps)
         self.add_var('Tpret', self.n_steps)
@@ -651,24 +651,19 @@ class SubstationepsNTU(Substation):
 
         Cmin = self.add_eq('Cmin', mf_prim*self.cp) # TODO fmin(mf_sec, mf_prim)*self.cp
         Cmax = self.add_eq('Cmax', mf_sec*self.cp) # TODO (mf_sec + mf_prim)*self.cp - Cmin
-        UA = self.add_eq('UA', K / ((0.001 + mf_prim) ** -q + mf_sec ** -q))
+        UA = self.add_eq('UA', K / (mf_prim ** -q + mf_sec ** -q))
 
         # x0 = 0.08
         # UA = self.add_eq('UA', K / (x0 ** -q + mf_sec ** -q) +  \
         #     (-K) * (x0 ** -q + mf_sec ** -q) ** -2 * (-q) * x0 ** (-q-1) * (
         #             mf_prim - x0))
 
-        Cstar = self.add_eq('Cstar', (Cmin + 1e-3)/(Cmax + 1e-3))
-        NTU = self.add_eq('NTU', UA/(Cmin + 1e-4))
+        Cstar = self.add_eq('Cstar', Cmin)/(Cmax)
+        NTU = self.add_eq('NTU', UA/Cmin)
         eps = self.add_eq('eps', (1 - exp(-NTU * (1 - Cstar))) / (1 - Cstar * exp(-NTU * (1 - Cstar))))
 
-        if False: # TODO Make parameter for this
-            hf_slack = self.make_slack('hf_slack', self.n_steps)
-        else:
-            hf_slack = 0
-
-        self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == eps * Cmin * (Tpsup - Tsret) / self.heat_sf)
-        self.opti.subject_to((hf - hf_slack/10e6) / self.heat_sf == mf_prim * self.cp * (Tpsup-Tpret) / self.heat_sf)
+        self.opti.subject_to((hf) / self.heat_sf == eps * Cmin * (Tpsup - Tsret) / self.heat_sf)
+        self.opti.subject_to((hf) / self.heat_sf == mf_prim * self.cp * (Tpsup-Tpret) / self.heat_sf)
 
         self.logger.info('Optimization model {} {} compiled'.
                          format(self.__class__, self.name))
@@ -1223,7 +1218,8 @@ class Plant(VariableComponent):
 
         self.eqs = {'mass_flow': None}
 
-        self.heat_sf = 1e6
+        self.heat_sf = 1e7
+        self.temp_sf = 100
 
     def is_heat_source(self):
         return True
@@ -1346,7 +1342,7 @@ class Plant(VariableComponent):
         # Limits
         # TODO Add heat limits
         # self.opti.subject_to(self.opti.bounded(1e-1, hf, inf))
-        self.opti.subject_to(self.opti.bounded(Tmin, Tsup, Tmax))
+        self.opti.subject_to(self.opti.bounded(Tmin/self.temp_sf, Tsup/self.temp_sf, Tmax/self.temp_sf))
 
         self.compiled = True
 
@@ -1445,7 +1441,7 @@ class Plant(VariableComponent):
         time_step = self.params['time_step'].v()
 
         if self.repr_days is None:
-            return sum((pef / eta * time_step * self.get_heat(t))/self.n_steps/time_step for t in self.TIME) # pef / eta * * time_step * self.cf
+            return sum((pef / eta * time_step * self.get_heat(t))/3600 for t in self.TIME) # pef / eta * * time_step * self.cf
         else:
             return sum(self.repr_count[c] * pef / eta * (self.get_heat(t, c)) *
                        time_step for t in self.TIME for
@@ -1470,7 +1466,7 @@ class Plant(VariableComponent):
         time_step = self.params['time_step'].v()
 
         if self.repr_days is None:
-            return sum(cost.v(t) / eta * self.get_heat(t) * time_step for t in self.TIME)
+            return sum(cost.v(t) / eta * self.get_heat(t) for t in self.TIME)
         else:
             return sum(self.repr_count[c] * cost.v(t, c) / eta *
                        self.get_heat(t, c) * time_step for t in self.TIME for c in

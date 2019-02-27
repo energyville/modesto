@@ -21,10 +21,10 @@ mults = ut.read_file(resource_filename(
 def run_genk():
 
     horizon = 48*3600
-    time_step = 5*60
+    time_step = 6*60
     start_time = pd.Timestamp('20140101')
-    n_neighs = 3
-    case = 'cost'
+    n_neighs = 2
+    case = 'step_up'
 
     results = genk(horizon=horizon,
                    time_step=time_step,
@@ -33,18 +33,31 @@ def run_genk():
                    case=case
                    )
 
-    # results_ref = genk(horizon=horizon,
-    #                    time_step=time_step,
-    #                    start_time=start_time,
-    #                    n_neighs=n_neighs,
-    #                    case='energy'
-    #                    )
-    #
-    # fig, axarr = plt.subplots(1, 1)
-    # axarr.plot(results['prod_hf'] - results_ref['prod_hf'])
-    # axarr.set_title('Response function')
-    #
-    # save_plot(n_neighs, time_step, horizon, case, fig, 'Response')
+    date = datetime.datetime.today().strftime('%Y%m%d')
+    path = os.path.abspath('../../misc/SpeedUpNonLinear')
+    name = '{}N_{}s_{}h_energy_.pickle'
+    print(os.path.join(path, date, name))
+    if os.path.isfile(os.path.join(path, date, name)):
+        results_ref = load_obj(path, name)
+    else:
+        results_ref = genk(horizon=horizon,
+                           time_step=time_step,
+                           start_time=start_time,
+                           n_neighs=n_neighs,
+                           case='energy'
+                           )
+
+    fig, axarr = plt.subplots(1, 1)
+    axarr.plot(results['prod_hf'] - results_ref['prod_hf'])
+    axarr.set_title('Response function')
+
+    fig2, axarr = plt.subplots(1, 1)
+    axarr.plot(results['prod_mf'], label=case)
+    axarr.plot(results_ref['prod_mf'], label='reference')
+    axarr.set_title('Mass flows')
+    axarr.legend()
+
+    save_plot(n_neighs, time_step, horizon, case, fig, 'Response')
 
 
 def genk(horizon, time_step, start_time, n_neighs, case):
@@ -58,11 +71,11 @@ def genk(horizon, time_step, start_time, n_neighs, case):
     Thigh = 67 + 273.15
     Tlow = 57 + 273.15
     if case == 'step_up':
-        temp_prof = pd.Series([Tlow] * int(n_steps / 2) + [Thigh] * (n_steps - int(n_steps / 2)))
+        temp_prof = pd.Series([Tlow] * int(n_steps / 4) + [Thigh] * (n_steps - int(n_steps / 4)))
         obj = 'follow_temp'
         Tinit = Tlow
     elif case == 'step_down':
-        temp_prof = pd.Series([Thigh] * int(n_steps / 2) + [Tlow] * (n_steps - int(n_steps / 2)))
+        temp_prof = pd.Series([Thigh] * int(n_steps / 4) + [Tlow] * (n_steps - int(n_steps / 4)))
         obj = 'follow_temp'
         Tinit = Thigh
     elif case == 'cost':
@@ -95,8 +108,6 @@ def genk(horizon, time_step, start_time, n_neighs, case):
     #             2, 2, 2, 2, 2, 2, 2 ]
 
     diameters = size_network(n_neighs)
-
-    print(diameters)
 
     heat_profile = ut.read_period_data(resource_filename(
         'modesto', 'Data/HeatDemand'), 'TEASER_GenkNET_per_neighb.csv', time_step, horizon, start_time, method='interpolation', )
@@ -320,7 +331,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
     prod_design = {'efficiency': 1,
                    'PEF': 1,
                    'CO2': 0.178,  # based on HHV of CH4 (kg/KWh CH4)
-                   'fuel_cost': pd.Series([1] * int(n_steps/2) + [2] * (n_steps - int(n_steps/2))),
+                   'fuel_cost': pd.Series([1] * int(n_steps/4) + [2] * (n_steps - int(n_steps/4))),
                    # http://ec.europa.eu/eurostat/statistics-explained/index.php/Energy_price_statistics (euro/kWh CH4)
                    'Qmax': 1.5e12,
                    'ramp_cost': 0,
@@ -379,7 +390,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
 
     optmodel.set_objective(obj)
 
-    flag = optmodel.solve(tee=True, mipgap=0.2, last_results=False, g_describe=[1000], x_describe=[])
+    flag = optmodel.solve(tee=True, mipgap=0.2, last_results=False, g_describe=[], x_describe=[])
 
     # plt.show()
 
@@ -400,30 +411,23 @@ def genk(horizon, time_step, start_time, n_neighs, case):
         mult = mults[neigh]
         neigh_hf[neigh] = (optmodel.get_result('heat_flow', node=neigh, comp='building')*mult)
         neigh_mf[neigh] = (optmodel.get_result('mf_prim', node=neigh, comp='building')*mult)
-        print(neigh)
-        print(max(neigh_mf[neigh]/mult))
 
     add_result(results, 'neigh_mf', neigh_mf)
-
 
     # Temperatures
     prod_T_sup = add_result(results, 'prod_T_sup', optmodel.get_result('Tsup', node='Producer', comp='plant') - 273.15)
     prod_T_ret = add_result(results, 'prod_T_ret', optmodel.get_result('Tret', node='Producer', comp='plant') - 273.15)
     neigh_T_sup = pd.DataFrame(columns=[neighs[i] for i in range(n_neighs)])
     neigh_T_ret = pd.DataFrame(columns=[neighs[i] for i in range(n_neighs)])
-    slack = pd.DataFrame(columns=[neighs[i] for i in range(n_neighs)])
 
     for n in range(n_neighs):
         neigh = neighs[n]
-        mult = mults[neigh]
         neigh_T_sup[neigh] = (optmodel.get_result('Tpsup', node=neigh, comp='building') - 273.15)
         neigh_T_ret[neigh] = (optmodel.get_result('Tpret', node=neigh, comp='building') - 273.15)
-        # slack[neigh] = optmodel.get_result('hf_slack', node=neigh, comp='building')
 
     add_result(results, 'neigh_T_sup', neigh_T_sup)
     add_result(results, 'neigh_T_ret', neigh_T_ret)
 
-    # print('SLACK: {}'.format(slack.sum(axis=0)))
     # Sum of heat flows
     prod_e = sum(prod_hf)
     neigh_e = neigh_hf.sum(axis=0)
@@ -670,7 +674,7 @@ def get_speed(hf, diameter):
 
     Di = catalog.loc[diameter]['Di']
 
-    return hf/25/4186/np.pi/Di**2*4/1000
+    return hf/20/4186/np.pi/Di**2*4/1000
 
 def add_result(results, name, new_result):
     results[name] = new_result
