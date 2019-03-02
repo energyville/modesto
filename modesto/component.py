@@ -600,6 +600,13 @@ class BuildingFixed(FixedProfile):
                 description='number of buildings for investment',
                 unit='-',
                 val=1
+            ),
+            'lifespan': DesignParameter(
+                'lifespan',
+                unit='y',
+                description='Economic life span in years',
+                mutable=False,
+                val=20
             )
         })
 
@@ -759,9 +766,9 @@ class BuildingFixed(FixedProfile):
             return 0
 
     def get_investment_cost(self):
-        if self.params['temperature_supply'].v() < 45 + 273.15:
+        if self.params['temperature_supply'].v() <= 45 + 273.15:
             return self.params['num_buildings'].v() * 670
-        elif self.params['temperature_supply'].v() < 55 + 273.15:
+        elif self.params['temperature_supply'].v() <= 55 + 273.15:
             return self.params['num_buildings'].v() * 220
         else:
             return 0
