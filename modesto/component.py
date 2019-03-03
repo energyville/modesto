@@ -625,9 +625,9 @@ class BuildingFixed(FixedProfile):
         heat_profile = self.params['heat_profile']
         DHW_profile = self.params['DHW_demand']
 
-        if self.params['temperature_return'].v() < 45 + 273.15:
+        if self.params['temperature_return'].v() <= 45 + 273.15:
             self.COP = 0.4 * (55 + 273.15) / (55 + 273.15 - self.params['temperature_return'].v())
-        elif self.params['temperature_return'].v() < 55 + 273.15:
+        elif self.params['temperature_return'].v() <= 55 + 273.15:
             self.COP = 1
         else:
             self.COP = None
