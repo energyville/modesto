@@ -20,11 +20,11 @@ mults = ut.read_file(resource_filename(
 
 def run_genk():
 
-    horizon = 48*3600
-    time_step = 6*60
+    horizon = 5*3600
+    time_step = 2*60
     start_time = pd.Timestamp('20140101')
     n_neighs = 2
-    case = 'step_up'
+    case = 'energy'
 
     results = genk(horizon=horizon,
                    time_step=time_step,
@@ -35,10 +35,10 @@ def run_genk():
 
     date = datetime.datetime.today().strftime('%Y%m%d')
     path = os.path.abspath('../../misc/SpeedUpNonLinear')
-    name = '{}N_{}s_{}h_energy_.pickle'
+    name = '{}N_{}s_{}h_energy_.pickle'.format(n_neighs, time_step, int(horizon/3600))
     print(os.path.join(path, date, name))
     if os.path.isfile(os.path.join(path, date, name)):
-        results_ref = load_obj(path, name)
+        results_ref = load_obj(os.path.join(path, date), name)
     else:
         results_ref = genk(horizon=horizon,
                            time_step=time_step,
@@ -58,6 +58,7 @@ def run_genk():
     axarr.legend()
 
     save_plot(n_neighs, time_step, horizon, case, fig, 'Response')
+    save_plot(n_neighs, time_step, horizon, case, fig2, 'MassFlowResponse')
 
 
 def genk(horizon, time_step, start_time, n_neighs, case):
@@ -251,7 +252,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
 
     t_amb = ut.read_time_data(resource_filename('modesto', 'Data/Weather'), name='extT.csv')['Te']
 
-    t_g = pd.Series(12 + 273.15, index=t_amb.index)
+    t_g = pd.Series(10 + 273.15, index=t_amb.index)
 
     datapath = resource_filename('modesto', 'Data')
     wd = ut.read_time_data(datapath, name='Weather/weatherData.csv')
@@ -390,6 +391,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
 
     optmodel.set_objective(obj)
 
+    optmodel.print_all_params()
     flag = optmodel.solve(tee=True, mipgap=0.2, last_results=False, g_describe=[], x_describe=[])
 
     # plt.show()
@@ -470,8 +472,8 @@ def genk(horizon, time_step, start_time, n_neighs, case):
     # fig3.tight_layout()
 
     fig4, axarr = plt.subplots(2, 1)
-    axarr[0].set_title('Water speed')
-    axarr[1].set_title('Courant numbers')
+    axarr[0].set_title('Water speed [m/s]')
+    axarr[1].set_title('Courant numbers [-]')
 
     axarr[1].plot_date([neigh_hf.index[0], neigh_hf.index[-1]], [1, 1], color='k', linestyle=':')
 
@@ -482,26 +484,29 @@ def genk(horizon, time_step, start_time, n_neighs, case):
         courant = pipe_speed*time_step/pipe_l_volumes
         axarr[0].plot(pipe_speed, label=pipe)
         axarr[1].plot(courant, label=pipe)
-        axarr[0].legend()
         maxspeed[pipe] = (max(pipe_speed))
+
+    handles, labels = axarr[0].get_legend_handles_labels()
+    lgd4 = axarr[0].legend(handles, labels, loc='center left', bbox_to_anchor=(1, 0.5))
 
     fig4.suptitle(title)
 
     fig5, axarr = plt.subplots(3, 1, sharex=True)
-    axarr[0].plot(prod_hf, label='Producer', color=colors[0])
-    axarr[0].plot(neigh_hf.sum(axis=1), label='All users', color='k', linestyle=':')
+    axarr[0].plot(prod_hf/1e6, label='Producer', color=colors[0])
+    axarr[0].plot(neigh_hf.sum(axis=1)/1e6, label='All users', color='k', linestyle=':')
     for n in range(n_neighs):
-        axarr[0].plot(neigh_hf[neighs[n]], label=neighs[n], color=colors[n+1])
+        axarr[0].plot(neigh_hf[neighs[n]]/1e6, label=neighs[n], color=colors[n+1])
     axarr[0].axhline(y=0, linewidth=2, color='k', linestyle=':')
-    axarr[0].set_title('Heat flows [W]')
-    axarr[0].legend()
+    axarr[0].set_title('Heat flows [MW]')
+    handles, labels = axarr[0].get_legend_handles_labels()
 
     axarr[1].plot(prod_mf, label='Producer', color=colors[0])
     for i in range(n_neighs):
         neigh = neighs[i]
         axarr[1].plot(neigh_mf[neigh], label=neigh, color=colors[i+1])
     axarr[1].plot(neigh_mf.sum(axis=1), label='all users', color='k', linestyle=':')
-    axarr[1].set_title('Mass flows network')
+    axarr[1].set_title('Mass flows network [kg/s]')
+    lgd5 = axarr[1].legend(handles, labels, loc='center left', bbox_to_anchor=(1, 0.5))
 
     axarr[2].plot(prod_T_sup, label='Producer Supply', color=colors[0])
     axarr[2].plot(prod_T_ret, label='Producer Return', linestyle='--', color=colors[0])
@@ -509,7 +514,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
         neigh = neighs[i]
         axarr[2].plot(neigh_T_sup[neigh], label='{} Supply'.format(neigh), color=colors[i + 1])
         axarr[2].plot(neigh_T_ret[neigh], label='{} Return'.format(neigh), linestyle='--', color=colors[i + 1])
-    axarr[2].set_title('Network temperatures')
+    axarr[2].set_title('Network temperatures [degrees C]')
     fig5.suptitle(title)
 
     print(maxspeed)
@@ -517,8 +522,8 @@ def genk(horizon, time_step, start_time, n_neighs, case):
 
     if flag:
         save_plot(n_neighs, time_step, horizon, case, fig3, 'HEx')
-        save_plot(n_neighs, time_step, horizon, case, fig4, 'SpeedCourant')
-        save_plot(n_neighs, time_step, horizon, case, fig5, 'Synthesis')
+        save_plot(n_neighs, time_step, horizon, case, fig4, 'SpeedCourant', lgd4)
+        save_plot(n_neighs, time_step, horizon, case, fig5, 'Synthesis', lgd5)
 
         base_name = '{}N_{}s_{}h_{}_'.format(n_neighs, time_step, int(horizon / 3600), case)
         save_obj(results, base_name)
@@ -527,7 +532,7 @@ def genk(horizon, time_step, start_time, n_neighs, case):
         return None
 
 
-def save_plot(n_neighs, time_step, horizon, case, fig, fig_name):
+def save_plot(n_neighs, time_step, horizon, case, fig, fig_name, lgd=None):
     title = 'Horizon: {}h, Time step: {}, Neighbourhoods: {}, case: {}'.format(horizon/3600, time_step, n_neighs, case)
 
     date = datetime.datetime.today().strftime('%Y%m%d')
@@ -539,8 +544,15 @@ def save_plot(n_neighs, time_step, horizon, case, fig, fig_name):
         os.mkdir(os.path.join(path, date))
 
     fig.suptitle(title)
-    fig.savefig(os.path.join(path, date, base_name + fig_name + '.svg'))
-    fig.savefig(os.path.join(path, date, base_name + fig_name + '.pdf'))
+
+    if lgd is None:
+        fig.savefig(os.path.join(path, date, base_name + fig_name + '.svg'))
+        fig.savefig(os.path.join(path, date, base_name + fig_name + '.pdf'))
+    else:
+        fig.savefig(os.path.join(path, date, base_name + fig_name + '.svg'),
+                    bbox_extra_artists=[lgd], bbox_inches='tight')
+        fig.savefig(os.path.join(path, date, base_name + fig_name + '.pdf'),
+                    bbox_extra_artists=[lgd], bbox_inches='tight')
 
 
 def save_obj(obj, name):
@@ -551,7 +563,7 @@ def save_obj(obj, name):
 
 
 def load_obj(path, name):
-    with open(os.path.join(path, name + '.pickle'), 'rb') as handle:
+    with open(os.path.join(path, name), 'rb') as handle:
         b = pickle.load(handle)
 
     return b

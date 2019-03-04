@@ -390,7 +390,7 @@ class FiniteVolumePipe(Pipe):
 
         dmax = 100
         l_vol = vmax * dt / co
-        self.n_volumes = int(self.length / l_vol)
+        self.n_volumes = int(self.length*self.params['length_scale_factor'].v() / l_vol)
         if self.n_volumes == 0:
             self.n_volumes = 1
         print('{} has {} volumes, one element has a length of {}'.format(self.name, self.n_volumes, self.length/self.n_volumes))
@@ -421,7 +421,11 @@ class FiniteVolumePipe(Pipe):
                                       'K'),
              'Tret0': DesignParameter('Tret0',
                                       'Initial water temperature in the return line',
-                                      'K')}
+                                      'K'),
+             'length_scale_factor': DesignParameter('length_scale_factor',
+                                                    'Factor to rescale the pipe length',
+                                                    '-',
+                                                    val=1)}
         )
 
         return params
@@ -454,7 +458,7 @@ class FiniteVolumePipe(Pipe):
         Rs = self.Rs[self.params['diameter'].v()]  # TODO self.add_opti_param('Rs')
         Di = self.add_opti_param('Di')
         l_vol = self.add_opti_param('l_volumes')
-        self.opti.set_value(l_vol, self.length/self.n_volumes)
+        self.opti.set_value(l_vol, self.length*self.params['length_scale_factor'].v()/self.n_volumes)
         Tg = self.params['Tg'].v()
         m_vol = self.rho * l_vol * pi*Di**2/4
         dt = self.params['time_step'].v()
