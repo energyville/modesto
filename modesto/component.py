@@ -1441,7 +1441,7 @@ class Plant(VariableComponent):
         time_step = self.params['time_step'].v()
 
         if self.repr_days is None:
-            return sum((pef / eta * time_step * self.get_heat(t))/3600 for t in self.TIME) # pef / eta * * time_step * self.cf
+            return sum((pef / eta * time_step * self.get_heat(t)) for t in self.TIME) # pef / eta * * time_step * self.cf
         else:
             return sum(self.repr_count[c] * pef / eta * (self.get_heat(t, c)) *
                        time_step for t in self.TIME for

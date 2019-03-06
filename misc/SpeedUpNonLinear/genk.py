@@ -20,11 +20,11 @@ mults = ut.read_file(resource_filename(
 
 def run_genk():
 
-    horizon = 5*3600
-    time_step = 2*60
+    horizon = 48*3600
+    time_step = 5*60
     start_time = pd.Timestamp('20140101')
     n_neighs = 2
-    case = 'energy'
+    case = 'cost'
 
     results = genk(horizon=horizon,
                    time_step=time_step,
@@ -391,7 +391,6 @@ def genk(horizon, time_step, start_time, n_neighs, case):
 
     optmodel.set_objective(obj)
 
-    optmodel.print_all_params()
     flag = optmodel.solve(tee=True, mipgap=0.2, last_results=False, g_describe=[], x_describe=[])
 
     # plt.show()
@@ -518,6 +517,8 @@ def genk(horizon, time_step, start_time, n_neighs, case):
     fig5.suptitle(title)
 
     print(maxspeed)
+
+    analyse_heat_losses(optmodel, time_step)
     # fig4.tight_layout()
 
     if flag:
@@ -688,9 +689,42 @@ def get_speed(hf, diameter):
 
     return hf/20/4186/np.pi/Di**2*4/1000
 
+
 def add_result(results, name, new_result):
     results[name] = new_result
     return new_result
+
+
+def analyse_heat_losses(optmodel, time_step):
+    pipes = optmodel.get_edges()
+
+    q_loss_sup = pd.DataFrame(columns=pipes)
+    q_loss_ret = pd.DataFrame(columns=pipes)
+    l_volumes = {}
+    di = {}
+    d_temp_sup = pd.DataFrame(columns=pipes)
+    d_temp_ret = pd.DataFrame(columns=pipes)
+
+    for pipe in pipes:
+        q_loss_sup[pipe] = optmodel.get_result(node=None, comp=pipe, name='Qloss_sup')
+        q_loss_ret[pipe] = optmodel.get_result(node=None, comp=pipe, name='Qloss_ret')
+        l_volumes[pipe] = optmodel.get_result(node=None, comp=pipe, name='l_volumes')
+        di[pipe] = optmodel.get_result(node=None, comp=pipe, name='Di')
+
+        d_temp_sup[pipe] = q_loss_sup[pipe] * time_step/4186/(l_volumes[pipe] * 3.14 * di[pipe]**2 / 4 * 1000)
+        d_temp_ret[pipe] = q_loss_ret[pipe] * time_step/4186/(l_volumes[pipe] * 3.14 * di[pipe]**2 / 4 * 1000)
+
+    fig, axarr = plt.subplots(2, 2)
+    q_loss_sup.plot(ax=axarr[0, 0], kind='line')
+    q_loss_ret.plot(ax=axarr[1, 0], kind='line')
+    d_temp_sup.plot(ax=axarr[0, 1], kind='line')
+    d_temp_ret.plot(ax=axarr[1, 1], kind='line')
+    axarr[0, 0].set_title('Heat loss supply')
+    axarr[1, 0].set_title('Heat loss return')
+    axarr[0, 1].set_title('Delta temp supply')
+    axarr[1, 1].set_title('Delta temp return')
+    axarr[0, 0].legend()
+    fig.suptitle('Heat loss analysis')
 
 if __name__ == '__main__':
     run_genk()

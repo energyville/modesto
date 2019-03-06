@@ -459,6 +459,8 @@ class FiniteVolumePipe(Pipe):
         Di = self.add_opti_param('Di')
         l_vol = self.add_opti_param('l_volumes')
         self.opti.set_value(l_vol, self.length*self.params['length_scale_factor'].v()/self.n_volumes)
+        n_vol = self.add_opti_param('n_volumes')
+        self.opti.set_value(n_vol, self.n_volumes)
         Tg = self.params['Tg'].v()
         m_vol = self.rho * l_vol * pi*Di**2/4
         dt = self.params['time_step'].v()
@@ -479,6 +481,9 @@ class FiniteVolumePipe(Pipe):
         F = lambda Tv1t, Tvt1, mfr: ((self.cp*mfr*Tv1t + Tg[t]*l_vol/Rs)*dt + self.cp*m_vol*Tvt1)/\
                                     (self.cp*m_vol + dt*(self.cp*mfr + l_vol/Rs))
 
+        self.add_eq('Qloss_sup', sum(l_vol/Rs*(Tsup[i, :].T - Tg) for i in range(self.n_volumes)))
+        self.add_eq('Qloss_ret', sum(l_vol/Rs*(Tret[i, :].T - Tg) for i in range(self.n_volumes)))
+
         for t in self.TIME[1:]:
             for v in range(self.n_volumes):
                 if v == 0:
@@ -497,13 +502,6 @@ class FiniteVolumePipe(Pipe):
 
     def set_parameters(self):
         Pipe.set_parameters(self)
-
-        # self.opti.set_value(self.get_opti_param('l_vol'), self.length/self.n_volumes)
-
-        # if not self.params['Rs'].v() == 0:
-        #     self.opti.set_value(self.get_opti_param('Rs'), self.Rs[self.params['diameter'].v()])
-        # else:
-        #     self.opti.set_value(self.get_opti_param('Rs'), self.params['Rs'].v())
 
         self.opti.set_value(self.get_opti_param('Di'), self.di[self.params['diameter'].v()])
 
