@@ -74,7 +74,7 @@ def read_xlsx_data(filepath, use_sheet=None, index_col=0):
     return df
 
 
-def resample(df, new_sample_time, old_sample_time=None, method=None):
+def resample(df, new_sample_time, old_sample_time=None, method='interpolation'):
     """
     Resamples data
     :param old_data: A data frame, containing the time data
@@ -90,6 +90,9 @@ def resample(df, new_sample_time, old_sample_time=None, method=None):
     if (new_sample_time == old_sample_time) or (new_sample_time is None):
         return df
     else:
+        if method == 'interpolation':
+            upsampled = df.resample(str(new_sample_time) + 'S')
+            return upsampled.interpolate(method='linear')
         if method == 'pad' or new_sample_time < old_sample_time:
             return df.resample(str(new_sample_time) + 'S').pad()
         elif method == 'sum':
