@@ -484,17 +484,63 @@ class FiniteVolumePipe(Pipe):
         self.add_eq('Qloss_sup', sum(l_vol/Rs*(Tsup[i, :].T - Tg) for i in range(self.n_volumes)))
         self.add_eq('Qloss_ret', sum(l_vol/Rs*(Tret[i, :].T - Tg) for i in range(self.n_volumes)))
 
-        for t in self.TIME[1:]:
-            for v in range(self.n_volumes):
-                if v == 0:
-                    Tsi = Tsup_in[t]
-                    Tri = Tret_in[t]
-                else:
-                    Tsi = Tsup[v-1, t]
-                    Tri = Tret[v-1, t]
+        QUICK = False
 
-                self.opti.subject_to(F(Tsi, Tsup[v, t-1], mf[t])/self.temp_sf == Tsup[v, t]/self.temp_sf)
-                self.opti.subject_to(F(Tri, Tret[v, t-1], mf[t])/self.temp_sf == Tret[v, t]/self.temp_sf)
+        if QUICK:
+
+            QUICK = lambda Tvt, Tw, Te, Tgt, Tvt1, mfr: \
+                mfr * self.cp * dt * (Tw - Te) - \
+                l_vol / Rs * dt * (Tvt - Tgt) - \
+                m_vol * self.cp * (Tvt - Tvt1)
+
+            for t in self.TIME[1:]:
+                for v in range(self.n_volumes):
+                    if self.n_volumes == 1:
+                        Tsupw = Tsup_in[t]
+                        Tretw = Tret_in[t]
+
+                        Tsupe = Tsup[v, t]
+                        Trete = Tret[v, t]
+
+                    elif v == 0:
+                        Tsupe = 7 / 8 * Tsup[v, t] + 3 / 8 * Tsup[v + 1, t] - 2 / 8 * Tsup_in[t]
+                        Trete = 7 / 8 * Tret[v, t] + 3 / 8 * Tret[v + 1, t] - 2 / 8 * Tret_in[t]
+
+                        Tsupw = Tsup_in[t]
+                        Tretw = Tret_in[t]
+                    elif v == self.n_volumes - 1:
+                        Tsupw = Tsup[v - 1, t]
+                        Tretw = Tret[v - 1, t]
+
+                        Tsupe = Tsup[v, t]
+                        Trete = Tret[v, t]
+                    elif v == 1:
+                        Tsupe = 6 / 8 * Tsup[v, t] + 3 / 8 * Tsup[v + 1, t] - 1 / 8 * Tsup[v - 1, t]
+                        Trete = 6 / 8 * Tret[v, t] + 3 / 8 * Tret[v + 1, t] - 1 / 8 * Tret[v - 1, t]
+
+                        Tsupw = 7 / 8 * Tsup[v - 1, t] + 3 / 8 * Tsup[v, t] - 2 / 8 * Tsup_in[t]
+                        Tretw = 7 / 8 * Tret[v - 1, t] + 3 / 8 * Tret[v, t] - 2 / 8 * Tret_in[t]
+                    else:
+                        Tsupe = 6 / 8 * Tsup[v, t] + 3 / 8 * Tsup[v + 1, t] - 1 / 8 * Tsup[v - 1, t]
+                        Trete = 6 / 8 * Tret[v, t] + 3 / 8 * Tret[v + 1, t] - 1 / 8 * Tret[v - 1, t]
+
+                        Tsupw = 6 / 8 * Tsup[v - 1, t] + 3 / 8 * Tsup[v, t] - 1 / 8 * Tsup[v - 2, t]
+                        Tretw = 6 / 8 * Tret[v - 1, t] + 3 / 8 * Tret[v, t] - 1 / 8 * Tret[v - 2, t]
+
+                    self.opti.subject_to(QUICK(Tsup[v, t], Tsupw, Tsupe, Tg[t], Tsup[v, t - 1], mf[t]) == 0)
+                    self.opti.subject_to(QUICK(Tret[v, t], Tretw, Trete, Tg[t], Tret[v, t - 1], mf[t]) == 0)
+        else:
+            for t in self.TIME[1:]:
+                for v in range(self.n_volumes):
+                    if v == 0:
+                        Tsi = Tsup_in[t]
+                        Tri = Tret_in[t]
+                    else:
+                        Tsi = Tsup[v-1, t]
+                        Tri = Tret[v-1, t]
+
+                    self.opti.subject_to(F(Tsi, Tsup[v, t-1], mf[t])/self.temp_sf == Tsup[v, t]/self.temp_sf)
+                    self.opti.subject_to(F(Tri, Tret[v, t-1], mf[t])/self.temp_sf == Tret[v, t]/self.temp_sf)
 
         self.add_eq('speed', mf/pi/Di**2*4/self.rho)
 
