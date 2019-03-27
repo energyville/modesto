@@ -2982,8 +2982,8 @@ class StorageRepr(StorageVariable):
                 for t in self.TIME:
                     result.append(value(self.get_heat_stor_inter(d, t) +
                                         self.get_heat_stor_intra(d, t)))
-            result.append(value(self.get_heat_stor_inter(self.DAYS_OF_YEAR[-1], 24) +
-                                self.get_heat_stor_intra(self.DAYS_OF_YEAR[-1], 24)))
+            result.append(value(self.get_heat_stor_inter(self.DAYS_OF_YEAR[-1], self.TIME[-1]+1) +
+                                self.get_heat_stor_intra(self.DAYS_OF_YEAR[-1], self.TIME[-1]+1)))
             index = pd.DatetimeIndex(start=start_time,
                                      freq=str(
                                          self.params['time_step'].v()) + 'S',
