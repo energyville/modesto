@@ -3130,7 +3130,7 @@ class ResidualHeat(VariableComponent):
 
         self.compiled = True
 
-    def obj_cost(self):
+    def obj_fuel_cost(self):
 
         if self.repr_days is None:
             return self.params['heat_cost'].v() / 1000 * sum(
