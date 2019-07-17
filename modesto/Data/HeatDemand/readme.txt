@@ -1,0 +1,1 @@
+DHW_GenkNET contains total warm water usage of each neighborhood (in l/min at 55 degrees C)
