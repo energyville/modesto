@@ -2553,7 +2553,7 @@ class StorageVariable(VariableComponent):
         :return: Investment cost in EUR
         """
 
-        return self.params['cost_inv'].v(self.volume)
+        return self.params['cost_inv'].v(self.params['volume'].v())
 
 
 class StorageCondensed(StorageVariable):
