@@ -3,7 +3,7 @@ Modesto License
 
 BSD 3-Clause License
 
-Copyright (c) 2018, Annelies Vandermeulen and Bram van der Heijde
+Copyright (c) 2019, KU Leuven and VITO (Main contributors Annelies Vandermeulen and Bram van der Heijde)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
