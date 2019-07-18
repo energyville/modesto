@@ -47,6 +47,7 @@ Included packages are:
 - jupyter
 - scipy
 - matplotlib
+- pytest
 
-The licenses associated with the incorporated packages can be reviewed in the 
+The licenses associated with the incorporated packages can be reviewed in the
 LICENSE folder.
