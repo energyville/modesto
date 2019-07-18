@@ -45,6 +45,8 @@ Included packages are:
 - xlrd
 - setuptools-git
 - jupyter
+- scipy
+- matplotlib
 
 The licenses associated with the incorporated packages can be reviewed in the 
 LICENSE folder.
