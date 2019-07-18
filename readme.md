@@ -1,6 +1,7 @@
 # Welcome to ``modesto``!
-
-<img src="misc/Logo/modesto.png" width= "300px">
+<p align="center">
+  <img src="misc/Logo/modesto.png" width= "230px">
+</p>
 
 ``modesto`` is the Multi-Objective District Energy Systems Toolbox for Optimization.
 It offers tools to construct optimization problem formulations for district energy systems,
@@ -13,7 +14,9 @@ collaboration between KU Leuven, VITO, imec and UHasselt.
 The main contributors are Annelies Vandermeulen and Bram van der Heijde
 (KU Leuven/VITO).
 
-<img src="misc/imgs/energyville.png" height= "80px"><img src="misc/imgs/kuleuven.png" height= "80px"><img src="misc/imgs/vito.png" height= "80px"><img src="misc/imgs/thesysi.png" height= "80px">
+<p align="center">
+  <img src="misc/imgs/energyville.png" height= "80px"><img src="misc/imgs/kuleuven.png" height= "80px"><img src="misc/imgs/vito.png" height= "80px"><img src="misc/imgs/thesysi.png" height= "80px">
+</p>
 
 ## Installation
 
