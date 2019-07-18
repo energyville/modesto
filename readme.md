@@ -13,10 +13,7 @@ collaboration between KU Leuven, VITO, imec and UHasselt.
 The main contributors are Annelies Vandermeulen and Bram van der Heijde
 (KU Leuven/VITO).
 
-<img src="misc/imgs/energyville.png" height= "80px">
-<img src="misc/imgs/kuleuven.png" height= "80px">
-<img src="misc/imgs/vito.png" height= "80px">
-<img src="misc/imgs/thesysi.png" height= "80px">
+<img src="misc/imgs/energyville.png" height= "80px"><img src="misc/imgs/kuleuven.png" height= "80px"><img src="misc/imgs/vito.png" height= "80px"><img src="misc/imgs/thesysi.png" height= "80px">
 
 ## Installation
 
