@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/197553739.svg)](https://zenodo.org/badge/latestdoi/197553739)
+
 # Welcome to ``modesto``!
 <p align="center">
   <img src="misc/Logo/modesto.png" width= "230px">
