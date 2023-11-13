@@ -33,7 +33,7 @@ def make_heat_profiles(case, start_time=pd.Timestamp('20140101'), time_step=300,
     sine = 600 + 400 * np.sin(
         [i / int(86400 / time_step) * 2 * np.pi - np.pi / 2 for i in range(int(5 * 86400 / time_step))])
 
-    time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
+    time_index = pd.date_range(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
 
     if case == 'step':
         heat_profile = pd.Series(step, index=time_index)

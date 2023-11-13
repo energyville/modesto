@@ -87,7 +87,7 @@ def setup_modesto_with_stor(graph, objtype='cost'):
     Pnom = 4e4
 
     # Building parameters
-    index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=horizon / time_step)
+    index = pd.date_range(start=start_time, freq=str(time_step) + 'S', periods=horizon / time_step)
     building_params = {
         'temperature_supply': 50 + 273.15,
         'temperature_return': 20 + 273.15,
@@ -193,7 +193,7 @@ def setup_modesto(graph, objtype='cost'):
     Pnom = 5e6
 
     # Building parameters
-    index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=horizon / time_step)
+    index = pd.date_range(start=start_time, freq=str(time_step) + 'S', periods=horizon / time_step)
     building_params = {
         'temperature_supply': 50 + 273.15,
         'temperature_return': 20 + 273.15,
