@@ -15,7 +15,7 @@ def test_rc_model():
 
     RCmodel = RCmodel('test', False)
 
-    time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
+    time_index = pd.date_range(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
     min_temp_room = pd.Series(16 + 273.15, index=time_index)
     max_temp_room = pd.Series(24 + 273.15, index=time_index)
 
@@ -167,7 +167,7 @@ def test_teaser_four_element():
 
     RCmodel = TeaserFourElement('test', False)
 
-    time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
+    time_index = pd.date_range(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
     min_temp_room = pd.Series(16 + 273.15, index=time_index)
     max_temp_room = pd.Series(24 + 273.15, index=time_index)
 

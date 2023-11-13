@@ -71,7 +71,7 @@ def construct_model():
         [i / int(86400 / time_step) * 2 * np.pi - np.pi / 2 for i in range(int(5 * 86400 / time_step))])
 
     # TODO fix sine profiles
-    time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
+    time_index = pd.date_range(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
 
     heat_profile_step = pd.Series(step, index=time_index)
     heat_profile_linear = pd.Series(linear, index=time_index)

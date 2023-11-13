@@ -20,7 +20,7 @@ def test_producer():
     start_time = '20140101'
     time_step = 3600
     n_steps = 24
-    time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
+    time_index = pd.date_range(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
 
     t_amb = pd.Series(0, time_index)
     t_g = pd.Series(0, time_index)

@@ -14,7 +14,7 @@ end_time = pd.Timestamp('20150101')
 time_step = 3600
 n_steps = (end_time-start_time).days*(24*3600/time_step)
 
-time_index = pd.DatetimeIndex(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
+time_index = pd.date_range(start=start_time, freq=str(time_step) + 'S', periods=n_steps)
 columns = ['day_max', 'day_min', 'night_max', 'night_min', 'bathroom_max',
            'bathroom_min', 'floor_max', 'floor_min', 'Q_int_D', 'Q_int_N']
 

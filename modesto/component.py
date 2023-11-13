@@ -2984,7 +2984,7 @@ class StorageRepr(StorageVariable):
                                         self.get_heat_stor_intra(d, t)))
             result.append(value(self.get_heat_stor_inter(self.DAYS_OF_YEAR[-1], self.TIME[-1]+1) +
                                 self.get_heat_stor_intra(self.DAYS_OF_YEAR[-1], self.TIME[-1]+1)))
-            index = pd.DatetimeIndex(start=start_time,
+            index = pd.date_range(start=start_time,
                                      freq=str(
                                          self.params['time_step'].v()) + 'S',
                                      periods=len(result))
@@ -3000,7 +3000,7 @@ class StorageRepr(StorageVariable):
 
             for d in self.DAYS_OF_YEAR:
                 result.append(value(self.get_heat_stor_inter(d, 0)))
-            index = pd.DatetimeIndex(start=start_time,
+            index = pd.date_range(start=start_time,
                                      freq='1D',
                                      periods=365)
             return pd.Series(index=index, data=result,
@@ -3012,7 +3012,7 @@ class StorageRepr(StorageVariable):
                     result.append(value(self.block.heat_loss_ct[t, self.repr_days[d]] + 1000 * 3600 / self.params[
                         'time_step'].v() * (self.get_heat_stor_inter(d, t) + self.get_heat_stor_intra(d, t)) * (
                                                 1 - self.block.exp_ttau)))
-            index = pd.DatetimeIndex(start=start_time, freq=str(self.params['time_step'].v()) + 'S',
+            index = pd.date_range(start=start_time, freq=str(self.params['time_step'].v()) + 'S',
                                      periods=len(result))
             return pd.Series(index=index, data=result,
                              name=self.name + '.heat_loss')

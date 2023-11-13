@@ -428,7 +428,7 @@ class Submodel(object):
                 '{}'.format(self.name, name, type(obj)))
             return None
 
-        timeindex = pd.DatetimeIndex(start=start_time,
+        timeindex = pd.date_range(start=start_time,
                                      freq=str(
                                          self.params['time_step'].v()) + 'S',
                                      periods=len(result))
