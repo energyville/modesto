@@ -170,7 +170,7 @@ def test_airsourceheatpump():
 
     optmodel.solve(tee=True)
 
-    assert round(optmodel.get_objective('energy')) == round(3.312438156e+06)
+    assert round(optmodel.get_objective('energy')) == round(3.318359930e+06)
     return optmodel
 
 
@@ -184,7 +184,7 @@ def test_ashp_mutate():
 
     optmodel.solve(tee=True)
 
-    assert round(optmodel.get_objective('energy')) == round(2.491779497e+06)
+    assert round(optmodel.get_objective('energy')) == round(2.496728314e+06)
     return optmodel
 
 

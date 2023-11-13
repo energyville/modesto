@@ -132,7 +132,7 @@ def setup_modesto_with_stor(graph, objtype='cost'):
         'diameter': 150
     }
 
-    if pipe_model is 'ExtensivePipe':
+    if pipe_model == 'ExtensivePipe':
         params['temperature_supply'] = 30 + 273.15
         params['temperature_return'] = 20 + 273.15
 
