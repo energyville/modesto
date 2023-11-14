@@ -68,3 +68,7 @@ def test_mass_flow_calculation():
 
     if not flag:
         raise Exception('The mass flow calculation was incorrect')
+
+
+if __name__ == '__main__':
+    test_mass_flow_calculation()
