@@ -97,9 +97,9 @@ class MfCalculation(object):
 
     def initialize_mass_flows(self):
         for edge in self.edges:
-            self.mass_flows[edge] = pd.Series(0, index=self.index)
+            self.mass_flows[edge] = pd.Series(0, index=self.index, dtype='float64')
 
-        self.mass_flows[self.unknown_node][self.unknown_comp] = pd.Series(0, index=self.index)
+        self.mass_flows[self.unknown_node][self.unknown_comp] = pd.Series(0, index=self.index, dtype='float64')
 
     def calculate_mf(self):
         """
@@ -135,7 +135,7 @@ class MfCalculation(object):
 
             # Calculate mass flow through producer node
             unknown_node_mf = (sum(
-                self.mass_flows[edge][t] * row[0, i] for i, edge in
+                self.mass_flows[edge].iloc[t] * row[i] for i, edge in
                 enumerate(self.edges)))
 
             # Calculate mass flow through producer component
