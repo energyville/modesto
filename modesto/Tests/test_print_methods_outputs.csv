@@ -340,7 +340,7 @@ Unit: W
 Value: 0
 
 -ramp
-Description: Maximum ramp (increase in heat output)
+Description: Maximum ramp rate (increase in heat output)
 Unit: W/s
 Value: 277.77777777777777
 
@@ -357,6 +357,16 @@ Value: 1
 -CO2_price
 Description: CO2 price
 Unit: euro/kg CO2
+
+-startup_cost
+Description: Cost associated with starting up the heating plant
+Unit: EUR
+Value: 0
+
+-initialize_on
+Description: Binary parameter that determines if this production was on (1) or off (0) before the start of the optimization period. Default value 0 (off)
+Unit: =
+Value: 0
 
 -delta_T
 Description: Temperature difference between supply and return of the heat source
