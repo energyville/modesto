@@ -843,13 +843,11 @@ class VariableComponent(Component):
 
 
 class ProducerVariable(VariableComponent):
+    """ 
+    Class that describes a variable producer
+    """
     def __init__(self, name, temperature_driven=False, heat_var=0.15,
                  repr_days=None):
-        """
-        Class that describes a variable producer
-
-        :param name: Name of the building
-        """
 
         VariableComponent.__init__(self,
                                    name=name,
@@ -869,44 +867,83 @@ class ProducerVariable(VariableComponent):
     def create_params(self):
 
         params = Component.create_params(self)
-        params.update({
-            'efficiency': DesignParameter('efficiency',
-                                          'Efficiency of the heat source',
-                                          '-'),
-            'CO2': DesignParameter('CO2',
-                                   'amount of CO2 released when using primary energy source',
-                                   'kg/kWh'),
-            'fuel_cost': UserDataParameter('fuel_cost',
-                                           'cost of fuel to generate heat',
-                                           'euro/kWh'),
-            'Qmax': DesignParameter('Qmax',
-                                    'Maximum possible heat output',
-                                    'W',
-                                    mutable=True),
-            'Qmin': DesignParameter('Qmin',
-                                    'Minimum possible heat output',
-                                    'W',
-                                    val=0,
-                                    mutable=True),
-            'ramp': DesignParameter('ramp',
-                                    'Maximum ramp (increase in heat output)',
-                                    'W/s'),
-            'ramp_cost': DesignParameter('ramp_cost',
-                                         'Ramping cost',
-                                         'euro/(W/s)'),
-            'cost_inv': SeriesParameter('cost_inv',
-                                        description='Investment cost as a function of Qmax',
-                                        unit='EUR',
-                                        unit_index='W'
-                                        ),
-            'CO2_price': UserDataParameter('CO2_price',
-                                           'CO2 price',
-                                           'euro/kg CO2'),
-            'lifespan': DesignParameter('lifespan', unit='y', description='Economic life span in years',
-                                        mutable=False, val=15),  # 15y for CHP
-            'fix_maint': DesignParameter('fix_maint', unit='-',
-                                         description='Annual maintenance cost as a fixed proportion of the investment',
-                                         mutable=False, val=0.05)
+        params.update(
+            {
+                'efficiency': DesignParameter(
+                    name='efficiency',
+                    description='Efficiency of the heat source',
+                    unit='-'
+                    ),
+                'CO2': DesignParameter(
+                    name='CO2',
+                    description='amount of CO2 released when using primary energy source',
+                    unit='kg/kWh'
+                    ),
+                'fuel_cost': UserDataParameter(
+                    name='fuel_cost',
+                    description='cost of fuel to generate heat',
+                    unit='euro/kWh'
+                    ),
+                'Qmax': DesignParameter(
+                    name='Qmax',
+                    description='Maximum possible heat output',
+                    unit='W',
+                    mutable=True
+                    ),
+                'Qmin': DesignParameter(
+                    name='Qmin',
+                    description='Minimum possible heat output',
+                    unit='W',
+                    val=0,
+                    mutable=True
+                    ),
+                'ramp': DesignParameter(
+                    name='ramp',
+                    description='Maximum ramp rate (increase in heat output)',
+                    unit='W/s'
+                    ),
+                'ramp_cost': DesignParameter(
+                    name='ramp_cost',
+                    description='Ramping cost',
+                    unit='euro/(W/s)'
+                    ),
+                'cost_inv': SeriesParameter(
+                    'cost_inv',
+                    description='Investment cost as a function of Qmax',
+                    unit='EUR',
+                    unit_index='W'
+                    ),
+                'CO2_price': UserDataParameter(
+                    'CO2_price',
+                    'CO2 price',
+                    'euro/kg CO2'
+                    ),
+                'lifespan': DesignParameter(
+                    'lifespan',
+                    unit='y',
+                    description='Economic life span in years',
+                    mutable=False,
+                    val=15 # 15y for CHP
+                    ),
+                'fix_maint': DesignParameter(
+                    'fix_maint', unit='-',
+                    description='Annual maintenance cost as a fixed proportion of the investment',
+                    mutable=False, val=0.05
+                    ),
+                'startup_cost': DesignParameter(
+                    name='startup_cost',
+                    description='Cost associated with starting up the heating plant',
+                    unit='EUR',
+                    mutable=True,
+                    val=0
+                    ),
+                'initialize_on': DesignParameter(
+                    name = 'initialize_on',
+                    description = 'Binary parameter that determines if this production was on (1) or off (0) before the start of the optimization period. Default value 0 (off)',
+                    unit = '=',
+                    mutable = True,
+                    val = 0
+                    )
         })
 
         if self.temperature_driven:
@@ -947,6 +984,11 @@ class ProducerVariable(VariableComponent):
         :return:
         """
         VariableComponent.compile(self, model, start_time)
+
+        assert not (self.temperature_driven and self.params['startup_cost'].v() > 0), \
+            'Startup cost for production unit currently not compatible with node model for pipes.'
+        assert not ((self.repr_days is None) and (self.params['startup_cost'].v() > 0)), \
+            ' Startup cost for production unit currently not compatible with representative days calculation.'
 
         if self.temperature_driven:
             self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
@@ -1010,20 +1052,33 @@ class ProducerVariable(VariableComponent):
                                                       rule=_init_temperature)
             self.block.dec_temp_mf0 = Constraint(self.TIME, rule=_decl_temp_mf0)
 
-        elif not self.compiled:
+        elif not self.compiled: # not self.temperature_driven
             if self.repr_days is None:
                 self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
                 self.block.ramping_cost = Var(self.TIME, initialize=0,
                                               within=NonNegativeReals)
+                
 
                 if not self.params['Qmin'].v() == 0:
-                    self.block.on = Var(self.TIME, within=Binary)
+                    self.block.on = Var(self.TIME, within=Binary, initialize=self.params['initialize_on'].v())
 
                     def _min_heat(b, t):
                         return b.Qmin * b.on[t] <= b.heat_flow[t]
 
                     def _max_heat(b, t):
                         return b.heat_flow[t] <= b.Qmax * b.on[t]
+                    
+                    if self.params['startup_cost'].v() > 0:
+                        self.block.startup = Var(self.TIME, within=NonNegativeReals, initialize=0) # note difference with block.startup_cost, a mutable Param object regarding the value of the startup cost.
+                        def _startup_cost_min(b, t):
+                            if t == 0:
+                                return b.startup[t] >= (b.on[t] - b.initialize_on) * b.startup_cost
+
+                            else:
+                                return b.startup[t] >= (b.on[t] - b.on[t-1]) * b.startup_cost
+
+                        def _startup_cost_max(b, t):
+                            return b.startup[t] <= b.startup_cost
 
                 else:
                     def _min_heat(b, t):
@@ -1049,7 +1104,7 @@ class ProducerVariable(VariableComponent):
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
-            else:
+            else: # repr_days is not None AND not self.compiled
                 self.block.heat_flow = Var(self.TIME,
                                            self.REPR_DAYS,
                                            within=NonNegativeReals)
@@ -1149,7 +1204,7 @@ class ProducerVariable(VariableComponent):
                                                                     rule=_decl_downward_ramp_cost)
                     self.block.decl_upward_ramp_cost = Constraint(self.TIME,
                                                                   rule=_decl_upward_ramp_cost)
-            else:
+            else: # self.repr_days is not None
                 def _decl_upward_ramp(b, t, c):
                     if t == 0:
                         return Constraint.Skip
@@ -1204,7 +1259,22 @@ class ProducerVariable(VariableComponent):
 
         self.compiled = True
 
+    def get_startup_cost(self, t):
+        """
+        Return startup cost for time step t
+        """
+        if self.params['startup_cost'].v() > 0:
+            return self.block.startup[t]
+        else:
+            return 0
+    
     def get_ramp_cost(self, t, c=None):
+        """ 
+        Return ramping cost for time step t
+
+        :param t: Time step t
+        :param c: Representative day counter c
+        """
         if c is None:
             return self.block.ramping_cost[t]
         else:
@@ -1268,7 +1338,7 @@ class ProducerVariable(VariableComponent):
             'fuel_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
 
-        if self.repr_days is None:
+        if self.repr_days is None: #TODO separate ramping costs and fuel costs into separate objective function parts
             return sum(self.get_ramp_cost(t) + cost.v(t) / eta *
                        self.get_heat(t)
                        / 3600 * self.params['time_step'].v() / 1000 for t in
@@ -1281,6 +1351,12 @@ class ProducerVariable(VariableComponent):
                                                  'time_step'].v() / 1000) for t
                        in
                        self.TIME for c in self.REPR_DAYS)
+    
+    def obj_cost_startup(self):
+        """
+        Generator for startup cost objective variables to be summed
+        """
+        return sum(self.get_startup_cost(t) for t in self.TIME)
 
     def obj_co2(self):
         """
@@ -2379,8 +2455,7 @@ class StorageVariable(VariableComponent):
             raise ValueError('Storage type should be 0 (pit) or 1 (tank). In {}'.format(self.name))
 
         self.temp_diff = self.params['temperature_supply'].v() - self.params['temperature_return'].v()
-        assert (
-                self.temp_diff > 0), 'Temperature difference should be positive.'
+        assert (self.temp_diff > 0), 'Temperature difference should be positive.'
 
         self.temp_sup = self.params['temperature_supply'].v()
         self.temp_ret = self.params['temperature_return'].v()
