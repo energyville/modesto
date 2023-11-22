@@ -1,6 +1,7 @@
 Structure/~$structure.pptx
 .idea/
 *.pyc
+activate/
 doc/build/doctrees/
 doc/build/html/
 modesto.egg-info/
@@ -17,3 +18,4 @@ misc/RepresentativePeriods/comparison/
 misc/RepresentativePeriodsMILP/comparison/
 venv/
 .vs/
+.vscode/
