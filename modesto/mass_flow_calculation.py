@@ -135,8 +135,7 @@ class MfCalculation(object):
 
             # Calculate mass flow through producer node
             unknown_node_mf = (sum(
-                self.mass_flows[edge].iloc[t] * row[i] for i, edge in
-                enumerate(self.edges)))
+                self.mass_flows[edge].iloc[t] * row[0, i] for i, edge in enumerate(self.edges)))
 
             # Calculate mass flow through producer component
             self.mass_flows[self.unknown_node][self.unknown_comp].iloc[t] = \
