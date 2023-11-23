@@ -285,7 +285,15 @@ class Component(Submodel):
 
     def obj_fuel_cost(self):
         """
-        Yield summation of energy variables for objective function, but only for relevant component types
+        Yield summation of fuel costs for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
+    def obj_startup_cost(self):
+        """
+        Yield summation of startup costs for cost objective function, but only for relevant component types.
 
         :return:
         """
@@ -987,7 +995,7 @@ class ProducerVariable(VariableComponent):
 
         assert not (self.temperature_driven and self.params['startup_cost'].v() > 0), \
             'Startup cost for production unit currently not compatible with node model for pipes.'
-        assert not ((self.repr_days is None) and (self.params['startup_cost'].v() > 0)), \
+        assert not ((self.repr_days is not None) and (self.params['startup_cost'].v() > 0)), \
             ' Startup cost for production unit currently not compatible with representative days calculation.'
 
         if self.temperature_driven:
@@ -1057,7 +1065,6 @@ class ProducerVariable(VariableComponent):
                 self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
                 self.block.ramping_cost = Var(self.TIME, initialize=0,
                                               within=NonNegativeReals)
-                
 
                 if not self.params['Qmin'].v() == 0:
                     self.block.on = Var(self.TIME, within=Binary, initialize=self.params['initialize_on'].v())
@@ -1070,6 +1077,7 @@ class ProducerVariable(VariableComponent):
                     
                     if self.params['startup_cost'].v() > 0:
                         self.block.startup = Var(self.TIME, within=NonNegativeReals, initialize=0) # note difference with block.startup_cost, a mutable Param object regarding the value of the startup cost.
+
                         def _startup_cost_min(b, t):
                             if t == 0:
                                 return b.startup[t] >= (b.on[t] - b.initialize_on) * b.startup_cost
@@ -1079,6 +1087,9 @@ class ProducerVariable(VariableComponent):
 
                         def _startup_cost_max(b, t):
                             return b.startup[t] <= b.startup_cost
+
+                        self.block.startup_cost_min = Constraint(self.TIME, rule=_startup_cost_min)
+                        self.block.startup_cost_max = Constraint(self.TIME, rule=_startup_cost_max)
 
                 else:
                     def _min_heat(b, t):
@@ -1327,6 +1338,12 @@ class ProducerVariable(VariableComponent):
                            'time_step'].v() / 1000 for t in self.TIME for c in
                        self.REPR_DAYS)
 
+    def obj_startup_cost(self):
+        if self.repr_days is None:
+            return sum(self.get_startup_cost(t) for t in self.TIME)
+        elif self.params['startup_cost'].v() > 0:
+            raise ValueError('Nonnegative startup cost not compatible with representative days.')
+
     def obj_cost_ramp(self):
         """
         Generator for cost objective variables to be summed
@@ -1338,7 +1355,7 @@ class ProducerVariable(VariableComponent):
             'fuel_cost']  # cost consumed heat source (fuel/electricity)
         eta = self.params['efficiency'].v()
 
-        if self.repr_days is None: #TODO separate ramping costs and fuel costs into separate objective function parts
+        if self.repr_days is None: # TODO Objective functions on component level should not sum up different cost components. Sums are made in objective constructors in main.py.
             return sum(self.get_ramp_cost(t) + cost.v(t) / eta *
                        self.get_heat(t)
                        / 3600 * self.params['time_step'].v() / 1000 for t in
@@ -1351,12 +1368,7 @@ class ProducerVariable(VariableComponent):
                                                  'time_step'].v() / 1000) for t
                        in
                        self.TIME for c in self.REPR_DAYS)
-    
-    def obj_cost_startup(self):
-        """
-        Generator for startup cost objective variables to be summed
-        """
-        return sum(self.get_startup_cost(t) for t in self.TIME)
+
 
     def obj_co2(self):
         """

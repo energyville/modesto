@@ -202,9 +202,10 @@ class Modesto:
                 comp.obj_energy() for comp in self.iter_components())
 
         def obj_cost(model):
-            return model.Slack + sum(
-                comp.obj_fuel_cost() for comp in self.iter_components()) + sum(
-                comp.obj_elec_cost() for comp in self.iter_components())
+            return model.Slack + \
+                   sum(comp.obj_fuel_cost() for comp in self.iter_components()) + \
+                   sum(comp.obj_elec_cost() for comp in self.iter_components()) + \
+                   sum(comp.obj_startup_cost() for comp in self.iter_components())
 
         def obj_cost_ramp(model):
             return model.Slack + sum(

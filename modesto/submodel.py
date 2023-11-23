@@ -281,6 +281,14 @@ class Submodel(object):
         """
         return 0
 
+    def obj_startup_cost(self):
+        """
+        Yield summation of startup costs for objective function, but only for relevant component types
+
+        :return:
+        """
+        return 0
+
     def obj_co2(self):
         """
         Yield summation of energy variables for objective function, but only for relevant component types
