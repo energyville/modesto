@@ -996,7 +996,10 @@ class ProducerVariable(VariableComponent):
         assert not (self.temperature_driven and self.params['startup_cost'].v() > 0), \
             'Startup cost for production unit currently not compatible with node model for pipes.'
         assert not ((self.repr_days is not None) and (self.params['startup_cost'].v() > 0)), \
-            ' Startup cost for production unit currently not compatible with representative days calculation.'
+            'Startup cost for production unit currently not compatible with representative days calculation.'
+        assert not (self.params['Qmin'].v() == 0 and self.params['startup_cost'].v() > 0), \
+            'Startup cost for production can only be larger than zero if Qmin is also larger than zero. Otherwise, ' \
+            'the model does not initialize a binary variable for the on state. '
 
         if self.temperature_driven:
             self.block.heat_flow = Var(self.TIME, within=NonNegativeReals)
@@ -1339,10 +1342,14 @@ class ProducerVariable(VariableComponent):
                        self.REPR_DAYS)
 
     def obj_startup_cost(self):
-        if self.repr_days is None:
+        if self.params['startup_cost'] == 0:
+            return 0
+        elif self.repr_days is None:
             return sum(self.get_startup_cost(t) for t in self.TIME)
         elif self.params['startup_cost'].v() > 0:
             raise ValueError('Nonnegative startup cost not compatible with representative days.')
+        else:
+            raise ValueError('Unknown combination of parameters')
 
     def obj_cost_ramp(self):
         """
