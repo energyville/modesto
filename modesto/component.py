@@ -851,8 +851,37 @@ class VariableComponent(Component):
 
 
 class ProducerVariable(VariableComponent):
-    """ 
-    Class that describes a variable producer
+    r"""
+    Class that describes a variable producer.
+
+    ProducerVariable contains parameters that simulate ramping (maximum ramp rate `ramp` and associated cost
+    `ramp_cost`, unit commitment (binary variable for on/off if `Qmin > 0`), and startup costs if unit commitment is
+    enabled.
+
+    Startup behaviour
+    -----------------
+
+    Startup is only modelled if ``Qmin > 0`` and if ``startup_cost > 0``.
+    The cost associated with a startup event is set with parameter ``startup_cost``. Let the variable startup cost for
+    each time step ``t`` be :math:`C_{SU}[t]` and the binary decision variable :math:`x_{ON}[t] \in {0,1}` represent whether the
+    plant is active during that time step. Furthermore, :math:`K_{SU}` represents the paramater value of the cost associated
+    with a startup event (``startup_cost``).
+
+    Then, the following constraints are applied:
+
+    .. math::
+
+        C_{SU}[t] & \geq & (x_{ON}[t] - x_{ON}[t-1]) K_{SU} \forall t > 0
+
+        C_{SU}[t] & \geq & 0 \forall t
+
+        C_{SU}[t] & \leq & K_{SU} \forall t
+
+    :math:`\sum_{t} C_{SU}[t]` is furthermore added to the minimal cost objective.
+    This ensures that the startup cost will be 0 when the plant remains on or off, or when it is switched off. Only when
+    the plant is switched on, :math:`C_{SU}` is forced to be equal to :math:`K_{SU}`.
+    The user specifies the initial on/off state of the plant (before time step 0) with parameter ``initialize_on``.
+
     """
     def __init__(self, name, temperature_driven=False, heat_var=0.15,
                  repr_days=None):
