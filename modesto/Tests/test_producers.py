@@ -1,9 +1,10 @@
+from modesto.main import Modesto
+import pandas as pd
+import networkx as nx
+import modesto.utils as ut
+from pkg_resources import resource_filename
+
 def test_producer():
-    from modesto.main import Modesto
-    import pandas as pd
-    import networkx as nx
-    import modesto.utils as ut
-    from pkg_resources import resource_filename
 
     def construct_model():
         G = nx.DiGraph()
@@ -90,6 +91,20 @@ def test_producer():
     except ValueError:
         return False
 
+def test_producer_startup_cost():
+    try:
+        from modesto.Examples import example_startupcosts_singlenode
+
+        optmodel = example_startupcosts_singlenode.construct_model()
+        optmodel.compile(start_time='20140101')
+        optmodel.set_objective('cost')
+
+        optmodel.solve(tee=True, mipgap=0.2)
+
+        return optmodel.get_result('startup', node='production', comp='plant').sum() == 3000
+
+    except ValueError:
+        return False
 
 if __name__ == '__main__':
     print(test_producer())
