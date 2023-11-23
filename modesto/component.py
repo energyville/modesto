@@ -936,7 +936,8 @@ class ProducerVariable(VariableComponent):
                     ),
                 'ramp': DesignParameter(
                     name='ramp',
-                    description='Maximum ramp rate (increase in heat output)',
+                    description='Maximum ramp rate (increase or decrease in heat output per second). Set to 0 if '
+                                'there should be no ramping constraints.',
                     unit='W/s'
                     ),
                 'ramp_cost': DesignParameter(
@@ -1137,13 +1138,10 @@ class ProducerVariable(VariableComponent):
 
                 def _mass_ub(m, t):
                     return m.mass_flow[t] * (
-                            1 + self.heat_var) * self.cp * m.delta_T >= \
-                           m.heat_flow[
-                               t]
+                            1 + self.heat_var) * self.cp * m.delta_T >= m.heat_flow[t]
 
                 def _mass_lb(m, t):
-                    return m.mass_flow[t] * self.cp * m.delta_T <= m.heat_flow[
-                        t]
+                    return m.mass_flow[t] * self.cp * m.delta_T <= m.heat_flow[t]
 
                 self.block.ineq_mass_lb = Constraint(self.TIME, rule=_mass_lb)
                 self.block.ineq_mass_ub = Constraint(self.TIME, rule=_mass_ub)
@@ -1199,7 +1197,7 @@ class ProducerVariable(VariableComponent):
                                                      self.REPR_DAYS,
                                                      rule=_mass_ub)
 
-        if not self.compiled:
+        if not self.compiled and self.params['ramp'].v() > 0:
             if self.repr_days is None:
                 def _decl_upward_ramp(b, t):
                     if t == 0:
