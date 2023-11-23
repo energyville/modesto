@@ -246,6 +246,10 @@ class ExtensivePipe(Pipe):
         The variables between the IN and OUT node are non-negative, but they are allowed to be such at the same time.
         In the optimal case, the two variables should not be different from zero at the same time.
 
+        In this model, heat loss is treated as a linear function of the mass flow rate. The heat loss is equal
+        to the nominal heat loss (steady state) at a fraction of 0.7233 of the maximum rated mass flow rate,
+        depending on the pipe diameter.
+
 
         :param name: Name of the pipe (str)
         :param start_node: Node at the beginning of the pipe (str)
@@ -412,6 +416,15 @@ class ExtensivePipe(Pipe):
             ##############
 
             def _eq_heat_flow_bal(b, t, c=None):
+                """
+                Heat balance equation over pipe. Due to sign convention (hf_in > 0 means heat flowing into the pipe at
+                the inlet side and hf_out > 0 means heat flowing out of the outlet), this equation holds for forward
+                and for reverse flow.
+
+                :param b: Optimization problem block for this component
+                :param t: time step
+                :param c: representative week number
+                """
                 if self.repr_days is None:
                     return b.heat_flow_in[t] == b.heat_loss_tot[t] + \
                            b.heat_flow_out[t]
@@ -451,6 +464,16 @@ class ExtensivePipe(Pipe):
                 self.block.ineq_mass_flow_neg = Constraint(self.TIME, self.REPR_DAYS, rule=_mass_flow_neg)
 
             def _eq_heat_loss(b, t, c=None):
+                """
+                In this model, heat loss is treated as a linear function of the mass flow rate. The heat loss is equal
+                to the nominal heat loss (steady state) at a fraction of 0.7233 of the maximum rated mass flow rate,
+                depending on the pipe diameter.
+
+                :param b:
+                :param t:
+                :param c:
+                :return:
+                """
                 if self.repr_days is None:
                     return b.heat_loss_tot[t] * (self.hl_setting * b.mass_flow_max) == b.heat_loss_nom[t] * \
                            b.mass_flow_abs[t] * self.length
